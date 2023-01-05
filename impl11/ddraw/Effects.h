@@ -150,6 +150,8 @@ using FaceGroups = std::map<int32_t, int32_t>;
 using MeshData = std::tuple<FaceGroups, int32_t, void*, int>;
 // The BLAS map
 extern std::map<int32_t, MeshData> g_LBVHMap;
+// This TLAS map
+extern std::map<int32_t, int32_t> g_TLASMap;
 
 // ********************************
 // DATReader function pointers

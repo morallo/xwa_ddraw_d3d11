@@ -549,16 +549,17 @@ void DumpGlobalAABBandTLASToOBJ()
 
 	// Dump all the other AABBs in tlasLeaves
 	int counter = 0;
-	for (const auto& leaf : tlasLeaves)
+	for (auto& leaf : tlasLeaves)
 	{
 		// Morton Code, Bounding Box, TriID, Matrix, Centroid
-		AABB aabb = std::get<1>(leaf);
-		const Matrix4& m = std::get<3>(leaf);
+		AABB aabb = TLASGetAABB(leaf);
+		const Matrix4& m = TLASGetMatrix4(leaf);
 		aabb.UpdateLimits();
 		aabb.TransformLimits(S1 * m);
 		VerticesCount = aabb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
 	}
 	fclose(D3DDumpOBJFile);
+	log_debug("[DBG] [BVH] Dumped: %d tlas leaves", counter);
 }
 
 void BuildTLAS()
@@ -912,6 +913,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		// Reset the global AABB at the beginning of each frame
 		g_GlobalAABB.SetInfinity();
 		tlasLeaves.clear();
+		g_TLASMap.clear();
 
 		if (g_bRTCaptureCameraAABB && g_iPresentCounter > 2) {
 			/* Get the Frustrum and Camera Space global AABB */
@@ -1392,7 +1394,6 @@ void EffectsRenderer::SceneEnd()
 		}
 #endif
 		//DumpFrustrumToOBJ();
-		// TODO: Dump the global AABB and all the TLAS leaves
 		DumpGlobalAABBandTLASToOBJ();
 	}
 
@@ -2796,27 +2797,8 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 	g_GlobalAABB.Expand(box);
 
 	// Add this mesh to the current TLAS leaves. We're assuming this method won't be called
-	// if we've seen this mesh before
-	//tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
-
-	// Add this mesh to the current TLAS leaves, but avoid duplicates
-//#ifdef DISABLED
-	int size = tlasLeaves.size();
-	if (size > 0)
-	{
-		// TODO: This is not a great way to avoid duplicates. We should use an std::map here
-		// and check the meshKey
-		auto& lastItem = tlasLeaves[tlasLeaves.size() - 1];
-		int lastMeshID = TLASGetID(lastItem);
-		XwaVector3 lastCentroid = TLASGetCentroid(lastItem);
-		// Avoid duplicates:
-		if (!globalCentroid.equals(lastCentroid) || meshID != lastMeshID)
-			tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
-	}
-	else
-		// List empty, just add this mesh
-		tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
-//#endif
+	// if we've seen this mesh before so no leaves will be duplicated.
+	tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
 
 #ifdef DUMP_TLAS
 	if (g_bDumpSSAOBuffers)
@@ -2839,51 +2821,31 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 	g_TLASTree = InsertRB(g_TLASTree, meshID, code, aabb, WorldViewTransform);
 }
 
+// Update g_TLASMap: checks if we've seen the current mesh in this frame. If we
+// haven't seen this mesh, a new matrix slot is requested and a new (meshKey, matrixSlot)
+// entry is added to g_TLASMap. Otherwise we fetch the matrixSlot for the meshKey.
+//
 // Update g_LBVHMap: checks if the current mesh/face group combination is new.
-// If it is, then:
-// - A new meshData tuple will be added into g_LBVHMap and this will request a
-//   tree rebuild at the end of this frame.
-// - (Regular flight only) A new leaf entry is added to the current TLAS. The
-//   TLAS is always rebuilt on every frame.
+// If it is, then a new meshData tuple will be added into g_LBVHMap and this will
+// request a BLAS tree rebuild at the end of this frame.
+//
+// The same matrixSlot is used for both maps and makes a direct link between the TLAS
+// and the BLASes
 void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
-
-	if (g_rendererType == RendererType_Shadow)
-		// This is a hangar shadow, ignore
-		return;
-
-	MeshData meshData;
-	FaceGroups FGs;
 	int32_t meshKey = MakeMeshKey(scene);
-	auto it = g_LBVHMap.find(meshKey);
-	std::get<2>(meshData) = nullptr; // Initialize the BVH to NULL
 	int matrixSlot = -1;
 
-	// We have seen this mesh before, but we need to check if we've seen
-	// the FG as well
-	if (it != g_LBVHMap.end())
+	// Update g_TLASMap and get new matrix slots if necessary
 	{
-		// Check if we've seen this FG group before
-		meshData = it->second;
-		FGs = std::get<0>(meshData);
-		matrixSlot = std::get<3>(meshData);
-		// The FG key is FaceIndices:
-		auto it = FGs.find((int32_t)scene->FaceIndices);
-		if (it != FGs.end())
+		auto it = g_TLASMap.find(meshKey);
+		if (it == g_TLASMap.end())
 		{
-			// We've seen this mesh/FG combination before, ignore
-			return;
-		}
-	}
-	else
-	{
-		// We haven't seen this mesh before, reserve a slot in _RTMatrices
-		matrixSlot = RTGetNextAvailableMatrixSlot();
-		/*
-		// If we're in regular flight, we can add this mesh to the tlasLeaves
-		if (g_bRTEnabled && !_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner) {
+			// This is a new mesh, we can add it to the TLASMap
+			matrixSlot = RTGetNextAvailableMatrixSlot();
+			g_TLASMap[meshKey] = matrixSlot;
 			Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
 			// Fetch the AABB for this mesh
 			auto aabb_it = _AABBs.find(meshKey);
@@ -2892,7 +2854,32 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 				AddAABBToTLAS(W, meshKey, aabb_it->second);
 			}
 		}
-		*/
+		else
+		{
+			// We've seen this mesh before in this frame, just fetch its matrix slot
+			matrixSlot = it->second;
+		}
+	}
+
+	// Now update the g_LBVHMap so that we can rebuild BLASes if needed.
+	MeshData meshData;
+	FaceGroups FGs;
+	auto it = g_LBVHMap.find(meshKey);
+	std::get<2>(meshData) = nullptr; // Initialize the BVH to NULL
+	// We have seen this mesh before, but we need to check if we've seen
+	// the FG as well
+	if (it != g_LBVHMap.end())
+	{
+		// Check if we've seen this FG group before
+		meshData = it->second;
+		FGs = std::get<0>(meshData);
+		// The FG key is FaceIndices:
+		auto it = FGs.find((int32_t)scene->FaceIndices);
+		if (it != FGs.end())
+		{
+			// We've seen this mesh/FG combination before, ignore
+			return;
+		}
 	}
 
 	// Signal that there's at least one BLAS that needs to be rebuilt
@@ -2909,8 +2896,11 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	std::get<0>(meshData) = FGs;
 	std::get<1>(meshData) = scene->VerticesCount;
 	std::get<2>(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
-	std::get<3>(meshData) = matrixSlot;
+	std::get<3>(meshData) = matrixSlot; // This is a redundant copy of the matrix slot
+	//uint32_t preSize = g_LBVHMap.size();
 	g_LBVHMap[meshKey] = meshData;
+	//uint32_t postSize = g_LBVHMap.size();
+	//if (postSize > preSize) log_debug("[DBG] [BVH] g_LBVHMap.size() increased to: %d", postSize);
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
@@ -3202,33 +3192,15 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Only add these vertices to the global BVH if we're in the Tech Room and
 	// the texture is not transparent (engine glows are transparent and may both
 	// cast and catch shadows otherwise).
-	if (g_bRTEnabledInTechRoom && g_bInTechRoom &&
+	if ((g_bRTEnabledInTechRoom || g_bRTEnabled) &&
+		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
-		!_lastTextureSelected->is_LightTexture)
+		!_lastTextureSelected->is_LightTexture &&
+		!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner)
 	{
 		UpdateGlobalBVH(scene, _currentOptMeshIndex);
 	}
-
-//#ifdef DISABLED
-	// TlAS construction
-	if (g_bRTEnabled && scene != nullptr)
-	{
-		// g_bRTCaptureCameraAABB is false when the Camera AABB has been captured
-		bool addToTLAS = !g_bRTCaptureCameraAABB && !_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner;
-		if (addToTLAS)
-		{
-			Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
-			// Fetch the AABB for this mesh
-			int meshID = (int)scene->MeshVertices;
-			auto aabb_it = _AABBs.find(meshID);
-			if (aabb_it != _AABBs.end()) {
-				// Update the current TLAS
-				AddAABBToTLAS(W, meshID, aabb_it->second);
-			}
-		}
-	}
-//#endif
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.
