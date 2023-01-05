@@ -203,12 +203,20 @@ extern bool g_bShadowMappingEnabled;
 extern MetricReconstructionCB g_MetricRecCBuffer;
 extern bool g_bYCenterHasBeenFixed;
 
-// Raytracing
-std::map<int32_t, MeshData> g_LBVHMap;
-
 void ResetXWALightInfo();
 void ResetObjectIndexMap();
 void ResetRawMouseInput();
+
+// Raytracing
+// This maps meshKeys (the vertex pointer) to MeshData tuples
+// This map is used to build BLASes and gets cleared in the following situations:
+// - Tech Room: Every time a new OPT is loaded
+// - Regular Flight: When OnSizeChanged() is called
+std::map<int32_t, MeshData> g_LBVHMap;
+// This maps meshKeys to matrix slots. It gets cleared at the beginning of every frame
+std::map<int32_t, int32_t> g_TLASMap;
+void RTResetMatrixSlotCounter();
+void ClearGlobalLBVHMap();
 
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
@@ -1730,10 +1738,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (g_bRTEnabled)
 	{
 		// This path is only hit when we're *not* in the Tech Room
+		RTResetMatrixSlotCounter();
+		ClearGlobalLBVHMap();
 		g_bRTCaptureCameraAABB = true;
 		g_iRTTotalNumNodesInFrame = g_iRTTotalNumNodesInPrevFrame = 0;
 		g_iRTTotalMeshesInFrame = g_iRTTotalMeshesInPrevFrame = 0;
-		g_iRTMatricesNextSlot = 0;
 		g_bRTReAllocateBuffers = false;
 		if (this->_RTBvh != nullptr)
 			this->_RTBvh->Release();

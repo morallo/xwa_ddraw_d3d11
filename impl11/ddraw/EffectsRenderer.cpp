@@ -94,6 +94,17 @@ int32_t MakeMeshKey(const SceneCompData* scene)
 	return (int32_t)scene->MeshVertices;
 }
 
+void RTResetMatrixSlotCounter()
+{
+	g_iRTMatricesNextSlot = 0;
+}
+
+int RTGetNextAvailableMatrixSlot()
+{
+	g_iRTMatricesNextSlot++;
+	return g_iRTMatricesNextSlot - 1;
+}
+
 float4 TransformProjection(float3 input)
 {
 	float vpScaleX = g_VSCBuffer.viewportScale[0];
@@ -1208,9 +1219,7 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 	auto& context = resources->_d3dDeviceContext;
 	HRESULT hr;
 
-	if (_lbvh == nullptr)
-		log_debug("[DBG] [BVH] _lbvh is NULL!");
-
+	//if (_lbvh == nullptr) log_debug("[DBG] [BVH] _lbvh is NULL!");
 	//log_debug("[DBG] [BVH] ReAllocateBvhBuffers IN. g_iRTTotalNumNodesInFrame: %d, _lbvh->numNodes: %d",
 	//	g_iRTTotalNumNodesInFrame, _lbvh->numNodes);
 
@@ -2786,7 +2795,12 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 	XwaVector3 globalCentroid = box.GetCentroid();
 	g_GlobalAABB.Expand(box);
 
+	// Add this mesh to the current TLAS leaves. We're assuming this method won't be called
+	// if we've seen this mesh before
+	//tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
+
 	// Add this mesh to the current TLAS leaves, but avoid duplicates
+//#ifdef DISABLED
 	int size = tlasLeaves.size();
 	if (size > 0)
 	{
@@ -2802,6 +2816,7 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 	else
 		// List empty, just add this mesh
 		tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
+//#endif
 
 #ifdef DUMP_TLAS
 	if (g_bDumpSSAOBuffers)
@@ -2825,8 +2840,11 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 }
 
 // Update g_LBVHMap: checks if the current mesh/face group combination is new.
-// If it is, then it will add a new meshData tuple into g_LBVHMap and this will
-// request a tree rebuild at the end of this frame
+// If it is, then:
+// - A new meshData tuple will be added into g_LBVHMap and this will request a
+//   tree rebuild at the end of this frame.
+// - (Regular flight only) A new leaf entry is added to the current TLAS. The
+//   TLAS is always rebuilt on every frame.
 void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
@@ -2862,8 +2880,19 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	else
 	{
 		// We haven't seen this mesh before, reserve a slot in _RTMatrices
-		matrixSlot = g_iRTMatricesNextSlot;
-		g_iRTMatricesNextSlot++;
+		matrixSlot = RTGetNextAvailableMatrixSlot();
+		/*
+		// If we're in regular flight, we can add this mesh to the tlasLeaves
+		if (g_bRTEnabled && !_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner) {
+			Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+			// Fetch the AABB for this mesh
+			auto aabb_it = _AABBs.find(meshKey);
+			if (aabb_it != _AABBs.end()) {
+				// Update the current TLAS
+				AddAABBToTLAS(W, meshKey, aabb_it->second);
+			}
+		}
+		*/
 	}
 
 	// Signal that there's at least one BLAS that needs to be rebuilt
@@ -3169,6 +3198,19 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (g_bEnableAnimations)
 		ApplyAnimatedTextures(objectId, bInstanceEvent);
 
+	// BLAS construction
+	// Only add these vertices to the global BVH if we're in the Tech Room and
+	// the texture is not transparent (engine glows are transparent and may both
+	// cast and catch shadows otherwise).
+	if (g_bRTEnabledInTechRoom && g_bInTechRoom &&
+		_bLastTextureSelectedNotNULL &&
+		!_lastTextureSelected->is_Transparent &&
+		!_lastTextureSelected->is_LightTexture)
+	{
+		UpdateGlobalBVH(scene, _currentOptMeshIndex);
+	}
+
+//#ifdef DISABLED
 	// TlAS construction
 	if (g_bRTEnabled && scene != nullptr)
 	{
@@ -3186,6 +3228,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			}
 		}
 	}
+//#endif
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
 	// other subclasses.
@@ -3200,17 +3243,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
 		// Set the current mesh transform
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
-	}
-
-	// Only add these vertices to the global BVH if we're in the Tech Room and
-	// the texture is not transparent (engine glows are transparent and may both
-	// cast and catch shadows otherwise).
-	if (g_bRTEnabledInTechRoom && g_bInTechRoom &&
-		_bLastTextureSelectedNotNULL &&
-		!_lastTextureSelected->is_Transparent &&
-		!_lastTextureSelected->is_LightTexture)
-	{
-		UpdateGlobalBVH(scene, _currentOptMeshIndex);
 	}
 
 	// Dump the current scene to an OBJ file

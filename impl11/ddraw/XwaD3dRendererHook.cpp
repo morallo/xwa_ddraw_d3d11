@@ -789,6 +789,8 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 	if (g_bInTechRoom && _lbvh != nullptr && !_isRTInitialized) {
 		HRESULT hr;
 
+		// TODO: This path needs to be unified with EffectsRenderer::ReAllocateBvhBuffers() at
+		//       some point, to avoid code duplicity.
 		// Create the BVH buffers
 		{
 			const int numNodes = _lbvh->numNodes;
@@ -863,7 +865,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 			D3D11_BUFFER_DESC desc;
 			ZeroMemory(&desc, sizeof(desc));
-			int numMatrices = 32; // TODO: Use the actual number of matrices
+			int numMatrices = 1;
 			desc.ByteWidth = sizeof(Matrix4) * numMatrices;
 			desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -1316,7 +1318,8 @@ void D3dRenderer::RenderGlowMarks()
 	_glowMarksTriangles.clear();
 }
 
-void ClearGlobalLBVH()
+// Clears g_LBVHMap
+void ClearGlobalLBVHMap()
 {
 	// Release any BLASes that may be stored in the BVH map
 	for (auto& it : g_LBVHMap)
@@ -1348,7 +1351,7 @@ void D3dRenderer::Initialize()
 	CreateShaders();
 
 	if (g_bRTEnabledInTechRoom || g_bRTEnabled) {
-		ClearGlobalLBVH();
+		ClearGlobalLBVHMap();
 		if (_lbvh != nullptr) {
 			delete _lbvh;
 			_lbvh = nullptr;
@@ -1738,12 +1741,13 @@ void D3dRendererOptLoadHook(int handle)
 	if (g_bRTEnabledInTechRoom && InTechGlobe()) {
 		if (g_current_renderer->_lbvh != nullptr)
 		{
+			// Re-create the LBVH
 			delete g_current_renderer->_lbvh;
 			g_current_renderer->_lbvh = nullptr;
 		}
 		// Re-create the BVH buffers:
 		g_current_renderer->_isRTInitialized = false;
-		ClearGlobalLBVH();
+		ClearGlobalLBVHMap();
 		// Loading external BVH files is no longer needed.
 		//g_current_renderer->_lbvh = LoadLBVH(s_XwaIOFileName);
 	}
