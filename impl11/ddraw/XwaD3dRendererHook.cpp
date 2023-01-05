@@ -191,17 +191,6 @@ RendererType g_rendererType = RendererType_Unknown;
 
 char g_curOPTLoaded[MAX_OPT_NAME];
 
-extern bool g_bEnableQBVHwSAH;
-//BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
-//BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
-BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
-
-char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
-	"    BVH2",
-	"    QBVH",
-	"FastQBVH"
-};
-
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
 void ComputeTreeStats(IGenericTreeNode* root);
@@ -303,412 +292,15 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 	GetViewportScale(_constants.viewportScale);
 	// Update g_bInTechGlobe
 	InTechGlobe();
-	_BLASNeedsUpdate = false;
 
 #if LOGGER_DUMP
 	DumpFrame();
 #endif
 }
 
-// Build a single BVH from the contents of the g_LBVHMap and put it into _lbvh
-void D3dRenderer::BuildSingleBLASFromCurrentBVHMap()
-{
-	// DEBUG, dump the vertices we saw in the previous frame to a file
-#ifdef DISABLED
-	if (false) {
-		int OBJIndex = 1;
-		char sFileName[80];
-		sprintf_s(sFileName, 80, ".\\mesh-all.obj");
-		FILE* file = NULL;
-		fopen_s(&file, sFileName, "wt");
-
-		for (const auto& it : g_LBVHMap)
-		{
-			int meshIndex = it.first;
-			XwaVector3* vertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
-			MeshData meshData = it.second;
-
-			// This block will cause each mesh to be dumped to a separate file
-			/*
-			int OBJIndex = 1;
-			char sFileName[80];
-			sprintf_s(sFileName, 80, ".\\mesh-%x.obj", meshIndex);
-			FILE* file = NULL;
-			fopen_s(&file, sFileName, "wt");
-			*/
-			if (file != NULL)
-			{
-				std::vector<int> indices;
-				const FaceGroups& FGs = std::get<0>(meshData);
-				for (const auto& FG : FGs)
-				{
-					OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
-					int FacesCount = FG.second;
-
-					for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
-						OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
-						int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-						indices.push_back(faceData.Vertex[0]);
-						indices.push_back(faceData.Vertex[1]);
-						indices.push_back(faceData.Vertex[2]);
-						if (edgesCount == 4) {
-							indices.push_back(faceData.Vertex[0]);
-							indices.push_back(faceData.Vertex[2]);
-							indices.push_back(faceData.Vertex[3]);
-						}
-					}
-
-					int numTris = indices.size() / 3;
-					for (int TriID = 0; TriID < numTris; TriID++)
-					{
-						int i = TriID * 3;
-
-						XwaVector3 v0 = vertices[indices[i + 0]];
-						XwaVector3 v1 = vertices[indices[i + 1]];
-						XwaVector3 v2 = vertices[indices[i + 2]];
-
-						//name = "t-" + std::to_string(TriID);
-						OBJIndex = DumpTriangle(std::string(""), file, OBJIndex, v0, v1, v2);
-					}
-				}
-				// fclose(file); // Uncomment this line when dumping each mesh to a separate file
-			} // if (file != NULL)
-
-		}
-
-		if (file) fclose(file);
-	}
-#endif
-
-	// Rebuild the whole tree using the current contents of g_LBVHMap
-	std::vector<XwaVector3> vertices;
-	std::vector<int> indices;
-	int TotalVertices = 0;
-
-	for (const auto& it : g_LBVHMap)
-	{
-		int meshIndex = it.first;
-		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
-		MeshData meshData = it.second;
-		const FaceGroups& FGs = std::get<0>(meshData);
-		int NumVertices = std::get<1>(meshData);
-
-		// Populate the vertices
-		for (int i = 0; i < NumVertices; i++)
-		{
-			vertices.push_back(XwaVertices[i]);
-		}
-
-		// Populate the indices
-		for (const auto& FG : FGs)
-		{
-			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
-			int FacesCount = FG.second;
-
-			for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
-				OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
-				int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-				indices.push_back(faceData.Vertex[0] + TotalVertices);
-				indices.push_back(faceData.Vertex[1] + TotalVertices);
-				indices.push_back(faceData.Vertex[2] + TotalVertices);
-				if (edgesCount == 4) {
-					indices.push_back(faceData.Vertex[0] + TotalVertices);
-					indices.push_back(faceData.Vertex[2] + TotalVertices);
-					indices.push_back(faceData.Vertex[3] + TotalVertices);
-				}
-			}
-		}
-
-		// All the FaceGroups have been added, update the starting offset
-		// for the indices
-		TotalVertices += NumVertices;
-	}
-
-	// All the vertices and indices have been accumulated, the tree can be built now
-	if (_lbvh != nullptr)
-		delete _lbvh;
-
-	// g_HiResTimer is called here to measure the time it takes to build the BVH. This should
-	// not be used during regular flight as it will mess up the animations
-	//g_HiResTimer.GetElapsedTime();
-
-	switch (g_BVHBuilderType)
-	{
-	case BVHBuilderType_BVH2:
-		// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-		_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-
-	case BVHBuilderType_QBVH:
-		// 2-step LBVH build: QBVH, Encoding.
-		_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-
-	case BVHBuilderType_FastQBVH:
-		// 1-step LBVH build: QBVH is built and encoded in one step.
-		_lbvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-	}
-	//g_HiResTimer.GetElapsedTime();
-	int root = _lbvh->nodes[0].rootIdx;
-	log_debug("[DBG] [BVH] Builder: %s:%s, %s, total nodes: %d, actual nodes: %d",
-		g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-		g_curOPTLoaded, _lbvh->numNodes, _lbvh->numNodes - root);
-
-	// These lines are for testing only. They get some stats for the BVH that has been just built
-	{
-		//BufferTreeNode* tree = new BufferTreeNode(_lbvh->nodes, root);
-		//ComputeTreeStats(tree);
-		//delete tree;
-	}
-}
-
-// Builds one BLAS per mesh and populates its corresponding tuple in g_LBVHMap
-void D3dRenderer::BuildMultipleBLASFromCurrentBVHMap()
-{
-	// At least one BLAS needs to be rebuilt in this frame, let's count
-	// the total nodes again.
-	g_iRTTotalNumNodesInFrame = 0;
-
-	for (auto& it : g_LBVHMap)
-	{
-		std::vector<XwaVector3> vertices;
-		std::vector<int> indices;
-		int meshIndex = it.first;
-		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
-		MeshData &meshData = it.second;
-		const FaceGroups& FGs = std::get<0>(meshData);
-		int NumVertices = std::get<1>(meshData);
-		LBVH *bvh = (LBVH *)std::get<2>(meshData);
-
-		// First, let's check if this mesh already has a BVH. If it does, skip it.
-		if (bvh != nullptr) {
-			// Update the total node count
-			g_iRTTotalNumNodesInFrame += bvh->numNodes;
-			continue;
-		}
-
-		// Populate the vertices
-		for (int i = 0; i < NumVertices; i++)
-		{
-			vertices.push_back(XwaVertices[i]);
-		}
-
-		// Populate the indices
-		for (const auto& FG : FGs)
-		{
-			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
-			int FacesCount = FG.second;
-
-			for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
-				OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
-				int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-				indices.push_back(faceData.Vertex[0]);
-				indices.push_back(faceData.Vertex[1]);
-				indices.push_back(faceData.Vertex[2]);
-				if (edgesCount == 4) {
-					indices.push_back(faceData.Vertex[0]);
-					indices.push_back(faceData.Vertex[2]);
-					indices.push_back(faceData.Vertex[3]);
-				}
-			}
-		}
-
-		// All the FaceGroups have been added, the tree can be built now
-		switch (g_BVHBuilderType)
-		{
-		case BVHBuilderType_BVH2:
-			// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-			bvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-
-		case BVHBuilderType_QBVH:
-			// 2-step LBVH build: QBVH, Encoding.
-			bvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-
-		case BVHBuilderType_FastQBVH:
-			// 1-step LBVH build: QBVH is built and encoded in one step.
-			bvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-		}
-
-		// Update the total node count
-		g_iRTTotalNumNodesInFrame += bvh->numNodes;
-
-		int root = bvh->nodes[0].rootIdx;
-		log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, total nodes: %d, actual nodes: %d",
-			g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-			g_curOPTLoaded, bvh->numNodes, bvh->numNodes - root);
-
-		// Put this bvh back into g_LBVHMap
-		std::get<2>(meshData) = bvh;
-	}
-
-	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, Prev: %d",
-		g_iRTTotalNumNodesInFrame, g_iRTTotalNumNodesInPrevFrame);
-
-	g_bRTReAllocateBuffers = (g_iRTTotalNumNodesInFrame > g_iRTTotalNumNodesInPrevFrame);
-	g_iRTTotalNumNodesInPrevFrame = max(g_iRTTotalNumNodesInPrevFrame, g_iRTTotalNumNodesInFrame);
-}
-
-void D3dRenderer::ReAllocateBvhBuffers()
-{
-	// Create the buffers for the BVH -- this code path applies for in-flight RT
-	auto &resources = _deviceResources;
-	auto& device = resources->_d3dDevice;
-	auto &context = resources->_d3dDeviceContext;
-	HRESULT hr;
-
-	if (_lbvh == nullptr)
-		log_debug("[DBG] [BVH] _lbvh is NULL!");
-
-	log_debug("[DBG] [BVH] ReAllocateBvhBuffers IN. g_iRTTotalNumNodesInFrame: %d, _lbvh->numNodes: %d",
-		g_iRTTotalNumNodesInFrame, _lbvh->numNodes);
-
-	// (Re-)Create the BVH buffers
-	if (g_bRTReAllocateBuffers)
-	{
-		D3D11_BUFFER_DESC desc;
-		ZeroMemory(&desc, sizeof(desc));
-
-		if (resources->_RTBvh != nullptr)
-		{
-			resources->_RTBvh.Release();
-			resources->_RTBvh = nullptr;
-		}
-
-		if (resources->_RTBvhSRV != nullptr)
-		{
-			resources->_RTBvhSRV.Release();
-			resources->_RTBvhSRV = nullptr;
-		}
-
-		const int numNodes = g_iRTTotalNumNodesInFrame;
-		desc.ByteWidth = sizeof(BVHNode) * numNodes;
-		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-		desc.StructureByteStride = sizeof(BVHNode);
-
-		hr = device->CreateBuffer(&desc, nullptr, &(resources->_RTBvh));
-		if (FAILED(hr)) {
-			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH buffer: 0x%x", hr);
-		}
-
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-		ZeroMemory(&srvDesc, sizeof(srvDesc));
-		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = numNodes;
-
-		hr = device->CreateShaderResourceView(resources->_RTBvh, &srvDesc, &(resources->_RTBvhSRV));
-		if (FAILED(hr)) {
-			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH SRV: 0x%x", hr);
-		}
-		else {
-			log_debug("[DBG] [BVH] [REALLOC] BVH buffers created");
-		}
-	}
-
-	// (Re-)Create the matrices buffer
-	g_iRTTotalMeshesInFrame = g_LBVHMap.size();
-	bool bReallocateMatrixBuffers = g_iRTTotalMeshesInFrame > g_iRTTotalMeshesInPrevFrame;
-
-	if (bReallocateMatrixBuffers)
-	{
-		D3D11_BUFFER_DESC desc;
-		ZeroMemory(&desc, sizeof(desc));
-
-		if (resources->_RTMatrices != nullptr)
-		{
-			resources->_RTMatrices.Release();
-			resources->_RTMatrices = nullptr;
-		}
-
-		const int numMatrices = g_iRTTotalMeshesInFrame;
-		desc.ByteWidth = sizeof(Matrix4) * numMatrices;
-		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-		desc.StructureByteStride = sizeof(Matrix4);
-
-		hr = device->CreateBuffer(&desc, nullptr, &(resources->_RTMatrices));
-		if (FAILED(hr)) {
-			log_debug("[DBG] [BVH] [REALLOC] Failed when creating _RTMatrices: 0x%x", hr);
-		}
-
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-		ZeroMemory(&srvDesc, sizeof(srvDesc));
-		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = numMatrices;
-
-		hr = device->CreateShaderResourceView(resources->_RTMatrices, &srvDesc, &(resources->_RTMatricesSRV));
-		if (FAILED(hr)) {
-			log_debug("[DBG] [BVH] [REALLOC] Failed when creating _RTMatricesSRV: 0x%x", hr);
-		}
-		else {
-			log_debug("[DBG] [BVH] [REALLOC] _RTMatricesSRV created");
-		}
-	}
-
-	// Populate the BVH buffer
-	if (_BLASNeedsUpdate)
-	{
-		D3D11_MAPPED_SUBRESOURCE map;
-		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-		hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		if (SUCCEEDED(hr))
-		{
-			uint8_t *base_ptr = (uint8_t *)map.pData;
-			for (auto& it : g_LBVHMap)
-			{
-				const MeshData& meshData = it.second;
-				LBVH *bvh = (LBVH *)std::get<2>(meshData);
-				if (bvh != nullptr)
-				{
-					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
-					base_ptr += sizeof(BVHNode) * bvh->numNodes;
-				}
-			}
-			context->Unmap(resources->_RTBvh.Get(), 0);
-		}
-		else
-			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
-	}
-
-	g_iRTTotalMeshesInPrevFrame = g_iRTTotalMeshesInFrame;
-
-	log_debug("[DBG] [BVH] ReAllocateBvhBuffers OUT");
-}
-
 void D3dRenderer::SceneEnd()
 {
 	_deviceResources->_d3dAnnotation->EndEvent();
-
-	if (_BLASNeedsUpdate)
-	{
-		if (g_bRTEnabledInTechRoom && g_bInTechRoom)
-		{
-			// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
-			BuildSingleBLASFromCurrentBVHMap();
-		}
-		else if (g_bRTEnabled)
-		{
-			// Build multiple BLASes and put them in g_LBVHMap
-			BuildMultipleBLASFromCurrentBVHMap();
-			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
-			ReAllocateBvhBuffers();
-			g_bRTReAllocateBuffers = false;
-		}
-		_BLASNeedsUpdate = false;
-	}
 }
 
 void D3dRenderer::FlightStart()
@@ -1199,27 +791,22 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 		// Create the BVH buffers
 		{
-			/*
-			D3D11_SUBRESOURCE_DATA initialData;
-			initialData.pSysMem = lbvh->nodes;
-			initialData.SysMemPitch = 0;
-			initialData.SysMemSlicePitch = 0;
-			*/
+			const int numNodes = _lbvh->numNodes;
+
+			if (resources->_RTBvh != nullptr)
+			{
+				resources->_RTBvh.Release();
+				resources->_RTBvh = nullptr;
+			}
+
+			if (resources->_RTBvhSRV != nullptr)
+			{
+				resources->_RTBvhSRV.Release();
+				resources->_RTBvhSRV = nullptr;
+			}
 
 			D3D11_BUFFER_DESC desc;
 			ZeroMemory(&desc, sizeof(desc));
-			/*
-			desc.ByteWidth = sizeof(BVHNode) * lbvh->numNodes;
-			desc.Usage = D3D11_USAGE_IMMUTABLE;
-			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-			desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-			desc.StructureByteStride = sizeof(BVHNode);
-			*/
-
-			// Sample case: allocate N times more nodes than what we're going to use
-			// In a real scenario, we'll probably allocate some initial memory and then
-			// expand it as necessary.
-			const int numNodes = _lbvh->numNodes; // * 3;
 			desc.ByteWidth = sizeof(BVHNode) * numNodes;
 			desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -1238,7 +825,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 			srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 			srvDesc.Buffer.FirstElement = 0;
-			srvDesc.Buffer.NumElements = numNodes; // lbvh->numNodes;
+			srvDesc.Buffer.NumElements = numNodes;
 
 			hr = device->CreateShaderResourceView(resources->_RTBvh, &srvDesc, &(resources->_RTBvhSRV));
 			if (FAILED(hr)) {
@@ -1262,6 +849,18 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		
 		// Create the matrices buffer
 		{
+			if (resources->_RTMatrices != nullptr)
+			{
+				resources->_RTMatrices.Release();
+				resources->_RTMatrices = nullptr;
+			}
+
+			if (resources->_RTMatricesSRV != nullptr)
+			{
+				resources->_RTMatricesSRV.Release();
+				resources->_RTMatricesSRV = nullptr;
+			}
+
 			D3D11_BUFFER_DESC desc;
 			ZeroMemory(&desc, sizeof(desc));
 			int numMatrices = 32; // TODO: Use the actual number of matrices
@@ -1735,6 +1334,9 @@ void ClearGlobalLBVH()
 
 void D3dRenderer::Initialize()
 {
+	// This method is called whenever 3D is first displayed. It can either be the Tech Room
+	// or regular flight. Either way, it's only called once
+
 	if (_deviceResources->_d3dFeatureLevel < D3D_FEATURE_LEVEL_10_0)
 	{
 		MessageBox(nullptr, "The D3d renderer hook requires a graphic card that supports D3D_FEATURE_LEVEL_10_0.", "X-Wing Alliance DDraw", MB_ICONWARNING);
@@ -1745,13 +1347,12 @@ void D3dRenderer::Initialize()
 	CreateStates();
 	CreateShaders();
 
-	if (g_bRTEnabledInTechRoom && _lbvh != nullptr) {
+	if (g_bRTEnabledInTechRoom || g_bRTEnabled) {
 		ClearGlobalLBVH();
-		delete _lbvh;
-		_lbvh = nullptr;
-	}
-	else if (g_bRTEnabled && !g_bInTechRoom) {
-		ClearGlobalLBVH();
+		if (_lbvh != nullptr) {
+			delete _lbvh;
+			_lbvh = nullptr;
+		}
 	}
 }
 
@@ -2120,6 +1721,7 @@ LBVH *LoadLBVH(char *s_XwaIOFileName) {
 	return LBVH::LoadLBVH(sBVHFileName, true, false);
 }
 
+// This path is hit both in the Tech Room and during regular flight
 void D3dRendererOptLoadHook(int handle)
 {
 	const auto GetSizeFromHandle = (int(*)(int))0x0050E3B0;
@@ -2133,7 +1735,7 @@ void D3dRendererOptLoadHook(int handle)
 	// s_XwaIOFileName includes the relative path, like "FlightModels\AWingExterior.opt"
 	// Here we can side-load additional data for this OPT, like tangent maps (?) or
 	// pre-computed BVH data.
-	if (g_bRTEnabledInTechRoom) {
+	if (g_bRTEnabledInTechRoom && InTechGlobe()) {
 		if (g_current_renderer->_lbvh != nullptr)
 		{
 			delete g_current_renderer->_lbvh;

@@ -87,8 +87,10 @@ protected:
 	D3D11_VIEWPORT _oldViewports[2];
 	UINT _oldNumViewports = 2;
 
-	ComPtr<ID3D11ComputeShader> _RTShadowCS;
+	// Set to true in the current frame if the BLAS needs to be updated.
+	bool _BLASNeedsUpdate;
 
+	ComPtr<ID3D11ComputeShader> _RTShadowCS;
 
 	void OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A);
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
@@ -129,6 +131,9 @@ public:
 	void ApplyNormalMapping();
 
 	// Raytracing
+	void BuildSingleBLASFromCurrentBVHMap();
+	void BuildMultipleBLASFromCurrentBVHMap();
+	void ReAllocateBvhBuffers(const int numNodes);
 	void ApplyRTShadows(const SceneCompData* scene);
 	void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb);
 	void UpdateGlobalBVH(const SceneCompData* scene, int meshIndex);

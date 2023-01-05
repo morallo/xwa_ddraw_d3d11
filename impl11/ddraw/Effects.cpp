@@ -931,6 +931,6 @@ bool InTechGlobe()
 	int currentGameState = *(int*)(0x09F60E0 + 0x25FA9);
 	int updateCallback = *(int*)(0x09F60E0 + 0x25FB1 + currentGameState * 0x850 + 0x0844);
 	int XwaTechLibraryGameStateUpdate = 0x00574D70;
-	g_bInTechRoom = updateCallback == XwaTechLibraryGameStateUpdate;
+	g_bInTechRoom = (updateCallback == XwaTechLibraryGameStateUpdate);
 	return g_bInTechRoom;
 }

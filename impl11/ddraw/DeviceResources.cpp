@@ -205,7 +205,6 @@ extern bool g_bYCenterHasBeenFixed;
 
 // Raytracing
 std::map<int32_t, MeshData> g_LBVHMap;
-void ClearGlobalLBVH();
 
 void ResetXWALightInfo();
 void ResetObjectIndexMap();
@@ -1728,18 +1727,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 	}
 
-	if (g_bRTEnabled || g_bRTEnabledInTechRoom)
+	if (g_bRTEnabled)
 	{
-		if (g_bRTEnabledInTechRoom)
-		{
-			ClearGlobalLBVH();
-		}
-
-		if (g_bRTEnabled)
-		{
-			g_bRTCaptureCameraAABB = true;
-		}
-
+		// This path is only hit when we're *not* in the Tech Room
+		g_bRTCaptureCameraAABB = true;
 		g_iRTTotalNumNodesInFrame = g_iRTTotalNumNodesInPrevFrame = 0;
 		g_iRTTotalMeshesInFrame = g_iRTTotalMeshesInPrevFrame = 0;
 		g_iRTMatricesNextSlot = 0;

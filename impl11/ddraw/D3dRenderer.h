@@ -96,8 +96,6 @@ public:
 	int _currentOptMeshIndex;
 	LBVH *_lbvh; // Global LBVH, used in the Tech Room
 	bool _isRTInitialized;
-	// Set to true in the current frame if the BLAS needs to be updated.
-	bool _BLASNeedsUpdate;
 
 	D3dRenderer();
 	virtual void SceneBegin(DeviceResources* deviceResources);
@@ -123,9 +121,6 @@ public:
 	void GetViewport(D3D11_VIEWPORT* viewport);
 	void GetViewportScale(float* viewportScale);
 	void SetRenderTypeIllum(int type);
-	void BuildSingleBLASFromCurrentBVHMap();
-	void BuildMultipleBLASFromCurrentBVHMap();
-	void ReAllocateBvhBuffers();
 
 protected:
 	DeviceResources* _deviceResources;
