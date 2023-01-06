@@ -355,11 +355,18 @@ void LBVH::PrintTree(std::string level, int curnode)
 	log_debug("[DBG] [BVH] %s", (level + "    --").c_str());
 }
 
-void LBVH::DumpToOBJ(char *sFileName)
+void LBVH::DumpToOBJ(char *sFileName, bool isTLAS, bool useMetricScale)
 {
 	BVHPrimNode *primNodes = (BVHPrimNode *)nodes;
 	FILE *file = NULL;
 	int index = 1;
+	float scale[3] = { 1.0f, -1.0f, 1.0f };
+	if (useMetricScale)
+	{
+		scale[0] =  OPT_TO_METERS;
+		scale[1] = -OPT_TO_METERS;
+		scale[2] =  OPT_TO_METERS;
+	}
 
 	fopen_s(&file, sFileName, "wt");
 	if (file == NULL) {
@@ -369,44 +376,73 @@ void LBVH::DumpToOBJ(char *sFileName)
 
 	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes);
 	for (int i = 0; i < numNodes; i++) {
-		if (nodes[i].ref != -1) {
-			//BVHPrimNode node = primNodes[i];
-			BVHNode node = nodes[i];
-			// Leaf node, let's dump the embedded vertices
-			fprintf(file, "o leaf-%d\n", i);
-			/*
-			fprintf(file, "v %f %f %f\n",
-				node.v0[0] * OPT_TO_METERS,
-				node.v0[1] * OPT_TO_METERS,
-				node.v0[2] * OPT_TO_METERS);
-			fprintf(file, "v %f %f %f\n",
-				node.v1[0] * OPT_TO_METERS,
-				node.v1[1] * OPT_TO_METERS,
-				node.v1[2] * OPT_TO_METERS);
-			fprintf(file, "v %f %f %f\n",
-				node.v2[0] * OPT_TO_METERS,
-				node.v2[1] * OPT_TO_METERS,
-				node.v2[2] * OPT_TO_METERS);
-			*/
-			Vector3 v0, v1, v2;
-			v0.x = node.min[0];
-			v0.y = node.min[1];
-			v0.z = node.min[2];
+		if (nodes[i].ref != -1)
+		{
+			if (isTLAS)
+			{
+				BVHTLASLeafNode *node = (BVHTLASLeafNode *)&(nodes[i]);
+				fprintf(file, "o tleaf-%d\n", i);
 
-			v1.x = node.max[0];
-			v1.y = node.max[1];
-			v1.z = node.max[2];
+				fprintf(file, "v %f %f %f\n",
+					node->min[0] * scale[0], node->min[1] * scale[1], node->min[2] * scale[2]);
+				fprintf(file, "v %f %f %f\n",
+					node->max[0] * scale[0], node->min[1] * scale[1], node->min[2] * scale[2]);
+				fprintf(file, "v %f %f %f\n",
+					node->max[0] * scale[0], node->max[1] * scale[1], node->min[2] * scale[2]);
+				fprintf(file, "v %f %f %f\n",
+					node->min[0] * scale[0], node->max[1] * scale[1], node->min[2] * scale[2]);
 
-			v2.x = *(float *)&(node.children[0]);
-			v2.y = *(float *)&(node.children[1]);
-			v2.z = *(float *)&(node.children[2]);
+				fprintf(file, "v %f %f %f\n",
+					node->min[0] * scale[0], node->min[1] * scale[1], node->max[2] * scale[2]);
+				fprintf(file, "v %f %f %f\n",
+					node->max[0] * scale[0], node->min[1] * scale[1], node->max[2] * scale[2]);
+				fprintf(file, "v %f %f %f\n",
+					node->max[0] * scale[0], node->max[1] * scale[1], node->max[2] * scale[2]);
+				fprintf(file, "v %f %f %f\n",
+					node->min[0] * scale[0], node->max[1] * scale[1], node->max[2] * scale[2]);
 
-			fprintf(file, "v %f %f %f\n", v0.x * OPT_TO_METERS, v0.y * OPT_TO_METERS, v0.z * OPT_TO_METERS);
-			fprintf(file, "v %f %f %f\n", v1.x * OPT_TO_METERS, v1.y * OPT_TO_METERS, v1.z * OPT_TO_METERS);
-			fprintf(file, "v %f %f %f\n", v2.x * OPT_TO_METERS, v2.y * OPT_TO_METERS, v2.z * OPT_TO_METERS);
+				fprintf(file, "f %d %d\n", index + 0, index + 1);
+				fprintf(file, "f %d %d\n", index + 1, index + 2);
+				fprintf(file, "f %d %d\n", index + 2, index + 3);
+				fprintf(file, "f %d %d\n", index + 3, index + 0);
 
-			fprintf(file, "f %d %d %d\n", index, index + 1, index + 2);
-			index += 3;
+				fprintf(file, "f %d %d\n", index + 4, index + 5);
+				fprintf(file, "f %d %d\n", index + 5, index + 6);
+				fprintf(file, "f %d %d\n", index + 6, index + 7);
+				fprintf(file, "f %d %d\n", index + 7, index + 4);
+
+				fprintf(file, "f %d %d\n", index + 0, index + 4);
+				fprintf(file, "f %d %d\n", index + 1, index + 5);
+				fprintf(file, "f %d %d\n", index + 2, index + 6);
+				fprintf(file, "f %d %d\n", index + 3, index + 7);
+				index += 8;
+			}
+			else
+			{
+				//BVHPrimNode node = primNodes[i];
+				BVHNode node = nodes[i];
+				// Leaf node, let's dump the embedded vertices
+				fprintf(file, "o leaf-%d\n", i);
+				Vector3 v0, v1, v2;
+				v0.x = node.min[0];
+				v0.y = node.min[1];
+				v0.z = node.min[2];
+
+				v1.x = node.max[0];
+				v1.y = node.max[1];
+				v1.z = node.max[2];
+
+				v2.x = *(float*)&(node.children[0]);
+				v2.y = *(float*)&(node.children[1]);
+				v2.z = *(float*)&(node.children[2]);
+
+				fprintf(file, "v %f %f %f\n", v0.x * scale[0], v0.y * scale[1], v0.z * scale[2]);
+				fprintf(file, "v %f %f %f\n", v1.x * scale[0], v1.y * scale[1], v1.z * scale[2]);
+				fprintf(file, "v %f %f %f\n", v2.x * scale[0], v2.y * scale[1], v2.z * scale[2]);
+
+				fprintf(file, "f %d %d %d\n", index, index + 1, index + 2);
+				index += 3;
+			}
 		}
 		else {
 			// Inner node, dump the AABB
@@ -414,34 +450,34 @@ void LBVH::DumpToOBJ(char *sFileName)
 			fprintf(file, "o aabb-%d\n", i);
 
 			fprintf(file, "v %f %f %f\n",
-				node.min[0] * OPT_TO_METERS, node.min[1] * OPT_TO_METERS, node.min[2] * OPT_TO_METERS);
+				node.min[0] * scale[0], node.min[1] * scale[1], node.min[2] * scale[2]);
 			fprintf(file, "v %f %f %f\n",
-				node.max[0] * OPT_TO_METERS, node.min[1] * OPT_TO_METERS, node.min[2] * OPT_TO_METERS);
+				node.max[0] * scale[0], node.min[1] * scale[1], node.min[2] * scale[2]);
 			fprintf(file, "v %f %f %f\n",
-				node.max[0] * OPT_TO_METERS, node.max[1] * OPT_TO_METERS, node.min[2] * OPT_TO_METERS);
+				node.max[0] * scale[0], node.max[1] * scale[1], node.min[2] * scale[2]);
 			fprintf(file, "v %f %f %f\n",
-				node.min[0] * OPT_TO_METERS, node.max[1] * OPT_TO_METERS, node.min[2] * OPT_TO_METERS);
+				node.min[0] * scale[0], node.max[1] * scale[1], node.min[2] * scale[2]);
 
 			fprintf(file, "v %f %f %f\n",
-				node.min[0] * OPT_TO_METERS, node.min[1] * OPT_TO_METERS, node.max[2] * OPT_TO_METERS);
+				node.min[0] * scale[0], node.min[1] * scale[1], node.max[2] * scale[2]);
 			fprintf(file, "v %f %f %f\n",
-				node.max[0] * OPT_TO_METERS, node.min[1] * OPT_TO_METERS, node.max[2] * OPT_TO_METERS);
+				node.max[0] * scale[0], node.min[1] * scale[1], node.max[2] * scale[2]);
 			fprintf(file, "v %f %f %f\n",
-				node.max[0] * OPT_TO_METERS, node.max[1] * OPT_TO_METERS, node.max[2] * OPT_TO_METERS);
+				node.max[0] * scale[0], node.max[1] * scale[1], node.max[2] * scale[2]);
 			fprintf(file, "v %f %f %f\n",
-				node.min[0] * OPT_TO_METERS, node.max[1] * OPT_TO_METERS, node.max[2] * OPT_TO_METERS);
+				node.min[0] * scale[0], node.max[1] * scale[1], node.max[2] * scale[2]);
 
-			fprintf(file, "f %d %d\n", index, index + 1);
+			fprintf(file, "f %d %d\n", index + 0, index + 1);
 			fprintf(file, "f %d %d\n", index + 1, index + 2);
 			fprintf(file, "f %d %d\n", index + 2, index + 3);
-			fprintf(file, "f %d %d\n", index + 3, index);
+			fprintf(file, "f %d %d\n", index + 3, index + 0);
 
 			fprintf(file, "f %d %d\n", index + 4, index + 5);
 			fprintf(file, "f %d %d\n", index + 5, index + 6);
 			fprintf(file, "f %d %d\n", index + 6, index + 7);
 			fprintf(file, "f %d %d\n", index + 7, index + 4);
 
-			fprintf(file, "f %d %d\n", index, index + 4);
+			fprintf(file, "f %d %d\n", index + 0, index + 4);
 			fprintf(file, "f %d %d\n", index + 1, index + 5);
 			fprintf(file, "f %d %d\n", index + 2, index + 6);
 			fprintf(file, "f %d %d\n", index + 3, index + 7);

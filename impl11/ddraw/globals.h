@@ -232,7 +232,7 @@ extern bool g_bRTEnabled;
 extern int g_iRTTotalNumNodesInFrame, g_iRTTotalNumNodesInPrevFrame;
 extern int g_iRTTotalMeshesInFrame, g_iRTTotalMeshesInPrevFrame;
 extern int g_iRTMatricesNextSlot;
-extern bool g_bRTReAllocateBuffers;
+extern bool g_bRTReAllocateBvhBuffer;
 extern bool g_bRTCaptureCameraAABB;
 
 // Levels.fx

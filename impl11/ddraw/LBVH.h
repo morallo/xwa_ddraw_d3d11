@@ -209,8 +209,8 @@ public:
 using MortonCode_t = uint32_t;
 // Morton Code, Bounding Box, TriID
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
-// Morton Code, aabbFromOBB, TriID, Matrix, Centroid, Oriented Bounding Box, matrixSlot
-using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, Matrix4, XwaVector3, AABB, int>;
+// Morton Code, aabbFromOBB, TriID, MatrixSlot, Centroid, Oriented Bounding Box
+using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, int, XwaVector3, AABB>;
 
 struct InnerNode
 {
@@ -268,7 +268,7 @@ inline int& TLASGetID(TLASLeafItem& X)
 	return std::get<2>(X);
 }
 
-inline Matrix4& TLASGetMatrix4(TLASLeafItem& X)
+inline int& TLASGetMatrixSlot(TLASLeafItem& X)
 {
 	return std::get<3>(X);
 }
@@ -281,11 +281,6 @@ inline XwaVector3& TLASGetCentroid(TLASLeafItem& X)
 inline AABB& TLASGetOBB(TLASLeafItem& X)
 {
 	return std::get<5>(X);
-}
-
-inline int& TLASGetMatrixSlot(TLASLeafItem& X)
-{
-	return std::get<6>(X);
 }
 
 class IGenericTreeNode
@@ -699,7 +694,7 @@ public:
 	static LBVH *BuildFastQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 
 	void PrintTree(std::string level, int curnode);
-	void DumpToOBJ(char *sFileName);
+	void DumpToOBJ(char *sFileName, bool isTLAS=false, bool useMetricScale=true);
 };
 
 int CalcNumInnerQBVHNodes(int numPrimitives);

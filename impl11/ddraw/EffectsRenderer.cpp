@@ -37,7 +37,7 @@ int g_iRTTotalNumNodesInPrevFrame = 0;
 int g_iRTTotalMeshesInFrame = 0;
 int g_iRTTotalMeshesInPrevFrame = 0;
 int g_iRTMatricesNextSlot = 0;
-bool g_bRTReAllocateBuffers = false;
+bool g_bRTReAllocateBvhBuffer = false;
 AABB g_CameraAABB; // AABB built from the camera's frustrum
 AABB g_GlobalAABB; // AABB built after all the meshes have been seen in the current frame
 XwaVector3 g_CameraRange;
@@ -538,7 +538,7 @@ void DumpGlobalAABBandTLASToOBJ()
 
 	int VerticesCount = 1;
 	FILE* D3DDumpOBJFile = NULL;
-	fopen_s(&D3DDumpOBJFile, "./GlobalTLAS.obj", "wt");
+	fopen_s(&D3DDumpOBJFile, "./TLASLeaves.obj", "wt");
 	fprintf(D3DDumpOBJFile, "o globalAABB\n");
 
 	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
@@ -553,7 +553,7 @@ void DumpGlobalAABBandTLASToOBJ()
 	{
 		// Morton Code, Bounding Box, TriID, Matrix, Centroid
 		AABB obb = TLASGetOBB(leaf);
-		const Matrix4& m = TLASGetMatrix4(leaf);
+		const Matrix4& m = g_TLASMatrices[TLASGetMatrixSlot(leaf)];
 		obb.UpdateLimits();
 		obb.TransformLimits(S1 * m);
 		VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
@@ -607,17 +607,22 @@ void BuildTLAS()
 	// Initialize the root
 	QBVHBuffer[0].rootIdx = root;
 
-	delete[] QBVHBuffer;
-
-	/*
-	// The previous TLAS tree should be deleted at the beginning of each
-	// frame.
+	// delete[] QBVHBuffer;
+	
+	// The previous TLAS tree should be deleted at the beginning of each frame.
 	g_TLASTree = new LBVH();
 	g_TLASTree->nodes = QBVHBuffer;
 	g_TLASTree->numNodes = numQBVHNodes;
 	g_TLASTree->scale = 1.0f;
 	g_TLASTree->scaleComputed = true;
-	*/
+
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+	{
+		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale */);
+	}
+
+	// The TLAS map can now be used to populate the matrices buffer
+	// ...
 }
 
 void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A)
@@ -1249,7 +1254,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, Prev: %d",
 		g_iRTTotalNumNodesInFrame, g_iRTTotalNumNodesInPrevFrame);
 
-	g_bRTReAllocateBuffers = (g_iRTTotalNumNodesInFrame > g_iRTTotalNumNodesInPrevFrame);
+	g_bRTReAllocateBvhBuffer = (g_iRTTotalNumNodesInFrame > g_iRTTotalNumNodesInPrevFrame);
 	g_iRTTotalNumNodesInPrevFrame = max(g_iRTTotalNumNodesInPrevFrame, g_iRTTotalNumNodesInFrame);
 }
 
@@ -1261,12 +1266,8 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 	auto& context = resources->_d3dDeviceContext;
 	HRESULT hr;
 
-	//if (_lbvh == nullptr) log_debug("[DBG] [BVH] _lbvh is NULL!");
-	//log_debug("[DBG] [BVH] ReAllocateBvhBuffers IN. g_iRTTotalNumNodesInFrame: %d, _lbvh->numNodes: %d",
-	//	g_iRTTotalNumNodesInFrame, _lbvh->numNodes);
-
 	// (Re-)Create the BVH buffers
-	if (g_bRTReAllocateBuffers)
+	if (g_bRTReAllocateBvhBuffer)
 	{
 		D3D11_BUFFER_DESC desc;
 		ZeroMemory(&desc, sizeof(desc));
@@ -1312,8 +1313,45 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 		}
 	}
 
+	// Populate the BVH buffer
+	if (_BLASNeedsUpdate)
+	{
+		D3D11_MAPPED_SUBRESOURCE map;
+		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+		hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+		if (SUCCEEDED(hr))
+		{
+			uint8_t* base_ptr = (uint8_t*)map.pData;
+			for (auto& it : g_LBVHMap)
+			{
+				const MeshData& meshData = it.second;
+				LBVH* bvh = (LBVH*)std::get<2>(meshData);
+				if (bvh != nullptr)
+				{
+					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
+					base_ptr += sizeof(BVHNode) * bvh->numNodes;
+				}
+			}
+			context->Unmap(resources->_RTBvh.Get(), 0);
+		}
+		else
+			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
+	}
+
+	log_debug("[DBG] [BVH] ReAllocateBvhBuffers OUT");
+}
+
+void EffectsRenderer::ReAllocateMatrixBuffer()
+{
+	// Create the buffers for the Matrices -- this code path applies for in-flight RT
+	auto& resources = _deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	HRESULT hr;
+
 	// (Re-)Create the matrices buffer
-	g_iRTTotalMeshesInFrame = g_LBVHMap.size();
+	g_iRTTotalMeshesInFrame = g_TLASMap.size();
 	bool bReallocateMatrixBuffers = g_iRTTotalMeshesInFrame > g_iRTTotalMeshesInPrevFrame;
 
 	if (bReallocateMatrixBuffers)
@@ -1362,41 +1400,33 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 		}
 	}
 
-	// Populate the BVH buffer
-	if (_BLASNeedsUpdate)
-	{
-		D3D11_MAPPED_SUBRESOURCE map;
-		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-		hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		if (SUCCEEDED(hr))
-		{
-			uint8_t* base_ptr = (uint8_t*)map.pData;
-			for (auto& it : g_LBVHMap)
-			{
-				const MeshData& meshData = it.second;
-				LBVH* bvh = (LBVH*)std::get<2>(meshData);
-				if (bvh != nullptr)
-				{
-					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
-					base_ptr += sizeof(BVHNode) * bvh->numNodes;
-				}
-			}
-			context->Unmap(resources->_RTBvh.Get(), 0);
-		}
-		else
-			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
-	}
-
-	g_iRTTotalMeshesInPrevFrame = g_iRTTotalMeshesInFrame;
-
-	log_debug("[DBG] [BVH] ReAllocateBvhBuffers OUT");
+	g_iRTTotalMeshesInPrevFrame = max(g_iRTTotalMeshesInPrevFrame, g_iRTTotalMeshesInFrame);
 }
 
 void EffectsRenderer::SceneEnd()
 {
 	//EndCascadedShadowMap();
 	D3dRenderer::SceneEnd();
+
+	if (g_bRTEnabled && !g_bInTechRoom)
+	{
+		// We may need to reallocate the matrices buffer depending on how many
+		// unique meshes we saw in this frame
+		int numTLASleaves = tlasLeaves.size();
+		if (numTLASleaves > 0)
+		{
+			// tlasLeaves should have the same number of entries as the g_TLASMap
+			if (tlasLeaves.size() != g_TLASMap.size())
+			{
+				log_debug("[DBG] [BVH] ERROR, size mismatch: tlasLeaves.size(): %d, g_TLASMap.size(): %d",
+					tlasLeaves.size(), g_TLASMap.size());
+			}
+			g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
+			g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
+			g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
+			BuildTLAS();
+		}
+	}
 
 	if (_BLASNeedsUpdate)
 	{
@@ -1411,17 +1441,9 @@ void EffectsRenderer::SceneEnd()
 			BuildMultipleBLASFromCurrentBVHMap();
 			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
 			ReAllocateBvhBuffers(g_iRTTotalNumNodesInFrame);
-			g_bRTReAllocateBuffers = false;
+			g_bRTReAllocateBvhBuffer = false;
 		}
 		_BLASNeedsUpdate = false;
-	}
-
-	if (g_bRTEnabled && !g_bInTechRoom)
-	{
-		g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
-		g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
-		g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
-		BuildTLAS();
 	}
 
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled && g_bRTEnabled)
@@ -2903,11 +2925,13 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 				// We haven't seen this mesh/centroid combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
 				g_TLASMap[meshNcentroidKey] = matrixSlot;
+				// Store the matrix proper
+				g_TLASMatrices.push_back(W);
 
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, W, centroid, obb, matrixSlot));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, matrixSlot, centroid, obb));
 			}
 			else
 			{

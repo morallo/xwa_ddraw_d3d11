@@ -217,6 +217,7 @@ std::map<int32_t, MeshData> g_LBVHMap;
 // The centroid is important because the same mesh may appear multiple times if there are
 // multiple ships in the same FG, for instance.
 std::map<MeshNCentroid_t, int32_t> g_TLASMap;
+std::vector<Matrix4> g_TLASMatrices;
 void RTResetMatrixSlotCounter();
 void ClearGlobalLBVHMap();
 
@@ -1745,7 +1746,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		g_bRTCaptureCameraAABB = true;
 		g_iRTTotalNumNodesInFrame = g_iRTTotalNumNodesInPrevFrame = 0;
 		g_iRTTotalMeshesInFrame = g_iRTTotalMeshesInPrevFrame = 0;
-		g_bRTReAllocateBuffers = false;
+		g_bRTReAllocateBvhBuffer = false;
 		if (this->_RTBvh != nullptr)
 			this->_RTBvh->Release();
 		if (this->_RTMatrices != nullptr)

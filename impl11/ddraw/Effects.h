@@ -153,8 +153,10 @@ using MeshNCentroid_t = std::tuple<int32_t, float, float, float>;
 
 // The BLAS map
 extern std::map<int32_t, MeshData> g_LBVHMap;
-// This TLAS map
+// The TLAS map
 extern std::map<MeshNCentroid_t, int32_t> g_TLASMap;
+// The TLAS matrices (1:1 correspondence with g_TLASMap)
+extern std::vector<Matrix4> g_TLASMatrices;
 
 // ********************************
 // DATReader function pointers
