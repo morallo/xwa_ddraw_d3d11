@@ -135,7 +135,7 @@ public:
 	void BuildMultipleBLASFromCurrentBVHMap();
 	void ReAllocateBvhBuffers(const int numNodes);
 	void ApplyRTShadows(const SceneCompData* scene);
-	void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb);
+	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
 	void UpdateGlobalBVH(const SceneCompData* scene, int meshIndex);
 
 	// Per-texture, per-instance effects

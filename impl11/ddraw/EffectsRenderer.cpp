@@ -42,7 +42,7 @@ AABB g_CameraAABB; // AABB built from the camera's frustrum
 AABB g_GlobalAABB; // AABB built after all the meshes have been seen in the current frame
 XwaVector3 g_CameraRange;
 XwaVector3 g_GlobalRange;
-TreeNode* g_TLASTree = nullptr;
+LBVH* g_TLASTree = nullptr;
 std::vector<TLASLeafItem> tlasLeaves;
 
 // Maps an ObjectId to its index in the ObjectEntry table.
@@ -552,11 +552,11 @@ void DumpGlobalAABBandTLASToOBJ()
 	for (auto& leaf : tlasLeaves)
 	{
 		// Morton Code, Bounding Box, TriID, Matrix, Centroid
-		AABB aabb = TLASGetAABB(leaf);
+		AABB obb = TLASGetOBB(leaf);
 		const Matrix4& m = TLASGetMatrix4(leaf);
-		aabb.UpdateLimits();
-		aabb.TransformLimits(S1 * m);
-		VerticesCount = aabb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
+		obb.UpdateLimits();
+		obb.TransformLimits(S1 * m);
+		VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
 	}
 	fclose(D3DDumpOBJFile);
 	log_debug("[DBG] [BVH] Dumped: %d tlas leaves", counter);
@@ -565,11 +565,17 @@ void DumpGlobalAABBandTLASToOBJ()
 void BuildTLAS()
 {
 	const uint32_t numLeaves = tlasLeaves.size();
+
+	if (numLeaves == 0)
+	{
+		//log_debug("[DBG] [BVH] BuildTLAS: numLeaves 0. Early exit.");
+		return;
+	}
+
 	// Get the morton codes for the tlas leaves
 	for (uint32_t i = 0; i < numLeaves; i++)
 	{
 		auto& leaf = tlasLeaves[i];
-		AABB aabb = TLASGetAABB(leaf);
 		XwaVector3 centroid = TLASGetCentroid(leaf);
 		Normalize(centroid, g_GlobalAABB, g_GlobalRange);
 		TLASGetMortonCode(leaf) = GetMortonCode32(centroid);
@@ -577,6 +583,41 @@ void BuildTLAS()
 
 	// Sort the tlas leaves
 	std::sort(tlasLeaves.begin(), tlasLeaves.end(), tlasLeafSorter);
+
+	// Encode the sorted leaves
+	// TODO: Encode the leaves before sorting, and use TriID as the sort index.
+	const int numQBVHInnerNodes = CalcNumInnerQBVHNodes(numLeaves);
+	const int numQBVHNodes = numLeaves + numQBVHInnerNodes;
+
+	// We can reserve the buffer for the QBVH now.
+	BVHNode* QBVHBuffer = new BVHNode[numQBVHNodes];
+
+	// Encode the TLAS leaves
+	int LeafEncodeIdx = numQBVHInnerNodes;
+	for (uint32_t i = 0; i < numLeaves; i++)
+	{
+		TLASEncodeLeafNode(QBVHBuffer, tlasLeaves, i, LeafEncodeIdx++);
+	}
+
+	//log_debug("[DBG] [BVH] BuildTLAS: numLeaves: %d, numQBVHInnerNodes: %d, numQBVHNodes: %d", numLeaves, numQBVHInnerNodes, numQBVHNodes);
+	// Build, convert and encode the QBVH
+	int root = -1;
+	TLASSingleStepFastLQBVH(QBVHBuffer, numQBVHInnerNodes, tlasLeaves, root);
+	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d", root, numQBVHNodes);
+	// Initialize the root
+	QBVHBuffer[0].rootIdx = root;
+
+	delete[] QBVHBuffer;
+
+	/*
+	// The previous TLAS tree should be deleted at the beginning of each
+	// frame.
+	g_TLASTree = new LBVH();
+	g_TLASTree->nodes = QBVHBuffer;
+	g_TLASTree->numNodes = numQBVHNodes;
+	g_TLASTree->scale = 1.0f;
+	g_TLASTree->scaleComputed = true;
+	*/
 }
 
 void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A)
@@ -914,21 +955,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		g_GlobalAABB.SetInfinity();
 		tlasLeaves.clear();
 		g_TLASMap.clear();
-
-		if (g_bRTCaptureCameraAABB && g_iPresentCounter > 2) {
-			/* Get the Frustrum and Camera Space global AABB */
-			g_CameraAABB = GetCameraSpaceAABBFromFrustrum();
-			g_CameraRange.x = g_CameraAABB.max.x - g_CameraAABB.min.x;
-			g_CameraRange.y = g_CameraAABB.max.y - g_CameraAABB.min.y;
-			g_CameraRange.z = g_CameraAABB.max.z - g_CameraAABB.min.z;
-			/*
-			log_debug("[DBG] [BVH] cameraAABB: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
-				cameraAABB.min.x * OPT_TO_METERS, cameraAABB.min.y * OPT_TO_METERS, cameraAABB.min.z * OPT_TO_METERS,
-				cameraAABB.max.x * OPT_TO_METERS, cameraAABB.max.y * OPT_TO_METERS, cameraAABB.max.z * OPT_TO_METERS);
-			*/
-			g_bRTCaptureCameraAABB = false;
-		}
-
 		// Restart the TLAS for the next frame
 		if (g_TLASTree != nullptr)
 		{
@@ -942,8 +968,22 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 				fclose(file);
 			}
 			*/
-			DeleteRB(g_TLASTree);
+			delete g_TLASTree;
 			g_TLASTree = nullptr;
+		}
+
+		if (g_bRTCaptureCameraAABB && g_iPresentCounter > 2) {
+			/* Get the Frustrum and Camera Space global AABB */
+			g_CameraAABB = GetCameraSpaceAABBFromFrustrum();
+			g_CameraRange.x = g_CameraAABB.max.x - g_CameraAABB.min.x;
+			g_CameraRange.y = g_CameraAABB.max.y - g_CameraAABB.min.y;
+			g_CameraRange.z = g_CameraAABB.max.z - g_CameraAABB.min.z;
+			/*
+			log_debug("[DBG] [BVH] cameraAABB: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+				cameraAABB.min.x * OPT_TO_METERS, cameraAABB.min.y * OPT_TO_METERS, cameraAABB.min.z * OPT_TO_METERS,
+				cameraAABB.max.x * OPT_TO_METERS, cameraAABB.max.y * OPT_TO_METERS, cameraAABB.max.z * OPT_TO_METERS);
+			*/
+			g_bRTCaptureCameraAABB = false;
 		}
 	}
 
@@ -2658,12 +2698,13 @@ void EffectsRenderer::ApplyRTShadows(const SceneCompData* scene)
 		D3D11_MAPPED_SUBRESOURCE map;
 		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
 		// TODO: Optimization opportunity. Only Map the matrix slot we want to update.
+		/*
 		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 		if (SUCCEEDED(hr))
 		{
 			const int32_t meshKey = MakeMeshKey(scene);
 			const auto &meshData = g_LBVHMap[meshKey];
-			const int matrixSlot = std::get<3>(meshData);
+			//const int matrixSlot = std::get<3>(meshData);
 			Matrix4 WInv = XwaTransformToMatrix4(scene->WorldViewTransform);
 			WInv = WInv.invert();
 			// This isn't working...
@@ -2673,6 +2714,7 @@ void EffectsRenderer::ApplyRTShadows(const SceneCompData* scene)
 		}
 		else
 			log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
+		*/
 	}
 
 	// Non-embedded geometry:
@@ -2768,9 +2810,10 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		return &it->second;
 }
 
-void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb)
+#ifdef DISABLED
+void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB obb, int matrixSlot)
 {
-	aabb.UpdateLimits();
+	obb.UpdateLimits();
 
 	// Transform this aabb into camera space, get a new aabb,
 	// get the centroid and add it to the TLAS
@@ -2787,18 +2830,18 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 	}
 	aabb.TransformLimits(S1 * WorldViewTransform);
 #else
-	aabb.TransformLimits(WorldViewTransform);
+	obb.TransformLimits(WorldViewTransform);
 #endif
 
 	// The limits have been transformed into camera space, get the
 	// new AABB in this space and expand the current global AABB.
-	AABB box = aabb.GetAABBFromCurrentLimits();
-	XwaVector3 globalCentroid = box.GetCentroid();
-	g_GlobalAABB.Expand(box);
+	AABB aabb = obb.GetAABBFromCurrentLimits();
+	XwaVector3 centroid = aabb.GetCentroid();
+	g_GlobalAABB.Expand(aabb);
 
 	// Add this mesh to the current TLAS leaves. We're assuming this method won't be called
 	// if we've seen this mesh before so no leaves will be duplicated.
-	tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, globalCentroid, box));
+	tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, centroid, obb, matrixSlot));
 
 #ifdef DUMP_TLAS
 	if (g_bDumpSSAOBuffers)
@@ -2815,11 +2858,12 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 #endif
 
 	// Get the centroid and compute its Morton Code using g_CameraAABB
-	XwaVector3 centroid = aabb.GetCentroid();
-	Normalize(centroid, g_CameraAABB, g_CameraRange);
-	MortonCode_t code = GetMortonCode32(centroid);
-	g_TLASTree = InsertRB(g_TLASTree, meshID, code, aabb, WorldViewTransform);
+	//XwaVector3 centroid = aabb.GetCentroid();
+	//Normalize(centroid, g_CameraAABB, g_CameraRange);
+	//MortonCode_t code = GetMortonCode32(centroid);
+	//g_TLASTree = InsertRB(g_TLASTree, meshID, code, aabb, WorldViewTransform);
 }
+#endif
 
 // Update g_TLASMap: checks if we've seen the current mesh in this frame. If we
 // haven't seen this mesh, a new matrix slot is requested and a new (meshKey, matrixSlot)
@@ -2838,26 +2882,38 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	int32_t meshKey = MakeMeshKey(scene);
 	int matrixSlot = -1;
 
-	// Update g_TLASMap and get new matrix slots if necessary
+	// Update g_TLASMap and get a new matrix slot if necessary -- or find the
+	// existing matrixSlot for the current mesh/centroid
 	{
-		auto it = g_TLASMap.find(meshKey);
-		if (it == g_TLASMap.end())
-		{
-			// This is a new mesh, we can add it to the TLASMap
-			matrixSlot = RTGetNextAvailableMatrixSlot();
-			g_TLASMap[meshKey] = matrixSlot;
-			Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
-			// Fetch the AABB for this mesh
-			auto aabb_it = _AABBs.find(meshKey);
-			if (aabb_it != _AABBs.end()) {
-				// Update the current TLAS
-				AddAABBToTLAS(W, meshKey, aabb_it->second);
+		// Get the OBB and centroid for this mesh.
+		Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+		// Fetch the AABB for this mesh
+		auto aabb_it = _AABBs.find(meshKey);
+		if (aabb_it != _AABBs.end()) {
+			AABB obb = aabb_it->second;					// The AABB in object space
+			obb.UpdateLimits();
+			obb.TransformLimits(W);						// Now it's an OBB in worldview space...
+			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
+			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
+
+			MeshNCentroid_t meshNcentroidKey = MeshNCentroid_t(meshKey, centroid.x, centroid.y, centroid.z);
+			auto it = g_TLASMap.find(meshNcentroidKey);
+			if (it == g_TLASMap.end())
+			{
+				// We haven't seen this mesh/centroid combination before, add a new entry
+				matrixSlot = RTGetNextAvailableMatrixSlot();
+				g_TLASMap[meshNcentroidKey] = matrixSlot;
+
+				// Add a new entry to tlasLeaves and update the global centroid
+				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
+				g_GlobalAABB.Expand(aabb);
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, W, centroid, obb, matrixSlot));
 			}
-		}
-		else
-		{
-			// We've seen this mesh before in this frame, just fetch its matrix slot
-			matrixSlot = it->second;
+			else
+			{
+				// We have seen this mesh/centroid before, get its matrix slot
+				matrixSlot = it->second;
+			}
 		}
 	}
 
@@ -2896,7 +2952,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	std::get<0>(meshData) = FGs;
 	std::get<1>(meshData) = scene->VerticesCount;
 	std::get<2>(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
-	std::get<3>(meshData) = matrixSlot; // This is a redundant copy of the matrix slot
+	//std::get<3>(meshData) = matrixSlot; // We can't store the matrix slot on the BLAS, there can be multiple instances each with a different matrix!
 	//uint32_t preSize = g_LBVHMap.size();
 	g_LBVHMap[meshKey] = meshData;
 	//uint32_t postSize = g_LBVHMap.size();
@@ -3197,7 +3253,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture &&
-		!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner)
+		!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner && !g_bIsFloating3DObject)
 	{
 		UpdateGlobalBVH(scene, _currentOptMeshIndex);
 	}

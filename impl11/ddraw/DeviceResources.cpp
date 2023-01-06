@@ -213,8 +213,10 @@ void ResetRawMouseInput();
 // - Tech Room: Every time a new OPT is loaded
 // - Regular Flight: When OnSizeChanged() is called
 std::map<int32_t, MeshData> g_LBVHMap;
-// This maps meshKeys to matrix slots. It gets cleared at the beginning of every frame
-std::map<int32_t, int32_t> g_TLASMap;
+// This maps (meshKey,centroid) to matrix slots. It gets cleared at the beginning of every frame
+// The centroid is important because the same mesh may appear multiple times if there are
+// multiple ships in the same FG, for instance.
+std::map<MeshNCentroid_t, int32_t> g_TLASMap;
 void RTResetMatrixSlotCounter();
 void ClearGlobalLBVHMap();
 

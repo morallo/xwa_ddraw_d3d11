@@ -146,12 +146,15 @@ using FaceGroups = std::map<int32_t, int32_t>;
 // FaceGroup std::map -- A map with all the Face Groups in this mesh
 // NumMeshVertices    -- The number of vertices in this mesh
 // LBVH               -- The BVH for this mesh (only used outside the Tech Room)
-// MatrixSlotIndex    -- The index into _RTMatrix where the worldview matrix for this mesh will be stored. (only used outside the Tech Room)
-using MeshData = std::tuple<FaceGroups, int32_t, void*, int>;
+using MeshData = std::tuple<FaceGroups, int32_t, void*>;
+// TLAS leaf uniqueness is determined by the meshKey and its centroid (there can be
+// multiple instances of the same mesh belonging to different craft in a FG, for instance)
+using MeshNCentroid_t = std::tuple<int32_t, float, float, float>;
+
 // The BLAS map
 extern std::map<int32_t, MeshData> g_LBVHMap;
 // This TLAS map
-extern std::map<int32_t, int32_t> g_TLASMap;
+extern std::map<MeshNCentroid_t, int32_t> g_TLASMap;
 
 // ********************************
 // DATReader function pointers
