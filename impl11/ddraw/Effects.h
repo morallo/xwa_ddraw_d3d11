@@ -143,19 +143,20 @@ using FaceGroups = std::map<int32_t, int32_t>;
 //
 // (FaceGroup map, NumMeshVertices, LBVH, Matrix4)
 //
-// FaceGroup std::map -- A map with all the Face Groups in this mesh
-// NumMeshVertices    -- The number of vertices in this mesh
-// LBVH               -- The BVH for this mesh (only used outside the Tech Room)
-using MeshData = std::tuple<FaceGroups, int32_t, void*>;
+// 0: FaceGroup std::map -- A map with all the Face Groups in this mesh
+// 1: NumMeshVertices    -- The number of vertices in this mesh
+// 2: LBVH               -- The BVH for this mesh (only used during regular flight)
+// 3: BaseNodeOffset     -- The index into _RTBvh where this BLAS begins (only used during regular flight)
+using MeshData = std::tuple<FaceGroups, int32_t, void*, int>;
 // TLAS leaf uniqueness is determined by the meshKey and its centroid (there can be
-// multiple instances of the same mesh belonging to different craft in a FG, for instance)
+// multiple instances of the same mesh belonging to different craft in a Flight Group, for instance)
 using MeshNCentroid_t = std::tuple<int32_t, float, float, float>;
 
-// The BLAS map
+// The BLAS map: meshKey --> MeshData
 extern std::map<int32_t, MeshData> g_LBVHMap;
-// The TLAS map
+// The TLAS map: (meshKey, centroid) --> matrixSlot
 extern std::map<MeshNCentroid_t, int32_t> g_TLASMap;
-// The TLAS matrices (1:1 correspondence with g_TLASMap)
+// The TLAS matrix buffer (1:1 correspondence with g_TLASMap)
 extern std::vector<Matrix4> g_TLASMatrices;
 
 // ********************************

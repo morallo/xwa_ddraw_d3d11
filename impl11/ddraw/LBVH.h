@@ -64,7 +64,7 @@ struct BVHTLASLeafNode {
 	int ref;         // Mesh ID
 	int parent;
 	int matrixSlot;  // WorldView matrix slot
-	int padding1;
+	int BLASBaseNodeOfs; // Base offset into _RTBvh where the corresponding BLAS begins
 	// 16 bytes
 	float min[4];    // Object-space AABB min (needs to be multiplied by the matrix in matrixSlot)
 	// 32 bytes
@@ -252,7 +252,6 @@ struct InnerNode4
 bool leafSorter(const LeafItem& i, const LeafItem& j);
 bool tlasLeafSorter(const TLASLeafItem& i, const TLASLeafItem& j);
 
-//using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, Matrix4, XwaVector3, AABB>;
 inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X)
 {
 	return std::get<0>(X);

@@ -133,8 +133,8 @@ public:
 	// Raytracing
 	void BuildSingleBLASFromCurrentBVHMap();
 	void BuildMultipleBLASFromCurrentBVHMap();
-	void ReAllocateBvhBuffers(const int numNodes);
-	void ReAllocateMatrixBuffer();
+	void ReAllocateAndPopulateBvhBuffers(const int numNodes);
+	void ReAllocateAndPopulateMatrixBuffer();
 	void ApplyRTShadows(const SceneCompData* scene);
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
 	void UpdateGlobalBVH(const SceneCompData* scene, int meshIndex);

@@ -198,7 +198,7 @@ int CalcNumInnerQBVHNodes(int numPrimitives)
 	// HACK: Theoretically, max(1, 2/3 * numPrimitives) should be enough, but
 	// for some reason, I sometimes see -1 or -2 when encoding nodes. So let's
 	// play it safe for now.
-	return max(3, (int)((2.0f * numPrimitives) / 3.0f));
+	return max(5, (int)(0.667f * numPrimitives));
 }
 
 bool leafSorter(const LeafItem& i, const LeafItem& j)
@@ -1405,6 +1405,14 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	int matrixSlot    = TLASGetMatrixSlot(leafItem);
 	AABB obb          = TLASGetOBB(leafItem);
 	AABB aabb         = TLASGetAABBFromOBB(leafItem); // This is OBB * WorldViewTransform
+	int BLASBaseNodeOffset = -1;
+	const auto &it = g_LBVHMap.find(MeshID);
+	if (it != g_LBVHMap.end())
+	{
+		const MeshData& meshData = it->second;
+		BLASBaseNodeOffset = std::get<3>(meshData);
+	}
+
 	int EncodeOfs     = EncodeNodeIdx * sizeof(BVHNode) / 4;
 	//log_debug("[DBG] [BVH] Encoding leaf %d, TriID: %d, at QBVHOfs: %d",
 	//	leafIdx, TriID, (EncodeOfs * 4) / 64);
@@ -1413,7 +1421,7 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	ubuffer[EncodeOfs++] = MeshID;
 	ubuffer[EncodeOfs++] = -1; // parent
 	ubuffer[EncodeOfs++] = matrixSlot;
-	ubuffer[EncodeOfs++] = 0;
+	ubuffer[EncodeOfs++] = BLASBaseNodeOffset;
 	// 16 bytes
 	fbuffer[EncodeOfs++] = aabb.min[0];
 	fbuffer[EncodeOfs++] = aabb.min[1];

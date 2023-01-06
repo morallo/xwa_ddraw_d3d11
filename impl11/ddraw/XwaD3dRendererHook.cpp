@@ -1356,6 +1356,8 @@ void D3dRenderer::Initialize()
 			delete _lbvh;
 			_lbvh = nullptr;
 		}
+		// Reserve some space for the matrices we'll use to build the TLAS
+		g_TLASMatrices.reserve(1024);
 	}
 }
 

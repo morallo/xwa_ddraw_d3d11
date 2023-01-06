@@ -33,9 +33,10 @@ bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
 int g_iRTTotalNumNodesInFrame = 0;
-int g_iRTTotalNumNodesInPrevFrame = 0;
-int g_iRTTotalMeshesInFrame = 0;
-int g_iRTTotalMeshesInPrevFrame = 0;
+int g_iRTMaxNumNodesSoFar = 0;
+
+uint32_t g_iRTMaxMeshesSoFar = 0;
+
 int g_iRTMatricesNextSlot = 0;
 bool g_bRTReAllocateBvhBuffer = false;
 AABB g_CameraAABB; // AABB built from the camera's frustrum
@@ -553,7 +554,10 @@ void DumpGlobalAABBandTLASToOBJ()
 	{
 		// Morton Code, Bounding Box, TriID, Matrix, Centroid
 		AABB obb = TLASGetOBB(leaf);
-		const Matrix4& m = g_TLASMatrices[TLASGetMatrixSlot(leaf)];
+		Matrix4 m = g_TLASMatrices[TLASGetMatrixSlot(leaf)];
+		// The matrices are stored inverted in g_TLASMatrices because that's what
+		// the RT shader needs
+		m = m.invert();
 		obb.UpdateLimits();
 		obb.TransformLimits(S1 * m);
 		VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
@@ -592,7 +596,7 @@ void BuildTLAS()
 	// We can reserve the buffer for the QBVH now.
 	BVHNode* QBVHBuffer = new BVHNode[numQBVHNodes];
 
-	// Encode the TLAS leaves
+	// Encode the TLAS leaves (the matrixSlot and BLASBaseNodeOffset are encoded here)
 	int LeafEncodeIdx = numQBVHInnerNodes;
 	for (uint32_t i = 0; i < numLeaves; i++)
 	{
@@ -608,7 +612,7 @@ void BuildTLAS()
 	QBVHBuffer[0].rootIdx = root;
 
 	// delete[] QBVHBuffer;
-	
+
 	// The previous TLAS tree should be deleted at the beginning of each frame.
 	g_TLASTree = new LBVH();
 	g_TLASTree->nodes = QBVHBuffer;
@@ -620,9 +624,6 @@ void BuildTLAS()
 	{
 		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale */);
 	}
-
-	// The TLAS map can now be used to populate the matrices buffer
-	// ...
 }
 
 void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A)
@@ -956,23 +957,13 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	if (g_bRTEnabled)
 	{
-		// Reset the global AABB at the beginning of each frame
+		// Restart the TLAS for the frame that is about to begin
 		g_GlobalAABB.SetInfinity();
 		tlasLeaves.clear();
 		g_TLASMap.clear();
-		// Restart the TLAS for the next frame
+		RTResetMatrixSlotCounter();
 		if (g_TLASTree != nullptr)
 		{
-			// DEBUG: Dump the TLAS before deleting it
-			/*
-			if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
-			{
-				FILE* file = NULL;
-				fopen_s(&file, ".\\TLASRB.obj", "wt");
-				DumpRBToOBJ(file, g_TLASTree, "0", 1);
-				fclose(file);
-			}
-			*/
 			delete g_TLASTree;
 			g_TLASTree = nullptr;
 		}
@@ -1251,14 +1242,14 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		std::get<2>(meshData) = bvh;
 	}
 
-	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, Prev: %d",
-		g_iRTTotalNumNodesInFrame, g_iRTTotalNumNodesInPrevFrame);
+	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d",
+		g_iRTTotalNumNodesInFrame, g_iRTMaxNumNodesSoFar);
 
-	g_bRTReAllocateBvhBuffer = (g_iRTTotalNumNodesInFrame > g_iRTTotalNumNodesInPrevFrame);
-	g_iRTTotalNumNodesInPrevFrame = max(g_iRTTotalNumNodesInPrevFrame, g_iRTTotalNumNodesInFrame);
+	g_bRTReAllocateBvhBuffer = (g_iRTTotalNumNodesInFrame > g_iRTMaxNumNodesSoFar);
+	g_iRTMaxNumNodesSoFar = max(g_iRTTotalNumNodesInFrame, g_iRTMaxNumNodesSoFar);;
 }
 
-void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
+void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 {
 	// Create the buffers for the BVH -- this code path applies for in-flight RT
 	auto& resources = _deviceResources;
@@ -1284,8 +1275,7 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 			resources->_RTBvhSRV = nullptr;
 		}
 
-		//const int numNodes = g_iRTTotalNumNodesInFrame;
-		desc.ByteWidth = sizeof(BVHNode) * numNodes;
+		desc.ByteWidth = sizeof(BVHNode) * g_iRTMaxNumNodesSoFar;
 		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -1302,14 +1292,11 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = numNodes;
+		srvDesc.Buffer.NumElements = g_iRTMaxNumNodesSoFar;
 
 		hr = device->CreateShaderResourceView(resources->_RTBvh, &srvDesc, &(resources->_RTBvhSRV));
 		if (FAILED(hr)) {
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH SRV: 0x%x", hr);
-		}
-		else {
-			log_debug("[DBG] [BVH] [REALLOC] BVH buffers created");
 		}
 	}
 
@@ -1323,14 +1310,23 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 		if (SUCCEEDED(hr))
 		{
 			uint8_t* base_ptr = (uint8_t*)map.pData;
+			int BaseNodeOffset = 0;
 			for (auto& it : g_LBVHMap)
 			{
-				const MeshData& meshData = it.second;
+				MeshData& meshData = it.second;
 				LBVH* bvh = (LBVH*)std::get<2>(meshData);
 				if (bvh != nullptr)
 				{
+					// Save the location where this BLAS begins
+					std::get<3>(meshData) = BaseNodeOffset;
+					// Populate the buffer itself
 					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
 					base_ptr += sizeof(BVHNode) * bvh->numNodes;
+					BaseNodeOffset += bvh->numNodes;
+				}
+				else
+				{
+					std::get<3>(meshData) = -1;
 				}
 			}
 			context->Unmap(resources->_RTBvh.Get(), 0);
@@ -1338,11 +1334,9 @@ void EffectsRenderer::ReAllocateBvhBuffers(const int numNodes)
 		else
 			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
 	}
-
-	log_debug("[DBG] [BVH] ReAllocateBvhBuffers OUT");
 }
 
-void EffectsRenderer::ReAllocateMatrixBuffer()
+void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 {
 	// Create the buffers for the Matrices -- this code path applies for in-flight RT
 	auto& resources = _deviceResources;
@@ -1351,8 +1345,14 @@ void EffectsRenderer::ReAllocateMatrixBuffer()
 	HRESULT hr;
 
 	// (Re-)Create the matrices buffer
-	g_iRTTotalMeshesInFrame = g_TLASMap.size();
-	bool bReallocateMatrixBuffers = g_iRTTotalMeshesInFrame > g_iRTTotalMeshesInPrevFrame;
+	const uint32_t numMatrices = tlasLeaves.size();
+	bool bReallocateMatrixBuffers = numMatrices > g_iRTMaxMeshesSoFar;
+	if (bReallocateMatrixBuffers)
+	{
+		log_debug("[DBG] [BVH] [REALLOC] RESIZING MATRIX BUFFER. numMatrices: %d, g_iRTMaxMeshesSoFar: %d",
+			numMatrices, g_iRTMaxMeshesSoFar);
+	}
+	g_iRTMaxMeshesSoFar = max(numMatrices, g_iRTMaxMeshesSoFar);
 
 	if (bReallocateMatrixBuffers)
 	{
@@ -1371,8 +1371,7 @@ void EffectsRenderer::ReAllocateMatrixBuffer()
 			resources->_RTMatricesSRV = nullptr;
 		}
 
-		const int numMatrices = g_iRTTotalMeshesInFrame;
-		desc.ByteWidth = sizeof(Matrix4) * numMatrices;
+		desc.ByteWidth = sizeof(Matrix4) * g_iRTMaxMeshesSoFar;
 		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -1389,7 +1388,7 @@ void EffectsRenderer::ReAllocateMatrixBuffer()
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = numMatrices;
+		srvDesc.Buffer.NumElements = g_iRTMaxMeshesSoFar;
 
 		hr = device->CreateShaderResourceView(resources->_RTMatrices, &srvDesc, &(resources->_RTMatricesSRV));
 		if (FAILED(hr)) {
@@ -1400,13 +1399,43 @@ void EffectsRenderer::ReAllocateMatrixBuffer()
 		}
 	}
 
-	g_iRTTotalMeshesInPrevFrame = max(g_iRTTotalMeshesInPrevFrame, g_iRTTotalMeshesInFrame);
+	{
+		// Populate the matrices for all the meshes
+		D3D11_MAPPED_SUBRESOURCE map;
+		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+		if (SUCCEEDED(hr))
+		{
+			memcpy(map.pData, g_TLASMatrices.data(), sizeof(Matrix4) * numMatrices);
+			context->Unmap(resources->_RTMatrices.Get(), 0);
+		}
+		else
+			log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
+	}
 }
 
 void EffectsRenderer::SceneEnd()
 {
 	//EndCascadedShadowMap();
 	D3dRenderer::SceneEnd();
+
+	if (_BLASNeedsUpdate)
+	{
+		if (g_bRTEnabledInTechRoom && g_bInTechRoom)
+		{
+			// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
+			BuildSingleBLASFromCurrentBVHMap();
+		}
+		else if (g_bRTEnabled)
+		{
+			// Build multiple BLASes and put them in g_LBVHMap
+			BuildMultipleBLASFromCurrentBVHMap();
+			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
+			ReAllocateAndPopulateBvhBuffers(g_iRTTotalNumNodesInFrame);
+			g_bRTReAllocateBvhBuffer = false;
+		}
+		_BLASNeedsUpdate = false;
+	}
 
 	if (g_bRTEnabled && !g_bInTechRoom)
 	{
@@ -1425,25 +1454,8 @@ void EffectsRenderer::SceneEnd()
 			g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
 			g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
 			BuildTLAS();
+			ReAllocateAndPopulateMatrixBuffer();
 		}
-	}
-
-	if (_BLASNeedsUpdate)
-	{
-		if (g_bRTEnabledInTechRoom && g_bInTechRoom)
-		{
-			// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
-			BuildSingleBLASFromCurrentBVHMap();
-		}
-		else if (g_bRTEnabled)
-		{
-			// Build multiple BLASes and put them in g_LBVHMap
-			BuildMultipleBLASFromCurrentBVHMap();
-			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
-			ReAllocateBvhBuffers(g_iRTTotalNumNodesInFrame);
-			g_bRTReAllocateBvhBuffer = false;
-		}
-		_BLASNeedsUpdate = false;
 	}
 
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled && g_bRTEnabled)
@@ -2709,35 +2721,6 @@ void EffectsRenderer::ApplyRTShadows(const SceneCompData* scene)
 		else
 			log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
 	}
-	else
-	{
-		// Populate the matrices for all the meshes
-		// The current matrix is associated with a mesh, and a meshKey
-		// Using the meshKey, we can find the entry in g_LBVHMap
-		// The entry in g_LBVHMap should tell us the offset into _RTMatrices where this matrix
-		// will be written to. We don't need to iterate over all the entries in g_LBVHMap: we just
-		// need to overwrite one entry.
-		D3D11_MAPPED_SUBRESOURCE map;
-		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-		// TODO: Optimization opportunity. Only Map the matrix slot we want to update.
-		/*
-		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-		if (SUCCEEDED(hr))
-		{
-			const int32_t meshKey = MakeMeshKey(scene);
-			const auto &meshData = g_LBVHMap[meshKey];
-			//const int matrixSlot = std::get<3>(meshData);
-			Matrix4 WInv = XwaTransformToMatrix4(scene->WorldViewTransform);
-			WInv = WInv.invert();
-			// This isn't working...
-			uint8_t* base_ptr = (uint8_t*)map.pData + sizeof(Matrix4) * matrixSlot;
-			memcpy(base_ptr, WInv.get(), sizeof(Matrix4));
-			context->Unmap(resources->_RTMatrices.Get(), 0);
-		}
-		else
-			log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
-		*/
-	}
 
 	// Non-embedded geometry:
 	/*
@@ -2925,8 +2908,13 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 				// We haven't seen this mesh/centroid combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
 				g_TLASMap[meshNcentroidKey] = matrixSlot;
-				// Store the matrix proper
-				g_TLASMatrices.push_back(W);
+				// Store the matrix proper, but inverted. That's what the RT code
+				// needs
+				Matrix4 WInv = W;
+				WInv = WInv.invert();
+				if (matrixSlot >= (int)g_TLASMatrices.size())
+					g_TLASMatrices.resize(g_TLASMatrices.size() + 128);
+				g_TLASMatrices[matrixSlot] = WInv;
 
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);

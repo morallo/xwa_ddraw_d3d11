@@ -218,7 +218,6 @@ std::map<int32_t, MeshData> g_LBVHMap;
 // multiple ships in the same FG, for instance.
 std::map<MeshNCentroid_t, int32_t> g_TLASMap;
 std::vector<Matrix4> g_TLASMatrices;
-void RTResetMatrixSlotCounter();
 void ClearGlobalLBVHMap();
 
 /* The different types of Constant Buffers used in the Pixel Shader: */
@@ -1741,21 +1740,32 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	if (g_bRTEnabled)
 	{
 		// This path is only hit when we're *not* in the Tech Room
-		RTResetMatrixSlotCounter();
 		ClearGlobalLBVHMap();
 		g_bRTCaptureCameraAABB = true;
-		g_iRTTotalNumNodesInFrame = g_iRTTotalNumNodesInPrevFrame = 0;
-		g_iRTTotalMeshesInFrame = g_iRTTotalMeshesInPrevFrame = 0;
+		g_iRTTotalNumNodesInFrame = g_iRTMaxNumNodesSoFar = 0;
+		g_iRTMaxMeshesSoFar = 0;
 		g_bRTReAllocateBvhBuffer = false;
 		if (this->_RTBvh != nullptr)
+		{
 			this->_RTBvh->Release();
-		if (this->_RTMatrices != nullptr)
-			this->_RTMatrices->Release();
-
+			this->_RTBvh = nullptr;
+		}
 		if (this->_RTBvhSRV != nullptr)
+		{
 			this->_RTBvhSRV.Release();
+			this->_RTBvhSRV = nullptr;
+		}
+
+		if (this->_RTMatrices != nullptr)
+		{
+			this->_RTMatrices->Release();
+			this->_RTMatrices = nullptr;
+		}
 		if (this->_RTMatricesSRV != nullptr)
+		{
 			this->_RTMatricesSRV.Release();
+			this->_RTMatricesSRV = nullptr;
+		}
 	}
 
 	this->_backBuffer.Release();

@@ -229,8 +229,8 @@ constexpr float METERS_TO_OPT = 40.96f;
 // Raytracing
 extern bool g_bRTEnabledInTechRoom;
 extern bool g_bRTEnabled;
-extern int g_iRTTotalNumNodesInFrame, g_iRTTotalNumNodesInPrevFrame;
-extern int g_iRTTotalMeshesInFrame, g_iRTTotalMeshesInPrevFrame;
+extern int g_iRTTotalNumNodesInFrame, g_iRTMaxNumNodesSoFar;
+extern uint32_t g_iRTMaxMeshesSoFar;
 extern int g_iRTMatricesNextSlot;
 extern bool g_bRTReAllocateBvhBuffer;
 extern bool g_bRTCaptureCameraAABB;
