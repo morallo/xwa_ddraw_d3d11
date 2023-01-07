@@ -248,7 +248,7 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 			{
 				// Ray intersects the box
 				// Inner node: push the children of this node on the stack
-				if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
+				if (stack_top + 4 < MAX_RT_STACK) {
 					// Push the valid children of this node into the stack
 					for (int i = 0; i < 4; i++) {
 						int child = node.children[i];
@@ -335,7 +335,7 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 		const int TriID = node.ref;
 
 		if (TriID == -1) {
-			// This node is a box. Do the ray-box intersection test
+			// This is an inner node. Do the ray-box intersection test
 			const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
 
 			// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
@@ -346,7 +346,7 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 			{
 				// Ray intersects the box
 				// Inner node: push the children of this node on the stack
-				if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
+				if (stack_top + 4 < MAX_RT_STACK) {
 					// Push the valid children of this node into the stack
 					for (int i = 0; i < 4; i++) {
 						int child = node.children[i];
@@ -360,7 +360,9 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 			// This node is a TLAS leaf. Here we need to do two things:
 			// Intersect the ray with the AABB.
 			// Intersect the ray with the OBB.
-			// If both tests pass, then continue tracing with the proper BLAS
+			// If both tests pass, then:
+			// - Fetch the offset for the corresponding BLAS.
+			// - Continue tracing with the proper BLAS (adding the BLAS offset to all the nodes)
 			// TODO ...
 			/*
 			Intersection inters = getIntersection(ray, A, B, C);
