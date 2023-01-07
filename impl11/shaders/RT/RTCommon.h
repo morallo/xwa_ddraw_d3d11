@@ -104,6 +104,22 @@ float2 BVHIntersectBox(in StructuredBuffer<BVHNode> BVH, in float3 start, in flo
 	return T;
 }
 
+bool InsideBox(in float3 min, in float3 max, in float3 P)
+{
+	if (min.x <= P.x && P.x <= max.x &&
+		min.y <= P.y && P.y <= max.y &&
+		min.z <= P.z && P.z <= max.z)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool InsideBox(StructuredBuffer<BVHNode> BVH, int curnode, in float3 P)
+{
+	return InsideBox(BVH[curnode].min.xyz, BVH[curnode].max.xyz, P);
+}
+
 // ------------------------------------------
 // Gets the current ray intersection
 // ------------------------------------------
@@ -359,6 +375,7 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 
 		if (ID == -1)
 		{
+			/*
 			// This is an inner node. Do the ray-box intersection test
 			const float2 T = BVHIntersectBox(g_TLAS, ray.origin, inv_dir, curnode);
 
@@ -367,6 +384,9 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 			// the box is in front of the ray (for rays originating inside a box, we'll have T[0] < 0,
 			// so we can't use that test).
 			if (T[1] >= 0 && T[1] >= T[0])
+			*/
+
+			if (InsideBox(g_TLAS, curnode, ray.origin))
 			{
 				// Ray intersects the box
 				// Inner node: push the children of this node on the stack
@@ -389,6 +409,45 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 			// - Fetch the offset for the corresponding BLAS.
 			// - Continue tracing with the proper BLAS (adding the BLAS offset to all the nodes)
 
+			{
+				int BLASOffset = g_TLAS[curnode].BLASBaseNodeOffset;
+				int matrixIdx = g_TLAS[curnode].matrixSlot;
+				if (BLASOffset != -1 && matrixIdx != -1 && InsideBox(g_TLAS, curnode, ray.origin))
+				{
+					Intersection inters;
+					inters.TriID = 100;
+					return inters;
+
+					matrix Matrix = g_Matrices[matrixIdx];
+					/*
+					float3 obb_min =
+						float3(
+							g_TLAS[curnode].min[3],
+							g_TLAS[curnode].max[3],
+							asfloat(g_TLAS[curnode].children[3]));
+					float3 obb_max =
+						float3(
+							asfloat(g_TLAS[curnode].children[0]),
+							asfloat(g_TLAS[curnode].children[1]),
+							asfloat(g_TLAS[curnode].children[2]));
+					*/
+
+					// Transform the ray into the same coord sys as the OBB
+					Ray new_ray;
+					new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
+					//new_ray.dir = mul(float4(ray.dir, 0), Matrix).xyz;
+
+					// Check if the ray's origin is contained within the OBB
+					if (InsideBox(g_TLAS, curnode, new_ray.origin))
+					{
+						Intersection inters;
+						inters.TriID = 100;
+						return inters;
+					}
+				}
+			}
+
+#ifdef DISABLED
 			// Intersect the ray with the TLAS leaf's AABB:
 			const float2 T = BVHIntersectBox(g_TLAS, ray.origin, inv_dir, curnode);
 			if (T[1] >= 0 && T[1] >= T[0])
@@ -398,9 +457,8 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 				/*
 				{
 					Intersection inters;
-					inters.TriID = ID;
-					best_inters = inters;
-					return best_inters;
+					inters.TriID = 100;
+					return inters;
 				}
 				*/
 				int BLASOffset = g_TLAS[curnode].BLASBaseNodeOffset;
@@ -419,13 +477,47 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 					*/
 
 					// DEBUG: The ray intersects the AABB in this leaf, just display it
+					/*
 					{
 						Intersection inters;
 						inters.TriID = 100;
 						return inters;
 					}
+					*/
+
+					matrix Matrix = g_Matrices[matrixIdx];
+					float3 obb_min =
+						float3(
+							g_TLAS[curnode].min[3],
+							g_TLAS[curnode].max[3],
+							asfloat(g_TLAS[curnode].children[3]));
+					float3 obb_max =
+						float3(
+							asfloat(g_TLAS[curnode].children[0]),
+							asfloat(g_TLAS[curnode].children[1]),
+							asfloat(g_TLAS[curnode].children[2]));
+					// Transform the ray into the same coord sys as the OBB
+					Ray new_ray;
+					new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
+					new_ray.dir    = mul(float4(ray.dir,    0), Matrix).xyz;
+
+					// Check if the ray's origin is contained within the OBB
+					if (obb_min.x <= new_ray.origin.x &&
+						obb_min.y <= new_ray.origin.y &&
+						obb_min.z <= new_ray.origin.z &&
+
+						new_ray.origin.x <= obb_max.x &&
+						new_ray.origin.y <= obb_max.y &&
+						new_ray.origin.z <= obb_max.z)
+					{
+						Intersection inters;
+						inters.TriID = 100;
+						return inters;
+					}
+
 				}
 			}
+#endif
 		}
 	}
 

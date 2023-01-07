@@ -556,12 +556,19 @@ void DumpGlobalAABBandTLASToOBJ()
 		// Morton Code, Bounding Box, TriID, Matrix, Centroid
 		AABB obb = TLASGetOBB(leaf);
 		Matrix4 m = g_TLASMatrices[TLASGetMatrixSlot(leaf)];
-		// The matrices are stored inverted in g_TLASMatrices because that's what
-		// the RT shader needs
-		m = m.invert();
-		obb.UpdateLimits();
-		obb.TransformLimits(S1 * m);
-		VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
+		int meshKey = TLASGetID(leaf);
+		// Fetch the meshData associated with this TLAS leaf
+		MeshData& meshData = g_LBVHMap[meshKey];
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
+		if (bvh != nullptr)
+		{
+			// The matrices are stored inverted in g_TLASMatrices because that's what
+			// the RT shader needs
+			m = m.invert();
+			obb.UpdateLimits();
+			obb.TransformLimits(S1 * m);
+			VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
+		}
 	}
 	fclose(D3DDumpOBJFile);
 	log_debug("[DBG] [BVH] Dumped: %d tlas leaves", counter);
@@ -569,8 +576,38 @@ void DumpGlobalAABBandTLASToOBJ()
 
 void BuildTLAS()
 {
-	const uint32_t numLeaves = tlasLeaves.size();
+	// Prune the tlasLeaves (remove all tlas leaves that have NULL BLASes)
+	{
+		// By this point, the BLASes have been built. It's probably a good idea to prune
+		// the tlasLeaves by removing empty BLASes
+		std::vector<TLASLeafItem> tempLeaves;
+		// Also reset the global AABB, maybe it will be reduced
+		g_GlobalAABB.SetInfinity();
+		for (auto& X : tlasLeaves) {
+			int meshKey = TLASGetID(X);
+			auto& it = g_LBVHMap.find(meshKey);
+			// Mesh not found, skip:
+			if (it == g_LBVHMap.end())
+				continue;
+			else
+			{
+				MeshData& meshData = it->second;
+				void* bvh = GetLBVH(meshData);
+				// Empty BVH, skip:
+				if (bvh == nullptr)
+					continue;
+			}
+			tempLeaves.push_back(X);
+			g_GlobalAABB.Expand(TLASGetAABBFromOBB(X));
+		}
+		tlasLeaves.clear();
+		tlasLeaves = tempLeaves;
+		g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
+		g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
+		g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
+	}
 
+	const uint32_t numLeaves = tlasLeaves.size();
 	if (numLeaves == 0)
 	{
 		//log_debug("[DBG] [BVH] BuildTLAS: numLeaves 0. Early exit.");
@@ -625,7 +662,7 @@ void BuildTLAS()
 
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
 	{
-		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, false /* Metric Scale? */);
+		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
 	}
 }
 
@@ -1181,9 +1218,9 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		int meshKey = it.first;
 		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
 		MeshData& meshData = it.second;
-		const FaceGroups& FGs = std::get<0>(meshData);
-		int NumVertices = std::get<1>(meshData);
-		LBVH* bvh = (LBVH*)std::get<2>(meshData);
+		const FaceGroups& FGs = GetFaceGroups(meshData);
+		int NumVertices = GetNumMeshVertices(meshData);
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
 
 		// First, let's check if this mesh already has a BVH. If it does, skip it.
 		if (bvh != nullptr) {
@@ -1199,14 +1236,14 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			if (stristr(std::get<0>(item).c_str(), "ImperialStarDestroyer") == NULL)
 			{
 				// Remove this BVH
-				std::get<2>(meshData) = nullptr;
+				GetLBVH(meshData) = nullptr;
 				continue;
 			}
 			// We only care about the ISD after this point, the bridge has 83 vertices
 			if (std::get<1>(item) != 83)
 			{
 				// Remove this BVH
-				std::get<2>(meshData) = nullptr;
+				GetLBVH(meshData) = nullptr;
 				continue;
 			}
 		}
@@ -1260,7 +1297,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		// Update the total node count
 		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 		// Put this bvh back into the g_LBVHMap
-		std::get<2>(meshData) = bvh;
+		GetLBVH(meshData) = bvh;
 
 		// DEBUG
 #ifdef DEBUG_RT
@@ -1348,11 +1385,11 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			for (auto& it : g_LBVHMap)
 			{
 				MeshData& meshData = it.second;
-				LBVH* bvh = (LBVH*)std::get<2>(meshData);
+				LBVH* bvh = (LBVH*)GetLBVH(meshData);
 				if (bvh != nullptr)
 				{
 					// Save the location where this BLAS begins
-					std::get<3>(meshData) = BaseNodeOffset;
+					GetBaseNodeOffset(meshData) = BaseNodeOffset;
 					// Populate the buffer itself
 					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
 					base_ptr += sizeof(BVHNode) * bvh->numNodes;
@@ -1360,7 +1397,7 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 				}
 				else
 				{
-					std::get<3>(meshData) = -1;
+					GetBaseNodeOffset(meshData) = -1;
 				}
 			}
 			context->Unmap(resources->_RTBvh.Get(), 0);
@@ -2926,61 +2963,6 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		return &it->second;
 }
 
-#ifdef DISABLED
-void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB obb, int matrixSlot)
-{
-	obb.UpdateLimits();
-
-	// Transform this aabb into camera space, get a new aabb,
-	// get the centroid and add it to the TLAS
-#ifdef DUMP_TLAS
-	Matrix4 S1;
-	S1.identity();
-	static int totalVertices = 1;
-	static int OBJGroup = 1;
-	if (g_bDumpSSAOBuffers)
-	{
-		S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
-		if (g_TLASFile == NULL)
-			fopen_s(&g_TLASFile, ".\\TLAS.obj", "wt");
-	}
-	aabb.TransformLimits(S1 * WorldViewTransform);
-#else
-	obb.TransformLimits(WorldViewTransform);
-#endif
-
-	// The limits have been transformed into camera space, get the
-	// new AABB in this space and expand the current global AABB.
-	AABB aabb = obb.GetAABBFromCurrentLimits();
-	XwaVector3 centroid = aabb.GetCentroid();
-	g_GlobalAABB.Expand(aabb);
-
-	// Add this mesh to the current TLAS leaves. We're assuming this method won't be called
-	// if we've seen this mesh before so no leaves will be duplicated.
-	tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, centroid, obb, matrixSlot));
-
-#ifdef DUMP_TLAS
-	if (g_bDumpSSAOBuffers)
-	{
-		aabb.DumpLimitsToOBJ(g_TLASFile, OBJGroup, totalVertices);
-		totalVertices += aabb.Limits.size();
-
-		//box.UpdateLimits();
-		//box.DumpLimitsToOBJ(g_TLASFile, OBJGroup, totalVertices);
-		//totalVertices += box.Limits.size();
-
-		OBJGroup++;
-	}
-#endif
-
-	// Get the centroid and compute its Morton Code using g_CameraAABB
-	//XwaVector3 centroid = aabb.GetCentroid();
-	//Normalize(centroid, g_CameraAABB, g_CameraRange);
-	//MortonCode_t code = GetMortonCode32(centroid);
-	//g_TLASTree = InsertRB(g_TLASTree, meshID, code, aabb, WorldViewTransform);
-}
-#endif
-
 // Update g_TLASMap: checks if we've seen the current mesh in this frame. If we
 // haven't seen this mesh, a new matrix slot is requested and a new (meshKey, matrixSlot)
 // entry is added to g_TLASMap. Otherwise we fetch the matrixSlot for the meshKey.
@@ -3044,14 +3026,14 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	MeshData meshData;
 	FaceGroups FGs;
 	auto it = g_LBVHMap.find(meshKey);
-	std::get<2>(meshData) = nullptr; // Initialize the BVH to NULL
+	GetLBVH(meshData) = nullptr; // Initialize the BVH to NULL
 	// We have seen this mesh before, but we need to check if we've seen
 	// the FG as well
 	if (it != g_LBVHMap.end())
 	{
 		// Check if we've seen this FG group before
 		meshData = it->second;
-		FGs = std::get<0>(meshData);
+		FGs = GetFaceGroups(meshData);
 		// The FG key is FaceIndices:
 		auto it = FGs.find((int32_t)scene->FaceIndices);
 		if (it != FGs.end())
@@ -3064,7 +3046,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	// Signal that there's at least one BLAS that needs to be rebuilt
 	_BLASNeedsUpdate = true;
 	// Delete any previous BVH for this mesh
-	LBVH* bvh = (LBVH*)std::get<2>(meshData);
+	LBVH* bvh = (LBVH*)GetLBVH(meshData);
 	if (bvh != nullptr)
 		delete bvh;
 
@@ -3072,14 +3054,10 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	// Add the FG to the map so that it's not processed again
 	FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
 	// Update the FaceGroup in the meshData
-	std::get<0>(meshData) = FGs;
-	std::get<1>(meshData) = scene->VerticesCount;
-	std::get<2>(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
-	//std::get<3>(meshData) = matrixSlot; // We can't store the matrix slot on the BLAS, there can be multiple instances each with a different matrix!
-	//uint32_t preSize = g_LBVHMap.size();
-	g_LBVHMap[meshKey] = meshData;
-	//uint32_t postSize = g_LBVHMap.size();
-	//if (postSize > preSize) log_debug("[DBG] [BVH] g_LBVHMap.size() increased to: %d", postSize);
+	GetFaceGroups(meshData)		 = FGs;
+	GetNumMeshVertices(meshData) = scene->VerticesCount;
+	GetLBVH(meshData)			 = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
+	g_LBVHMap[meshKey]			 = meshData;
 
 	// DEBUG: Add the OPT's name to g_MeshToNameMap
 #ifdef DEBUG_RT

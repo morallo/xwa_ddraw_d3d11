@@ -212,6 +212,22 @@ using LeafItem = std::tuple<MortonCode_t, AABB, int>;
 // Morton Code, aabbFromOBB, TriID, MatrixSlot, Centroid, Oriented Bounding Box
 using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, int, XwaVector3, AABB>;
 
+inline MortonCode_t &GetMortonCode(LeafItem& X) { return std::get<0>(X); }
+inline MortonCode_t &GetMortonCode(TLASLeafItem& X) { return std::get<0>(X); }
+
+inline AABB &GetAABB(LeafItem& X) { return std::get<1>(X); }
+inline AABB &GetAABB(TLASLeafItem& X) { return std::get<1>(X); }
+
+inline int& GetID(LeafItem& X) { return std::get<2>(X); }
+inline int& GetID(TLASLeafItem& X) { return std::get<2>(X); }
+
+inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X) { return std::get<0>(X); }
+inline AABB& TLASGetAABBFromOBB(TLASLeafItem& X) { return std::get<1>(X); }
+inline int& TLASGetID(TLASLeafItem& X) { return std::get<2>(X); }
+inline int& TLASGetMatrixSlot(TLASLeafItem& X) { return std::get<3>(X); }
+inline XwaVector3& TLASGetCentroid(TLASLeafItem& X) { return std::get<4>(X); }
+inline AABB& TLASGetOBB(TLASLeafItem& X) { return std::get<5>(X); }
+
 struct InnerNode
 {
 	int parent;
@@ -251,36 +267,6 @@ struct InnerNode4
 
 bool leafSorter(const LeafItem& i, const LeafItem& j);
 bool tlasLeafSorter(const TLASLeafItem& i, const TLASLeafItem& j);
-
-inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X)
-{
-	return std::get<0>(X);
-}
-
-inline AABB& TLASGetAABBFromOBB(TLASLeafItem& X)
-{
-	return std::get<1>(X);
-}
-
-inline int& TLASGetID(TLASLeafItem& X)
-{
-	return std::get<2>(X);
-}
-
-inline int& TLASGetMatrixSlot(TLASLeafItem& X)
-{
-	return std::get<3>(X);
-}
-
-inline XwaVector3& TLASGetCentroid(TLASLeafItem& X)
-{
-	return std::get<4>(X);
-}
-
-inline AABB& TLASGetOBB(TLASLeafItem& X)
-{
-	return std::get<5>(X);
-}
 
 class IGenericTreeNode
 {

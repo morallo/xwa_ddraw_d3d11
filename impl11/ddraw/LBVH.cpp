@@ -1410,8 +1410,8 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	const auto &it = g_LBVHMap.find(MeshID);
 	if (it != g_LBVHMap.end())
 	{
-		const MeshData& meshData = it->second;
-		BLASBaseNodeOffset = std::get<3>(meshData);
+		MeshData& meshData = it->second;
+		BLASBaseNodeOffset = GetBaseNodeOffset(meshData);
 		// Disable this leaf if the BVH does not exist
 		if (std::get<2>(meshData) == nullptr)
 		{
@@ -1444,6 +1444,23 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	fbuffer[EncodeOfs++] = obb.max[2];
 	fbuffer[EncodeOfs++] = obb.min[2];
 	// 64 bytes
+
+	/*
+	fbuffer[EncodeOfs++] = obb.min[0];
+	fbuffer[EncodeOfs++] = obb.min[1];
+	fbuffer[EncodeOfs++] = obb.min[2];
+	fbuffer[EncodeOfs++] = 0;
+	// 32 bytes
+	fbuffer[EncodeOfs++] = obb.max[0];
+	fbuffer[EncodeOfs++] = obb.max[1];
+	fbuffer[EncodeOfs++] = obb.max[2];
+	fbuffer[EncodeOfs++] = 0;
+	// 48 bytes
+	fbuffer[EncodeOfs++] = 0;
+	fbuffer[EncodeOfs++] = 0;
+	fbuffer[EncodeOfs++] = 0;
+	fbuffer[EncodeOfs++] = 0;
+	*/
 	return EncodeOfs;
 }
 

@@ -148,6 +148,12 @@ using FaceGroups = std::map<int32_t, int32_t>;
 // 2: LBVH               -- The BVH for this mesh (only used during regular flight)
 // 3: BaseNodeOffset     -- The index into _RTBvh where this BLAS begins (only used during regular flight)
 using MeshData = std::tuple<FaceGroups, int32_t, void*, int>;
+
+inline FaceGroups& GetFaceGroups(MeshData& X) { return std::get<0>(X); }
+inline int32_t& GetNumMeshVertices(MeshData& X) { return std::get<1>(X); }
+inline void* &GetLBVH(MeshData& X) { return std::get<2>(X); }
+inline int &GetBaseNodeOffset(MeshData& X) { return std::get<3>(X); }
+
 // TLAS leaf uniqueness is determined by the meshKey and its centroid (there can be
 // multiple instances of the same mesh belonging to different craft in a Flight Group, for instance)
 using MeshNCentroid_t = std::tuple<int32_t, float, float, float>;
