@@ -13,9 +13,15 @@
 #include "..\SSAOPSConstantBuffer.h"
 #include "..\shadow_mapping_common.h"
 #include "..\PBRShading.h"
+#include "..\RT\RTCommon.h"
 
 #undef PBR_SHADING
 #undef PBR_DYN_LIGHTS
+#undef PBR_RAYTRACING
+
+//#define PBR_SHADING
+//#define PBR_DYN_LIGHTS
+//#define PBR_RAYTRACING
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -559,14 +565,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	// Compute ray-traced shadows
-	//float3 SSAO_Normal = float3(N.xy, -N.z);
-	// SSAO version:
-	//float m_offset = moire_offset * (-pos3D.z * moire_scale);
-	//float3 shadow_pos3D = P + SSAO_Normal * m_offset;
-	//float shadow = 1;
-	//if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
-
 	//ssdo = ambient + ssdo; // * shadow; // Add the ambient component 
 	//ssdo = lerp(ssdo, 1, mask);
 	//ssdoInd = lerp(ssdoInd, 0, mask);
@@ -745,14 +743,28 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 N_PBR = N;
 		N_PBR.xy = -N_PBR.xy;
 		L.xy = -L.xy;
-		float3 col = addPBR(P, N_PBR, N_PBR, -eye_vec,
-			color.rgb, L, float4(LightColor[i].rgb, LightIntensity),
+#ifndef PBR_RAYTRACING
+		// NO Raytracing
+		float3 col = addPBR(
+			P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
+			float4(LightColor[i].rgb, LightIntensity),
 			metallicity,
 			glossiness, // Glossiness: 0 matte, 1 glossy/glass
 			reflectance,
 			ambient,
 			total_shadow_factor * ssdo.x
 		);
+#else
+		// Raytracing Enabled
+		float3 col = addPBR_RT_TLAS(
+			P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
+			float4(LightColor[i].rgb, LightIntensity),
+			metallicity,
+			glossiness, // Glossiness: 0 matte, 1 glossy/glass
+			reflectance,
+			ambient
+		);
+#endif
 		tmp_color += col;
 		//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 		//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);

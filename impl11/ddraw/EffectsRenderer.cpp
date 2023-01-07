@@ -1235,9 +1235,9 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 
 		int root = bvh->nodes[0].rootIdx;
-		log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, total nodes: %d, actual nodes: %d",
+		/*log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, total nodes: %d, actual nodes: %d",
 			g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-			g_curOPTLoaded, bvh->numNodes, bvh->numNodes - root);
+			g_curOPTLoaded, bvh->numNodes, bvh->numNodes - root);*/
 
 		// Put this bvh back into g_LBVHMap
 		std::get<2>(meshData) = bvh;
@@ -1390,7 +1390,7 @@ void EffectsRenderer::ReAllocateAndPopulateTLASBvhBuffers()
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = g_iRTMaxBLASNodesSoFar;
+		srvDesc.Buffer.NumElements = g_iRTMaxTLASNodesSoFar;
 
 		hr = device->CreateShaderResourceView(resources->_RTTLASBvh, &srvDesc, &(resources->_RTTLASBvhSRV));
 		if (FAILED(hr)) {
@@ -3343,7 +3343,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture &&
-		!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner && !g_bIsFloating3DObject)
+		!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
+		!(g_bIsFloating3DObject || g_isInRenderMiniature))
 	{
 		UpdateGlobalBVH(scene, _currentOptMeshIndex);
 	}

@@ -3395,6 +3395,7 @@ void PrimarySurface::DeferredPass() {
 			NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
+
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
@@ -3413,6 +3414,18 @@ void PrimarySurface::DeferredPass() {
 				resources->_shadowMapArraySRV.Get() : NULL,
 		};
 		context->PSSetShaderResources(0, 9, srvs_pass2);
+
+		if (g_bRTEnabled)
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_RTBvhSRV.Get(),
+				resources->_RTMatricesSRV.Get(),
+				resources->_RTTLASBvhSRV.Get(),
+			};
+			// Slots 14-16 are used for Raytracing buffers (BLASes, Matrices, TLAS)
+			context->PSSetShaderResources(14, 3, srvs);
+		}
+
 		context->Draw(6, 0);
 	}
 
@@ -3453,6 +3466,18 @@ void PrimarySurface::DeferredPass() {
 				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 		};
 		context->PSSetShaderResources(0, 9, srvs_pass2);
+
+		if (g_bRTEnabled)
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_RTBvhSRV.Get(),
+				resources->_RTMatricesSRV.Get(),
+				resources->_RTTLASBvhSRV.Get(),
+			};
+			// Slots 14-16 are used for Raytracing buffers (BLASes, Matrices, TLAS)
+			context->PSSetShaderResources(14, 3, srvs);
+		}
+
 		context->Draw(6, 0);
 	}
 

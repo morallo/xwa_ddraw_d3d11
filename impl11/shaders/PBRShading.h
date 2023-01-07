@@ -87,19 +87,16 @@ float3 computePBRLighting(in float3 L, in float3 light_color, in float3 position
 }
 
 // Main entry point for PBR shading with Ray-tracing. This is used in
-// the Tech Room.
-float3 addPBR_RT(in float3 position, in float3 N, in float3 FlatN, in float3 V,
+// the Tech Room (there's no TLAS and the single BLAS contains all the meshes)
+float3 addPBR_RT_TechRoom(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 	in float3 baseColor, in float3 lightDir, in float4 lightColor,
-	in float metalMask, in float glossiness, in float reflectance)
+	in float metalMask, in float glossiness, in float reflectance, in float ambient)
 {
 	float3 color = 0.0;
 	float roughness = 1.0 - glossiness * glossiness;
 	float3 F0 = 0.16 * reflectance * reflectance * (1.0 - metalMask) + baseColor * metalMask;
 	float3 albedo;
 	float shadow = 1.0;
-	//const float ambient = 0.05;
-	//const float ambient = 0.15;
-	const float ambient = 0.1;
 	// albedo = linear_to_srgb(baseColor);
 	albedo = baseColor;
 
@@ -196,6 +193,65 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 
 	//return color * shadow; // Original version
 	return ambient * albedo + color * shadow * shadowFactor; // This prevents areas in shadow from becoming full black.
+}
+
+// Main entry point for PBR shading with Ray-tracing during regular flight.
+// This code expects one TLAS and multiple BLASes/Matrices.
+float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float3 V,
+	in float3 baseColor, in float3 lightDir, in float4 lightColor,
+	in float metalMask, in float glossiness, in float reflectance, in float ambient)
+{
+	float3 color = 0.0;
+	float roughness = 1.0 - glossiness * glossiness;
+	float3 F0 = 0.16 * reflectance * reflectance * (1.0 - metalMask) + baseColor * metalMask;
+	// float3 albedo = linear_to_srgb(baseColor);
+	float3 albedo = baseColor;
+	float shadow = 1.0;
+
+	//for (int i = 0; i < globalLightsCount; i++)
+	int i = 0;
+	{
+		//float3 L = float3(0.7, -0.7, 1);
+		//float3 L = float3(0.5, 1.0, 0.7);
+		//float3 light_color = 1.0;
+		float3 L = lightDir;
+		float3 light_color = lightColor.w * lightColor.xyz;
+
+		// Vector from the current point to the light source. Lights are at infinity,
+		// so the current point is irrelevant.
+		L = normalize(L);
+
+		// Only do raytraced shadows for surfaces that face towards the light source.
+		// If the current surface faces away, we already know it's shadowed
+		const float dotLFlatN = dot(L, FlatN);
+		if (/* bDoRaytracing && */ dotLFlatN > 0) {
+			Ray ray;
+			ray.origin = position; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
+			//ray.origin = position + 0.01f * FlatN; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
+			ray.dir = L;
+			ray.max_dist = 5000.0f;
+
+			Intersection inters = TLASTraceRaySimpleHit(ray);
+			// Original
+			//if (inters.TriID > -1)
+			//	shadow = 0.0;
+
+			// DEBUG
+			if (inters.TriID > -1) {
+				return float3(0, 1, 1);
+			}
+		}
+		if (dotLFlatN <= 0) shadow = 0.0;
+
+		float3 col = computePBRLighting(L, light_color, position,
+			N, V, albedo, roughness, F0);
+		color += col;
+
+		// shadow += softshadow(position, normalize(lights[i].pos.xyz - position), 0.02, 2.5);
+	}
+
+	//return color * shadow; // Original version
+	return ambient * albedo + color * shadow; // This prevents areas in shadow from becoming full black.
 }
 
 #endif

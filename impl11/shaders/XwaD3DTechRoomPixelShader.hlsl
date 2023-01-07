@@ -44,10 +44,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float4 color			= float4(input.color.xyz, 1.0f);
 	float4 texelColor		= texture0.Sample(sampler0, input.tex);
 	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
-	uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
+	//uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
 	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
-	if (bIsBlastMark)
-		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+	// TODO: Do we need blast marks in the Tech Room?
+	//if (bIsBlastMark) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
 	float alpha = texelColor.w;
 	const float3 P = input.pos3D.xyz;
@@ -106,6 +106,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float glossiness = lerp(0.7, 0.6, blackish);
 	//float reflectance = 0.6;
 	float reflectance = lerp(0.6, 0.5, blackish);
+	const float ambient = 0.1;
 	float final_alpha = alpha;
 	// Make glass more glossy
 	if (alpha < 0.98)
@@ -114,11 +115,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		reflectance = 1.0;
 	}
 	float3 eye_vec = normalize(-output.pos3D.xyz); // normalize(eye - pos3D); // Vector from pos3D to the eye (0,0,0)
-	float3 col = addPBR_RT(P, N, output.normal.xyz, -eye_vec, srgb_to_linear(texelColor.rgb),
-		globalLights[0].direction.xyz, globalLights[0].color,
+	float3 col = addPBR_RT_TechRoom(P, N, output.normal.xyz, -eye_vec,
+		srgb_to_linear(texelColor.rgb),
+		globalLights[0].direction.xyz,
+		globalLights[0].color,
 		metallicity,
 		glossiness, // Glossiness: 0 matte, 1 glossy/glass
-		reflectance
+		reflectance,
+		ambient
 	);
 	output.color.rgb = linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 	// Make glass reflections more visible (non-transparent)
@@ -171,8 +175,8 @@ PixelShaderOutput main(PixelShaderInput input)
 #ifdef DISABLED
 	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
 		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
-		&& alpha < 0.95 /* This texture has transparency */
-		&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
+		&& alpha < 0.95) /* This texture has transparency */
+		//&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
 	{
 		// Change the material and do max glossiness and spec_intensity
 		output.ssaoMask.r = GLASS_MAT;

@@ -315,4 +315,97 @@ Intersection TraceRaySimpleHit(Ray ray) {
 	//return _NaiveSimpleHit(ray);
 }
 
+// TLAS Ray traversal, Embedded Geometry version
+Intersection _TLASTraceRaySimpleHit(Ray ray) {
+	int stack[MAX_RT_STACK];
+	int stack_top = 0;
+	int curnode = -1;
+	float3 inv_dir = 1.0f / ray.dir;
+	Intersection best_inters;
+	best_inters.TriID = -1;
+
+	// Read the padding from the first BVHNode. It will contain the location of the root
+	int root = g_TLASBvh[0].rootIdx;
+
+	stack[stack_top++] = root; // Push the root on the stack
+	while (stack_top > 0) {
+		// Pop a node from the stack
+		curnode = stack[--stack_top];
+		const BVHNode node = g_TLASBvh[curnode];
+		const int TriID = node.ref;
+
+		if (TriID == -1) {
+			// This node is a box. Do the ray-box intersection test
+			const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
+
+			// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
+			// boxes behind the ray. To skip those boxes, we need to add T[1] >= 0, to make sure
+			// the box is in front of the ray (for rays originating inside a box, we'll have T[0] < 0,
+			// so we can't use that test).
+			if (T[1] >= 0 && T[1] >= T[0])
+			{
+				// Ray intersects the box
+				// Inner node: push the children of this node on the stack
+				if (TriID == -1 && stack_top + 4 < MAX_RT_STACK) {
+					// Push the valid children of this node into the stack
+					for (int i = 0; i < 4; i++) {
+						int child = node.children[i];
+						if (child == -1) break;
+						stack[stack_top++] = child;
+					}
+				}
+			}
+		}
+		else {
+			// This node is a TLAS leaf. Here we need to do two things:
+			// Intersect the ray with the AABB.
+			// Intersect the ray with the OBB.
+			// If both tests pass, then continue tracing with the proper BLAS
+			// TODO ...
+			/*
+			Intersection inters = getIntersection(ray, A, B, C);
+			if (RayTriangleTest(inters)) {
+				inters.TriID = TriID;
+				best_inters = inters;
+				return best_inters;
+			}
+			*/
+			Intersection inters;
+			inters.TriID = TriID;
+			best_inters = inters;
+			return best_inters;
+		}
+	}
+
+	return best_inters;
+}
+
+// Trace a ray and return as soon as we hit geometry
+Intersection TLASTraceRaySimpleHit(Ray ray) {
+	float3 pos3D = ray.origin;
+	// ray.origin is in the pos3D frame, we need to invert it into OPT coords
+	pos3D.y = -pos3D.y;
+	pos3D *= 40.96f;
+	// The TLAS does not have a WorldView, , so pos3D is already in the
+	// same coordinate system as the TLAS
+	//pos3D = mul(float4(pos3D, 1.0f), g_Matrices[0]).xyz;
+
+	float3 dir = ray.dir;
+
+	// ray.dir is in the pos3D frame, we need to transform it into OPT coords
+	// Here the transform rule is slightly different because I hate myself and
+	// I altered how lights work in the Tech Room. XWA fixes the lights to the
+	// object, but I wanted them fixed in space so that we could really see the
+	// shading. See D3dRenderer::UpdateConstantBuffer for more details
+	dir.yz = -dir.yz;
+	// dir is in WorldView coords, no need to transform it
+	//dir = mul(float4(dir, 0), g_Matrices[0]).xyz;
+
+	// pos3D and dir are now in WorldView coords. We can cast the ray
+	ray.origin = pos3D; // * RTScale;
+	ray.dir = dir;
+	ray.max_dist *= 40.96f; // * RTScale;
+	return _TLASTraceRaySimpleHit(ray);
+}
+
 #endif
