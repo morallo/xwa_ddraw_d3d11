@@ -1742,7 +1742,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// This path is only hit when we're *not* in the Tech Room
 		ClearGlobalLBVHMap();
 		g_bRTCaptureCameraAABB = true;
-		g_iRTTotalNumNodesInFrame = g_iRTMaxNumNodesSoFar = 0;
+		g_iRTTotalBLASNodesInFrame = g_iRTMaxBLASNodesSoFar = g_iRTMaxTLASNodesSoFar = 0;
 		g_iRTMaxMeshesSoFar = 0;
 		g_bRTReAllocateBvhBuffer = false;
 		if (this->_RTBvh != nullptr)
@@ -1750,16 +1750,26 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_RTBvh->Release();
 			this->_RTBvh = nullptr;
 		}
+		if (this->_RTTLASBvh != nullptr)
+		{
+			this->_RTTLASBvh->Release();
+			this->_RTTLASBvh = nullptr;
+		}
+		if (this->_RTMatrices != nullptr)
+		{
+			this->_RTMatrices->Release();
+			this->_RTMatrices = nullptr;
+		}
+
 		if (this->_RTBvhSRV != nullptr)
 		{
 			this->_RTBvhSRV.Release();
 			this->_RTBvhSRV = nullptr;
 		}
-
-		if (this->_RTMatrices != nullptr)
+		if (this->_RTTLASBvhSRV != nullptr)
 		{
-			this->_RTMatrices->Release();
-			this->_RTMatrices = nullptr;
+			this->_RTTLASBvhSRV->Release();
+			this->_RTTLASBvhSRV = nullptr;
 		}
 		if (this->_RTMatricesSRV != nullptr)
 		{

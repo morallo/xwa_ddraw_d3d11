@@ -374,6 +374,7 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _vision3DSignatureSRV; // SRV for _vision3DSignature
 	// Raytracing
 	ComPtr<ID3D11ShaderResourceView> _RTBvhSRV;
+	ComPtr<ID3D11ShaderResourceView> _RTTLASBvhSRV;
 	ComPtr<ID3D11ShaderResourceView> _RTMatricesSRV;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
@@ -512,6 +513,7 @@ public:
 	// Raytracing
 	ComPtr<ID3D11Buffer> _RTConstantsBuffer;
 	ComPtr<ID3D11Buffer> _RTBvh;
+	ComPtr<ID3D11Buffer> _RTTLASBvh;
 	ComPtr<ID3D11Buffer> _RTMatrices;
 
 	//ComPtr<ID3D11Buffer> _reticleVertexBuffer;

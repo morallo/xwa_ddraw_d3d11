@@ -65,12 +65,10 @@ struct BVHNode {
 StructuredBuffer<BVHNode> g_BVH : register(t14);
 // Matrices, slot 15
 StructuredBuffer<matrix> g_Matrices : register(t15);
-// Offsets, slot 16 (TODO)
-// We're probably going to need this at some point, to either:
-// * Have roots that begin at a non-zero index (this happens with the bottom-up QBVH builder)
-// * Have multiple BLASes in a single buffer. Thus, multiple roots may exist in a single
+// TLAS BVH, slot 16
+StructuredBuffer<BVHNode> g_TLASBvh : register(t16);
+// * During regular flight, we have multiple BLASes in a single buffer. Thus, multiple roots may exist in a single
 //   buffer and each BVH will have its own starting offset to which all other internal offsets are relative to.
-//StructuredBuffer<uint2> g_BVHOffsets : register(t16);
 
 // Vertices, slot 15
 //Buffer<float3> g_Vertices : register(t15);

@@ -32,8 +32,9 @@ bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
-int g_iRTTotalNumNodesInFrame = 0;
-int g_iRTMaxNumNodesSoFar = 0;
+int g_iRTTotalBLASNodesInFrame = 0;
+int g_iRTMaxBLASNodesSoFar = 0;
+int g_iRTMaxTLASNodesSoFar = 0;
 
 uint32_t g_iRTMaxMeshesSoFar = 0;
 
@@ -591,7 +592,7 @@ void BuildTLAS()
 	// Encode the sorted leaves
 	// TODO: Encode the leaves before sorting, and use TriID as the sort index.
 	const int numQBVHInnerNodes = CalcNumInnerQBVHNodes(numLeaves);
-	const int numQBVHNodes = numLeaves + numQBVHInnerNodes;
+	const int numQBVHNodes = numQBVHInnerNodes + numLeaves;
 
 	// We can reserve the buffer for the QBVH now.
 	BVHNode* QBVHBuffer = new BVHNode[numQBVHNodes];
@@ -1165,7 +1166,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 {
 	// At least one BLAS needs to be rebuilt in this frame, let's count
 	// the total nodes again.
-	g_iRTTotalNumNodesInFrame = 0;
+	g_iRTTotalBLASNodesInFrame = 0;
 
 	for (auto& it : g_LBVHMap)
 	{
@@ -1181,7 +1182,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		// First, let's check if this mesh already has a BVH. If it does, skip it.
 		if (bvh != nullptr) {
 			// Update the total node count
-			g_iRTTotalNumNodesInFrame += bvh->numNodes;
+			g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 			continue;
 		}
 
@@ -1231,7 +1232,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		}
 
 		// Update the total node count
-		g_iRTTotalNumNodesInFrame += bvh->numNodes;
+		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 
 		int root = bvh->nodes[0].rootIdx;
 		log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, total nodes: %d, actual nodes: %d",
@@ -1243,10 +1244,10 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 	}
 
 	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d",
-		g_iRTTotalNumNodesInFrame, g_iRTMaxNumNodesSoFar);
+		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
 
-	g_bRTReAllocateBvhBuffer = (g_iRTTotalNumNodesInFrame > g_iRTMaxNumNodesSoFar);
-	g_iRTMaxNumNodesSoFar = max(g_iRTTotalNumNodesInFrame, g_iRTMaxNumNodesSoFar);;
+	g_bRTReAllocateBvhBuffer = (g_iRTTotalBLASNodesInFrame > g_iRTMaxBLASNodesSoFar);
+	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);;
 }
 
 void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
@@ -1275,7 +1276,7 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			resources->_RTBvhSRV = nullptr;
 		}
 
-		desc.ByteWidth = sizeof(BVHNode) * g_iRTMaxNumNodesSoFar;
+		desc.ByteWidth = sizeof(BVHNode) * g_iRTMaxBLASNodesSoFar;
 		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -1292,7 +1293,7 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = g_iRTMaxNumNodesSoFar;
+		srvDesc.Buffer.NumElements = g_iRTMaxBLASNodesSoFar;
 
 		hr = device->CreateShaderResourceView(resources->_RTBvh, &srvDesc, &(resources->_RTBvhSRV));
 		if (FAILED(hr)) {
@@ -1333,6 +1334,82 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 		}
 		else
 			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
+	}
+}
+
+void EffectsRenderer::ReAllocateAndPopulateTLASBvhBuffers()
+{
+	// Create the buffers for the BVH -- this code path applies for in-flight RT
+	auto& resources = _deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	HRESULT hr;
+
+	if (g_TLASTree == nullptr)
+		return;
+
+	const int numNodes = g_TLASTree->numNodes;
+	if (numNodes == 0)
+		return;
+
+	const bool bReallocate = (numNodes > g_iRTMaxTLASNodesSoFar);
+	g_iRTMaxTLASNodesSoFar = max(g_iRTMaxTLASNodesSoFar, numNodes);
+
+	// (Re-)Create the BVH buffers
+	if (bReallocate)
+	{
+		D3D11_BUFFER_DESC desc;
+		ZeroMemory(&desc, sizeof(desc));
+
+		if (resources->_RTTLASBvh != nullptr)
+		{
+			resources->_RTTLASBvh.Release();
+			resources->_RTTLASBvh = nullptr;
+		}
+
+		if (resources->_RTTLASBvhSRV != nullptr)
+		{
+			resources->_RTTLASBvhSRV.Release();
+			resources->_RTTLASBvhSRV = nullptr;
+		}
+
+		desc.ByteWidth = sizeof(BVHNode) * g_iRTMaxTLASNodesSoFar;
+		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+		desc.StructureByteStride = sizeof(BVHNode);
+
+		hr = device->CreateBuffer(&desc, nullptr, &(resources->_RTTLASBvh));
+		if (FAILED(hr)) {
+			log_debug("[DBG] [BVH] [REALLOC] Failed when creating TLAS BVH buffer: 0x%x", hr);
+		}
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+		ZeroMemory(&srvDesc, sizeof(srvDesc));
+		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+		srvDesc.Buffer.FirstElement = 0;
+		srvDesc.Buffer.NumElements = g_iRTMaxBLASNodesSoFar;
+
+		hr = device->CreateShaderResourceView(resources->_RTTLASBvh, &srvDesc, &(resources->_RTTLASBvhSRV));
+		if (FAILED(hr)) {
+			log_debug("[DBG] [BVH] [REALLOC] Failed when creating TLAS BVH SRV: 0x%x", hr);
+		}
+	}
+
+	// Populate the BVH buffer
+	{
+		D3D11_MAPPED_SUBRESOURCE map;
+		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+		hr = context->Map(resources->_RTTLASBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+		if (SUCCEEDED(hr))
+		{
+			memcpy(map.pData, g_TLASTree->nodes, sizeof(BVHNode) * numNodes);
+			context->Unmap(resources->_RTTLASBvh.Get(), 0);
+		}
+		else
+			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping TLAS BVH nodes: 0x%x", hr);
 	}
 }
 
@@ -1431,7 +1508,7 @@ void EffectsRenderer::SceneEnd()
 			// Build multiple BLASes and put them in g_LBVHMap
 			BuildMultipleBLASFromCurrentBVHMap();
 			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
-			ReAllocateAndPopulateBvhBuffers(g_iRTTotalNumNodesInFrame);
+			ReAllocateAndPopulateBvhBuffers(g_iRTTotalBLASNodesInFrame);
 			g_bRTReAllocateBvhBuffer = false;
 		}
 		_BLASNeedsUpdate = false;
@@ -1455,6 +1532,7 @@ void EffectsRenderer::SceneEnd()
 			g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
 			BuildTLAS();
 			ReAllocateAndPopulateMatrixBuffer();
+			ReAllocateAndPopulateTLASBvhBuffers();
 		}
 	}
 

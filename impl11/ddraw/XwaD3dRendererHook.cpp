@@ -279,15 +279,6 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 	_lastMeshTextureVertices = nullptr;
 	_lastMeshTextureVerticesView = nullptr;
 
-	// At the moment, the BVH is initialized once, when the craft is loaded. Later we may want
-	// to initialize it on every frame. If/when that happens, we'll need something like this:
-	/*
-	_RTBvh = nullptr;
-	_RTBvhSRV = nullptr;
-	_RTMatrices = nullptr;
-	_RTMatricesSRV = nullptr;
-	*/
-
 	GetViewport(&_viewport);
 	GetViewportScale(_constants.viewportScale);
 	// Update g_bInTechGlobe
@@ -1352,12 +1343,17 @@ void D3dRenderer::Initialize()
 
 	if (g_bRTEnabledInTechRoom || g_bRTEnabled) {
 		ClearGlobalLBVHMap();
-		if (_lbvh != nullptr) {
-			delete _lbvh;
-			_lbvh = nullptr;
-		}
+		_lbvh = nullptr;
 		// Reserve some space for the matrices we'll use to build the TLAS
 		g_TLASMatrices.reserve(1024);
+
+		/*
+		_RTBvh = nullptr;
+		_RTBvhSRV = nullptr;
+		_RTMatrices = nullptr;
+		_RTMatricesSRV = nullptr;
+		g_TLASTree = nullptr;
+		*/
 	}
 }
 
