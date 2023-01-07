@@ -360,7 +360,7 @@ void LBVH::DumpToOBJ(char *sFileName, bool isTLAS, bool useMetricScale)
 	BVHPrimNode *primNodes = (BVHPrimNode *)nodes;
 	FILE *file = NULL;
 	int index = 1;
-	float scale[3] = { 1.0f, -1.0f, 1.0f };
+	float scale[3] = { 1.0f, 1.0f, 1.0f };
 	if (useMetricScale)
 	{
 		scale[0] =  OPT_TO_METERS;
@@ -374,8 +374,9 @@ void LBVH::DumpToOBJ(char *sFileName, bool isTLAS, bool useMetricScale)
 		return;
 	}
 
-	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes);
-	for (int i = 0; i < numNodes; i++) {
+	int root = nodes[0].rootIdx;
+	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes - root);
+	for (int i = root; i < numNodes; i++) {
 		if (nodes[i].ref != -1)
 		{
 			if (isTLAS)
@@ -1411,6 +1412,11 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	{
 		const MeshData& meshData = it->second;
 		BLASBaseNodeOffset = std::get<3>(meshData);
+		// Disable this leaf if the BVH does not exist
+		if (std::get<2>(meshData) == nullptr)
+		{
+			BLASBaseNodeOffset = -1;
+		}
 	}
 
 	int EncodeOfs     = EncodeNodeIdx * sizeof(BVHNode) / 4;

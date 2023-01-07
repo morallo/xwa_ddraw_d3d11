@@ -1607,6 +1607,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		curMaterial->bInstanceMaterial = true;
 	}
 
+	else if (_stricmp(param, "Raytrace") == 0) {
+		curMaterial->Raytrace = (int)fValue;
+	}
+
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));

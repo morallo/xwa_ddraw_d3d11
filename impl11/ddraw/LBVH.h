@@ -70,7 +70,7 @@ struct BVHTLASLeafNode {
 	// 32 bytes
 	float max[4];    // Object-space AABB max  (needs to be multiplied by the matrix in matrixSlot)
 	// 48 bytes
-	int padding2[4];
+	float padding2[4];
 	// 64 bytes
 };
 

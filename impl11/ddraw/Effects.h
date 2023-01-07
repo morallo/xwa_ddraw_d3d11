@@ -158,6 +158,11 @@ extern std::map<int32_t, MeshData> g_LBVHMap;
 extern std::map<MeshNCentroid_t, int32_t> g_TLASMap;
 // The TLAS matrix buffer (1:1 correspondence with g_TLASMap)
 extern std::vector<Matrix4> g_TLASMatrices;
+#define DEBUG_RT
+#ifdef DEBUG_RT
+// DEBUG only
+extern std::map<int32_t, std::tuple<std::string, int>> g_DebugMeshToNameMap;
+#endif
 
 // ********************************
 // DATReader function pointers

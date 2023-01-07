@@ -611,6 +611,8 @@ void BuildTLAS()
 	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d", root, numQBVHNodes);
 	// Initialize the root
 	QBVHBuffer[0].rootIdx = root;
+	if (g_bDumpSSAOBuffers)
+		log_debug("[DBG] [BVH] TLAS root: %d", root);
 
 	// delete[] QBVHBuffer;
 
@@ -623,7 +625,7 @@ void BuildTLAS()
 
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
 	{
-		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale */);
+		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, false /* Metric Scale? */);
 	}
 }
 
@@ -897,7 +899,11 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		// *inMissionFilmState is 0 during regular flight, and becomes 1 when recording (I think)
 
 		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
-			!(*g_playerInHangar) && hyperspacePhase == 0 && *viewingFilmState == 0 &&
+			!(*g_playerInHangar) && hyperspacePhase == 0 &&
+#undef NO_STEERING_IN_FILMS // #undef this guy to allow steering in films
+#ifdef NO_STEERING_IN_FILMS
+			*viewingFilmState == 0 &&
+#endif
 			// currentManr == 18 when the ship is docking
 			craftInstance != nullptr && craftInstance->currentManr != 18;
 
@@ -1085,8 +1091,8 @@ void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 
 	for (const auto& it : g_LBVHMap)
 	{
-		int meshIndex = it.first;
-		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
+		int meshKey = it.first;
+		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
 		MeshData meshData = it.second;
 		const FaceGroups& FGs = std::get<0>(meshData);
 		int NumVertices = std::get<1>(meshData);
@@ -1172,8 +1178,8 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 	{
 		std::vector<XwaVector3> vertices;
 		std::vector<int> indices;
-		int meshIndex = it.first;
-		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
+		int meshKey = it.first;
+		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
 		MeshData& meshData = it.second;
 		const FaceGroups& FGs = std::get<0>(meshData);
 		int NumVertices = std::get<1>(meshData);
@@ -1185,6 +1191,26 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 			continue;
 		}
+
+		// DEBUG: Skip meshes we don't care about
+#ifdef DEBUG_RT
+		{
+			auto& item = g_DebugMeshToNameMap[meshKey];
+			if (stristr(std::get<0>(item).c_str(), "ImperialStarDestroyer") == NULL)
+			{
+				// Remove this BVH
+				std::get<2>(meshData) = nullptr;
+				continue;
+			}
+			// We only care about the ISD after this point, the bridge has 83 vertices
+			if (std::get<1>(item) != 83)
+			{
+				// Remove this BVH
+				std::get<2>(meshData) = nullptr;
+				continue;
+			}
+		}
+#endif
 
 		// Populate the vertices
 		for (int i = 0; i < NumVertices; i++)
@@ -1233,14 +1259,21 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 
 		// Update the total node count
 		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
-
-		int root = bvh->nodes[0].rootIdx;
-		/*log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, total nodes: %d, actual nodes: %d",
-			g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-			g_curOPTLoaded, bvh->numNodes, bvh->numNodes - root);*/
-
-		// Put this bvh back into g_LBVHMap
+		// Put this bvh back into the g_LBVHMap
 		std::get<2>(meshData) = bvh;
+
+		// DEBUG
+#ifdef DEBUG_RT
+		{
+			int root = bvh->nodes[0].rootIdx;
+			auto& item = g_DebugMeshToNameMap[meshKey];
+			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, meshKey: 0x%x, "
+				"total nodes: %d, actual nodes: %d",
+				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
+				std::get<0>(item).c_str(), std::get<1>(item), meshKey,
+				bvh->numNodes, bvh->numNodes - root);
+		}
+#endif
 	}
 
 	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d",
@@ -3047,6 +3080,23 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	g_LBVHMap[meshKey] = meshData;
 	//uint32_t postSize = g_LBVHMap.size();
 	//if (postSize > preSize) log_debug("[DBG] [BVH] g_LBVHMap.size() increased to: %d", postSize);
+
+	// DEBUG: Add the OPT's name to g_MeshToNameMap
+#ifdef DEBUG_RT
+	{
+		char sToken[] = "Flightmodels\\";
+		char* subString = stristr(_lastTextureSelected->_name.c_str(), sToken);
+		subString += strlen(sToken);
+		char OPTname[128];
+		int i = 0;
+		while (subString[i] != 0 && subString[i] != '.') {
+			OPTname[i] = subString[i];
+			i++;
+		}
+		OPTname[i] = 0;
+		g_DebugMeshToNameMap[meshKey] = std::tuple(std::string(OPTname), MeshVerticesCount);
+	}
+#endif
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
@@ -3342,11 +3392,14 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
-		!_lastTextureSelected->is_LightTexture &&
-		!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
-		!(g_bIsFloating3DObject || g_isInRenderMiniature))
+		!_lastTextureSelected->is_LightTexture)
 	{
-		UpdateGlobalBVH(scene, _currentOptMeshIndex);
+		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
+		if (!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
+			!(g_bIsFloating3DObject || g_isInRenderMiniature))
+		{
+			UpdateGlobalBVH(scene, _currentOptMeshIndex);
+		}
 	}
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in

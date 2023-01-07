@@ -61,12 +61,16 @@ struct BVHNode {
 	// 64 bytes
 };
 
+// TLAS leaves use the following fields for a different purpose:
+#define matrixSlot rootIdx
+#define BLASBaseNodeOffset numChildren
+
 // BVH, slot 14
 StructuredBuffer<BVHNode> g_BVH : register(t14);
 // Matrices, slot 15
 StructuredBuffer<matrix> g_Matrices : register(t15);
 // TLAS BVH, slot 16
-StructuredBuffer<BVHNode> g_TLASBvh : register(t16);
+StructuredBuffer<BVHNode> g_TLAS : register(t16);
 // * During regular flight, we have multiple BLASes in a single buffer. Thus, multiple roots may exist in a single
 //   buffer and each BVH will have its own starting offset to which all other internal offsets are relative to.
 
@@ -82,10 +86,10 @@ StructuredBuffer<BVHNode> g_TLASBvh : register(t16);
 //          T[1] the max distance to the box
 // if T[1] >= T[0], then there's an intersection.
 // See also: https://tavianator.com/2011/ray_box.html
-float2 BVHIntersectBox(float3 start, float3 inv_dir, int node)
+float2 BVHIntersectBox(in StructuredBuffer<BVHNode> BVH, in float3 start, in float3 inv_dir, in int node)
 {
-	const float3 diff_max = (g_BVH[node].max.xyz - start) * inv_dir;
-	const float3 diff_min = (g_BVH[node].min.xyz - start) * inv_dir;
+	const float3 diff_max = (BVH[node].max.xyz - start) * inv_dir;
+	const float3 diff_min = (BVH[node].min.xyz - start) * inv_dir;
 	float2 T;
 
 	T[0] = min(diff_min.x, diff_max.x);
@@ -218,7 +222,7 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 #endif
 
 // Ray traversal, Embedded Geometry version
-Intersection _TraceRaySimpleHit(Ray ray) {
+Intersection _TraceRaySimpleHit(Ray ray, in int Offset) {
 	int stack[MAX_RT_STACK];
 	int stack_top = 0;
 	int curnode = -1;
@@ -227,7 +231,8 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 	best_inters.TriID = -1;
 
 	// Read the padding from the first BVHNode. It will contain the location of the root
-	int root = g_BVH[0].rootIdx;
+	//int root = g_BVH[0].rootIdx;
+	int root = g_BVH[Offset].rootIdx + Offset;
 
 	stack[stack_top++] = root; // Push the root on the stack
 	while (stack_top > 0) {
@@ -238,7 +243,7 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 
 		if (TriID == -1) {
 			// This node is a box. Do the ray-box intersection test
-			const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
+			const float2 T = BVHIntersectBox(g_BVH, ray.origin, inv_dir, curnode);
 
 			// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
 			// boxes behind the ray. To skip those boxes, we need to add T[1] >= 0, to make sure
@@ -253,7 +258,7 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 					for (int i = 0; i < 4; i++) {
 						int child = node.children[i];
 						if (child == -1) break;
-						stack[stack_top++] = child;
+						stack[stack_top++] = child + Offset;
 					}
 				}
 			}
@@ -280,6 +285,8 @@ Intersection _TraceRaySimpleHit(Ray ray) {
 }
 
 // Trace a ray and return as soon as we hit geometry
+// This version only works for the Tech Room. It's expecting a single
+// matrix in g_Matrices that applies to the whole g_BVH tree
 Intersection TraceRaySimpleHit(Ray ray) {
 	float3 pos3D = ray.origin;
 	// ray.origin is in the pos3D frame, we need to invert it into OPT coords
@@ -311,8 +318,23 @@ Intersection TraceRaySimpleHit(Ray ray) {
 	ray.origin = pos3D; // * RTScale;
 	ray.dir = dir;
 	ray.max_dist *= 40.96f; // * RTScale;
-	return _TraceRaySimpleHit(ray);
+	return _TraceRaySimpleHit(ray, 0);
 	//return _NaiveSimpleHit(ray);
+}
+
+// Trace a ray and return as soon as we hit geometry.
+// This version works during regular flight and expects multiple trees in g_BVH
+// ray must already be in OPT-scale. It's only transformed with Matrix
+Intersection TraceRaySimpleHit(Ray ray, in int BLASOffset, in matrix Matrix) {
+	float3 pos3D = ray.origin;
+	pos3D = mul(float4(pos3D, 1.0f), Matrix).xyz;
+
+	float3 dir = ray.dir;
+	dir = mul(float4(dir, 0), Matrix).xyz;
+
+	ray.origin = pos3D;
+	ray.dir = dir;
+	return _TraceRaySimpleHit(ray, BLASOffset);
 }
 
 // TLAS Ray traversal, Embedded Geometry version
@@ -321,22 +343,24 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 	int stack_top = 0;
 	int curnode = -1;
 	float3 inv_dir = 1.0f / ray.dir;
-	Intersection best_inters;
-	best_inters.TriID = -1;
+	Intersection blank_inters;
+	blank_inters.TriID = -1;
 
-	// Read the padding from the first BVHNode. It will contain the location of the root
-	int root = g_TLASBvh[0].rootIdx;
+	// Read the index of the root node
+	int root = g_TLAS[0].rootIdx;
 
 	stack[stack_top++] = root; // Push the root on the stack
-	while (stack_top > 0) {
+	while (stack_top > 0)
+	{
 		// Pop a node from the stack
 		curnode = stack[--stack_top];
-		const BVHNode node = g_TLASBvh[curnode];
-		const int TriID = node.ref;
+		const BVHNode node = g_TLAS[curnode];
+		const int ID = node.ref;
 
-		if (TriID == -1) {
+		if (ID == -1)
+		{
 			// This is an inner node. Do the ray-box intersection test
-			const float2 T = BVHIntersectBox(ray.origin, inv_dir, curnode);
+			const float2 T = BVHIntersectBox(g_TLAS, ray.origin, inv_dir, curnode);
 
 			// T[1] >= T[0] is the standard test, but lines are infinite, so it will also intersect
 			// boxes behind the ray. To skip those boxes, we need to add T[1] >= 0, to make sure
@@ -356,36 +380,63 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 				}
 			}
 		}
-		else {
+		else
+		{
 			// This node is a TLAS leaf. Here we need to do two things:
 			// Intersect the ray with the AABB.
 			// Intersect the ray with the OBB.
 			// If both tests pass, then:
 			// - Fetch the offset for the corresponding BLAS.
 			// - Continue tracing with the proper BLAS (adding the BLAS offset to all the nodes)
-			// TODO ...
-			/*
-			Intersection inters = getIntersection(ray, A, B, C);
-			if (RayTriangleTest(inters)) {
-				inters.TriID = TriID;
-				best_inters = inters;
-				return best_inters;
+
+			// Intersect the ray with the TLAS leaf's AABB:
+			const float2 T = BVHIntersectBox(g_TLAS, ray.origin, inv_dir, curnode);
+			if (T[1] >= 0 && T[1] >= T[0])
+			{
+				// Ray intersects the box, fetch the BLAS entry and continue the search from there
+				// DEBUG
+				/*
+				{
+					Intersection inters;
+					inters.TriID = ID;
+					best_inters = inters;
+					return best_inters;
+				}
+				*/
+				int BLASOffset = g_TLAS[curnode].BLASBaseNodeOffset;
+				int matrixIdx = g_TLAS[curnode].matrixSlot;
+				if (BLASOffset != -1 && matrixIdx != -1)
+				{
+					/*
+					matrix BLASMatrix = g_Matrices[matrixIdx];
+					Intersection inters = TraceRaySimpleHit(ray, BLASOffset, BLASMatrix);
+					if (inters.TriID != -1)
+					{
+						// We hit something, return
+						// Otherwise, check the next TLAS node...
+						return inters;
+					}
+					*/
+
+					// DEBUG: The ray intersects the AABB in this leaf, just display it
+					{
+						Intersection inters;
+						inters.TriID = 100;
+						return inters;
+					}
+				}
 			}
-			*/
-			Intersection inters;
-			inters.TriID = TriID;
-			best_inters = inters;
-			return best_inters;
 		}
 	}
 
-	return best_inters;
+	return blank_inters;
 }
 
 // Trace a ray and return as soon as we hit geometry
 Intersection TLASTraceRaySimpleHit(Ray ray) {
 	float3 pos3D = ray.origin;
-	// ray.origin is in the pos3D frame, we need to invert it into OPT coords
+	// ray.origin is in the pos3D frame (Metric, Y+ is up, Z+ is forward)
+	// we need to revert it into OPT coords
 	pos3D.y = -pos3D.y;
 	pos3D *= 40.96f;
 	// The TLAS does not have a WorldView, , so pos3D is already in the
@@ -394,19 +445,24 @@ Intersection TLASTraceRaySimpleHit(Ray ray) {
 
 	float3 dir = ray.dir;
 
+	// Not sure how the light's direction should be interpreted here...
+	//dir.y = -dir.y;
+
 	// ray.dir is in the pos3D frame, we need to transform it into OPT coords
 	// Here the transform rule is slightly different because I hate myself and
 	// I altered how lights work in the Tech Room. XWA fixes the lights to the
 	// object, but I wanted them fixed in space so that we could really see the
 	// shading. See D3dRenderer::UpdateConstantBuffer for more details
-	dir.yz = -dir.yz;
+	//dir.yz = -dir.yz;
 	// dir is in WorldView coords, no need to transform it
 	//dir = mul(float4(dir, 0), g_Matrices[0]).xyz;
 
+	dir = float3(0, -1, 0); // Pointing up in OPT-coords... maybe
+
 	// pos3D and dir are now in WorldView coords. We can cast the ray
-	ray.origin = pos3D; // * RTScale;
+	ray.origin = pos3D;
 	ray.dir = dir;
-	ray.max_dist *= 40.96f; // * RTScale;
+	ray.max_dist *= 40.96f;
 	return _TLASTraceRaySimpleHit(ray);
 }
 

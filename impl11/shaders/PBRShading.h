@@ -240,6 +240,7 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 			if (inters.TriID > -1) {
 				return float3(0, 1, 1);
 			}
+			// DEBUG
 		}
 		if (dotLFlatN <= 0) shadow = 0.0;
 
@@ -250,7 +251,6 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 		// shadow += softshadow(position, normalize(lights[i].pos.xyz - position), 0.02, 2.5);
 	}
 
-	//return color * shadow; // Original version
 	return ambient * albedo + color * shadow; // This prevents areas in shadow from becoming full black.
 }
 

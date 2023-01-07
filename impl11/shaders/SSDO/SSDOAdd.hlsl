@@ -15,13 +15,13 @@
 #include "..\PBRShading.h"
 #include "..\RT\RTCommon.h"
 
-#undef PBR_SHADING
-#undef PBR_DYN_LIGHTS
-#undef PBR_RAYTRACING
+//#undef PBR_SHADING
+//#undef PBR_DYN_LIGHTS
+//#undef PBR_RAYTRACING
 
-//#define PBR_SHADING
-//#define PBR_DYN_LIGHTS
-//#define PBR_RAYTRACING
+#define PBR_SHADING
+#define PBR_DYN_LIGHTS
+#define PBR_RAYTRACING
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -523,7 +523,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
-	// Compute shadows through shadow mapping
+	// Shadow Mapping
 	float total_shadow_factor = 1.0;
 	//float idx = 1.0;
 	if (sm_enabled)
