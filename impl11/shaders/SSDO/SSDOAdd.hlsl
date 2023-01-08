@@ -523,15 +523,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
-	// Shadow Mapping
-	float total_shadow_factor = 1.0;
-	//float idx = 1.0;
-	if (sm_enabled)
+	// Raytraced shadows
+	float rt_shadow_factor = 1.0f;
+//#ifndef PBR_RAYTRACING
+	if (bRTEnabled)
 	{
-		//float3 P_bias = P + sm_bias * N;
-		[loop]
-		for (uint i = 0; i < LightCount; i++) 
-		{
+		for (uint i = 0; i < LightCount; i++) {
 			float shadow_factor = 1.0;
 			float black_level, minZ, maxZ;
 			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
@@ -539,23 +536,38 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (black_level > 0.95)
 				continue;
 
-			// Raytraced shadows
 			float3 L = LightVector[i].xyz;
 			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (instead of the smooth one)
 			if (bRTEnabled && dotLFlatN > 0) {
 				Ray ray;
-				ray.origin   = P; // Metric, Y+ is up, Z+ is forward.
-				ray.dir      = -float3(L.x, L.y, -L.z);
+				ray.origin = P; // Metric, Y+ is up, Z+ is forward.
+				ray.dir = -float3(L.x, L.y, -L.z);
 				ray.max_dist = 5000.0f;
 
 				Intersection inters = TLASTraceRaySimpleHit(ray);
 				if (inters.TriID > -1)
-					total_shadow_factor *= (black_level * 0.2);
+					rt_shadow_factor *= (black_level * 0.3);
 			}
-			if (dotLFlatN <= 0) total_shadow_factor *= (black_level * 0.2);
+			if (dotLFlatN <= 0) rt_shadow_factor *= (black_level * 0.3);
+		}
+	}
+//#endif
 
-			// Skip lights that are out-of-range of ShadowMapping
-			if (P.z < minZ || P.z > maxZ)
+	// Shadow Mapping
+	float total_shadow_factor = rt_shadow_factor;
+	//float idx = 1.0;
+	if (sm_enabled)
+	{
+		//float3 P_bias = P + sm_bias * N;
+		[loop]
+		for (uint i = 0; i < LightCount; i++)
+		{
+			float shadow_factor = 1.0;
+			float black_level, minZ, maxZ;
+			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
+			// Skip lights that won't project black-enough shadows or that are
+			// out-of-range for ShadowMapping
+			if (black_level > 0.95 || P.z < minZ || P.z > maxZ)
 				continue;
 			// Apply the same transform we applied to P in ShadowMapVS.hlsl
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;

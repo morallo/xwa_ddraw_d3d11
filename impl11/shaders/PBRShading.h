@@ -209,7 +209,6 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 	float shadow = 1.0;
 
 	//for (int i = 0; i < globalLightsCount; i++)
-	int i = 0;
 	{
 		float3 L = lightDir;
 		float3 light_color = lightColor.w * lightColor.xyz;

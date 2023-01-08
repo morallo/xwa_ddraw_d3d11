@@ -572,6 +572,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'C':
 				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
 				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
+				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
+					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
 				return 0;
 			// Ctrl+Alt+O
 			case 'O':

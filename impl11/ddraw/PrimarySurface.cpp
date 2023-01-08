@@ -8979,7 +8979,9 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Here we're only tagging and fading lights, the shadowmap is now rendered in EffectsRenderer::RenderShadowMap()
-			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && g_HyperspacePhaseFSM == HS_INIT_ST)
+			// Lights should also be tagged when Raytracing is enabled, or we'll have multiple shadows
+			if ((g_bRTEnabled || (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ)) &&
+				g_HyperspacePhaseFSM == HS_INIT_ST)
 			{
 				TagAndFadeXWALights();
 			}
