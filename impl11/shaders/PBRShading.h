@@ -221,7 +221,7 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 		// Only do raytraced shadows for surfaces that face towards the light source.
 		// If the current surface faces away, we already know it's shadowed
 		const float dotLFlatN = dot(L, FlatN);
-		if (/* bDoRaytracing && */ dotLFlatN > 0) {
+		if (bRTEnabled && dotLFlatN > 0) {
 			Ray ray;
 			ray.origin = position; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
 			//ray.origin = position + 0.01f * FlatN; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.

@@ -4224,8 +4224,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the ray-tracer
-	constantBufferDesc.ByteWidth = 64;
-	static_assert(sizeof(RTConstantsBuffer) == 64, "sizeof(RTConstantsBuffer) must be 64");
+	constantBufferDesc.ByteWidth = 16;
+	static_assert(sizeof(RTConstantsBuffer) == 16, "sizeof(RTConstantsBuffer) must be 16");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
 		return hr;
 

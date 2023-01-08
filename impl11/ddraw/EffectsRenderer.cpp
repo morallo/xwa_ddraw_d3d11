@@ -29,6 +29,7 @@ char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 
 bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
+bool g_bRTEnabledInCockpit = false;
 bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
@@ -3477,7 +3478,14 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplyMeshTransform();
 
 	if (g_bInTechRoom)
+	{
 		ApplyRTShadows(scene);
+	}
+	else
+	{
+		g_RTConstantsBuffer.bRTEnable = g_bRTEnabled && (!*g_playerInHangar);
+		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
+	}
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
@@ -3542,8 +3550,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture)
 	{
+		bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
-		if (!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
+		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
 			UpdateGlobalBVH(scene);

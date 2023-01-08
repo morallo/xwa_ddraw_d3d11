@@ -6,15 +6,11 @@
 #define MAX_RT_STACK 32
 
 // RTConstantsBuffer
-/*
 cbuffer ConstantBuffer : register(b10) {
-	matrix RTTransformWorldViewInv;
-	// 64 bytes
-	//float RTScale;
-	//int3 g_RTUnused;
-	// 80 bytes
+	bool bRTEnabled;
+	uint3 g_RTUnused;
+	// 16 bytes
 };
-*/
 
 struct Ray				// 28 bytes
 {

@@ -553,6 +553,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else
 					DisplayTimedMessage(3, 0, "Indirect SSDO Disabled");
 				return 0;
+			// Ctrl+Alt+A: Toggle Bloom
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
 				if (g_bBloomEnabled)
@@ -566,6 +567,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else
 					DisplayTimedMessage(3, 0, "Animations Disabled");
 				*/
+				return 0;
+			// Ctrl+Alt+C: Toggle Raytraced Cockpit Shadows
+			case 'C':
+				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
+				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
 				return 0;
 			// Ctrl+Alt+O
 			case 'O':
@@ -773,13 +779,15 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//}
 			// Ctrl+S
 			case 'S': {
-				if (g_bInTechRoom) {
-					g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
-					log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
-					// Benchmark mode:
-					//g_BVHBuilderType = (BVHBuilderType )(((int)g_BVHBuilderType + 1) % BVHBuilderType_MAX);
-					//log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
-				}
+				g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
+				log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
+				// Benchmark mode:
+				//g_BVHBuilderType = (BVHBuilderType )(((int)g_BVHBuilderType + 1) % BVHBuilderType_MAX);
+				//log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
+
+				g_bRTEnabled = !g_bRTEnabled;
+				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
+				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
 
 				g_bShadowMapEnable = !g_bShadowMapEnable;
 				log_debug("[DBG] g_bShadowMapEnable: %d", g_bShadowMapEnable);
