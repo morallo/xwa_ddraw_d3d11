@@ -573,6 +573,7 @@ void DumpTLASLeaves()
 			log_debug("[DBG] [BVH] TLAS leaf %d, matrixSlot: %d", counter, matrixSlot);
 			// The matrices are stored inverted in g_TLASMatrices because that's what
 			// the RT shader needs
+			m = m.transpose(); // Matrices are stored transposed because HLSL needs that
 			m = m.invert();
 			obb.UpdateLimits();
 			obb.TransformLimits(S1 * m);
@@ -655,6 +656,7 @@ void DumpTLASTree(char* sFileName, bool useMetricScale)
 			S1.scale(scale[0], scale[1], scale[2]);
 
 			Matrix4 W = g_TLASMatrices[node->matrixSlot]; // WorldView to OPT-coords
+			W = W.transpose(); // Matrices are stored transposed for HLSL
 			W = W.invert(); // OPT-coords to WorldView
 			AABB aabb;
 			// Recover the OBB from the node:
@@ -1717,7 +1719,6 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 				Matrix4 W = GetBLASMatrix(tlasLeaf, &matrixSlot);
 				if (matrixSlot != -1)
 				{
-					W = W.transpose(); // Not sure why, but this is the correct ordering of the elements of the matrix
 					memcpy(base_ptr + matrixSlot * sizeof(Matrix4), W.get(), sizeof(Matrix4));
 				}
 			}
@@ -3140,7 +3141,7 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 //
 // The same matrixSlot is used for both maps and makes a direct link between the TLAS
 // and the BLASes
-void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
+void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
@@ -3168,10 +3169,12 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 				// We haven't seen this mesh/centroid combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
 				g_TLASMap[meshNcentroidKey] = matrixSlot;
-				// Store the matrix proper, but inverted. That's what the RT code
-				// needs
+				// Store the matrix proper, but inverted. That's what the RT code needs so that
+				// we can transform from WorldView to OPT-coords
 				Matrix4 WInv = W;
 				WInv = WInv.invert();
+				// HLSL needs matrices to be stored transposed
+				WInv = WInv.transpose();
 				if (matrixSlot >= (int)g_TLASMatrices.size())
 					g_TLASMatrices.resize(g_TLASMatrices.size() + 128);
 				g_TLASMatrices[matrixSlot] = WInv;
@@ -3543,7 +3546,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		if (!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
-			UpdateGlobalBVH(scene, _currentOptMeshIndex);
+			UpdateGlobalBVH(scene);
 		}
 	}
 
