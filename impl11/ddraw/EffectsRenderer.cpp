@@ -1711,8 +1711,8 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 		if (SUCCEEDED(hr))
 		{
-			//memcpy(map.pData, g_TLASMatrices.data(), sizeof(Matrix4) * numMatrices);
-			//context->Unmap(resources->_RTMatrices.Get(), 0);
+			memcpy(map.pData, g_TLASMatrices.data(), sizeof(Matrix4) * numMatrices);
+			/*
 			BYTE* base_ptr = (BYTE*)map.pData;
 			for (auto& tlasLeaf : tlasLeaves)
 			{
@@ -1723,6 +1723,7 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 					memcpy(base_ptr + matrixSlot * sizeof(Matrix4), W.get(), sizeof(Matrix4));
 				}
 			}
+			*/
 			context->Unmap(resources->_RTMatrices.Get(), 0);
 		}
 		else
