@@ -375,7 +375,6 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 
 		if (ID == -1)
 		{
-			/*
 			// This is an inner node. Do the ray-box intersection test
 			const float2 T = BVHIntersectBox(g_TLAS, ray.origin, inv_dir, curnode);
 
@@ -384,9 +383,7 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 			// the box is in front of the ray (for rays originating inside a box, we'll have T[0] < 0,
 			// so we can't use that test).
 			if (T[1] >= 0 && T[1] >= T[0])
-			*/
-
-			if (InsideBox(g_TLAS, curnode, ray.origin))
+			//if (InsideBox(g_TLAS, curnode, ray.origin))
 			{
 				// Ray intersects the box
 				// Inner node: push the children of this node on the stack
@@ -409,6 +406,7 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 			// - Fetch the offset for the corresponding BLAS.
 			// - Continue tracing with the proper BLAS (adding the BLAS offset to all the nodes)
 
+#ifdef DISABLED
 			{
 				int BLASOffset = g_TLAS[curnode].BLASBaseNodeOffset;
 				int matrixIdx = g_TLAS[curnode].matrixSlot;
@@ -416,9 +414,6 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 				{
 					Intersection inters;
 					inters.TriID = 100;
-					//if (matrixIdx == 7)
-					//	inters.TriID = 200;
-
 					// Fetch the BLAS matrix
 					matrix Matrix = g_Matrices[matrixIdx]; // WorldView to OPT-coords
 					// Fetch the OBB
@@ -436,7 +431,7 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 					// Transform the ray into OPT-coords
 					Ray new_ray;
 					new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
-					new_ray.dir = mul(float4(ray.dir, 0), Matrix).xyz;
+					new_ray.dir    = mul(float4(ray.dir, 0), Matrix).xyz;
 
 					// Check if the ray's origin is contained within the OBB
 					if (InsideBox(obb_min, obb_max, new_ray.origin))
@@ -447,45 +442,16 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 					blank_inters.TriID = inters.TriID;
 				}
 			}
-
-#ifdef DISABLED
+#endif
 			// Intersect the ray with the TLAS leaf's AABB:
 			const float2 T = BVHIntersectBox(g_TLAS, ray.origin, inv_dir, curnode);
 			if (T[1] >= 0 && T[1] >= T[0])
 			{
 				// Ray intersects the box, fetch the BLAS entry and continue the search from there
-				// DEBUG
-				/*
-				{
-					Intersection inters;
-					inters.TriID = 100;
-					return inters;
-				}
-				*/
 				int BLASOffset = g_TLAS[curnode].BLASBaseNodeOffset;
 				int matrixIdx = g_TLAS[curnode].matrixSlot;
 				if (BLASOffset != -1 && matrixIdx != -1)
 				{
-					/*
-					matrix BLASMatrix = g_Matrices[matrixIdx];
-					Intersection inters = TraceRaySimpleHit(ray, BLASOffset, BLASMatrix);
-					if (inters.TriID != -1)
-					{
-						// We hit something, return
-						// Otherwise, check the next TLAS node...
-						return inters;
-					}
-					*/
-
-					// DEBUG: The ray intersects the AABB in this leaf, just display it
-					/*
-					{
-						Intersection inters;
-						inters.TriID = 100;
-						return inters;
-					}
-					*/
-
 					matrix Matrix = g_Matrices[matrixIdx];
 					float3 obb_min =
 						float3(
@@ -501,24 +467,12 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 					Ray new_ray;
 					new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
 					new_ray.dir    = mul(float4(ray.dir,    0), Matrix).xyz;
-
-					// Check if the ray's origin is contained within the OBB
-					if (obb_min.x <= new_ray.origin.x &&
-						obb_min.y <= new_ray.origin.y &&
-						obb_min.z <= new_ray.origin.z &&
-
-						new_ray.origin.x <= obb_max.x &&
-						new_ray.origin.y <= obb_max.y &&
-						new_ray.origin.z <= obb_max.z)
-					{
-						Intersection inters;
-						inters.TriID = 100;
+					Intersection inters = _TraceRaySimpleHit(new_ray, BLASOffset);
+					if (inters.TriID != -1)
 						return inters;
-					}
-
 				}
 			}
-#endif
+
 		}
 	}
 
@@ -529,32 +483,14 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 Intersection TLASTraceRaySimpleHit(Ray ray) {
 	float3 pos3D = ray.origin;
 	// ray.origin is in the pos3D frame (Metric, Y+ is up, Z+ is forward)
-	// we need to revert it into OPT coords
+	// we need to revert it into OPT coords, but the TLAS and the ray are
+	// in the same coord sys. There's no need to transform anything
 	pos3D.y = -pos3D.y;
-	pos3D *= 40.96f;
-	// The TLAS does not have a WorldView, , so pos3D is already in the
-	// same coordinate system as the TLAS
-	//pos3D = mul(float4(pos3D, 1.0f), g_Matrices[0]).xyz;
-
-	float3 dir = ray.dir;
-
-	// Not sure how the light's direction should be interpreted here...
-	//dir.y = -dir.y;
-
-	// ray.dir is in the pos3D frame, we need to transform it into OPT coords
-	// Here the transform rule is slightly different because I hate myself and
-	// I altered how lights work in the Tech Room. XWA fixes the lights to the
-	// object, but I wanted them fixed in space so that we could really see the
-	// shading. See D3dRenderer::UpdateConstantBuffer for more details
-	//dir.yz = -dir.yz;
-	// dir is in WorldView coords, no need to transform it
-	//dir = mul(float4(dir, 0), g_Matrices[0]).xyz;
-
-	dir = float3(0, -1, 0); // Pointing up in OPT-coords... maybe
+	pos3D  *= 40.96f;
 
 	// pos3D and dir are now in WorldView coords. We can cast the ray
-	ray.origin = pos3D;
-	ray.dir = dir;
+	ray.origin    = pos3D;
+	ray.dir		  = float3(-ray.dir.x, ray.dir.y, -ray.dir.z);
 	ray.max_dist *= 40.96f;
 	return _TLASTraceRaySimpleHit(ray);
 }

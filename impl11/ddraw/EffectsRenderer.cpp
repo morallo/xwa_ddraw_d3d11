@@ -1379,6 +1379,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 
 		// DEBUG: Skip meshes we don't care about
 #ifdef DEBUG_RT
+		if (false)
 		{
 			auto& debugItem = g_DebugMeshToNameMap[meshKey];
 			if (stristr(std::get<0>(debugItem).c_str(), "ImperialStarDestroyer") == NULL)
@@ -1389,12 +1390,14 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			}
 
 			// We only care about the ISD after this point, the bridge has 83 vertices
+			/*
 			if (std::get<1>(debugItem) != 83 && std::get<1>(debugItem) != 205)
 			{
 				// Remove this BVH
 				GetLBVH(meshData) = nullptr;
 				continue;
 			}
+			*/
 		}
 #endif
 

@@ -211,9 +211,6 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 	//for (int i = 0; i < globalLightsCount; i++)
 	int i = 0;
 	{
-		//float3 L = float3(0.7, -0.7, 1);
-		//float3 L = float3(0.5, 1.0, 0.7);
-		//float3 light_color = 1.0;
 		float3 L = lightDir;
 		float3 light_color = lightColor.w * lightColor.xyz;
 
@@ -233,19 +230,8 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 
 			Intersection inters = TLASTraceRaySimpleHit(ray);
 			// Original
-			//if (inters.TriID > -1)
-			//	shadow = 0.0;
-
-			// DEBUG
 			if (inters.TriID > -1)
-			{
-				if (inters.TriID == 100)
-					return float3(0, 1, 1);
-				if (inters.TriID == 200)
-					return float3(0, 0, 1);
-				return float3(1, 0, 0);
-			}
-			// DEBUG
+				shadow = 0.0;
 		}
 		if (dotLFlatN <= 0) shadow = 0.0;
 
