@@ -37,6 +37,7 @@ int g_iRTMaxBLASNodesSoFar = 0;
 int g_iRTMaxTLASNodesSoFar = 0;
 
 uint32_t g_iRTMaxMeshesSoFar = 0;
+int g_iRTMeshesInThisFrame = 0;
 
 int g_iRTMatricesNextSlot = 0;
 bool g_bRTReAllocateBvhBuffer = false;
@@ -105,6 +106,12 @@ int RTGetNextAvailableMatrixSlot()
 {
 	g_iRTMatricesNextSlot++;
 	return g_iRTMatricesNextSlot - 1;
+}
+
+Matrix4 GetBLASMatrix(TLASLeafItem& tlasLeaf, int *matrixSlot)
+{
+	*matrixSlot = TLASGetMatrixSlot(tlasLeaf);
+	return g_TLASMatrices[*matrixSlot];
 }
 
 float4 TransformProjection(float3 input)
@@ -534,7 +541,7 @@ void DumpFrustrumToOBJ()
 	fclose(D3DDumpOBJFile);
 }
 
-void DumpGlobalAABBandTLASToOBJ()
+void DumpTLASLeaves()
 {
 	Matrix4 S1;
 
@@ -555,32 +562,170 @@ void DumpGlobalAABBandTLASToOBJ()
 	{
 		// Morton Code, Bounding Box, TriID, Matrix, Centroid
 		AABB obb = TLASGetOBB(leaf);
-		Matrix4 m = g_TLASMatrices[TLASGetMatrixSlot(leaf)];
+		int matrixSlot = -1;
+		Matrix4 m = GetBLASMatrix(leaf, &matrixSlot);
 		int meshKey = TLASGetID(leaf);
 		// Fetch the meshData associated with this TLAS leaf
 		MeshData& meshData = g_LBVHMap[meshKey];
 		LBVH* bvh = (LBVH*)GetLBVH(meshData);
-		if (bvh != nullptr)
+		if (bvh != nullptr && matrixSlot != -1)
 		{
+			log_debug("[DBG] [BVH] TLAS leaf %d, matrixSlot: %d", counter, matrixSlot);
 			// The matrices are stored inverted in g_TLASMatrices because that's what
 			// the RT shader needs
 			m = m.invert();
 			obb.UpdateLimits();
 			obb.TransformLimits(S1 * m);
-			VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
+			VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile,
+				std::to_string(counter) + "-" + std::to_string(matrixSlot),
+				VerticesCount);
+			counter++;
 		}
 	}
 	fclose(D3DDumpOBJFile);
 	log_debug("[DBG] [BVH] Dumped: %d tlas leaves", counter);
 }
 
+void DumpTLASTree(char* sFileName, bool useMetricScale)
+{
+	BVHNode* nodes = (BVHNode*)(g_TLASTree->nodes);
+	FILE* file = NULL;
+	int index = 1;
+	float scale[3] = { 1.0f, 1.0f, 1.0f };
+	if (useMetricScale)
+	{
+		scale[0] =  OPT_TO_METERS;
+		scale[1] = -OPT_TO_METERS;
+		scale[2] =  OPT_TO_METERS;
+	}
+	const int numNodes = g_TLASTree->numNodes;
+
+	fopen_s(&file, sFileName, "wt");
+	if (file == NULL) {
+		log_debug("[DBG] [BVH] Could not open file: %s", sFileName);
+		return;
+	}
+
+	int root = nodes[0].rootIdx;
+	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes - root);
+	for (int i = root; i < numNodes; i++) {
+		if (nodes[i].ref != -1)
+		{
+			// TLAS leaf
+			BVHTLASLeafNode* node = (BVHTLASLeafNode*)&(nodes[i]);
+			// Dump the AABB
+			fprintf(file, "o tleaf-aabb-%d\n", i);
+
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->min[1] * scale[1], node->min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->min[1] * scale[1], node->min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->max[1] * scale[1], node->min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->max[1] * scale[1], node->min[2] * scale[2]);
+
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->min[1] * scale[1], node->max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->min[1] * scale[1], node->max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->max[1] * scale[1], node->max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->max[1] * scale[1], node->max[2] * scale[2]);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 1);
+			fprintf(file, "f %d %d\n", index + 1, index + 2);
+			fprintf(file, "f %d %d\n", index + 2, index + 3);
+			fprintf(file, "f %d %d\n", index + 3, index + 0);
+
+			fprintf(file, "f %d %d\n", index + 4, index + 5);
+			fprintf(file, "f %d %d\n", index + 5, index + 6);
+			fprintf(file, "f %d %d\n", index + 6, index + 7);
+			fprintf(file, "f %d %d\n", index + 7, index + 4);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 4);
+			fprintf(file, "f %d %d\n", index + 1, index + 5);
+			fprintf(file, "f %d %d\n", index + 2, index + 6);
+			fprintf(file, "f %d %d\n", index + 3, index + 7);
+			index += 8;
+
+			// Dump the OBB
+			Matrix4 S1;
+			S1.scale(scale[0], scale[1], scale[2]);
+
+			Matrix4 W = g_TLASMatrices[node->matrixSlot]; // WorldView to OPT-coords
+			W = W.invert(); // OPT-coords to WorldView
+			AABB aabb;
+			// Recover the OBB from the node:
+			aabb.min.x = node->min[3];
+			aabb.min.y = node->max[3];
+			aabb.min.z = node->obb_max[3];
+
+			aabb.max.x = node->obb_max[0];
+			aabb.max.y = node->obb_max[1];
+			aabb.max.z = node->obb_max[2];
+
+			// Dump the OBB
+			aabb.UpdateLimits();
+			aabb.TransformLimits(S1 * W);
+			index = aabb.DumpLimitsToOBJ(file, std::string("tleaf-obb-") + std::to_string(i), index);
+		}
+		else
+		{
+			// Inner node, dump the AABB
+			BVHNode node = nodes[i];
+			fprintf(file, "o aabb-%d\n", i);
+
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.min[1] * scale[1], node.min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.min[1] * scale[1], node.min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.max[1] * scale[1], node.min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.max[1] * scale[1], node.min[2] * scale[2]);
+
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.min[1] * scale[1], node.max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.min[1] * scale[1], node.max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.max[1] * scale[1], node.max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.max[1] * scale[1], node.max[2] * scale[2]);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 1);
+			fprintf(file, "f %d %d\n", index + 1, index + 2);
+			fprintf(file, "f %d %d\n", index + 2, index + 3);
+			fprintf(file, "f %d %d\n", index + 3, index + 0);
+
+			fprintf(file, "f %d %d\n", index + 4, index + 5);
+			fprintf(file, "f %d %d\n", index + 5, index + 6);
+			fprintf(file, "f %d %d\n", index + 6, index + 7);
+			fprintf(file, "f %d %d\n", index + 7, index + 4);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 4);
+			fprintf(file, "f %d %d\n", index + 1, index + 5);
+			fprintf(file, "f %d %d\n", index + 2, index + 6);
+			fprintf(file, "f %d %d\n", index + 3, index + 7);
+			index += 8;
+		}
+	}
+	fclose(file);
+	log_debug("[DBG] [BVH] BVH Dumped to OBJ");
+}
+
 void BuildTLAS()
 {
+	g_iRTMeshesInThisFrame = tlasLeaves.size();
 	// Prune the tlasLeaves (remove all tlas leaves that have NULL BLASes)
+	if (false)
 	{
 		// By this point, the BLASes have been built. It's probably a good idea to prune
 		// the tlasLeaves by removing empty BLASes
 		std::vector<TLASLeafItem> tempLeaves;
+		RTResetMatrixSlotCounter();
 		// Also reset the global AABB, maybe it will be reduced
 		g_GlobalAABB.SetInfinity();
 		for (auto& X : tlasLeaves) {
@@ -662,7 +807,9 @@ void BuildTLAS()
 
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
 	{
-		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
+		// The single-node tree's AABB matches the global AABB and also contains the OBB
+		//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
+		DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
 	}
 }
 
@@ -1002,6 +1149,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	if (g_bRTEnabled)
 	{
 		// Restart the TLAS for the frame that is about to begin
+		g_iRTMeshesInThisFrame = 0;
 		g_GlobalAABB.SetInfinity();
 		tlasLeaves.clear();
 		g_TLASMap.clear();
@@ -1232,15 +1380,16 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		// DEBUG: Skip meshes we don't care about
 #ifdef DEBUG_RT
 		{
-			auto& item = g_DebugMeshToNameMap[meshKey];
-			if (stristr(std::get<0>(item).c_str(), "ImperialStarDestroyer") == NULL)
+			auto& debugItem = g_DebugMeshToNameMap[meshKey];
+			if (stristr(std::get<0>(debugItem).c_str(), "ImperialStarDestroyer") == NULL)
 			{
 				// Remove this BVH
 				GetLBVH(meshData) = nullptr;
 				continue;
 			}
+
 			// We only care about the ISD after this point, the bridge has 83 vertices
-			if (std::get<1>(item) != 83)
+			if (std::get<1>(debugItem) != 83 && std::get<1>(debugItem) != 205)
 			{
 				// Remove this BVH
 				GetLBVH(meshData) = nullptr;
@@ -1492,7 +1641,10 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 	HRESULT hr;
 
 	// (Re-)Create the matrices buffer
-	const uint32_t numMatrices = tlasLeaves.size();
+	const uint32_t numMatrices = g_iRTMeshesInThisFrame; // tlasLeaves.size();
+	if (numMatrices == 0)
+		return;
+
 	bool bReallocateMatrixBuffers = numMatrices > g_iRTMaxMeshesSoFar;
 	if (bReallocateMatrixBuffers)
 	{
@@ -1553,7 +1705,19 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 		if (SUCCEEDED(hr))
 		{
-			memcpy(map.pData, g_TLASMatrices.data(), sizeof(Matrix4) * numMatrices);
+			//memcpy(map.pData, g_TLASMatrices.data(), sizeof(Matrix4) * numMatrices);
+			//context->Unmap(resources->_RTMatrices.Get(), 0);
+			BYTE* base_ptr = (BYTE*)map.pData;
+			for (auto& tlasLeaf : tlasLeaves)
+			{
+				int matrixSlot = -1;
+				Matrix4 W = GetBLASMatrix(tlasLeaf, &matrixSlot);
+				if (matrixSlot != -1)
+				{
+					W = W.transpose(); // Not sure why, but this is the correct ordering of the elements of the matrix
+					memcpy(base_ptr + matrixSlot * sizeof(Matrix4), W.get(), sizeof(Matrix4));
+				}
+			}
 			context->Unmap(resources->_RTMatrices.Get(), 0);
 		}
 		else
@@ -1616,7 +1780,7 @@ void EffectsRenderer::SceneEnd()
 		}
 #endif
 		//DumpFrustrumToOBJ();
-		DumpGlobalAABBandTLASToOBJ();
+		DumpTLASLeaves();
 	}
 
 	// Close the OBJ dump file for the current frame
@@ -2989,8 +3153,8 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 		auto aabb_it = _AABBs.find(meshKey);
 		if (aabb_it != _AABBs.end()) {
 			AABB obb = aabb_it->second;					// The AABB in object space
-			obb.UpdateLimits();
-			obb.TransformLimits(W);						// Now it's an OBB in worldview space...
+			obb.UpdateLimits();							// Generate all the vertices (8) so that we can transform them.
+			obb.TransformLimits(W);						// Now it's an OBB in WorldView space...
 			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
 			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
 
@@ -3012,7 +3176,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, matrixSlot, centroid, obb));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, centroid, matrixSlot, obb));
 			}
 			else
 			{

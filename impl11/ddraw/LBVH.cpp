@@ -1419,7 +1419,7 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 		}
 	}
 
-	int EncodeOfs     = EncodeNodeIdx * sizeof(BVHNode) / 4;
+	int EncodeOfs		 = EncodeNodeIdx * sizeof(BVHNode) / 4;
 	//log_debug("[DBG] [BVH] Encoding leaf %d, TriID: %d, at QBVHOfs: %d",
 	//	leafIdx, TriID, (EncodeOfs * 4) / 64);
 

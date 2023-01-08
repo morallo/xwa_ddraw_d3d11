@@ -3,7 +3,7 @@
 // Copied and adapted from GPU Pro 3, the code is in the public domain, so that's
 // OK. I should know, since I'm one of the co-authors!
 
-#define MAX_RT_STACK 256 // TODO: Try 31, as is the case for DXR right now.
+#define MAX_RT_STACK 32
 
 // RTConstantsBuffer
 /*
@@ -300,9 +300,9 @@ Intersection _TraceRaySimpleHit(Ray ray, in int Offset) {
 	return best_inters;
 }
 
-// Trace a ray and return as soon as we hit geometry
-// This version only works for the Tech Room. It's expecting a single
-// matrix in g_Matrices that applies to the whole g_BVH tree
+// Trace a ray and return as soon as we hit geometry (Tech Room version)
+// This version expects a single matrix in g_Matrices that applies to the
+// whole g_BVH tree
 Intersection TraceRaySimpleHit(Ray ray) {
 	float3 pos3D = ray.origin;
 	// ray.origin is in the pos3D frame, we need to invert it into OPT coords
@@ -416,10 +416,12 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 				{
 					Intersection inters;
 					inters.TriID = 100;
-					return inters;
+					//if (matrixIdx == 7)
+					//	inters.TriID = 200;
 
-					matrix Matrix = g_Matrices[matrixIdx];
-					/*
+					// Fetch the BLAS matrix
+					matrix Matrix = g_Matrices[matrixIdx]; // WorldView to OPT-coords
+					// Fetch the OBB
 					float3 obb_min =
 						float3(
 							g_TLAS[curnode].min[3],
@@ -430,20 +432,19 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 							asfloat(g_TLAS[curnode].children[0]),
 							asfloat(g_TLAS[curnode].children[1]),
 							asfloat(g_TLAS[curnode].children[2]));
-					*/
 
-					// Transform the ray into the same coord sys as the OBB
+					// Transform the ray into OPT-coords
 					Ray new_ray;
 					new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
-					//new_ray.dir = mul(float4(ray.dir, 0), Matrix).xyz;
+					new_ray.dir = mul(float4(ray.dir, 0), Matrix).xyz;
 
 					// Check if the ray's origin is contained within the OBB
-					if (InsideBox(g_TLAS, curnode, new_ray.origin))
+					if (InsideBox(obb_min, obb_max, new_ray.origin))
 					{
-						Intersection inters;
-						inters.TriID = 100;
+						inters.TriID = 300;
 						return inters;
 					}
+					blank_inters.TriID = inters.TriID;
 				}
 			}
 

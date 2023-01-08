@@ -237,8 +237,13 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 			//	shadow = 0.0;
 
 			// DEBUG
-			if (inters.TriID > -1) {
-				return float3(0, 1, 1);
+			if (inters.TriID > -1)
+			{
+				if (inters.TriID == 100)
+					return float3(0, 1, 1);
+				if (inters.TriID == 200)
+					return float3(0, 0, 1);
+				return float3(1, 0, 0);
 			}
 			// DEBUG
 		}
