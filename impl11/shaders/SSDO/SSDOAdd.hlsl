@@ -15,13 +15,13 @@
 #include "..\PBRShading.h"
 #include "..\RT\RTCommon.h"
 
-//#undef PBR_SHADING
-//#undef PBR_DYN_LIGHTS
-//#undef PBR_RAYTRACING
+#undef PBR_SHADING
+#undef PBR_DYN_LIGHTS
+#undef PBR_RAYTRACING
 
-#define PBR_SHADING
-#define PBR_DYN_LIGHTS
-#define PBR_RAYTRACING
+//#define PBR_SHADING
+//#define PBR_DYN_LIGHTS
+//#define PBR_RAYTRACING
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -535,11 +535,29 @@ PixelShaderOutput main(PixelShaderInput input)
 			float shadow_factor = 1.0;
 			float black_level, minZ, maxZ;
 			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
-			// Skip lights that won't project black-enough shadows, and skip
-			// lights that are out-of-range.
-			if (black_level > 0.95 || P.z < minZ || P.z > maxZ)
+			// Skip lights that won't project black-enough shadows
+			if (black_level > 0.95)
 				continue;
-			// Apply the same transform we applied to in ShadowMapVS.hlsl
+
+			// Raytraced shadows
+			float3 L = LightVector[i].xyz;
+			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (instead of the smooth one)
+			if (bRTEnabled && dotLFlatN > 0) {
+				Ray ray;
+				ray.origin   = P; // Metric, Y+ is up, Z+ is forward.
+				ray.dir      = -float3(L.x, L.y, -L.z);
+				ray.max_dist = 5000.0f;
+
+				Intersection inters = TLASTraceRaySimpleHit(ray);
+				if (inters.TriID > -1)
+					total_shadow_factor *= (black_level * 0.2);
+			}
+			if (dotLFlatN <= 0) total_shadow_factor *= (black_level * 0.2);
+
+			// Skip lights that are out-of-range of ShadowMapping
+			if (P.z < minZ || P.z > maxZ)
+				continue;
+			// Apply the same transform we applied to P in ShadowMapVS.hlsl
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
 			// Distant objects require more bias, here we're using maxZ as a proxy to tell us
 			// how distant is the shadow map and we use that to compensate the bias
@@ -722,6 +740,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
 #else
+	// PBR Shading path
 	const float V = dot(0.333, color.rgb);
 	//const bool blackish = V < 0.1;
 	const float blackish = smoothstep(0.1, 0.0, V);
@@ -735,8 +754,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	//const float ambient = 0.05;
 	const float ambient = 0.03;
 	//const float exposure = 1.0;
-	[loop]
-	for (i = 0; i < LightCount; i++) {
+	//[loop]
+	//for (i = 0; i < LightCount; i++)
+	i = 0; // This should be temporary, I did this for the RT path, to avoid computing multiple RT shadows
+	{
 		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 		float3 eye_vec = normalize(-P);

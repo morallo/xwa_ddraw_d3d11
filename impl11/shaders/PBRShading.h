@@ -229,7 +229,6 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 			ray.max_dist = 5000.0f;
 
 			Intersection inters = TLASTraceRaySimpleHit(ray);
-			// Original
 			if (inters.TriID > -1)
 				shadow = 0.0;
 		}
