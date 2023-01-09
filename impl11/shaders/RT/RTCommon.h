@@ -8,7 +8,8 @@
 // RTConstantsBuffer
 cbuffer ConstantBuffer : register(b10) {
 	bool bRTEnabled;
-	uint3 g_RTUnused;
+	bool bRTEnabledInCockpit;
+	uint2 g_RTUnused;
 	// 16 bytes
 };
 

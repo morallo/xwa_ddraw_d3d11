@@ -558,7 +558,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Shadow Mapping
 	float total_shadow_factor = rt_shadow_factor;
 	//float idx = 1.0;
-	if (sm_enabled)
+	// Don't compute shadow mapping if Raytraced shadows are enabled in the cockpit... it's redundant.
+	if (sm_enabled && !bRTEnabledInCockpit)
 	{
 		//float3 P_bias = P + sm_bias * N;
 		[loop]

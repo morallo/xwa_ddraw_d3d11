@@ -3508,6 +3508,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	else
 	{
 		g_RTConstantsBuffer.bRTEnable = g_bRTEnabled && (!*g_playerInHangar);
+		g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 	}
 
