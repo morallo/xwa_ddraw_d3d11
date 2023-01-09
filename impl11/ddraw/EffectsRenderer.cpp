@@ -1471,7 +1471,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 	g_bRTReAllocateBvhBuffer = (g_iRTTotalBLASNodesInFrame > g_iRTMaxBLASNodesSoFar);
 	log_debug("[DBG] [BVH] MultiBuilder: g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d, Reallocate? %d",
 		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_bRTReAllocateBvhBuffer);
-	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);;
+	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
 }
 
 void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
@@ -1487,6 +1487,7 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 	{
 		D3D11_BUFFER_DESC desc;
 		ZeroMemory(&desc, sizeof(desc));
+		log_debug("[DBG] [BVH] [REALLOC] START");
 
 		if (resources->_RTBvh != nullptr)
 		{
@@ -1500,6 +1501,8 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			resources->_RTBvhSRV = nullptr;
 		}
 
+		//log_debug("[DBG] [BVH] [REALLOC] CHECK 2");
+
 		desc.ByteWidth = sizeof(BVHNode) * g_iRTMaxBLASNodesSoFar;
 		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -1512,6 +1515,8 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH buffer: 0x%x", hr);
 		}
 
+		//log_debug("[DBG] [BVH] [REALLOC] CHECK 3");
+
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 		ZeroMemory(&srvDesc, sizeof(srvDesc));
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -1523,6 +1528,8 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 		if (FAILED(hr)) {
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH SRV: 0x%x", hr);
 		}
+
+		//log_debug("[DBG] [BVH] [REALLOC] CHECK 4");
 	}
 
 	// Populate the BVH buffer
@@ -1534,6 +1541,7 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 
 		if (SUCCEEDED(hr))
 		{
+			//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
 			uint8_t* base_ptr = (uint8_t*)map.pData;
 			int BaseNodeOffset = 0;
 			for (auto& it : g_LBVHMap)
@@ -1542,11 +1550,12 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 				LBVH* bvh = (LBVH*)GetLBVH(meshData);
 				if (bvh != nullptr)
 				{
+					//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
 #ifdef DEBUG_RT
 					if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
 						BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
 					{
-						log_debug("[DBG] [BVH] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
+						log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
 							"g_iRTMaxBLASNodesSoFar: %d",
 							BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
 					}
@@ -1560,14 +1569,17 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 				}
 				else
 				{
+					//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
 					GetBaseNodeOffset(meshData) = -1;
 				}
 			}
 			context->Unmap(resources->_RTBvh.Get(), 0);
+			//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
 		}
 		else
 			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
 	}
+	log_debug("[DBG] [BVH] [REALLOC] EXIT");
 }
 
 void EffectsRenderer::ReAllocateAndPopulateTLASBvhBuffers()
@@ -1779,8 +1791,11 @@ void EffectsRenderer::SceneEnd()
 			g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
 			g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
 			BuildTLAS();
+			//log_debug("[DBG] [BVH] TLAS Built");
 			ReAllocateAndPopulateMatrixBuffer();
+			//log_debug("[DBG] [BVH] Matrices Realloc'ed");
 			ReAllocateAndPopulateTLASBvhBuffers();
+			//log_debug("[DBG] [BVH] TLAS Buffers Realloc'ed");
 		}
 	}
 

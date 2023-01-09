@@ -17,11 +17,9 @@
 
 #undef PBR_SHADING
 #undef PBR_DYN_LIGHTS
-#undef PBR_RAYTRACING
 
 //#define PBR_SHADING
 //#define PBR_DYN_LIGHTS
-//#define PBR_RAYTRACING
 
  // The color buffer
 Texture2D texColor : register(t0);
@@ -525,7 +523,6 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Raytraced shadows
 	float rt_shadow_factor = 1.0f;
-//#ifndef PBR_RAYTRACING
 	if (bRTEnabled)
 	{
 		for (uint i = 0; i < LightCount; i++) {
@@ -536,22 +533,27 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (black_level > 0.95)
 				continue;
 
-			float3 L = LightVector[i].xyz;
+			const float3 L = LightVector[i].xyz;
 			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (instead of the smooth one)
+			// "hover" prevents noise by displacing the origin of the ray away from the surface
+			// The displacement is directly proportional to the depth of the surface
+			// The position buffer's Z increases with depth
+			// The normal buffer's Z+ points towards the camera
+			// We have to invert N.z:
+			const float3 hover = 0.01 * P.z * float3(N.x, N.y, -N.z);
 			if (bRTEnabled && dotLFlatN > 0) {
 				Ray ray;
-				ray.origin = P; // Metric, Y+ is up, Z+ is forward.
-				ray.dir = float3(L.x, -L.y, -L.z);
+				ray.origin   = P + hover; // Metric, Y+ is up, Z+ is forward.
+				ray.dir      = float3(L.x, -L.y, -L.z);
 				ray.max_dist = 5000.0f;
 
 				Intersection inters = TLASTraceRaySimpleHit(ray);
 				if (inters.TriID > -1)
-					rt_shadow_factor *= (black_level * 0.3);
+					rt_shadow_factor *= black_level;
 			}
-			if (dotLFlatN <= 0) rt_shadow_factor *= (black_level * 0.3);
+			if (dotLFlatN <= 0) rt_shadow_factor *= black_level;
 		}
 	}
-//#endif
 
 	// Shadow Mapping
 	float total_shadow_factor = rt_shadow_factor;
@@ -766,9 +768,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//const float ambient = 0.05;
 	const float ambient = 0.03;
 	//const float exposure = 1.0;
-	//[loop]
-	//for (i = 0; i < LightCount; i++)
-	i = 0; // This should be temporary, I did this for the RT path, to avoid computing multiple RT shadows
+	[loop]
+	for (i = 0; i < LightCount; i++)
 	{
 		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 		float LightIntensity = dot(LightColor[i].rgb, 0.333);
@@ -776,8 +777,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 N_PBR = N;
 		N_PBR.xy = -N_PBR.xy;
 		L.xy = -L.xy;
-#ifndef PBR_RAYTRACING
-		// NO Raytracing
+
 		float3 col = addPBR(
 			P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
 			float4(LightColor[i].rgb, LightIntensity),
@@ -787,8 +787,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			ambient,
 			total_shadow_factor * ssdo.x
 		);
-#else
-		// Raytracing Enabled
+
+		/*
+#ifdef PBR_RAYTRACING
+		// Raytracing Enabled. This path is no longer needed, rt_shadow_factor is computed
+		// for both regular and PBR paths, and total_shadow_factor is initialized with it
 		float3 col = addPBR_RT_TLAS(
 			P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
 			float4(LightColor[i].rgb, LightIntensity),
@@ -798,6 +801,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			ambient
 		);
 #endif
+		*/
 		tmp_color += col;
 		//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 		//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
