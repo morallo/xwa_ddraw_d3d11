@@ -441,7 +441,6 @@ Intersection TLASTraceRaySimpleHit(Ray ray) {
 	ray.origin    = pos3D;
 	// Ray needs to have its direction inverted. Also Y is flipped for the same reason
 	// pos3D.y is flipped (Y+ is up)
-	ray.dir		  = float3(-ray.dir.x, ray.dir.y, -ray.dir.z);
 	ray.max_dist *= 40.96f;
 	return _TLASTraceRaySimpleHit(ray);
 }

@@ -541,7 +541,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (bRTEnabled && dotLFlatN > 0) {
 				Ray ray;
 				ray.origin = P; // Metric, Y+ is up, Z+ is forward.
-				ray.dir = -float3(L.x, L.y, -L.z);
+				ray.dir = float3(L.x, -L.y, -L.z);
 				ray.max_dist = 5000.0f;
 
 				Intersection inters = TLASTraceRaySimpleHit(ray);

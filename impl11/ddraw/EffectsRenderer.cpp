@@ -1468,10 +1468,9 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 #endif
 	}
 
-	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d",
-		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
-
 	g_bRTReAllocateBvhBuffer = (g_iRTTotalBLASNodesInFrame > g_iRTMaxBLASNodesSoFar);
+	log_debug("[DBG] [BVH] MultiBuilder: g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d, Reallocate? %d",
+		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_bRTReAllocateBvhBuffer);
 	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);;
 }
 
@@ -1543,6 +1542,15 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 				LBVH* bvh = (LBVH*)GetLBVH(meshData);
 				if (bvh != nullptr)
 				{
+#ifdef DEBUG_RT
+					if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
+						BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+					{
+						log_debug("[DBG] [BVH] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
+							"g_iRTMaxBLASNodesSoFar: %d",
+							BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
+					}
+#endif
 					// Save the location where this BLAS begins
 					GetBaseNodeOffset(meshData) = BaseNodeOffset;
 					// Populate the buffer itself
