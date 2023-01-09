@@ -17,9 +17,9 @@ extern char g_curOPTLoaded[MAX_OPT_NAME];
 
 // Raytracing
 extern bool g_bEnableQBVHwSAH;
-//BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
+BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
-BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+//BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
 
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 	"    BVH2",

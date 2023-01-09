@@ -701,4 +701,4 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 
 void DeleteBufferTree(BufferTreeNode *node);
 
-void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<TLASLeafItem>& leafItems, int& root_out);
+void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, std::vector<TLASLeafItem>& leafItems, int& root_out);
