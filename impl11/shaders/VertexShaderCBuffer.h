@@ -5,8 +5,8 @@ cbuffer ConstantBuffer : register(b1)
 
 	float s_V0x08B94CC;
 	float s_V0x05B46B4;
+	float s_V0x05B46B4_Offset;
 	float unused1;
-	float unused2;
 
 	float4 projectionParametersVS;
 

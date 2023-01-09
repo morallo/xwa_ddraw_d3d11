@@ -178,8 +178,8 @@ typedef struct VertexShaderCBStruct {
 	// 16 bytes
 	float s_V0x08B94CC;
 	float s_V0x05B46B4;
+	float s_V0x05B46B4_Offset;
 	float unused1;
-	float unused2;
 	// 32 bytes
 	float4 ProjectionParameters;
 	// 48 bytes

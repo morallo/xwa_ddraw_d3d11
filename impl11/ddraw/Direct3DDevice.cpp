@@ -745,6 +745,17 @@ bool LoadGeneric4DCoords(char *buf, float *x, float *y, float *z, float *w)
 	return true;
 }
 
+static bool IsInTechLibrary()
+{
+	int currentGameState = *(int*)(0x09F60E0 + 0x25FA9);
+	int updateCallback = *(int*)(0x09F60E0 + 0x25FB1 + currentGameState * 0x850 + 0x0844);
+
+	int XwaTechLibraryGameStateUpdate = 0x00574D70;
+	bool isInTechLibrary = updateCallback == XwaTechLibraryGameStateUpdate;
+
+	return isInTechLibrary;
+}
+
 int g_ExecuteCount;
 int g_ExecuteVertexCount;
 int g_ExecuteIndexCount;
@@ -2946,6 +2957,7 @@ HRESULT Direct3DDevice::Execute(
 		// New constants added with the D3DRendererHook:
 		g_VSCBuffer.s_V0x08B94CC = *(float*)0x08B94CC;
 		g_VSCBuffer.s_V0x05B46B4 = *(float*)0x05B46B4;
+		g_VSCBuffer.s_V0x05B46B4_Offset = IsInTechLibrary() ? *(float*)0x05B46B4 : 0;
 		g_VSCBuffer.ProjectionParameters.x = g_config.ProjectionParameterA;
 		g_VSCBuffer.ProjectionParameters.y = g_config.ProjectionParameterB;
 		g_VSCBuffer.ProjectionParameters.z = g_config.ProjectionParameterC;

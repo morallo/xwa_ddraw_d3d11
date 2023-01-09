@@ -56,10 +56,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 	if (input.pos.z == input.pos.w)
 	{
-		//float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4;
-		//st0 = s_V0x08B94CC / z;
-
-		float z = s_V0x05B46B4 / input.pos.w;
+		float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4_Offset;
 		st0 = s_V0x08B94CC / z;
     }
 
@@ -88,7 +85,9 @@ PixelShaderInput main(VertexShaderInput input)
 		//float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4;
 		//st0 = s_V0x08B94CC / z;
 		// float z = Zfar / input.pos.w;
-		float z = s_V0x05B46B4 / input.pos.w;
+		// s_V0x05B46B4_Offset is nonzero only in the Tech Room. It's used to
+		// make the engine glows easier to see.
+		float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4_Offset;
 		// st0 = Znear / z;
 		st0 = s_V0x08B94CC / z;
 	}
