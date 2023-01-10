@@ -4352,6 +4352,10 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
+	// Don't render the shadow map if Raytraced cockpit shadows is enabled
+	if (g_bRTEnabled && g_bRTEnabledInCockpit)
+		return;
+
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
 
