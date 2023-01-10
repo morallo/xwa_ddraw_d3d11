@@ -766,10 +766,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
 				//log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
 
+#ifdef DEBUG_RT
 				if (g_bInTechRoom) {
 					g_bEnableQBVHwSAH = !g_bEnableQBVHwSAH;
 					log_debug("[DBG] [BVH] g_bEnableQBVHwSAH: %d", g_bEnableQBVHwSAH);
 				}
+#endif
+
+				g_bRTEnabled = !g_bRTEnabled;
+				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
+				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
 
 				return 0;
 			}

@@ -195,10 +195,7 @@ void LBVH::PrintTree(std::string level, int curnode)
 
 int CalcNumInnerQBVHNodes(int numPrimitives)
 {
-	// HACK: Theoretically, max(1, 2/3 * numPrimitives) should be enough, but
-	// for some reason, I sometimes see -1 or -2 when encoding nodes. So let's
-	// play it safe for now.
-	return max(5, (int)(0.667f * numPrimitives));
+	return max(1, (int)(0.667f * numPrimitives));
 }
 
 bool leafSorter(const LeafItem& i, const LeafItem& j)
@@ -725,11 +722,13 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 {
 	InnerNode4 node = innerNodes[i];
 
-	int numGrandChildren = 0;
-	// Count all the grandchildren
-	numGrandChildren += (node.isLeaf[0]) ? 1 : innerNodes[node.children[0]].numChildren;
-	numGrandChildren += (node.isLeaf[1]) ? 1 : innerNodes[node.children[1]].numChildren;
-
+	// To be 100% correct, we need to iterate over all the node.numChildren and count
+	// the grandchildren, not just the first two (see below). Here we're assuming that
+	// this function will only be called at most once per node, and that only inner nodes
+	// will go through here, so there will be exactly two nodes. Always. However, the
+	// single-step builder may call this function twice for the root in some cases (to make
+	// sure the root is converted to a QBVH node). So let's make sure this node has at most
+	// two nodes.
 	if (node.numChildren == 1)
 	{
 		//log_debug("[DBG] [BVH] node %d only has one child. Skipping", i);
@@ -741,6 +740,11 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 		//log_debug("[DBG] [BVH] node %d has already been converted. Skipping", i);
 		return;
 	}
+
+	// Count all the grandchildren.
+	int numGrandChildren = 0;
+	numGrandChildren += (node.isLeaf[0]) ? 1 : innerNodes[node.children[0]].numChildren;
+	numGrandChildren += (node.isLeaf[1]) ? 1 : innerNodes[node.children[1]].numChildren;
 
 	//log_debug("[DBG] [BVH] Attempting BVH4 conversion for node: %d, numChildren: %d, numGrandChildren: %d",
 	//	i, node.numChildren, numGrandChildren);
@@ -1254,19 +1258,19 @@ InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int &root_out)
 			{
 				// This node has its two children and doesn't have a parent yet.
 				// Pull-up grandchildren and convert to BVH4 node
-				if (g_bEnableQBVHwSAH)
-					ConvertToBVH4NodeSAH2(i, innerNodes, leafItems);
+				//if (g_bEnableQBVHwSAH)
+				//	ConvertToBVH4NodeSAH2(i, innerNodes, leafItems);
 					//ConvertToBVH4NodeSAH(innerNodes, i, 0, leafItems);
-				else
+				//else
 					ConvertToBVH4Node(innerNodes, i);
 				root_out = ChooseParent4(i, false, numLeaves, leafItems, innerNodes);
 				innerNodes[i].processed = true;
 				innerNodesProcessed++;
 				if (root_out != -1) {
-					if (g_bEnableQBVHwSAH)
-						ConvertToBVH4NodeSAH2(root_out, innerNodes, leafItems);
+					//if (g_bEnableQBVHwSAH)
+					//	ConvertToBVH4NodeSAH2(root_out, innerNodes, leafItems);
 						//ConvertToBVH4NodeSAH(innerNodes, root_out, 0, leafItems);
-					else
+					//else
 						ConvertToBVH4Node(innerNodes, root_out);
 					break;
 				}
@@ -1424,23 +1428,6 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	fbuffer[EncodeOfs++] = obb.max[2];
 	fbuffer[EncodeOfs++] = obb.min[2];
 	// 64 bytes
-
-	/*
-	fbuffer[EncodeOfs++] = obb.min[0];
-	fbuffer[EncodeOfs++] = obb.min[1];
-	fbuffer[EncodeOfs++] = obb.min[2];
-	fbuffer[EncodeOfs++] = 0;
-	// 32 bytes
-	fbuffer[EncodeOfs++] = obb.max[0];
-	fbuffer[EncodeOfs++] = obb.max[1];
-	fbuffer[EncodeOfs++] = obb.max[2];
-	fbuffer[EncodeOfs++] = 0;
-	// 48 bytes
-	fbuffer[EncodeOfs++] = 0;
-	fbuffer[EncodeOfs++] = 0;
-	fbuffer[EncodeOfs++] = 0;
-	fbuffer[EncodeOfs++] = 0;
-	*/
 	return EncodeOfs;
 }
 
@@ -1546,9 +1533,9 @@ void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, std::vector<Lea
 			{
 				// This node has its two children and doesn't have a parent yet.
 				// Pull-up grandchildren and convert to BVH4 node
-				if (g_bEnableQBVHwSAH)
-					ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
-				else
+				//if (g_bEnableQBVHwSAH)
+				//	ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
+				//else
 					ConvertToBVH4Node(innerNodes, i);
 				// The children of this node can now be encoded
 				EncodeChildren(buffer, numQBVHInnerNodes, innerNodes, i, leafItems);
@@ -1559,9 +1546,9 @@ void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, std::vector<Lea
 				{
 					//inner_root_out = root_out;
 					// Convert the root to BVH4
-					if (g_bEnableQBVHwSAH)
-						ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
-					else
+					//if (g_bEnableQBVHwSAH)
+					//	ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
+					//else
 						ConvertToBVH4Node(innerNodes, root_out);
 					// The children of this node can now be encoded
 					EncodeChildren(buffer, numQBVHInnerNodes, innerNodes, root_out, leafItems);
