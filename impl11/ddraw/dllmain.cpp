@@ -546,6 +546,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				*/
 				return 0;
 				// DEBUG
+			// Ctrl + Alt + P
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;
 				if (g_bEnableIndirectSSDO)
@@ -794,11 +795,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
 
 				g_bRTEnabled = !g_bRTEnabled;
-				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
+				log_debug("[DBG] [BVH] g_bRTEnabled: %s", g_bRTEnabled ? "Enabled" : "Disabled");
 				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
 
 				g_bShadowMapEnable = !g_bShadowMapEnable;
-				log_debug("[DBG] g_bShadowMapEnable: %d", g_bShadowMapEnable);
+				log_debug("[DBG] g_bShadowMapEnable: %s", g_bShadowMapEnable ? "Enabled" : "Disabled");
 				return 0;
 			}
 			//case 'E': {
@@ -842,11 +843,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			// Ctrl+L is the landing gear
 
-			// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
+			// Ctrl+P Toggle PBR Shading
 			case 'P':
-				g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
-				log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
+				g_bEnablePBRShading = !g_bEnablePBRShading;
+				DisplayTimedMessage(3, 0, g_bEnablePBRShading ? "PBR Shading Enabled" : "Regular Shading");
+				log_debug("[DBG] PBR Shading %s", g_bEnablePBRShading ? "Enabled" : "Disabled");
+				//g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
+				//log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
+
 				/*
+				// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
 				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
 					static int scrCounter = 0;
 					char prevFileName[80], scrFileName[80];

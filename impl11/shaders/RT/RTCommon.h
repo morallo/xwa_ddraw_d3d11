@@ -9,7 +9,8 @@
 cbuffer ConstantBuffer : register(b10) {
 	bool bRTEnabled;
 	bool bRTEnabledInCockpit;
-	uint2 g_RTUnused;
+	bool bEnablePBRShading;
+	uint g_RTUnused;
 	// 16 bytes
 };
 

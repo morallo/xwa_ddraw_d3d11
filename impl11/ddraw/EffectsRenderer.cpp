@@ -30,6 +30,7 @@ char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTEnabledInCockpit = false;
+bool g_bEnablePBRShading = false;
 bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
@@ -3509,6 +3510,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	{
 		g_RTConstantsBuffer.bRTEnable = g_bRTEnabled && (!*g_playerInHangar);
 		g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
+		g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 	}
 
