@@ -236,6 +236,7 @@ extern uint32_t g_iRTMaxMeshesSoFar;
 extern int g_iRTMatricesNextSlot;
 extern bool g_bRTReAllocateBvhBuffer;
 extern bool g_bRTCaptureCameraAABB;
+#undef DEBUG_RT
 
 // Levels.fx
 extern bool g_bEnableLevelsShader;

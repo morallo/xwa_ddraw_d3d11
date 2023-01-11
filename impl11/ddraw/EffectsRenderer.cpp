@@ -1470,8 +1470,10 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 	}
 
 	g_bRTReAllocateBvhBuffer = (g_iRTTotalBLASNodesInFrame > g_iRTMaxBLASNodesSoFar);
+#ifdef DEBUG_RT
 	log_debug("[DBG] [BVH] MultiBuilder: g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d, Reallocate? %d",
 		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_bRTReAllocateBvhBuffer);
+#endif
 	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
 }
 
@@ -1488,7 +1490,9 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 	{
 		D3D11_BUFFER_DESC desc;
 		ZeroMemory(&desc, sizeof(desc));
+#ifdef DEBUG_RT
 		log_debug("[DBG] [BVH] [REALLOC] START");
+#endif
 
 		if (resources->_RTBvh != nullptr)
 		{
@@ -1580,7 +1584,9 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 		else
 			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
 	}
+#ifdef DEBUG_RT
 	log_debug("[DBG] [BVH] [REALLOC] EXIT");
+#endif
 }
 
 void EffectsRenderer::ReAllocateAndPopulateTLASBvhBuffers()
@@ -1673,11 +1679,13 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 		return;
 
 	bool bReallocateMatrixBuffers = numMatrices > g_iRTMaxMeshesSoFar;
+#ifdef DEBUG_RT
 	if (bReallocateMatrixBuffers)
 	{
 		log_debug("[DBG] [BVH] [REALLOC] RESIZING MATRIX BUFFER. numMatrices: %d, g_iRTMaxMeshesSoFar: %d",
 			numMatrices, g_iRTMaxMeshesSoFar);
 	}
+#endif
 	g_iRTMaxMeshesSoFar = max(numMatrices, g_iRTMaxMeshesSoFar);
 
 	if (bReallocateMatrixBuffers)
@@ -1720,9 +1728,12 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 		if (FAILED(hr)) {
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating _RTMatricesSRV: 0x%x", hr);
 		}
-		else {
+#ifdef DEBUG_RT
+		else
+		{
 			log_debug("[DBG] [BVH] [REALLOC] _RTMatricesSRV created");
 		}
+#endif
 	}
 
 	{
