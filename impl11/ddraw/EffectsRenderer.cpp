@@ -4358,7 +4358,11 @@ void EffectsRenderer::RenderCockpitShadowMap()
 
 	// Don't render the shadow map if Raytraced cockpit shadows is enabled
 	if (g_bRTEnabled && g_bRTEnabledInCockpit)
+	{
+		// ... but set the shadowmapping constants anyway: this is what fades out the lights.
+		resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 		return;
+	}
 
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
