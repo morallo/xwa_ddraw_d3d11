@@ -195,10 +195,7 @@ void LBVH::PrintTree(std::string level, int curnode)
 
 int CalcNumInnerQBVHNodes(int numPrimitives)
 {
-	// HACK: Theoretically, max(1, 2/3 * numPrimitives) should be enough, but
-	// for some reason, I sometimes see -1 or -2 when encoding nodes. So let's
-	// play it safe for now.
-	return max(5, (int)(0.667f * numPrimitives));
+	return max(1, (int)(0.667f * numPrimitives));
 }
 
 bool leafSorter(const LeafItem& i, const LeafItem& j)
@@ -360,7 +357,7 @@ void LBVH::DumpToOBJ(char *sFileName, bool isTLAS, bool useMetricScale)
 	BVHPrimNode *primNodes = (BVHPrimNode *)nodes;
 	FILE *file = NULL;
 	int index = 1;
-	float scale[3] = { 1.0f, -1.0f, 1.0f };
+	float scale[3] = { 1.0f, 1.0f, 1.0f };
 	if (useMetricScale)
 	{
 		scale[0] =  OPT_TO_METERS;
@@ -374,8 +371,9 @@ void LBVH::DumpToOBJ(char *sFileName, bool isTLAS, bool useMetricScale)
 		return;
 	}
 
-	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes);
-	for (int i = 0; i < numNodes; i++) {
+	int root = nodes[0].rootIdx;
+	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes - root);
+	for (int i = root; i < numNodes; i++) {
 		if (nodes[i].ref != -1)
 		{
 			if (isTLAS)
@@ -724,8 +722,27 @@ void ConvertToBVH4Node(InnerNode4 *innerNodes, int i)
 {
 	InnerNode4 node = innerNodes[i];
 
+	// To be 100% correct, we need to iterate over all the node.numChildren and count
+	// the grandchildren, not just the first two (see below). Here we're assuming that
+	// this function will only be called at most once per node, and that only inner nodes
+	// will go through here, so there will be exactly two nodes. Always. However, the
+	// single-step builder may call this function twice for the root in some cases (to make
+	// sure the root is converted to a QBVH node). So let's make sure this node has at most
+	// two nodes.
+	if (node.numChildren == 1)
+	{
+		//log_debug("[DBG] [BVH] node %d only has one child. Skipping", i);
+		return;
+	}
+
+	if (node.numChildren > 2)
+	{
+		//log_debug("[DBG] [BVH] node %d has already been converted. Skipping", i);
+		return;
+	}
+
+	// Count all the grandchildren.
 	int numGrandChildren = 0;
-	// Count all the grandchildren
 	numGrandChildren += (node.isLeaf[0]) ? 1 : innerNodes[node.children[0]].numChildren;
 	numGrandChildren += (node.isLeaf[1]) ? 1 : innerNodes[node.children[1]].numChildren;
 
@@ -1241,19 +1258,19 @@ InnerNode4* FastLQBVH(const std::vector<LeafItem>& leafItems, int &root_out)
 			{
 				// This node has its two children and doesn't have a parent yet.
 				// Pull-up grandchildren and convert to BVH4 node
-				if (g_bEnableQBVHwSAH)
-					ConvertToBVH4NodeSAH2(i, innerNodes, leafItems);
+				//if (g_bEnableQBVHwSAH)
+				//	ConvertToBVH4NodeSAH2(i, innerNodes, leafItems);
 					//ConvertToBVH4NodeSAH(innerNodes, i, 0, leafItems);
-				else
+				//else
 					ConvertToBVH4Node(innerNodes, i);
 				root_out = ChooseParent4(i, false, numLeaves, leafItems, innerNodes);
 				innerNodes[i].processed = true;
 				innerNodesProcessed++;
 				if (root_out != -1) {
-					if (g_bEnableQBVHwSAH)
-						ConvertToBVH4NodeSAH2(root_out, innerNodes, leafItems);
+					//if (g_bEnableQBVHwSAH)
+					//	ConvertToBVH4NodeSAH2(root_out, innerNodes, leafItems);
 						//ConvertToBVH4NodeSAH(innerNodes, root_out, 0, leafItems);
-					else
+					//else
 						ConvertToBVH4Node(innerNodes, root_out);
 					break;
 				}
@@ -1323,38 +1340,6 @@ int EncodeInnerNode(BVHNode* buffer, InnerNode4* innerNodes, int curNode, int En
 	return ofs;
 }
 
-int RemoveEncodedInnerNode(BVHNode* buffer, int QBVHOfs, int childIdx, AABB newBox)
-{
-	uint32_t* ubuffer = (uint32_t*)buffer;
-	float* fbuffer = (float*)buffer;
-	int startOfs = QBVHOfs * sizeof(BVHNode) / 4;
-	int ofs = startOfs;
-
-	// Encode the next inner node.
-	//ubuffer[ofs++] = -1; // TriID
-	//ubuffer[ofs++] = -1; // parent;
-	//ubuffer[ofs++] = 0; // rootIdx;
-	int numChildren = ubuffer[ofs+3];
-	ofs += 4;
-	// 16 bytes
-	fbuffer[ofs++] = newBox.min.x;
-	fbuffer[ofs++] = newBox.min.y;
-	fbuffer[ofs++] = newBox.min.z;
-	fbuffer[ofs++] = 1.0f;
-	// 32 bytes
-	fbuffer[ofs++] = newBox.max.x;
-	fbuffer[ofs++] = newBox.max.y;
-	fbuffer[ofs++] = newBox.max.z;
-	fbuffer[ofs++] = 1.0f;
-	// 48 bytes
-	for (int j = childIdx; j < 3; j++)
-		ubuffer[ofs + j] = ubuffer[ofs + j + 1];
-	numChildren--;
-	ubuffer[startOfs + 3] = numChildren;
-	for (int j = numChildren; j < 4; j++)
-		ubuffer[ofs + j] = -1;
-}
-
 int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int leafIdx, int EncodeNodeIdx,
 	const XwaVector3 *vertices, const int *indices)
 {
@@ -1409,11 +1394,16 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	const auto &it = g_LBVHMap.find(MeshID);
 	if (it != g_LBVHMap.end())
 	{
-		const MeshData& meshData = it->second;
-		BLASBaseNodeOffset = std::get<3>(meshData);
+		MeshData& meshData = it->second;
+		BLASBaseNodeOffset = GetBaseNodeOffset(meshData);
+		// Disable this leaf if the BVH does not exist
+		if (std::get<2>(meshData) == nullptr)
+		{
+			BLASBaseNodeOffset = -1;
+		}
 	}
 
-	int EncodeOfs     = EncodeNodeIdx * sizeof(BVHNode) / 4;
+	int EncodeOfs		 = EncodeNodeIdx * sizeof(BVHNode) / 4;
 	//log_debug("[DBG] [BVH] Encoding leaf %d, TriID: %d, at QBVHOfs: %d",
 	//	leafIdx, TriID, (EncodeOfs * 4) / 64);
 
@@ -1444,7 +1434,7 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 // Encodes the immediate children of inner node curNode
 // Use with the single-step FastLQBVH
 template<class T>
-void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNodes, int curNode, const std::vector<T>& leafItems)
+void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNodes, int curNode, std::vector<T>& leafItems, bool isTLAS=false)
 {
 	uint32_t* ubuffer = (uint32_t*)buffer;
 	float* fbuffer = (float*)buffer;
@@ -1465,8 +1455,14 @@ void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNod
 		else
 		{
 			if (!(innerNodes[childNode].isEncoded)) {
-				if (g_QBVHEncodeNodeIdx < 0) log_debug("[DBG] [BVH] EncodeChildren: ERROR: g_QBVHEncodeNodeIdx: %d, numQBVHInnerNodes: %d, numLeaves: %d",
-					g_QBVHEncodeNodeIdx, numQBVHInnerNodes, leafItems.size());
+				if (g_QBVHEncodeNodeIdx < 0)
+				{
+					log_debug("[DBG] [BVH] %s EncodeChildren: ERROR: g_QBVHEncodeNodeIdx: %d, numQBVHInnerNodes: %d, numLeaves: %d",
+						isTLAS ? "[TLAS]" : "[BLAS]",
+						g_QBVHEncodeNodeIdx, numQBVHInnerNodes, leafItems.size());
+					DumpTLASLeaves(leafItems);
+				}
+				// Sometimes there's a crash in this line:
 				EncodeInnerNode(buffer, innerNodes, childNode, g_QBVHEncodeNodeIdx);
 				// Update the parent's QBVH offset for this child:
 				innerNodes[curNode].QBVHOfs[i] = g_QBVHEncodeNodeIdx;
@@ -1494,11 +1490,11 @@ void EncodeChildren(BVHNode *buffer, int numQBVHInnerNodes, InnerNode4* innerNod
 /// <param name="buffer">The BVHNode encoding buffer</param>
 /// <param name="leafItems"></param>
 /// <param name="root_out">The index of the root node</param>
-void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<LeafItem>& leafItems, int &root_out
+void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, std::vector<LeafItem>& leafItems, int &root_out
 	/*int& inner_root, bool debug = false*/)
 {
 	int numLeaves = leafItems.size();
-	// QBVHEncodeNodeIdx points to the next available inner node index.
+	// g_QBVHEncodeNodeIdx points to the next available inner node index.
 	g_QBVHEncodeNodeIdx = numQBVHInnerNodes - 1;
 	root_out = -1;
 	//inner_root = -1;
@@ -1537,9 +1533,9 @@ void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vect
 			{
 				// This node has its two children and doesn't have a parent yet.
 				// Pull-up grandchildren and convert to BVH4 node
-				if (g_bEnableQBVHwSAH)
-					ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
-				else
+				//if (g_bEnableQBVHwSAH)
+				//	ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
+				//else
 					ConvertToBVH4Node(innerNodes, i);
 				// The children of this node can now be encoded
 				EncodeChildren(buffer, numQBVHInnerNodes, innerNodes, i, leafItems);
@@ -1550,9 +1546,9 @@ void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vect
 				{
 					//inner_root_out = root_out;
 					// Convert the root to BVH4
-					if (g_bEnableQBVHwSAH)
-						ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
-					else
+					//if (g_bEnableQBVHwSAH)
+					//	ConvertToBVH4NodeSAH(innerNodes, i, numQBVHInnerNodes, leafItems);
+					//else
 						ConvertToBVH4Node(innerNodes, root_out);
 					// The children of this node can now be encoded
 					EncodeChildren(buffer, numQBVHInnerNodes, innerNodes, root_out, leafItems);
@@ -1573,11 +1569,83 @@ void SingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vect
 	return;
 }
 
+template<class T>
+void DumpTLASLeafItem(FILE *file, T& X)
+{
+	//using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB>;
+	AABB aabb = std::get<1>(X);
+	fprintf(file, "%d, (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f), %d\n",
+		std::get<0>(X),
+		aabb.min.x, aabb.min.y, aabb.min.z,
+		aabb.max.x, aabb.max.y, aabb.max.z,
+		std::get<2>(X));
+}
+
+void ReadTLASLeafItem(FILE* file, TLASLeafItem& X)
+{
+	int code;
+	AABB aabb;
+	float minx, miny, minz;
+	float maxx, maxy, maxz;
+	int ID;
+	fscanf_s(file, "%d, (%f, %f, %f)-(%f, %f, %f), %d\n",
+		&code,
+		&minx, &miny, &minz,
+		&maxx, &maxy, &maxz,
+		&ID);
+
+	aabb.min.x = (float)minx;
+	aabb.min.y = (float)miny;
+	aabb.min.z = (float)minz;
+
+	aabb.max.x = (float)maxx;
+	aabb.max.y = (float)maxy;
+	aabb.max.z = (float)maxz;
+
+	std::get<0>(X) = code;
+	std::get<1>(X) = aabb;
+	std::get<2>(X) = ID;
+}
+
+template<class T>
+void DumpTLASLeaves(std::vector<T>& leafItems)
+{
+	static int counter = 0;
+	char sFileName[100];
+	sprintf_s(sFileName, 100, ".\\tlasLeavesRaw-%d.txt", counter++);
+	FILE* file = NULL;
+	fopen_s(&file, sFileName, "wt");
+	fprintf(file, "%d\n", leafItems.size());
+	for (uint32_t i = 0; i < leafItems.size(); i++)
+	{
+		DumpTLASLeafItem(file, leafItems[i]);
+	}
+	fclose(file);
+	log_debug("[DBG] [BVH] [TLAS] Dumped %s", sFileName);
+}
+
+void ReadTLASLeaves(char *sFileName, std::vector<TLASLeafItem> &leafItems)
+{
+	FILE* file = NULL;
+	int numLeaves = 0;
+
+	fopen_s(&file, sFileName, "rt");
+	fscanf_s(file, "%d\n", & numLeaves);
+	for (int i = 0; i < numLeaves; i++)
+	{
+		TLASLeafItem X;
+		ReadTLASLeafItem(file, X);
+		leafItems.push_back(X);
+	}
+	fclose(file);
+	log_debug("[DBG] [BVH] Read %d TLASLeafItems", leafItems.size());
+}
+
 // TODO: This code is a duplicate of the above, I need to refactor these functions
-void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<TLASLeafItem>& leafItems, int& root_out)
+void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, std::vector<TLASLeafItem>& leafItems, int& root_out)
 {
 	int numLeaves = leafItems.size();
-	// QBVHEncodeNodeIdx points to the next available inner node index.
+	// g_QBVHEncodeNodeIdx points to the next available inner node index.
 	g_QBVHEncodeNodeIdx = numQBVHInnerNodes - 1;
 	root_out = -1;
 	//inner_root = -1;
@@ -1587,14 +1655,24 @@ void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::
 		return;
 	}
 
-	if (g_QBVHEncodeNodeIdx < 0) log_debug("[DBG] [BVH] ERROR: QBVHEncodeNodeIdx: %d", g_QBVHEncodeNodeIdx);
-	//log_debug("[DBG] [BVH] Initial QBVHEncodeNodeIdx: %d", QBVHEncodeNodeIdx);
+	if (g_QBVHEncodeNodeIdx < 0)
+	{
+		log_debug("[DBG] [BVH] [TLAS] ERROR: QBVHEncodeNodeIdx: %d", g_QBVHEncodeNodeIdx);
+		DumpTLASLeaves(leafItems);
+	}
+	//log_debug("[DBG] [BVH] Initial g_QBVHEncodeNodeIdx: %d", g_QBVHEncodeNodeIdx);
 
 	// Initialize the inner nodes
 	int numInnerNodes = numLeaves - 1;
 	// numLeaves must be at least 2, which means that numInnerNodes should be at least 1
-	if (numInnerNodes < 1) log_debug("[DBG] [BVH] ERROR: numInnerNodes: %d", numInnerNodes);
-	//log_debug("[DBG] [BVH] TLAS single-step build: numLeaves: %d, numInnerNodes: %d", numLeaves, numInnerNodes);
+	if (numInnerNodes < 1)
+	{
+		log_debug("[DBG] [BVH] [TLAS] ERROR: numInnerNodes: %d", numInnerNodes);
+		DumpTLASLeaves(leafItems);
+	}
+	//log_debug("[DBG] [BVH] TLAS single-step build: numLeaves: %d, numInnerNodes: %d",
+	//	numLeaves, numInnerNodes);
+
 	int innerNodesProcessed = 0;
 	InnerNode4* innerNodes = new InnerNode4[numInnerNodes];
 	for (int i = 0; i < numInnerNodes; i++) {
@@ -1611,6 +1689,7 @@ void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::
 	for (int i = 0; i < numLeaves; i++)
 		ChooseParent4(i, true, numLeaves, leafItems, innerNodes);
 
+	//log_debug("[DBG] [BVH] Building the tree proper");
 	// Build the tree
 	while (root_out == -1 && innerNodesProcessed < numInnerNodes)
 	{
@@ -1629,16 +1708,30 @@ void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::
 				innerNodesProcessed++;
 				if (root_out != -1)
 				{
+					//log_debug("[DBG] [BVH] BVH2 root: %d", root_out);
 					//inner_root_out = root_out;
 					// Convert the root to BVH4
 					ConvertToBVH4Node(innerNodes, root_out);
 					// The children of this node can now be encoded
-					EncodeChildren(buffer, numQBVHInnerNodes, innerNodes, root_out, leafItems);
+					try {
+						// Sometimes there's a crash in this line:
+						EncodeChildren(buffer, numQBVHInnerNodes, innerNodes, root_out, leafItems);
+					}
+					catch (...) {
+						log_debug("[DBG] [BVH] [TLAS] FATAL ERROR CAUGHT.");
+						DumpTLASLeaves(leafItems);
+						log_debug("[DBG] [BVH] [TLAS] TERMINATING.");
+						exit(0);
+					}
 					//log_debug("[DBG] [BVH] Encoding the root (%d), after processing node: %d, at QBVHOfs: %d",
 					//	root_out, i, QBVHEncodeNodeIdx);
 					// Encode the root
-					if (g_QBVHEncodeNodeIdx < 0) log_debug("[DBG] [BVH] EncodeInnerNode: ERROR: g_QBVHEncodeNodeIdx: %d, numLeaves: %d",
-						g_QBVHEncodeNodeIdx, numLeaves);
+					if (g_QBVHEncodeNodeIdx < 0)
+					{
+						log_debug("[DBG] [BVH] [TLAS] EncodeInnerNode: ERROR: g_QBVHEncodeNodeIdx: %d, numLeaves: %d",
+							g_QBVHEncodeNodeIdx, numLeaves);
+						DumpTLASLeaves(leafItems);
+					}
 					EncodeInnerNode(buffer, innerNodes, root_out, g_QBVHEncodeNodeIdx);
 					// Replace root with the encoded QBVH root offset
 					//inner_root = root_out;
@@ -1651,6 +1744,36 @@ void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::
 	}
 	delete[] innerNodes;
 	return;
+}
+
+void TestTLASBuilder(char* sFileName)
+{
+	try {
+		std::vector<TLASLeafItem> tlasLeaves;
+		ReadTLASLeaves(sFileName, tlasLeaves);
+
+		const uint32_t numLeaves = tlasLeaves.size();
+		const int numQBVHInnerNodes = CalcNumInnerQBVHNodes(numLeaves);
+		const int numQBVHNodes = numQBVHInnerNodes + numLeaves;
+
+		BVHNode* QBVHBuffer = new BVHNode[numQBVHNodes];
+		// Encode the TLAS leaves (the matrixSlot and BLASBaseNodeOffset are encoded here)
+		int LeafEncodeIdx = numQBVHInnerNodes;
+		for (uint32_t i = 0; i < numLeaves; i++)
+		{
+			TLASEncodeLeafNode(QBVHBuffer, tlasLeaves, i, LeafEncodeIdx++);
+		}
+
+		//log_debug("[DBG] [BVH] BuildTLAS: numLeaves: %d, numQBVHInnerNodes: %d, numQBVHNodes: %d", numLeaves, numQBVHInnerNodes, numQBVHNodes);
+		// Build, convert and encode the QBVH
+		int root = -1;
+		TLASSingleStepFastLQBVH(QBVHBuffer, numQBVHInnerNodes, tlasLeaves, root);
+		delete[] QBVHBuffer;
+		log_debug("[DBG] [BVH] Test TLAS built successfully");
+	}
+	catch (...) {
+		log_debug("[DBG] [BVH] EXCEPTION CAUGHT WHEN TESTING THE TLAS BUILDER");
+	}
 }
 
 std::string tab(int N)

@@ -220,6 +220,11 @@ std::map<MeshNCentroid_t, int32_t> g_TLASMap;
 std::vector<Matrix4> g_TLASMatrices;
 void ClearGlobalLBVHMap();
 
+#ifdef DEBUG_RT
+// DEBUG: Map of meshKey --> OPT names. Only for debugging purposes.
+std::map<int32_t, std::tuple<std::string, int>> g_DebugMeshToNameMap;
+#endif
+
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
 	PS_CONSTANT_BUFFER_NONE,
@@ -4219,8 +4224,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the ray-tracer
-	constantBufferDesc.ByteWidth = 64;
-	static_assert(sizeof(RTConstantsBuffer) == 64, "sizeof(RTConstantsBuffer) must be 64");
+	constantBufferDesc.ByteWidth = 16;
+	static_assert(sizeof(RTConstantsBuffer) == 16, "sizeof(RTConstantsBuffer) must be 16");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
 		return hr;
 

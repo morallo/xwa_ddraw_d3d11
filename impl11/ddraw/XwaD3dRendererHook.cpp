@@ -1324,6 +1324,9 @@ void ClearGlobalLBVHMap()
 	}
 
 	g_LBVHMap.clear();
+#ifdef DEBUG_RT
+	g_DebugMeshToNameMap.clear();
+#endif
 }
 
 void D3dRenderer::Initialize()

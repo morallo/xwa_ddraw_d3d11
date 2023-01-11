@@ -70,7 +70,7 @@ struct BVHTLASLeafNode {
 	// 32 bytes
 	float max[4];    // Object-space AABB max  (needs to be multiplied by the matrix in matrixSlot)
 	// 48 bytes
-	int padding2[4];
+	float obb_max[4];
 	// 64 bytes
 };
 
@@ -207,10 +207,26 @@ public:
 
 // Classes and data used for the Fast LBVH build.
 using MortonCode_t = uint32_t;
-// Morton Code, Bounding Box, TriID
+// 0: Morton Code, 1: Bounding Box, 2: TriID
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
-// Morton Code, aabbFromOBB, TriID, MatrixSlot, Centroid, Oriented Bounding Box
-using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, int, XwaVector3, AABB>;
+// 0: Morton Code, 1: aabbFromOBB, 2: MeshKey, 3: Centroid, 4: MatrixSlot, 5: Oriented Bounding Box
+using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB>;
+
+inline MortonCode_t &GetMortonCode(LeafItem& X) { return std::get<0>(X); }
+inline MortonCode_t &GetMortonCode(TLASLeafItem& X) { return std::get<0>(X); }
+
+inline AABB &GetAABB(LeafItem& X) { return std::get<1>(X); }
+inline AABB &GetAABB(TLASLeafItem& X) { return std::get<1>(X); }
+
+inline int& GetID(LeafItem& X) { return std::get<2>(X); }
+inline int& GetID(TLASLeafItem& X) { return std::get<2>(X); }
+
+inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X) { return std::get<0>(X); }
+inline AABB& TLASGetAABBFromOBB(TLASLeafItem& X) { return std::get<1>(X); }
+inline int& TLASGetID(TLASLeafItem& X) { return std::get<2>(X); }
+inline XwaVector3& TLASGetCentroid(TLASLeafItem& X) { return std::get<3>(X); }
+inline int& TLASGetMatrixSlot(TLASLeafItem& X) { return std::get<4>(X); }
+inline AABB& TLASGetOBB(TLASLeafItem& X) { return std::get<5>(X); }
 
 struct InnerNode
 {
@@ -251,36 +267,6 @@ struct InnerNode4
 
 bool leafSorter(const LeafItem& i, const LeafItem& j);
 bool tlasLeafSorter(const TLASLeafItem& i, const TLASLeafItem& j);
-
-inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X)
-{
-	return std::get<0>(X);
-}
-
-inline AABB& TLASGetAABBFromOBB(TLASLeafItem& X)
-{
-	return std::get<1>(X);
-}
-
-inline int& TLASGetID(TLASLeafItem& X)
-{
-	return std::get<2>(X);
-}
-
-inline int& TLASGetMatrixSlot(TLASLeafItem& X)
-{
-	return std::get<3>(X);
-}
-
-inline XwaVector3& TLASGetCentroid(TLASLeafItem& X)
-{
-	return std::get<4>(X);
-}
-
-inline AABB& TLASGetOBB(TLASLeafItem& X)
-{
-	return std::get<5>(X);
-}
 
 class IGenericTreeNode
 {
@@ -715,4 +701,4 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 
 void DeleteBufferTree(BufferTreeNode *node);
 
-void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, const std::vector<TLASLeafItem>& leafItems, int& root_out);
+void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, std::vector<TLASLeafItem>& leafItems, int& root_out);

@@ -233,11 +233,11 @@ typedef struct PSShadingSystemCBStruct {
 } PSShadingSystemCB;
 
 typedef struct RTConstantsBufferStruct {
-	Matrix4 TransformWorldViewInv;
-	// 64 bytes
-	//float RTScale;
-	//int RTUnused[3];
-	// 80 bytes
+	uint32_t bRTEnable;
+	uint32_t bRTEnabledInCockpit;
+	uint32_t bEnablePBRShading;
+	uint32_t RTUnused;
+	// 16 bytes
 } RTConstantsBuffer;
 
 typedef struct {

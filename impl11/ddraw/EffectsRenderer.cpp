@@ -29,6 +29,8 @@ char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 
 bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
+bool g_bRTEnabledInCockpit = false;
+bool g_bEnablePBRShading = false;
 bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
@@ -37,6 +39,7 @@ int g_iRTMaxBLASNodesSoFar = 0;
 int g_iRTMaxTLASNodesSoFar = 0;
 
 uint32_t g_iRTMaxMeshesSoFar = 0;
+int g_iRTMeshesInThisFrame = 0;
 
 int g_iRTMatricesNextSlot = 0;
 bool g_bRTReAllocateBvhBuffer = false;
@@ -105,6 +108,12 @@ int RTGetNextAvailableMatrixSlot()
 {
 	g_iRTMatricesNextSlot++;
 	return g_iRTMatricesNextSlot - 1;
+}
+
+Matrix4 GetBLASMatrix(TLASLeafItem& tlasLeaf, int *matrixSlot)
+{
+	*matrixSlot = TLASGetMatrixSlot(tlasLeaf);
+	return g_TLASMatrices[*matrixSlot];
 }
 
 float4 TransformProjection(float3 input)
@@ -534,7 +543,7 @@ void DumpFrustrumToOBJ()
 	fclose(D3DDumpOBJFile);
 }
 
-void DumpGlobalAABBandTLASToOBJ()
+void DumpTLASLeaves()
 {
 	Matrix4 S1;
 
@@ -555,22 +564,199 @@ void DumpGlobalAABBandTLASToOBJ()
 	{
 		// Morton Code, Bounding Box, TriID, Matrix, Centroid
 		AABB obb = TLASGetOBB(leaf);
-		Matrix4 m = g_TLASMatrices[TLASGetMatrixSlot(leaf)];
-		// The matrices are stored inverted in g_TLASMatrices because that's what
-		// the RT shader needs
-		m = m.invert();
-		obb.UpdateLimits();
-		obb.TransformLimits(S1 * m);
-		VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile, std::to_string(counter++), VerticesCount);
+		int matrixSlot = -1;
+		Matrix4 m = GetBLASMatrix(leaf, &matrixSlot);
+		int meshKey = TLASGetID(leaf);
+		// Fetch the meshData associated with this TLAS leaf
+		MeshData& meshData = g_LBVHMap[meshKey];
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
+		if (bvh != nullptr && matrixSlot != -1)
+		{
+			log_debug("[DBG] [BVH] TLAS leaf %d, matrixSlot: %d", counter, matrixSlot);
+			// The matrices are stored inverted in g_TLASMatrices because that's what
+			// the RT shader needs
+			m = m.transpose(); // Matrices are stored transposed because HLSL needs that
+			m = m.invert();
+			obb.UpdateLimits();
+			obb.TransformLimits(S1 * m);
+			VerticesCount = obb.DumpLimitsToOBJ(D3DDumpOBJFile,
+				std::to_string(counter) + "-" + std::to_string(matrixSlot),
+				VerticesCount);
+			counter++;
+		}
 	}
 	fclose(D3DDumpOBJFile);
 	log_debug("[DBG] [BVH] Dumped: %d tlas leaves", counter);
 }
 
+void DumpTLASTree(char* sFileName, bool useMetricScale)
+{
+	BVHNode* nodes = (BVHNode*)(g_TLASTree->nodes);
+	FILE* file = NULL;
+	int index = 1;
+	float scale[3] = { 1.0f, 1.0f, 1.0f };
+	if (useMetricScale)
+	{
+		scale[0] =  OPT_TO_METERS;
+		scale[1] = -OPT_TO_METERS;
+		scale[2] =  OPT_TO_METERS;
+	}
+	const int numNodes = g_TLASTree->numNodes;
+
+	fopen_s(&file, sFileName, "wt");
+	if (file == NULL) {
+		log_debug("[DBG] [BVH] Could not open file: %s", sFileName);
+		return;
+	}
+
+	int root = nodes[0].rootIdx;
+	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes - root);
+	for (int i = root; i < numNodes; i++) {
+		if (nodes[i].ref != -1)
+		{
+			// TLAS leaf
+			BVHTLASLeafNode* node = (BVHTLASLeafNode*)&(nodes[i]);
+			// Dump the AABB
+			fprintf(file, "o tleaf-aabb-%d\n", i);
+
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->min[1] * scale[1], node->min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->min[1] * scale[1], node->min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->max[1] * scale[1], node->min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->max[1] * scale[1], node->min[2] * scale[2]);
+
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->min[1] * scale[1], node->max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->min[1] * scale[1], node->max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->max[0] * scale[0], node->max[1] * scale[1], node->max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node->min[0] * scale[0], node->max[1] * scale[1], node->max[2] * scale[2]);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 1);
+			fprintf(file, "f %d %d\n", index + 1, index + 2);
+			fprintf(file, "f %d %d\n", index + 2, index + 3);
+			fprintf(file, "f %d %d\n", index + 3, index + 0);
+
+			fprintf(file, "f %d %d\n", index + 4, index + 5);
+			fprintf(file, "f %d %d\n", index + 5, index + 6);
+			fprintf(file, "f %d %d\n", index + 6, index + 7);
+			fprintf(file, "f %d %d\n", index + 7, index + 4);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 4);
+			fprintf(file, "f %d %d\n", index + 1, index + 5);
+			fprintf(file, "f %d %d\n", index + 2, index + 6);
+			fprintf(file, "f %d %d\n", index + 3, index + 7);
+			index += 8;
+
+			// Dump the OBB
+			Matrix4 S1;
+			S1.scale(scale[0], scale[1], scale[2]);
+
+			Matrix4 W = g_TLASMatrices[node->matrixSlot]; // WorldView to OPT-coords
+			W = W.transpose(); // Matrices are stored transposed for HLSL
+			W = W.invert(); // OPT-coords to WorldView
+			AABB aabb;
+			// Recover the OBB from the node:
+			aabb.min.x = node->min[3];
+			aabb.min.y = node->max[3];
+			aabb.min.z = node->obb_max[3];
+
+			aabb.max.x = node->obb_max[0];
+			aabb.max.y = node->obb_max[1];
+			aabb.max.z = node->obb_max[2];
+
+			// Dump the OBB
+			aabb.UpdateLimits();
+			aabb.TransformLimits(S1 * W);
+			index = aabb.DumpLimitsToOBJ(file, std::string("tleaf-obb-") + std::to_string(i), index);
+		}
+		else
+		{
+			// Inner node, dump the AABB
+			BVHNode node = nodes[i];
+			fprintf(file, "o aabb-%d\n", i);
+
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.min[1] * scale[1], node.min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.min[1] * scale[1], node.min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.max[1] * scale[1], node.min[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.max[1] * scale[1], node.min[2] * scale[2]);
+
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.min[1] * scale[1], node.max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.min[1] * scale[1], node.max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.max[0] * scale[0], node.max[1] * scale[1], node.max[2] * scale[2]);
+			fprintf(file, "v %f %f %f\n",
+				node.min[0] * scale[0], node.max[1] * scale[1], node.max[2] * scale[2]);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 1);
+			fprintf(file, "f %d %d\n", index + 1, index + 2);
+			fprintf(file, "f %d %d\n", index + 2, index + 3);
+			fprintf(file, "f %d %d\n", index + 3, index + 0);
+
+			fprintf(file, "f %d %d\n", index + 4, index + 5);
+			fprintf(file, "f %d %d\n", index + 5, index + 6);
+			fprintf(file, "f %d %d\n", index + 6, index + 7);
+			fprintf(file, "f %d %d\n", index + 7, index + 4);
+
+			fprintf(file, "f %d %d\n", index + 0, index + 4);
+			fprintf(file, "f %d %d\n", index + 1, index + 5);
+			fprintf(file, "f %d %d\n", index + 2, index + 6);
+			fprintf(file, "f %d %d\n", index + 3, index + 7);
+			index += 8;
+		}
+	}
+	fclose(file);
+	log_debug("[DBG] [BVH] BVH Dumped to OBJ");
+}
+
 void BuildTLAS()
 {
-	const uint32_t numLeaves = tlasLeaves.size();
+	g_iRTMeshesInThisFrame = tlasLeaves.size();
+	// Prune the tlasLeaves (remove all tlas leaves that have NULL BLASes)
+	if (false)
+	{
+		// By this point, the BLASes have been built. It's probably a good idea to prune
+		// the tlasLeaves by removing empty BLASes
+		std::vector<TLASLeafItem> tempLeaves;
+		RTResetMatrixSlotCounter();
+		// Also reset the global AABB, maybe it will be reduced
+		g_GlobalAABB.SetInfinity();
+		for (auto& X : tlasLeaves) {
+			int meshKey = TLASGetID(X);
+			auto& it = g_LBVHMap.find(meshKey);
+			// Mesh not found, skip:
+			if (it == g_LBVHMap.end())
+				continue;
+			else
+			{
+				MeshData& meshData = it->second;
+				void* bvh = GetLBVH(meshData);
+				// Empty BVH, skip:
+				if (bvh == nullptr)
+					continue;
+			}
+			tempLeaves.push_back(X);
+			g_GlobalAABB.Expand(TLASGetAABBFromOBB(X));
+		}
+		tlasLeaves.clear();
+		tlasLeaves = tempLeaves;
+		g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
+		g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
+		g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
+	}
 
+	const uint32_t numLeaves = tlasLeaves.size();
 	if (numLeaves == 0)
 	{
 		//log_debug("[DBG] [BVH] BuildTLAS: numLeaves 0. Early exit.");
@@ -611,6 +797,8 @@ void BuildTLAS()
 	//log_debug("[DBG] [BVH] FastLQBVH** finished. QTree built. root: %d, numQBVHNodes: %d", root, numQBVHNodes);
 	// Initialize the root
 	QBVHBuffer[0].rootIdx = root;
+	if (g_bDumpSSAOBuffers)
+		log_debug("[DBG] [BVH] TLAS root: %d", root);
 
 	// delete[] QBVHBuffer;
 
@@ -623,7 +811,9 @@ void BuildTLAS()
 
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
 	{
-		g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale */);
+		// The single-node tree's AABB matches the global AABB and also contains the OBB
+		//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
+		DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
 	}
 }
 
@@ -897,7 +1087,11 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		// *inMissionFilmState is 0 during regular flight, and becomes 1 when recording (I think)
 
 		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
-			!(*g_playerInHangar) && hyperspacePhase == 0 && *viewingFilmState == 0 &&
+			!(*g_playerInHangar) && hyperspacePhase == 0 &&
+#undef NO_STEERING_IN_FILMS // #undef this guy to allow steering in films
+#ifdef NO_STEERING_IN_FILMS
+			*viewingFilmState == 0 &&
+#endif
 			// currentManr == 18 when the ship is docking
 			craftInstance != nullptr && craftInstance->currentManr != 18;
 
@@ -959,6 +1153,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	if (g_bRTEnabled)
 	{
 		// Restart the TLAS for the frame that is about to begin
+		g_iRTMeshesInThisFrame = 0;
 		g_GlobalAABB.SetInfinity();
 		tlasLeaves.clear();
 		g_TLASMap.clear();
@@ -1085,8 +1280,8 @@ void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 
 	for (const auto& it : g_LBVHMap)
 	{
-		int meshIndex = it.first;
-		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
+		int meshKey = it.first;
+		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
 		MeshData meshData = it.second;
 		const FaceGroups& FGs = std::get<0>(meshData);
 		int NumVertices = std::get<1>(meshData);
@@ -1172,12 +1367,12 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 	{
 		std::vector<XwaVector3> vertices;
 		std::vector<int> indices;
-		int meshIndex = it.first;
-		XwaVector3* XwaVertices = (XwaVector3*)it.first; // The mesh key is actually the Vertex array
+		int meshKey = it.first;
+		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
 		MeshData& meshData = it.second;
-		const FaceGroups& FGs = std::get<0>(meshData);
-		int NumVertices = std::get<1>(meshData);
-		LBVH* bvh = (LBVH*)std::get<2>(meshData);
+		const FaceGroups& FGs = GetFaceGroups(meshData);
+		int NumVertices = GetNumMeshVertices(meshData);
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
 
 		// First, let's check if this mesh already has a BVH. If it does, skip it.
 		if (bvh != nullptr) {
@@ -1185,6 +1380,30 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 			continue;
 		}
+
+		// DEBUG: Skip meshes we don't care about
+#ifdef DEBUG_RT
+		if (false)
+		{
+			auto& debugItem = g_DebugMeshToNameMap[meshKey];
+			if (stristr(std::get<0>(debugItem).c_str(), "ImperialStarDestroyer") == NULL)
+			{
+				// Remove this BVH
+				GetLBVH(meshData) = nullptr;
+				continue;
+			}
+
+			// We only care about the ISD after this point, the bridge has 83 vertices
+			/*
+			if (std::get<1>(debugItem) != 83 && std::get<1>(debugItem) != 205)
+			{
+				// Remove this BVH
+				GetLBVH(meshData) = nullptr;
+				continue;
+			}
+			*/
+		}
+#endif
 
 		// Populate the vertices
 		for (int i = 0; i < NumVertices; i++)
@@ -1233,21 +1452,27 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 
 		// Update the total node count
 		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
+		// Put this bvh back into the g_LBVHMap
+		GetLBVH(meshData) = bvh;
 
-		int root = bvh->nodes[0].rootIdx;
-		/*log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, total nodes: %d, actual nodes: %d",
-			g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-			g_curOPTLoaded, bvh->numNodes, bvh->numNodes - root);*/
-
-		// Put this bvh back into g_LBVHMap
-		std::get<2>(meshData) = bvh;
+		// DEBUG
+#ifdef DEBUG_RT
+		{
+			int root = bvh->nodes[0].rootIdx;
+			auto& item = g_DebugMeshToNameMap[meshKey];
+			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, meshKey: 0x%x, "
+				"total nodes: %d, actual nodes: %d",
+				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
+				std::get<0>(item).c_str(), std::get<1>(item), meshKey,
+				bvh->numNodes, bvh->numNodes - root);
+		}
+#endif
 	}
 
-	log_debug("[DBG] [BVH] g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d",
-		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
-
 	g_bRTReAllocateBvhBuffer = (g_iRTTotalBLASNodesInFrame > g_iRTMaxBLASNodesSoFar);
-	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);;
+	log_debug("[DBG] [BVH] MultiBuilder: g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d, Reallocate? %d",
+		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_bRTReAllocateBvhBuffer);
+	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
 }
 
 void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
@@ -1263,6 +1488,7 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 	{
 		D3D11_BUFFER_DESC desc;
 		ZeroMemory(&desc, sizeof(desc));
+		log_debug("[DBG] [BVH] [REALLOC] START");
 
 		if (resources->_RTBvh != nullptr)
 		{
@@ -1276,6 +1502,8 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			resources->_RTBvhSRV = nullptr;
 		}
 
+		//log_debug("[DBG] [BVH] [REALLOC] CHECK 2");
+
 		desc.ByteWidth = sizeof(BVHNode) * g_iRTMaxBLASNodesSoFar;
 		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -1288,6 +1516,8 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH buffer: 0x%x", hr);
 		}
 
+		//log_debug("[DBG] [BVH] [REALLOC] CHECK 3");
+
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 		ZeroMemory(&srvDesc, sizeof(srvDesc));
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -1299,6 +1529,8 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 		if (FAILED(hr)) {
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH SRV: 0x%x", hr);
 		}
+
+		//log_debug("[DBG] [BVH] [REALLOC] CHECK 4");
 	}
 
 	// Populate the BVH buffer
@@ -1310,16 +1542,27 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 
 		if (SUCCEEDED(hr))
 		{
+			//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
 			uint8_t* base_ptr = (uint8_t*)map.pData;
 			int BaseNodeOffset = 0;
 			for (auto& it : g_LBVHMap)
 			{
 				MeshData& meshData = it.second;
-				LBVH* bvh = (LBVH*)std::get<2>(meshData);
+				LBVH* bvh = (LBVH*)GetLBVH(meshData);
 				if (bvh != nullptr)
 				{
+					//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
+#ifdef DEBUG_RT
+					if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
+						BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+					{
+						log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
+							"g_iRTMaxBLASNodesSoFar: %d",
+							BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
+					}
+#endif
 					// Save the location where this BLAS begins
-					std::get<3>(meshData) = BaseNodeOffset;
+					GetBaseNodeOffset(meshData) = BaseNodeOffset;
 					// Populate the buffer itself
 					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
 					base_ptr += sizeof(BVHNode) * bvh->numNodes;
@@ -1327,14 +1570,17 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 				}
 				else
 				{
-					std::get<3>(meshData) = -1;
+					//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
+					GetBaseNodeOffset(meshData) = -1;
 				}
 			}
 			context->Unmap(resources->_RTBvh.Get(), 0);
+			//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
 		}
 		else
 			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
 	}
+	log_debug("[DBG] [BVH] [REALLOC] EXIT");
 }
 
 void EffectsRenderer::ReAllocateAndPopulateTLASBvhBuffers()
@@ -1422,7 +1668,10 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 	HRESULT hr;
 
 	// (Re-)Create the matrices buffer
-	const uint32_t numMatrices = tlasLeaves.size();
+	const uint32_t numMatrices = g_iRTMeshesInThisFrame; // tlasLeaves.size();
+	if (numMatrices == 0)
+		return;
+
 	bool bReallocateMatrixBuffers = numMatrices > g_iRTMaxMeshesSoFar;
 	if (bReallocateMatrixBuffers)
 	{
@@ -1484,6 +1733,18 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 		if (SUCCEEDED(hr))
 		{
 			memcpy(map.pData, g_TLASMatrices.data(), sizeof(Matrix4) * numMatrices);
+			/*
+			BYTE* base_ptr = (BYTE*)map.pData;
+			for (auto& tlasLeaf : tlasLeaves)
+			{
+				int matrixSlot = -1;
+				Matrix4 W = GetBLASMatrix(tlasLeaf, &matrixSlot);
+				if (matrixSlot != -1)
+				{
+					memcpy(base_ptr + matrixSlot * sizeof(Matrix4), W.get(), sizeof(Matrix4));
+				}
+			}
+			*/
 			context->Unmap(resources->_RTMatrices.Get(), 0);
 		}
 		else
@@ -1531,8 +1792,11 @@ void EffectsRenderer::SceneEnd()
 			g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
 			g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
 			BuildTLAS();
+			//log_debug("[DBG] [BVH] TLAS Built");
 			ReAllocateAndPopulateMatrixBuffer();
+			//log_debug("[DBG] [BVH] Matrices Realloc'ed");
 			ReAllocateAndPopulateTLASBvhBuffers();
+			//log_debug("[DBG] [BVH] TLAS Buffers Realloc'ed");
 		}
 	}
 
@@ -1546,7 +1810,7 @@ void EffectsRenderer::SceneEnd()
 		}
 #endif
 		//DumpFrustrumToOBJ();
-		DumpGlobalAABBandTLASToOBJ();
+		DumpTLASLeaves();
 	}
 
 	// Close the OBJ dump file for the current frame
@@ -2893,61 +3157,6 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		return &it->second;
 }
 
-#ifdef DISABLED
-void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB obb, int matrixSlot)
-{
-	obb.UpdateLimits();
-
-	// Transform this aabb into camera space, get a new aabb,
-	// get the centroid and add it to the TLAS
-#ifdef DUMP_TLAS
-	Matrix4 S1;
-	S1.identity();
-	static int totalVertices = 1;
-	static int OBJGroup = 1;
-	if (g_bDumpSSAOBuffers)
-	{
-		S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
-		if (g_TLASFile == NULL)
-			fopen_s(&g_TLASFile, ".\\TLAS.obj", "wt");
-	}
-	aabb.TransformLimits(S1 * WorldViewTransform);
-#else
-	obb.TransformLimits(WorldViewTransform);
-#endif
-
-	// The limits have been transformed into camera space, get the
-	// new AABB in this space and expand the current global AABB.
-	AABB aabb = obb.GetAABBFromCurrentLimits();
-	XwaVector3 centroid = aabb.GetCentroid();
-	g_GlobalAABB.Expand(aabb);
-
-	// Add this mesh to the current TLAS leaves. We're assuming this method won't be called
-	// if we've seen this mesh before so no leaves will be duplicated.
-	tlasLeaves.push_back(TLASLeafItem(0, aabb, meshID, WorldViewTransform, centroid, obb, matrixSlot));
-
-#ifdef DUMP_TLAS
-	if (g_bDumpSSAOBuffers)
-	{
-		aabb.DumpLimitsToOBJ(g_TLASFile, OBJGroup, totalVertices);
-		totalVertices += aabb.Limits.size();
-
-		//box.UpdateLimits();
-		//box.DumpLimitsToOBJ(g_TLASFile, OBJGroup, totalVertices);
-		//totalVertices += box.Limits.size();
-
-		OBJGroup++;
-	}
-#endif
-
-	// Get the centroid and compute its Morton Code using g_CameraAABB
-	//XwaVector3 centroid = aabb.GetCentroid();
-	//Normalize(centroid, g_CameraAABB, g_CameraRange);
-	//MortonCode_t code = GetMortonCode32(centroid);
-	//g_TLASTree = InsertRB(g_TLASTree, meshID, code, aabb, WorldViewTransform);
-}
-#endif
-
 // Update g_TLASMap: checks if we've seen the current mesh in this frame. If we
 // haven't seen this mesh, a new matrix slot is requested and a new (meshKey, matrixSlot)
 // entry is added to g_TLASMap. Otherwise we fetch the matrixSlot for the meshKey.
@@ -2958,7 +3167,7 @@ void EffectsRenderer::AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshI
 //
 // The same matrixSlot is used for both maps and makes a direct link between the TLAS
 // and the BLASes
-void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
+void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
@@ -2974,8 +3183,8 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 		auto aabb_it = _AABBs.find(meshKey);
 		if (aabb_it != _AABBs.end()) {
 			AABB obb = aabb_it->second;					// The AABB in object space
-			obb.UpdateLimits();
-			obb.TransformLimits(W);						// Now it's an OBB in worldview space...
+			obb.UpdateLimits();							// Generate all the vertices (8) so that we can transform them.
+			obb.TransformLimits(W);						// Now it's an OBB in WorldView space...
 			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
 			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
 
@@ -2986,10 +3195,12 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 				// We haven't seen this mesh/centroid combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
 				g_TLASMap[meshNcentroidKey] = matrixSlot;
-				// Store the matrix proper, but inverted. That's what the RT code
-				// needs
+				// Store the matrix proper, but inverted. That's what the RT code needs so that
+				// we can transform from WorldView to OPT-coords
 				Matrix4 WInv = W;
 				WInv = WInv.invert();
+				// HLSL needs matrices to be stored transposed
+				WInv = WInv.transpose();
 				if (matrixSlot >= (int)g_TLASMatrices.size())
 					g_TLASMatrices.resize(g_TLASMatrices.size() + 128);
 				g_TLASMatrices[matrixSlot] = WInv;
@@ -2997,7 +3208,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, matrixSlot, centroid, obb));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, centroid, matrixSlot, obb));
 			}
 			else
 			{
@@ -3011,14 +3222,14 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	MeshData meshData;
 	FaceGroups FGs;
 	auto it = g_LBVHMap.find(meshKey);
-	std::get<2>(meshData) = nullptr; // Initialize the BVH to NULL
+	GetLBVH(meshData) = nullptr; // Initialize the BVH to NULL
 	// We have seen this mesh before, but we need to check if we've seen
 	// the FG as well
 	if (it != g_LBVHMap.end())
 	{
 		// Check if we've seen this FG group before
 		meshData = it->second;
-		FGs = std::get<0>(meshData);
+		FGs = GetFaceGroups(meshData);
 		// The FG key is FaceIndices:
 		auto it = FGs.find((int32_t)scene->FaceIndices);
 		if (it != FGs.end())
@@ -3031,7 +3242,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	// Signal that there's at least one BLAS that needs to be rebuilt
 	_BLASNeedsUpdate = true;
 	// Delete any previous BVH for this mesh
-	LBVH* bvh = (LBVH*)std::get<2>(meshData);
+	LBVH* bvh = (LBVH*)GetLBVH(meshData);
 	if (bvh != nullptr)
 		delete bvh;
 
@@ -3039,14 +3250,27 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene, int meshIndex)
 	// Add the FG to the map so that it's not processed again
 	FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
 	// Update the FaceGroup in the meshData
-	std::get<0>(meshData) = FGs;
-	std::get<1>(meshData) = scene->VerticesCount;
-	std::get<2>(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
-	//std::get<3>(meshData) = matrixSlot; // We can't store the matrix slot on the BLAS, there can be multiple instances each with a different matrix!
-	//uint32_t preSize = g_LBVHMap.size();
-	g_LBVHMap[meshKey] = meshData;
-	//uint32_t postSize = g_LBVHMap.size();
-	//if (postSize > preSize) log_debug("[DBG] [BVH] g_LBVHMap.size() increased to: %d", postSize);
+	GetFaceGroups(meshData)		 = FGs;
+	GetNumMeshVertices(meshData) = scene->VerticesCount;
+	GetLBVH(meshData)			 = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
+	g_LBVHMap[meshKey]			 = meshData;
+
+	// DEBUG: Add the OPT's name to g_MeshToNameMap
+#ifdef DEBUG_RT
+	{
+		char sToken[] = "Flightmodels\\";
+		char* subString = stristr(_lastTextureSelected->_name.c_str(), sToken);
+		subString += strlen(sToken);
+		char OPTname[128];
+		int i = 0;
+		while (subString[i] != 0 && subString[i] != '.') {
+			OPTname[i] = subString[i];
+			i++;
+		}
+		OPTname[i] = 0;
+		g_DebugMeshToNameMap[meshKey] = std::tuple(std::string(OPTname), MeshVerticesCount);
+	}
+#endif
 }
 
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
@@ -3279,7 +3503,18 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplyMeshTransform();
 
 	if (g_bInTechRoom)
+	{
 		ApplyRTShadows(scene);
+	}
+	else
+	{
+		g_RTConstantsBuffer.bRTEnable = g_bRTEnabled &&	(!*g_playerInHangar) &&
+			(g_HyperspacePhaseFSM == HS_INIT_ST);
+		g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
+		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
+		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
+		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
+	}
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
 	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
@@ -3342,11 +3577,15 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
-		!_lastTextureSelected->is_LightTexture &&
-		!_bIsCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
-		!(g_bIsFloating3DObject || g_isInRenderMiniature))
+		!_lastTextureSelected->is_LightTexture)
 	{
-		UpdateGlobalBVH(scene, _currentOptMeshIndex);
+		bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
+		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
+		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
+			!(g_bIsFloating3DObject || g_isInRenderMiniature))
+		{
+			UpdateGlobalBVH(scene);
+		}
 	}
 
 	// Additional processing for VR or similar. Not implemented in this class, but will be in
@@ -4116,6 +4355,14 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderCockpitShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
+
+	// Don't render the shadow map if Raytraced cockpit shadows is enabled
+	if (g_bRTEnabled && g_bRTEnabledInCockpit)
+	{
+		// ... but set the shadowmapping constants anyway: this is what fades out the lights.
+		resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
+		return;
+	}
 
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.

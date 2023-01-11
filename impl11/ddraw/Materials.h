@@ -525,6 +525,7 @@ struct Material {
 	int DisplayIfSpeedGE;
 	float DisplayIfThrottleGE;
 	int DisplayIfMissionSetSpeedGE;
+	bool Raytrace;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
@@ -596,6 +597,8 @@ struct Material {
 		DisplayIfSpeedGE = -INT_MAX;
 		DisplayIfThrottleGE = -FLT_MAX;
 		DisplayIfMissionSetSpeedGE = -INT_MAX;
+
+		Raytrace = true;
 
 		/*
 		// DEBUG properties, remove later

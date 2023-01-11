@@ -6932,6 +6932,9 @@ void PrimarySurface::TagXWALights()
 	// Don't tag anything in external view (I don't know if y_center needs to be used)
 	if (bExternal)
 		return;
+#ifdef RT_SIDE_LIGHTS
+	return;
+#endif
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1, true);
 
 	// Check all the lights to see if they match any sun centroid
@@ -8979,7 +8982,9 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Here we're only tagging and fading lights, the shadowmap is now rendered in EffectsRenderer::RenderShadowMap()
-			if (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ && g_HyperspacePhaseFSM == HS_INIT_ST)
+			// Lights should also be tagged when Raytracing is enabled, or we'll have multiple shadows
+			if ((g_bRTEnabled || (g_ShadowMapping.bEnabled && g_ShadowMapping.bUseShadowOBJ)) &&
+				g_HyperspacePhaseFSM == HS_INIT_ST)
 			{
 				TagAndFadeXWALights();
 			}

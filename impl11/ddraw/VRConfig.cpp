@@ -2034,6 +2034,9 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "raytracing_enabled") == 0) {
 				g_bRTEnabled = (bool)fValue;
 			}
+			if (_stricmp(param, "raytracing_enabled_in_cockpit") == 0) {
+				g_bRTEnabledInCockpit = (bool)fValue;
+			}
 
 			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
 				g_bDisableDiffuse = (bool)fValue;

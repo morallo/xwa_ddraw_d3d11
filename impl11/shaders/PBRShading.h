@@ -209,11 +209,7 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 	float shadow = 1.0;
 
 	//for (int i = 0; i < globalLightsCount; i++)
-	int i = 0;
 	{
-		//float3 L = float3(0.7, -0.7, 1);
-		//float3 L = float3(0.5, 1.0, 0.7);
-		//float3 light_color = 1.0;
 		float3 L = lightDir;
 		float3 light_color = lightColor.w * lightColor.xyz;
 
@@ -224,22 +220,16 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 		// Only do raytraced shadows for surfaces that face towards the light source.
 		// If the current surface faces away, we already know it's shadowed
 		const float dotLFlatN = dot(L, FlatN);
-		if (/* bDoRaytracing && */ dotLFlatN > 0) {
+		if (bRTEnabled && dotLFlatN > 0) {
 			Ray ray;
 			ray.origin = position; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
 			//ray.origin = position + 0.01f * FlatN; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
-			ray.dir = L;
+			ray.dir = float3(-L.x, L.y, -L.z);
 			ray.max_dist = 5000.0f;
 
 			Intersection inters = TLASTraceRaySimpleHit(ray);
-			// Original
-			//if (inters.TriID > -1)
-			//	shadow = 0.0;
-
-			// DEBUG
-			if (inters.TriID > -1) {
-				return float3(0, 1, 1);
-			}
+			if (inters.TriID > -1)
+				shadow = 0.0;
 		}
 		if (dotLFlatN <= 0) shadow = 0.0;
 
@@ -250,7 +240,6 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 		// shadow += softshadow(position, normalize(lights[i].pos.xyz - position), 0.02, 2.5);
 	}
 
-	//return color * shadow; // Original version
 	return ambient * albedo + color * shadow; // This prevents areas in shadow from becoming full black.
 }
 

@@ -189,11 +189,5 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 #endif
 
-	// BVH DEBUG
-	/*
-	if (bDoRaytracing && g_BVH[0].ref == -1)
-		output.color.rgb = g_BVH[0].min.xyz;
-	*/
-
 	return output;
 }

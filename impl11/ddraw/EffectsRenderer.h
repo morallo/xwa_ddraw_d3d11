@@ -138,7 +138,7 @@ public:
 	void ReAllocateAndPopulateMatrixBuffer();
 	void ApplyRTShadows(const SceneCompData* scene);
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
-	void UpdateGlobalBVH(const SceneCompData* scene, int meshIndex);
+	void UpdateGlobalBVH(const SceneCompData* scene);
 
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);

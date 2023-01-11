@@ -229,6 +229,8 @@ constexpr float METERS_TO_OPT = 40.96f;
 // Raytracing
 extern bool g_bRTEnabledInTechRoom;
 extern bool g_bRTEnabled;
+extern bool g_bRTEnabledInCockpit;
+extern bool g_bEnablePBRShading;
 extern int g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_iRTMaxTLASNodesSoFar;
 extern uint32_t g_iRTMaxMeshesSoFar;
 extern int g_iRTMatricesNextSlot;
