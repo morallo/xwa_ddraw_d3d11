@@ -6932,6 +6932,9 @@ void PrimarySurface::TagXWALights()
 	// Don't tag anything in external view (I don't know if y_center needs to be used)
 	if (bExternal)
 		return;
+#ifdef RT_SIDE_LIGHTS
+	return;
+#endif
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1, true);
 
 	// Check all the lights to see if they match any sun centroid

@@ -525,10 +525,20 @@ PixelShaderOutput main(PixelShaderInput input)
 	float rt_shadow_factor = 1.0f;
 	if (bRTEnabled)
 	{
-		for (uint i = 0; i < LightCount; i++) {
+		// #define RT_SIDE_LIGHTS to disable light tagging and use the first light only.
+		// This helps get interesting shadows in skirmish missions.
+#ifdef RT_SIDE_LIGHTS
+		uint i = 0;
+#else
+		for (uint i = 0; i < LightCount; i++)
+#endif
+		{
 			float shadow_factor = 1.0;
 			float black_level, minZ, maxZ;
 			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
+#ifdef RT_SIDE_LIGHTS
+			black_level = 0.1;
+#endif
 			// Skip lights that won't project black-enough shadows
 			if (black_level > 0.95)
 				continue;
@@ -773,8 +783,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		//const float ambient = 0.05;
 		const float ambient = 0.03;
 		//const float exposure = 1.0;
+#ifdef RT_SIDE_LIGHTS
+		i = 0;
+#else
 		[loop]
 		for (i = 0; i < LightCount; i++)
+#endif
 		{
 			float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
 			float LightIntensity = dot(LightColor[i].rgb, 0.333);
