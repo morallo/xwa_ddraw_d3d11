@@ -100,9 +100,9 @@ int32_t MakeMeshKey(const SceneCompData* scene)
 	return (int32_t)scene->MeshVertices;
 }
 
-MeshFG_t MakeMeshFGKey(const SceneCompData* scene)
+int32_t MakeFaceGroupKey(const SceneCompData* scene)
 {
-	return MeshFG_t((uint32_t)scene->MeshVertices, (uint32_t)scene->FaceIndices);
+	return (uint32_t)scene->FaceIndices;
 }
 
 void RTResetMatrixSlotCounter()
@@ -1369,23 +1369,24 @@ void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 	}
 }
 
-// Builds one BLAS per mesh and populates its corresponding tuple in g_LBVHMap
-void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
+// Builds one BLAS per mesh and populates its corresponding tuple in g_BLASMap
+void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 {
 	// At least one BLAS needs to be rebuilt in this frame, let's count
 	// the total nodes again.
 	g_iRTTotalBLASNodesInFrame = 0;
 
-	for (auto& it : g_LBVHMap)
+	for (auto& it : g_BLASMap)
 	{
-		std::vector<XwaVector3> vertices;
-		std::vector<int> indices;
-		int meshKey = it.first;
+		std::vector<XwaVector3>   vertices;
+		std::vector<int>          indices;
+		int facesGroupID        = it.first;
+		BLASData& blasData      = it.second;
+		int meshKey             = BLASGetMeshVertices(blasData);
 		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
-		MeshData& meshData = it.second;
-		const FaceGroups& FGs = GetFaceGroups(meshData);
-		int NumVertices = GetNumMeshVertices(meshData);
-		LBVH* bvh = (LBVH*)GetLBVH(meshData);
+		const int NumVertices   = BLASGetNumVertices(blasData);
+		const int FacesCount    = BLASGetNumFaces(blasData);
+		LBVH* bvh               = (LBVH*)BLASGetBVH(blasData);
 
 		// First, let's check if this mesh already has a BVH. If it does, skip it.
 		if (bvh != nullptr) {
@@ -1402,7 +1403,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			if (stristr(std::get<0>(debugItem).c_str(), "ImperialStarDestroyer") == NULL)
 			{
 				// Remove this BVH
-				GetLBVH(meshData) = nullptr;
+				std::get<3>(blasData) = nullptr;
 				continue;
 			}
 
@@ -1425,26 +1426,21 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		}
 
 		// Populate the indices
-		for (const auto& FG : FGs)
-		{
-			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
-			int FacesCount = FG.second;
-
-			for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
-				OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
-				int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+		OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)facesGroupID;
+		for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
+			OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
+			int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+			indices.push_back(faceData.Vertex[0]);
+			indices.push_back(faceData.Vertex[1]);
+			indices.push_back(faceData.Vertex[2]);
+			if (edgesCount == 4) {
 				indices.push_back(faceData.Vertex[0]);
-				indices.push_back(faceData.Vertex[1]);
 				indices.push_back(faceData.Vertex[2]);
-				if (edgesCount == 4) {
-					indices.push_back(faceData.Vertex[0]);
-					indices.push_back(faceData.Vertex[2]);
-					indices.push_back(faceData.Vertex[3]);
-				}
+				indices.push_back(faceData.Vertex[3]);
 			}
 		}
 
-		// All the FaceGroups have been added, the tree can be built now
+		// All the data for this FaceGroup is ready, let's build the BLAS BVH
 		switch (g_BVHBuilderType)
 		{
 		case BVHBuilderType_BVH2:
@@ -1466,17 +1462,17 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		// Update the total node count
 		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 		// Put this bvh back into the g_LBVHMap
-		GetLBVH(meshData) = bvh;
+		BLASGetBVH(blasData) = bvh;
 
 		// DEBUG
 #ifdef DEBUG_RT
 		{
 			int root = bvh->nodes[0].rootIdx;
-			auto& item = g_DebugMeshToNameMap[meshKey];
-			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, OPTmeshIndex: %d, meshKey: 0x%x, "
+			auto& debugItem = g_DebugMeshToNameMap[meshKey];
+			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, OPTmeshIndex: %d, facesGroupID: 0x%x, "
 				"total nodes: %d",
 				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-				std::get<0>(item).c_str(), std::get<1>(item), std::get<2>(item), meshKey,
+				std::get<0>(debugItem).c_str(), std::get<1>(debugItem), std::get<2>(debugItem), facesGroupID,
 				bvh->numNodes);
 		}
 #endif
@@ -1549,52 +1545,102 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 	}
 
 	// Populate the BVH buffer
-	if (_BLASNeedsUpdate)
+	if (g_bRTReAllocateBvhBuffer || _BLASNeedsUpdate)
 	{
-		D3D11_MAPPED_SUBRESOURCE map;
-		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-		hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		if (SUCCEEDED(hr))
+		if (!g_bInTechRoom)
 		{
-			//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
-			uint8_t* base_ptr = (uint8_t*)map.pData;
-			int BaseNodeOffset = 0;
-			for (auto& it : g_LBVHMap)
+			D3D11_MAPPED_SUBRESOURCE map;
+			ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+			hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+			if (SUCCEEDED(hr))
 			{
-				MeshData& meshData = it.second;
-				LBVH* bvh = (LBVH*)GetLBVH(meshData);
-				if (bvh != nullptr)
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
+				uint8_t* base_ptr = (uint8_t*)map.pData;
+				int BaseNodeOffset = 0;
+				for (auto& it : g_BLASMap)
 				{
-					//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
-#ifdef DEBUG_RT
-					if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
-						BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+					BLASData& blasData = it.second;
+					LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+					if (bvh != nullptr)
 					{
-						log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
-							"g_iRTMaxBLASNodesSoFar: %d",
-							BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
-					}
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
+#ifdef DEBUG_RT
+						if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
+							BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+						{
+							log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
+								"g_iRTMaxBLASNodesSoFar: %d",
+								BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
+						}
 #endif
-					// Save the location where this BLAS begins
-					GetBaseNodeOffset(meshData) = BaseNodeOffset;
-					// Populate the buffer itself
-					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
-					base_ptr += sizeof(BVHNode) * bvh->numNodes;
-					BaseNodeOffset += bvh->numNodes;
+						// Save the location where this BLAS begins
+						BLASGetBaseNodeOffset(blasData) = BaseNodeOffset;
+						// Populate the buffer itself
+						memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
+						base_ptr += sizeof(BVHNode) * bvh->numNodes;
+						BaseNodeOffset += bvh->numNodes;
+					}
+					else
+					{
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
+						BLASGetBaseNodeOffset(blasData) = -1;
+					}
 				}
-				else
-				{
-					//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
-					GetBaseNodeOffset(meshData) = -1;
-				}
+				context->Unmap(resources->_RTBvh.Get(), 0);
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
 			}
-			context->Unmap(resources->_RTBvh.Get(), 0);
-			//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
+			else
+				log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
 		}
 		else
-			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
+		{
+			D3D11_MAPPED_SUBRESOURCE map;
+			ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+			hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+			if (SUCCEEDED(hr))
+			{
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
+				uint8_t* base_ptr = (uint8_t*)map.pData;
+				int BaseNodeOffset = 0;
+				for (auto& it : g_LBVHMap)
+				{
+					MeshData& meshData = it.second;
+					LBVH* bvh = (LBVH*)GetLBVH(meshData);
+					if (bvh != nullptr)
+					{
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
+#ifdef DEBUG_RT
+						if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
+							BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+						{
+							log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
+								"g_iRTMaxBLASNodesSoFar: %d",
+								BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
+						}
+#endif
+						// Save the location where this BLAS begins
+						GetBaseNodeOffset(meshData) = BaseNodeOffset;
+						// Populate the buffer itself
+						memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
+						base_ptr += sizeof(BVHNode) * bvh->numNodes;
+						BaseNodeOffset += bvh->numNodes;
+					}
+					else
+					{
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
+						GetBaseNodeOffset(meshData) = -1;
+					}
+				}
+				context->Unmap(resources->_RTBvh.Get(), 0);
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
+			}
+			else
+				log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
+		}
 	}
+
 #ifdef DEBUG_RT
 	log_debug("[DBG] [BVH] [REALLOC] EXIT");
 #endif
@@ -1748,7 +1794,7 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 	}
 
 	{
-		// Populate the matrices for all the meshes
+		// Populate the matrices for all the faceGroupIDs
 		D3D11_MAPPED_SUBRESOURCE map;
 		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
 		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
@@ -1789,7 +1835,7 @@ void EffectsRenderer::SceneEnd()
 		else if (g_bRTEnabled)
 		{
 			// Build multiple BLASes and put them in g_LBVHMap
-			BuildMultipleBLASFromCurrentBVHMap();
+			BuildMultipleBLASFromCurrentBLASMap();
 			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
 			ReAllocateAndPopulateBvhBuffers(g_iRTTotalBLASNodesInFrame);
 			g_bRTReAllocateBvhBuffer = false;
@@ -3196,18 +3242,25 @@ void EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
 // haven't seen this mesh, a new matrix slot is requested and a new (meshKey, matrixSlot)
 // entry is added to g_TLASMap. Otherwise we fetch the matrixSlot for the meshKey.
 //
+// Regular Flight:
+// Update g_BLASMap: checks if the current mesh/face group combination is new.
+// If it is, then a new blasData entry will be added to g_BLASMap and this will
+// request a BLAS tree to be built at the end of the frame.
+//
+// Tech Room:
 // Update g_LBVHMap: checks if the current mesh/face group combination is new.
-// If it is, then a new meshData tuple will be added into g_LBVHMap and this will
-// request a BLAS tree rebuild at the end of this frame.
+// If it is, then a new face group will be added to the meshData tuple in g_LBVHMap.
+// This will request a single coalesced BLAS rebuild at the end of the frame.
 //
 // The same matrixSlot is used for both maps and makes a direct link between the TLAS
 // and the BLASes
-void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
+void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
-	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
-	int32_t meshKey = MakeMeshKey(scene);
-	int matrixSlot = -1;
+	int MeshVerticesCount    = *(int*)((int)scene->MeshVertices - 8);
+	int32_t meshKey          = MakeMeshKey(scene);
+	int32_t faceGroupID      = MakeFaceGroupKey(scene);
+	int matrixSlot           = -1;
 
 	// Update g_TLASMap and get a new matrix slot if necessary -- or find the
 	// existing matrixSlot for the current mesh/centroid
@@ -3223,13 +3276,13 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
 			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
 
-			MeshNCentroid_t meshNcentroidKey = MeshNCentroid_t(meshKey, centroid.x, centroid.y, centroid.z);
-			auto it = g_TLASMap.find(meshNcentroidKey);
+			FaceGroupNCentroid_t faceGroupCentroidKey = FaceGroupNCentroid_t(faceGroupID, centroid.x, centroid.y, centroid.z);
+			auto it = g_TLASMap.find(faceGroupCentroidKey);
 			if (it == g_TLASMap.end())
 			{
 				// We haven't seen this mesh/centroid combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
-				g_TLASMap[meshNcentroidKey] = matrixSlot;
+				g_TLASMap[faceGroupCentroidKey] = matrixSlot; // I don't think we're actually using g_TLASMap...
 				// Store the matrix proper, but inverted. That's what the RT code needs so that
 				// we can transform from WorldView to OPT-coords
 				Matrix4 WInv = W;
@@ -3243,7 +3296,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, centroid, matrixSlot, obb));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, faceGroupID, centroid, matrixSlot, obb));
 			}
 			else
 			{
@@ -3253,42 +3306,63 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 		}
 	}
 
-	// Now update the g_LBVHMap so that we can rebuild BLASes if needed.
-	MeshData meshData;
-	FaceGroups FGs;
-	auto it = g_LBVHMap.find(meshKey);
-	GetLBVH(meshData) = nullptr; // Initialize the BVH to NULL
-	// We have seen this mesh before, but we need to check if we've seen
-	// the FG as well
-	if (it != g_LBVHMap.end())
+	if (!g_bInTechRoom)
 	{
-		// Check if we've seen this FG group before
-		meshData = it->second;
-		FGs = GetFaceGroups(meshData);
-		// The FG key is FaceIndices:
-		auto it = FGs.find((int32_t)scene->FaceIndices);
-		if (it != FGs.end())
-		{
-			// We've seen this mesh/FG combination before, ignore
+		// Now update the g_BLASMap so that we can build multiple BLASes if needed.
+		BLASData blasData;
+		auto it = g_BLASMap.find(faceGroupID);
+		// We've seen this FG before: there's nothing to do
+		if (it != g_BLASMap.end())
 			return;
-		}
+
+		// Signal that there's at least one BLAS that needs to be rebuilt
+		_BLASNeedsUpdate = true;
+		// Update the g_BLASMap
+		BLASGetMeshVertices(blasData) = (int)scene->MeshVertices;
+		BLASGetNumVertices(blasData) = scene->VerticesCount;
+		BLASGetNumFaces(blasData) = scene->FacesCount;
+		BLASGetBVH(blasData) = nullptr; // Force this BVH to be built
+		g_BLASMap[faceGroupID] = blasData;
 	}
+	else
+	{
+		// Now update the g_LBVHMap so that we can rebuild BLASes if needed.
+		MeshData meshData;
+		FaceGroups FGs;
+		auto it = g_LBVHMap.find(meshKey);
+		GetLBVH(meshData) = nullptr; // Initialize the new meshData BVH to NULL
+		// We have seen this mesh before, but we need to check if we've seen
+		// the FG as well
+		if (it != g_LBVHMap.end())
+		{
+			// Check if we've seen this FG group before
+			meshData = it->second;
+			FGs = GetFaceGroups(meshData);
+			// The FG key is FaceIndices:
+			auto it = FGs.find((int32_t)scene->FaceIndices);
+			if (it != FGs.end())
+			{
+				// We've seen this mesh/FG combination before, ignore
+				return;
+			}
+		}
 
-	// Signal that there's at least one BLAS that needs to be rebuilt
-	_BLASNeedsUpdate = true;
-	// Delete any previous BVH for this mesh
-	LBVH* bvh = (LBVH*)GetLBVH(meshData);
-	if (bvh != nullptr)
-		delete bvh;
+		// Signal that there's at least one BLAS that needs to be rebuilt
+		_BLASNeedsUpdate = true;
+		// Delete any previous BVH for this mesh
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
+		if (bvh != nullptr)
+			delete bvh;
 
-	// Update the g_LBVHMap
-	// Add the FG to the map so that it's not processed again
-	FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
-	// Update the FaceGroup in the meshData
-	GetFaceGroups(meshData)		 = FGs;
-	GetNumMeshVertices(meshData) = scene->VerticesCount;
-	GetLBVH(meshData)			 = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
-	g_LBVHMap[meshKey]			 = meshData;
+		// Update the g_LBVHMap
+		// Add the FG to the map so that it's not processed again
+		FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
+		// Update the FaceGroup in the meshData
+		GetFaceGroups(meshData) = FGs;
+		GetNumMeshVertices(meshData) = scene->VerticesCount;
+		GetLBVH(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
+		g_LBVHMap[meshKey] = meshData;
+	}
 
 	// DEBUG: Add the OPT's name to g_MeshToNameMap
 #ifdef DEBUG_RT
@@ -3624,7 +3698,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 				//log_debug("[DBG] [BVH] MediumTransport, FG: 0x%x", scene->FaceIndices);
 			}
 			*/
-			UpdateGlobalBVH(scene);
+			// Populate the TLAS and BLAS maps so that we can build BVHs at the end of the frame
+			UpdateBVHMaps(scene);
 		}
 	}
 

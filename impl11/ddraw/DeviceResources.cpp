@@ -208,15 +208,21 @@ void ResetObjectIndexMap();
 void ResetRawMouseInput();
 
 // Raytracing
-// This maps meshKeys (the vertex pointer) to MeshData tuples
-// This map is used to build BLASes and gets cleared in the following situations:
-// - Tech Room: Every time a new OPT is loaded
-// - Regular Flight: When OnSizeChanged() is called
+
+// This maps meshKeys (the vertex pointer) to MeshData tuples.
+// This map is used to build a single BLAS in the Tech Room and
+// gets cleared when a new OPT is loaded.
 std::map<int32_t, MeshData> g_LBVHMap;
+
+// This maps FaceGroupIDs (FaceIndices pointer) to BLASData tuples.
+// This map is used to build multiple BLASes during regular flight
+// (one per FaceGroup). It gets cleared when OnSizeChanged() is called
+std::map<int32_t, BLASData> g_BLASMap;
+
 // This maps (meshKey,centroid) to matrix slots. It gets cleared at the beginning of every frame
 // The centroid is important because the same mesh may appear multiple times if there are
 // multiple ships in the same FG, for instance.
-std::map<MeshNCentroid_t, int32_t> g_TLASMap;
+std::map<FaceGroupNCentroid_t, int32_t> g_TLASMap;
 std::vector<Matrix4> g_TLASMatrices;
 void ClearGlobalLBVHMap();
 

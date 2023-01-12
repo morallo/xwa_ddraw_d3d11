@@ -1386,18 +1386,18 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	uint32_t* ubuffer = (uint32_t*)buffer;
 	float* fbuffer    = (float*)buffer;
 	auto& leafItem    = leafItems[leafIdx];
-	int MeshID        = TLASGetID(leafItem);
+	int faceGroupID   = TLASGetID(leafItem);
 	int matrixSlot    = TLASGetMatrixSlot(leafItem);
 	AABB obb          = TLASGetOBB(leafItem);
 	AABB aabb         = TLASGetAABBFromOBB(leafItem); // This is OBB * WorldViewTransform
 	int BLASBaseNodeOffset = -1;
-	const auto &it = g_LBVHMap.find(MeshID);
-	if (it != g_LBVHMap.end())
+	const auto &it = g_BLASMap.find(faceGroupID);
+	if (it != g_BLASMap.end())
 	{
-		MeshData& meshData = it->second;
-		BLASBaseNodeOffset = GetBaseNodeOffset(meshData);
+		BLASData& blasData = it->second;
+		BLASBaseNodeOffset = BLASGetBaseNodeOffset(blasData);
 		// Disable this leaf if the BVH does not exist
-		if (std::get<2>(meshData) == nullptr)
+		if (BLASGetBVH(blasData) == nullptr)
 		{
 			BLASBaseNodeOffset = -1;
 		}
@@ -1408,7 +1408,7 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	//	leafIdx, TriID, (EncodeOfs * 4) / 64);
 
 	// Encode the current TLAS leaf into the QBVH buffer, in the leaf section
-	ubuffer[EncodeOfs++] = MeshID;
+	ubuffer[EncodeOfs++] = faceGroupID;
 	ubuffer[EncodeOfs++] = -1; // parent
 	ubuffer[EncodeOfs++] = matrixSlot;
 	ubuffer[EncodeOfs++] = BLASBaseNodeOffset;

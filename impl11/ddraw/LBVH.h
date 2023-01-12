@@ -209,7 +209,7 @@ public:
 using MortonCode_t = uint32_t;
 // 0: Morton Code, 1: Bounding Box, 2: TriID
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
-// 0: Morton Code, 1: aabbFromOBB, 2: MeshKey, 3: Centroid, 4: MatrixSlot, 5: Oriented Bounding Box
+// 0: Morton Code, 1: aabbFromOBB, 2: FaceGroupID, 3: Centroid, 4: MatrixSlot, 5: Oriented Bounding Box
 using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB>;
 
 inline MortonCode_t &GetMortonCode(LeafItem& X) { return std::get<0>(X); }

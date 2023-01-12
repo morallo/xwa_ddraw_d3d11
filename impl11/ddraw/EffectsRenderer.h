@@ -132,14 +132,14 @@ public:
 
 	// Raytracing
 	void BuildSingleBLASFromCurrentBVHMap();
-	void BuildMultipleBLASFromCurrentBVHMap();
+	void BuildMultipleBLASFromCurrentBLASMap();
 	void ReAllocateAndPopulateBvhBuffers(const int numNodes);
 	void ReAllocateAndPopulateTLASBvhBuffers();
 	void ReAllocateAndPopulateMatrixBuffer();
 	void ApplyRTShadows(const SceneCompData* scene);
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
 	void GetOPTNameFromLastTextureSelected(char* OPTname);
-	void UpdateGlobalBVH(const SceneCompData* scene);
+	void UpdateBVHMaps(const SceneCompData* scene);
 
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);
