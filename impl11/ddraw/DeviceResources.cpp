@@ -221,8 +221,8 @@ std::vector<Matrix4> g_TLASMatrices;
 void ClearGlobalLBVHMap();
 
 #ifdef DEBUG_RT
-// DEBUG: Map of meshKey --> OPT names. Only for debugging purposes.
-std::map<int32_t, std::tuple<std::string, int>> g_DebugMeshToNameMap;
+// DEBUG: Map of meshKey --> (OPTname, vertcount, meshIndex). Only for debugging purposes.
+std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;
 #endif
 
 /* The different types of Constant Buffers used in the Pixel Shader: */

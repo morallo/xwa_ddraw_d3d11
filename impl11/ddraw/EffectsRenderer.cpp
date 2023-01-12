@@ -20,6 +20,7 @@ extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+//std::map<int, int> g_iDebugFGChecker;
 
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 	"    BVH2",
@@ -97,6 +98,11 @@ static FILE* g_TLASFile = NULL;
 int32_t MakeMeshKey(const SceneCompData* scene)
 {
 	return (int32_t)scene->MeshVertices;
+}
+
+MeshFG_t MakeMeshFGKey(const SceneCompData* scene)
+{
+	return MeshFG_t((uint32_t)scene->MeshVertices, (uint32_t)scene->FaceIndices);
 }
 
 void RTResetMatrixSlotCounter()
@@ -1069,6 +1075,13 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	D3dRenderer::SceneBegin(deviceResources);
 
 	_BLASNeedsUpdate = false;
+	/*
+	log_debug("[DBG] [BVH] g_iDebugFGChecker.size(): %d", g_iDebugFGChecker.size());
+	for (auto &it : g_iDebugFGChecker) {
+		log_debug("[DBG] [BVH]     0x%x --> %d", it.first, it.second);
+	}
+	g_iDebugFGChecker.clear();
+	*/
 
 	static float lastTime = g_HiResTimer.global_time_s;
 	float now = g_HiResTimer.global_time_s;
@@ -1460,20 +1473,18 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		{
 			int root = bvh->nodes[0].rootIdx;
 			auto& item = g_DebugMeshToNameMap[meshKey];
-			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, meshKey: 0x%x, "
-				"total nodes: %d, actual nodes: %d",
+			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, OPTmeshIndex: %d, meshKey: 0x%x, "
+				"total nodes: %d",
 				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-				std::get<0>(item).c_str(), std::get<1>(item), meshKey,
-				bvh->numNodes, bvh->numNodes - root);
+				std::get<0>(item).c_str(), std::get<1>(item), std::get<2>(item), meshKey,
+				bvh->numNodes);
 		}
 #endif
 	}
 
 	g_bRTReAllocateBvhBuffer = (g_iRTTotalBLASNodesInFrame > g_iRTMaxBLASNodesSoFar);
-#ifdef DEBUG_RT
 	log_debug("[DBG] [BVH] MultiBuilder: g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d, Reallocate? %d",
 		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_bRTReAllocateBvhBuffer);
-#endif
 	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
 }
 
@@ -3168,6 +3179,19 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		return &it->second;
 }
 
+void EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
+{
+	char sToken[] = "Flightmodels\\";
+	char* subString = stristr(_lastTextureSelected->_name.c_str(), sToken);
+	subString += strlen(sToken);
+	int i = 0;
+	while (subString[i] != 0 && subString[i] != '.') {
+		OPTname[i] = subString[i];
+		i++;
+	}
+	OPTname[i] = 0;
+}
+
 // Update g_TLASMap: checks if we've seen the current mesh in this frame. If we
 // haven't seen this mesh, a new matrix slot is requested and a new (meshKey, matrixSlot)
 // entry is added to g_TLASMap. Otherwise we fetch the matrixSlot for the meshKey.
@@ -3269,17 +3293,12 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 	// DEBUG: Add the OPT's name to g_MeshToNameMap
 #ifdef DEBUG_RT
 	{
-		char sToken[] = "Flightmodels\\";
-		char* subString = stristr(_lastTextureSelected->_name.c_str(), sToken);
-		subString += strlen(sToken);
 		char OPTname[128];
-		int i = 0;
-		while (subString[i] != 0 && subString[i] != '.') {
-			OPTname[i] = subString[i];
-			i++;
-		}
-		OPTname[i] = 0;
-		g_DebugMeshToNameMap[meshKey] = std::tuple(std::string(OPTname), MeshVerticesCount);
+		GetOPTNameFromLastTextureSelected(OPTname);
+		g_DebugMeshToNameMap[meshKey] = std::tuple(
+			std::string(OPTname),
+			MeshVerticesCount,
+			_currentOptMeshIndex);
 	}
 #endif
 }
@@ -3595,6 +3614,16 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
+			/*
+			char OPTname[120];
+			GetOPTNameFromLastTextureSelected(OPTname);
+			if (stristr(OPTname, "MediumTransport") != NULL && _currentOptMeshIndex == 0) {
+				auto& it = g_iDebugFGChecker.find((int)scene->FaceIndices);
+				if (it == g_iDebugFGChecker.end())
+					g_iDebugFGChecker[(int)scene->FaceIndices] = scene->FacesCount;
+				//log_debug("[DBG] [BVH] MediumTransport, FG: 0x%x", scene->FaceIndices);
+			}
+			*/
 			UpdateGlobalBVH(scene);
 		}
 	}

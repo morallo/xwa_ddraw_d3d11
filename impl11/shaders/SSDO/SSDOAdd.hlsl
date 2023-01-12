@@ -18,6 +18,8 @@
 #undef PBR_SHADING
 #undef PBR_DYN_LIGHTS
 
+#define RT_SIDE_LIGHTS
+
 //#define PBR_SHADING
 //#define PBR_DYN_LIGHTS
 
