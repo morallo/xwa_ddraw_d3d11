@@ -154,19 +154,20 @@ inline int32_t& GetNumMeshVertices(MeshData& X) { return std::get<1>(X); }
 inline void*& GetLBVH(MeshData& X) { return std::get<2>(X); } // <-- This is probably not used anymore
 inline int& GetBaseNodeOffset(MeshData& X) { return std::get<3>(X); } // <-- This is probably not used anymore
 
-// (MeshVerticesPtr, NumMeshVertices, NumFaces, LBVH, BaseNodeOffset)
-// 0: MeshVerticesPtr  -- Pointer to the MeshVertices
+// (FaceGroup map, NumMeshVertices, LBVH, BaseNodeOffset, MeshVerticesPtr)
+// BLASData is now a superset of MeshData. At some point, I may be able to replace the latter.
+// 0: FaceGroupMap     -- An std::map with all the Face Groups in this mesh
 // 1: NumMeshVertices  -- The number of vertices in this mesh
 // 2: LBVH             -- The BVH for this mesh (only used during regular flight)
 // 3: BaseNodeOffset   -- The index into _RTBvh where this BLAS begins (only used during regular flight)
-// 4: FaceGroupMap     -- An std::map with all the Face Groups in this mesh (optional, only used if this is a coalesced BVH entry)
-using BLASData = std::tuple<int32_t, int32_t, void*, int, FaceGroups>;
+// 4: MeshVerticesPtr  -- Pointer to the MeshVertices
+using BLASData = std::tuple<FaceGroups, int32_t, void*, int32_t, int32_t>;
 
-inline int32_t&    BLASGetMeshVertices(BLASData& X) { return std::get<0>(X); }
+inline FaceGroups& BLASGetFaceGroups(BLASData& X) { return std::get<0>(X); }
 inline int32_t&    BLASGetNumVertices(BLASData& X) { return std::get<1>(X); }
 inline void *&     BLASGetBVH(BLASData& X) { return std::get<2>(X); }
 inline int32_t&    BLASGetBaseNodeOffset(BLASData& X) { return std::get<3>(X); }
-inline FaceGroups& BLASGetFaceGroups(BLASData& X) { return std::get<4>(X); }
+inline int32_t&    BLASGetMeshVertices(BLASData& X) { return std::get<4>(X); }
 
 // TLAS leaf keys are made of: (meshKey, FaceGroup)
 using MeshFG_t = std::tuple<int32_t, int32_t>;

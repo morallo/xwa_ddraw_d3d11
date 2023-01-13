@@ -1379,8 +1379,6 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 	// the total nodes again.
 	g_iRTTotalBLASNodesInFrame = 0;
 
-	// TODO: UPDATE THIS CODE TO HANDLE COALESCED BLASDATA ENTRIES
-	// https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/673da14a4b717ded5296dc6e17b1d95c43c20147
 	for (auto& it : g_BLASMap)
 	{
 		std::vector<XwaVector3>   vertices;
@@ -1461,10 +1459,15 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 		{
 			int root = bvh->nodes[0].rootIdx;
 			auto& debugItem = g_DebugMeshToNameMap[meshKey];
-			log_debug("[DBG] [BVH] [FG] MultiBuilder: %s:%s, %s, vertCount: %d, OPTmeshIndex: %d, ID: 0x%x, "
-				"total nodes: %d",
+			log_debug("[DBG] [BVH] %sMultiBuilder: %s:%s, %s, vertCount: %d, FGs: %d, OPTmeshIndex: %d, "
+				"ID: 0x%x, total nodes: %d",
+				(FGs.size() > 1) ? "[CLS] " : "",
 				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-				std::get<0>(debugItem).c_str(), std::get<1>(debugItem), std::get<2>(debugItem), ID,
+				std::get<0>(debugItem).c_str(), // Name of the OPT
+				std::get<1>(debugItem),         // vertCount
+				FGs.size(),
+				std::get<2>(debugItem),			// OPTmeshIndex
+				ID,
 				bvh->numNodes);
 		}
 #endif
@@ -3291,7 +3294,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, ID, centroid, matrixSlot, obb, isCoalesced));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, ID, centroid, matrixSlot, obb));
 			}
 			else
 			{
@@ -3307,25 +3310,27 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced
 		BLASData blasData;
 		BLASGetBVH(blasData) = nullptr; // Initialize the new blasData BVH to NULL
 		auto it = g_BLASMap.find(ID);
-		if (isCoalesced)
+		if (it != g_BLASMap.end())
 		{
-			// This is a coalesced BVH and we've seen this mesh before, we need to check
-			// if we've seen this FG before too
-			blasData = it->second;
-			FGs = BLASGetFaceGroups(blasData);
-			// The FG key is FaceIndices:
-			auto it = FGs.find(faceGroupID);
-			if (it != FGs.end())
+			if (isCoalesced)
 			{
-				// We've seen this mesh/FG combination before, ignore
+				// This is a coalesced BVH and we've seen this mesh before, we need to check
+				// if we've seen this FG before too
+				blasData = it->second;
+				FGs = BLASGetFaceGroups(blasData);
+				// The FG key is FaceIndices:
+				auto it = FGs.find(faceGroupID);
+				if (it != FGs.end())
+				{
+					// We've seen this mesh/FG combination before, ignore
+					return;
+				}
+			}
+			else
+			{
+				// Not a coalesced BVH and we've seen this FG before, ignore
 				return;
 			}
-		}
-		else
-		{
-			// Not a coalesced BVH and we've seen this FG before, ignore
-			if (it != g_BLASMap.end())
-				return;
 		}
 
 		// Signal that there's at least one BLAS that needs to be rebuilt
@@ -3344,7 +3349,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced
 		BLASGetFaceGroups(blasData)   = FGs;
 		BLASGetMeshVertices(blasData) = (int)scene->MeshVertices;
 		BLASGetNumVertices(blasData)  = scene->VerticesCount;
-		g_BLASMap[faceGroupID]        = blasData;
+		g_BLASMap[ID]                 = blasData;
 	}
 	else
 	{
@@ -3706,6 +3711,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		!_lastTextureSelected->is_LightTexture)
 	{
 		bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
+		bool bCoalesce = _bIsCockpit;
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
 		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
@@ -3721,7 +3727,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			}
 			*/
 			// Populate the TLAS and BLAS maps so that we can build BVHs at the end of the frame
-			UpdateBVHMaps(scene, false);
+			UpdateBVHMaps(scene, bCoalesce);
 		}
 	}
 

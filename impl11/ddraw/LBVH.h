@@ -209,8 +209,8 @@ public:
 using MortonCode_t = uint32_t;
 // 0: Morton Code, 1: Bounding Box, 2: TriID
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
-// 0: Morton Code, 1: aabbFromOBB, 2: ID, 3: Centroid, 4: MatrixSlot, 5: Oriented Bounding Box, 6: Coalesced Mesh
-using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB, bool>;
+// 0: Morton Code, 1: aabbFromOBB, 2: ID, 3: Centroid, 4: MatrixSlot, 5: Oriented Bounding Box
+using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB>;
 
 inline MortonCode_t &GetMortonCode(LeafItem& X) { return std::get<0>(X); }
 inline MortonCode_t &GetMortonCode(TLASLeafItem& X) { return std::get<0>(X); }
@@ -227,7 +227,6 @@ inline int& TLASGetID(TLASLeafItem& X) { return std::get<2>(X); }
 inline XwaVector3& TLASGetCentroid(TLASLeafItem& X) { return std::get<3>(X); }
 inline int& TLASGetMatrixSlot(TLASLeafItem& X) { return std::get<4>(X); }
 inline AABB& TLASGetOBB(TLASLeafItem& X) { return std::get<5>(X); }
-inline bool& TLASGetCoalescedFlag(TLASLeafItem& X) { return std::get<6>(X); }
 
 struct InnerNode
 {
