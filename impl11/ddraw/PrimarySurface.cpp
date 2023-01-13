@@ -6935,8 +6935,8 @@ void PrimarySurface::TagXWALights()
 		return;
 	// Don't tag anything in external view if the y_center hasn't been fixed
 	// A few lines below, we use projectMetric() and that uses y_center.
-	if (bExternal && !g_bYCenterHasBeenFixed)
-	//if (bExternal)
+	//if (bExternal && !g_bYCenterHasBeenFixed)
+	if (bExternal)
 		return;
 #undef RT_SIDE_LIGHTS
 #ifdef RT_SIDE_LIGHTS

@@ -234,7 +234,7 @@ typedef struct PSShadingSystemCBStruct {
 
 typedef struct RTConstantsBufferStruct {
 	uint32_t bRTEnable;
-	uint32_t bRTEnabledInCockpit;
+	uint32_t bRTAllowShadowMapping;
 	uint32_t bEnablePBRShading;
 	uint32_t RTUnused;
 	// 16 bytes

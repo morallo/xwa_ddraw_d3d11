@@ -3641,7 +3641,12 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	{
 		g_RTConstantsBuffer.bRTEnable = g_bRTEnabled &&	(!*g_playerInHangar) &&
 			(g_HyperspacePhaseFSM == HS_INIT_ST);
-		g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
+		// g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
+		g_RTConstantsBuffer.bRTAllowShadowMapping =
+			// Allow shadow mapping if we're in the hangar
+			*g_playerInHangar ||
+			// Or if we're not in the hangar, not in external view and RTCockpit is off
+			(!*g_playerInHangar && !_bExternalCamera && !g_bRTEnabledInCockpit);
 		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
 		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);

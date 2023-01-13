@@ -546,7 +546,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				continue;
 
 			const float3 L = LightVector[i].xyz;
-			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (instead of the smooth one)
+			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (without Normal Mapping)
 			// "hover" prevents noise by displacing the origin of the ray away from the surface
 			// The displacement is directly proportional to the depth of the surface
 			// The position buffer's Z increases with depth
@@ -571,7 +571,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float total_shadow_factor = rt_shadow_factor;
 	//float idx = 1.0;
 	// Don't compute shadow mapping if Raytraced shadows are enabled in the cockpit... it's redundant.
-	if (sm_enabled && !bRTEnabledInCockpit)
+	if (sm_enabled && bRTAllowShadowMapping)
 	{
 		//float3 P_bias = P + sm_bias * N;
 		[loop]

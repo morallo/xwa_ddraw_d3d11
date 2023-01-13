@@ -9,6 +9,30 @@
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
+// Important commits:
+// Improve Depth Value:
+// https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/f05c0ef6f65b2bf7f9e085baf9ebaf0e7207eb41
+
+/*
+From Jeremy, regarding LODs and how to parse the OPT structure:
+
+There is no direct way to tell which lod is rendered.
+There is int& s_XwaOptCurrentLodDistance = *(int*)0x007D4F8C;.
+There is float& s_XwaFlightLod = *(float*)0x00600288;.
+The distance is 1.0f / ( s_XwaOptCurrentLodDistance * s_XwaFlightLod );
+You can access to the whole opt structure via a model index.
+The SceneCompData struct contains a pObject member. The XwaObject has a model index.
+At offset 0x007CA6E0 there is an array s_XwaOptModelFileMemHandles of 557 short. The index in this array is a model index.
+There are these function to lock and unlock the handle.
+// L0050E2F0
+void* Lock_Handle( short A4 )
+// L0050E350
+void Unlock_Handle( short A4 )
+
+The data struct of the locked handle is a OptHeader pointer.
+With this header you can access to the whole opt.
+*/
+
 /*
 From Jeremy, regarding how to replace the transform matrix in MobileObject
 
