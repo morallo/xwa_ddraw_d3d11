@@ -1827,7 +1827,7 @@ void EffectsRenderer::SceneEnd()
 			// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
 			BuildSingleBLASFromCurrentBVHMap();
 		}
-		else if (g_bRTEnabled)
+		else if (g_bRTEnabled && !(*g_playerInHangar))
 		{
 			// Build multiple BLASes and put them in g_LBVHMap
 			BuildMultipleBLASFromCurrentBLASMap();
@@ -1838,7 +1838,7 @@ void EffectsRenderer::SceneEnd()
 		_BLASNeedsUpdate = false;
 	}
 
-	if (g_bRTEnabled && !g_bInTechRoom)
+	if (g_bRTEnabled && !g_bInTechRoom && !(*g_playerInHangar))
 	{
 		// We may need to reallocate the matrices buffer depending on how many
 		// unique meshes we saw in this frame
@@ -3706,6 +3706,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// cast and catch shadows otherwise).
 	if ((g_bRTEnabledInTechRoom || g_bRTEnabled) &&
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
+		!(*g_playerInHangar) && // Disable raytracing when parked in the hangar
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture)
@@ -4501,14 +4502,8 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderCockpitShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-
-	// Don't render the shadow map if Raytraced cockpit shadows is enabled
-	if (g_bRTEnabled && g_bRTEnabledInCockpit)
-	{
-		// ... but set the shadowmapping constants anyway: this is what fades out the lights.
-		resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-		return;
-	}
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
 
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
@@ -4521,14 +4516,20 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	// we must set the PS constants here even if we're not rendering shadows at all
 	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
+	// Don't render the shadow map if Raytraced cockpit shadows is enabled
+	// ... unless we're in the hangar. Always do shadow mapping in the hangar
+	if ((g_bRTEnabled && g_bRTEnabledInCockpit) && !(*g_playerInHangar))
+	{
+		goto out;
+	}
+
 	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
 	// Maybe also disable it if the cockpit is hidden
 	if (!g_ShadowMapping.bEnabled || !g_bShadowMapEnable || !g_ShadowMapping.bUseShadowOBJ || _bExternalCamera ||
 		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
 		_bShadowsRenderedInCurrentFrame)
 	{
-		_deviceResources->_d3dAnnotation->EndEvent();
-		return;
+		goto out;
 	}
 
 	SaveContext();
@@ -4537,8 +4538,6 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 
 	// Enable ZWrite: we'll need it for the ShadowMap
-	D3D11_DEPTH_STENCIL_DESC desc;
-	ComPtr<ID3D11DepthStencilState> depthState;
 	desc.DepthEnable = TRUE;
 	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	desc.DepthFunc = D3D11_COMPARISON_LESS;
@@ -4629,6 +4628,8 @@ void EffectsRenderer::RenderCockpitShadowMap()
 
 	RestoreContext();
 	_bShadowsRenderedInCurrentFrame = true;
+
+out:
 	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
@@ -4637,15 +4638,18 @@ void EffectsRenderer::RenderHangarShadowMap()
 	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderHangarShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	Matrix4 S1, S2, ST;
 
 	if (!*g_playerInHangar)
-		return;
+		goto out;
 
 	if (!g_bShadowMapEnable || _ShadowMapDrawCommands.size() == 0 || _bHangarShadowsRenderedInCurrentFrame ||
 		g_HyperspacePhaseFSM != HS_INIT_ST) {
 		_ShadowMapDrawCommands.clear();
 		_deviceResources->_d3dAnnotation->EndEvent();
-		return;
+		goto out;
 	}
 
 	// If there's no cockpit shadow map, we must disable the first shadow map slot, but continue rendering hangar shadows
@@ -4677,8 +4681,6 @@ void EffectsRenderer::RenderHangarShadowMap()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 
 	// Enable ZWrite: we'll need it for the ShadowMap
-	D3D11_DEPTH_STENCIL_DESC desc;
-	ComPtr<ID3D11DepthStencilState> depthState;
 	desc.DepthEnable = TRUE;
 	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	desc.DepthFunc = D3D11_COMPARISON_LESS;
@@ -4710,7 +4712,7 @@ void EffectsRenderer::RenderHangarShadowMap()
 
 	// Shadow map limits
 	float range, minZ;
-	Matrix4 ST = GetShadowMapLimits(_hangarShadowAABB, &range, &minZ);
+	ST = GetShadowMapLimits(_hangarShadowAABB, &range, &minZ);
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	int ShadowMapIdx = 1; // Shadow maps for the hangar are always located at index 1
@@ -4721,7 +4723,6 @@ void EffectsRenderer::RenderHangarShadowMap()
 	context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// Set the Shadow Map DSV
 	context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
-	Matrix4 S1, S2;
 	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
 	S2.scale(METERS_TO_OPT, -METERS_TO_OPT, METERS_TO_OPT);
 
@@ -4770,6 +4771,8 @@ void EffectsRenderer::RenderHangarShadowMap()
 	RestoreContext();
 	_bHangarShadowsRenderedInCurrentFrame = true;
 	_ShadowMapDrawCommands.clear();
+
+out:
 	_deviceResources->_d3dAnnotation->EndEvent();
 }
 

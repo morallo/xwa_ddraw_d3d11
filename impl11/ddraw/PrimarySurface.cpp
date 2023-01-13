@@ -40,6 +40,7 @@ bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v);
+void ResetXWALightInfo();
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -6929,8 +6930,13 @@ void PrimarySurface::TagXWALights()
 	// Get the screen limits, we'll need them to tell when a light is visible on the screen
 	float x0, y0, x1, y1;
 	bool bExternal = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
-	// Don't tag anything in external view (I don't know if y_center needs to be used)
-	if (bExternal)
+	// Don't bother tagging lights if we're parked in the hangar.
+	if (*g_playerInHangar)
+		return;
+	// Don't tag anything in external view if the y_center hasn't been fixed
+	// A few lines below, we use projectMetric() and that uses y_center.
+	if (bExternal && !g_bYCenterHasBeenFixed)
+	//if (bExternal)
 		return;
 #undef RT_SIDE_LIGHTS
 #ifdef RT_SIDE_LIGHTS
@@ -9717,6 +9723,7 @@ HRESULT PrimarySurface::Flip(
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
 					SetPresentCounter(0, 0);
+					ResetXWALightInfo();
 					log_debug("[DBG] EXITED HANGAR");
 				}
 				g_bPrevPlayerInHangar = *g_playerInHangar;
