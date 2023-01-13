@@ -6932,7 +6932,7 @@ void PrimarySurface::TagXWALights()
 	// Don't tag anything in external view (I don't know if y_center needs to be used)
 	if (bExternal)
 		return;
-#define RT_SIDE_LIGHTS
+#undef RT_SIDE_LIGHTS
 #ifdef RT_SIDE_LIGHTS
 	return;
 #endif
