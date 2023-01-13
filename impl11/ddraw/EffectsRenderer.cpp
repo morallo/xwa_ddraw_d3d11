@@ -2174,7 +2174,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		//bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
 		_bIsCockpit = _lastTextureSelected->is_CockpitTex;
 		_bIsGunner = _lastTextureSelected->is_GunnerTex;
-		//bIsExterior = lastTextureSelected->is_Exterior;
+		_bIsExterior = _lastTextureSelected->is_Exterior;
 		//bIsDAT = lastTextureSelected->is_DAT;
 		//bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
 		_bIsBlastMark = _lastTextureSelected->is_BlastMark;
@@ -3711,7 +3711,10 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		!_lastTextureSelected->is_LightTexture)
 	{
 		bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
-		bool bCoalesce = _bIsCockpit;
+		// bCoalesce is set to true if the current Face Group must be coalesced with other
+		// face groups in the same mesh. FGs belonging to different LODs should not be
+		// coalesced, but we know that cockpit and exterior OPTs don't have LODs.
+		bool bCoalesce = _bIsCockpit || _bIsExterior;
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
 		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
