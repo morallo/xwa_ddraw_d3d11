@@ -212,6 +212,9 @@ void ResetRawMouseInput();
 // This maps meshKeys (the vertex pointer) to MeshData tuples.
 // This map is used to build a single BLAS in the Tech Room and
 // gets cleared when a new OPT is loaded.
+// It's also used to build Coalesced BVHs: all FGs in the same mesh
+// are coalesced into a single BVH. It gets cleared when OnSizeChanged()
+// is called.
 std::map<int32_t, MeshData> g_LBVHMap;
 
 // This maps FaceGroupIDs (FaceIndices pointer) to BLASData tuples.
@@ -219,10 +222,12 @@ std::map<int32_t, MeshData> g_LBVHMap;
 // (one per FaceGroup). It gets cleared when OnSizeChanged() is called
 std::map<int32_t, BLASData> g_BLASMap;
 
-// This maps (meshKey,centroid) to matrix slots. It gets cleared at the beginning of every frame
-// The centroid is important because the same mesh may appear multiple times if there are
-// multiple ships in the same FG, for instance.
-std::map<FaceGroupNCentroid_t, int32_t> g_TLASMap;
+// This maps (ID, centroid) to matrix slots.
+// The ID can be either a meshKey or a faceGroupID.
+// It gets cleared at the beginning of every frame.
+// The centroid is important because the same mesh may appear multiple
+// times if there are multiple ships in the same FG, for instance.
+std::map<IDCentroid_t, int32_t> g_TLASMap;
 std::vector<Matrix4> g_TLASMatrices;
 void ClearGlobalLBVHMap();
 

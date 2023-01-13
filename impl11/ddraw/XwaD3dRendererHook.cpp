@@ -1309,19 +1309,19 @@ void D3dRenderer::RenderGlowMarks()
 	_glowMarksTriangles.clear();
 }
 
-// Clears g_LBVHMap
+// Clears g_LBVHMap and g_BLASMap
 void ClearGlobalLBVHMap()
 {
-	// The following code is for the Tech Room:
+	// The following code is for the Tech Room/Cockpit/Coalesced BVHs:
 	// Release any BLASes that may be stored in the BVH map
 	for (auto& it : g_LBVHMap)
 	{
 		MeshData& meshData = it.second;
-		LBVH* bvh = (LBVH*)std::get<2>(meshData);
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
 		if (bvh != nullptr) {
 			delete bvh;
 		}
-		std::get<2>(meshData) = nullptr;
+		GetLBVH(meshData) = nullptr;
 	}
 	g_LBVHMap.clear();
 
@@ -1330,11 +1330,11 @@ void ClearGlobalLBVHMap()
 	for (auto& it : g_BLASMap)
 	{
 		BLASData& blasData = it.second;
-		LBVH* bvh = (LBVH*)std::get<3>(blasData);
+		LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
 		if (bvh != nullptr) {
 			delete bvh;
 		}
-		std::get<3>(blasData) = nullptr;
+		BLASGetBVH(blasData) = nullptr;
 	}
 	g_BLASMap.clear();
 

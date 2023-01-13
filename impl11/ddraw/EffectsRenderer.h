@@ -131,6 +131,7 @@ public:
 	void ApplyNormalMapping();
 
 	// Raytracing
+	LBVH* BuildBVH(const std::vector<XwaVector3>& vertices, const std::vector<int>& indices);
 	void BuildSingleBLASFromCurrentBVHMap();
 	void BuildMultipleBLASFromCurrentBLASMap();
 	void ReAllocateAndPopulateBvhBuffers(const int numNodes);
@@ -139,7 +140,7 @@ public:
 	void ApplyRTShadows(const SceneCompData* scene);
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
 	void GetOPTNameFromLastTextureSelected(char* OPTname);
-	void UpdateBVHMaps(const SceneCompData* scene);
+	void UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced);
 
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);

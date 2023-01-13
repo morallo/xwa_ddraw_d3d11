@@ -157,31 +157,36 @@ inline int& GetBaseNodeOffset(MeshData& X) { return std::get<3>(X); } // <-- Thi
 // (MeshVerticesPtr, NumMeshVertices, NumFaces, LBVH, BaseNodeOffset)
 // 0: MeshVerticesPtr  -- Pointer to the MeshVertices
 // 1: NumMeshVertices  -- The number of vertices in this mesh
-// 2: NumFaces         -- The number of faces in this FaceGroup
-// 3: LBVH             -- The BVH for this mesh (only used during regular flight)
-// 4: BaseNodeOffset   -- The index into _RTBvh where this BLAS begins (only used during regular flight)
-using BLASData = std::tuple<int32_t, int32_t, int32_t, void*, int>;
+// 2: LBVH             -- The BVH for this mesh (only used during regular flight)
+// 3: BaseNodeOffset   -- The index into _RTBvh where this BLAS begins (only used during regular flight)
+// 4: FaceGroupMap     -- An std::map with all the Face Groups in this mesh (optional, only used if this is a coalesced BVH entry)
+using BLASData = std::tuple<int32_t, int32_t, void*, int, FaceGroups>;
 
-inline int32_t& BLASGetMeshVertices(BLASData& X) { return std::get<0>(X); }
-inline int32_t& BLASGetNumVertices(BLASData& X) { return std::get<1>(X); }
-inline int32_t& BLASGetNumFaces(BLASData& X) { return std::get<2>(X); }
-inline void *&  BLASGetBVH(BLASData& X) { return std::get<3>(X); }
-inline int32_t& BLASGetBaseNodeOffset(BLASData& X) { return std::get<4>(X); }
+inline int32_t&    BLASGetMeshVertices(BLASData& X) { return std::get<0>(X); }
+inline int32_t&    BLASGetNumVertices(BLASData& X) { return std::get<1>(X); }
+inline void *&     BLASGetBVH(BLASData& X) { return std::get<2>(X); }
+inline int32_t&    BLASGetBaseNodeOffset(BLASData& X) { return std::get<3>(X); }
+inline FaceGroups& BLASGetFaceGroups(BLASData& X) { return std::get<4>(X); }
 
 // TLAS leaf keys are made of: (meshKey, FaceGroup)
 using MeshFG_t = std::tuple<int32_t, int32_t>;
 
-// TLAS leaf uniqueness is determined by the FaceGroupID and its centroid. There can be
-// multiple instances of the same Face Group belonging to different craft in a Flight Group;
-// or there can be different LODs on the same mesh with different FGs.
-using FaceGroupNCentroid_t = std::tuple<int32_t, float, float, float>;
+// TLAS leaf uniqueness is determined by the {MeshKey|FaceGroupID} and its centroid.
+// The FaceGroupID must be used for OPTs with multiple LODs, so that we only display
+// the FGs for the current LOD.
+// For other meshes without LODs, like the cockpit, it's better to coalesce all FGs
+// belonging to the same mesh into a single BVH. For that case, we use the meshKey.
+// There can be multiple instances of the same Face Group|Mesh belonging to different
+// craft in a Flight Group; or there can be different LODs on the same mesh with
+// different FGs.
+using IDCentroid_t = std::tuple<int32_t, float, float, float>;
 
-// The Single BLAS map: meshKey --> MeshData
+// The {Single|Coalesced} BLAS map: meshKey --> MeshData
 extern std::map<int32_t, MeshData> g_LBVHMap;
 // The Multiple BLAS map: faceGroup --> BLASData
 extern std::map<int32_t, BLASData> g_BLASMap;
-// The TLAS map: (FaceGroupID, centroid) --> matrixSlot
-extern std::map<FaceGroupNCentroid_t, int32_t> g_TLASMap;
+// The TLAS map: ({MeshKey|FaceGroupID}, centroid) --> matrixSlot
+extern std::map<IDCentroid_t, int32_t> g_TLASMap;
 // The TLAS matrix buffer (1:1 correspondence with g_TLASMap)
 extern std::vector<Matrix4> g_TLASMatrices;
 #define DEBUG_RT

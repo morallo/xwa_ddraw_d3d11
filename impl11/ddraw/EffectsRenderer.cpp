@@ -1216,7 +1216,26 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	}
 }
 
-// Build a single BVH from the contents of the g_LBVHMap and put it into _lbvh
+LBVH* EffectsRenderer::BuildBVH(const std::vector<XwaVector3>& vertices, const std::vector<int>& indices)
+{
+	// All the data for this FaceGroup is ready, let's build the BLAS BVH
+	switch (g_BVHBuilderType)
+	{
+	case BVHBuilderType_BVH2:
+		// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
+		return LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+
+	case BVHBuilderType_QBVH:
+		// 2-step LBVH build: QBVH, Encoding.
+		return LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+
+	case BVHBuilderType_FastQBVH:
+		// 1-step LBVH build: QBVH is built and encoded in one step.
+		return LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+	}
+}
+
+// Build a single BVH from the contents of the g_LBVHMap and put it into _lbvh.
 void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 {
 	// DEBUG, dump the vertices we saw in the previous frame to a file
@@ -1337,25 +1356,9 @@ void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 	// g_HiResTimer is called here to measure the time it takes to build the BVH. This should
 	// not be used during regular flight as it will mess up the animations
 	//g_HiResTimer.GetElapsedTime();
-
-	switch (g_BVHBuilderType)
-	{
-	case BVHBuilderType_BVH2:
-		// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-		_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-
-	case BVHBuilderType_QBVH:
-		// 2-step LBVH build: QBVH, Encoding.
-		_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-
-	case BVHBuilderType_FastQBVH:
-		// 1-step LBVH build: QBVH is built and encoded in one step.
-		_lbvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-	}
+	_lbvh = BuildBVH(vertices, indices);
 	//g_HiResTimer.GetElapsedTime();
+
 	int root = _lbvh->nodes[0].rootIdx;
 	log_debug("[DBG] [BVH] Builder: %s:%s, %s, total nodes: %d, actual nodes: %d",
 		g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
@@ -1376,19 +1379,21 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 	// the total nodes again.
 	g_iRTTotalBLASNodesInFrame = 0;
 
+	// TODO: UPDATE THIS CODE TO HANDLE COALESCED BLASDATA ENTRIES
+	// https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/673da14a4b717ded5296dc6e17b1d95c43c20147
 	for (auto& it : g_BLASMap)
 	{
 		std::vector<XwaVector3>   vertices;
 		std::vector<int>          indices;
-		int facesGroupID        = it.first;
+		int ID                  = it.first; // The ID is either a meshKey or a faceGroup
 		BLASData& blasData      = it.second;
 		int meshKey             = BLASGetMeshVertices(blasData);
 		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
 		const int NumVertices   = BLASGetNumVertices(blasData);
-		const int FacesCount    = BLASGetNumFaces(blasData);
 		LBVH* bvh               = (LBVH*)BLASGetBVH(blasData);
+		const FaceGroups FGs    = BLASGetFaceGroups(blasData); // To make this code uniform, the FG is populated even when the blasData is not coalesced
 
-		// First, let's check if this mesh already has a BVH. If it does, skip it.
+		// First, let's check if this mesh/FG already has a BVH. If it does, skip it.
 		if (bvh != nullptr) {
 			// Update the total node count
 			g_iRTTotalBLASNodesInFrame += bvh->numNodes;
@@ -1403,7 +1408,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 			if (stristr(std::get<0>(debugItem).c_str(), "ImperialStarDestroyer") == NULL)
 			{
 				// Remove this BVH
-				std::get<3>(blasData) = nullptr;
+				BLASGetBVH(blasData) = nullptr;
 				continue;
 			}
 
@@ -1426,39 +1431,26 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 		}
 
 		// Populate the indices
-		OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)facesGroupID;
-		for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
-			OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
-			int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-			indices.push_back(faceData.Vertex[0]);
-			indices.push_back(faceData.Vertex[1]);
-			indices.push_back(faceData.Vertex[2]);
-			if (edgesCount == 4) {
+		for (const auto& FG : FGs)
+		{
+			const int facesGroupID = FG.first;
+			const int facesCount = FG.second;
+			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)facesGroupID;
+			for (int faceIndex = 0; faceIndex < facesCount; faceIndex++) {
+				OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
+				int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
 				indices.push_back(faceData.Vertex[0]);
+				indices.push_back(faceData.Vertex[1]);
 				indices.push_back(faceData.Vertex[2]);
-				indices.push_back(faceData.Vertex[3]);
+				if (edgesCount == 4) {
+					indices.push_back(faceData.Vertex[0]);
+					indices.push_back(faceData.Vertex[2]);
+					indices.push_back(faceData.Vertex[3]);
+				}
 			}
 		}
 
-		// All the data for this FaceGroup is ready, let's build the BLAS BVH
-		switch (g_BVHBuilderType)
-		{
-		case BVHBuilderType_BVH2:
-			// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-			bvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-
-		case BVHBuilderType_QBVH:
-			// 2-step LBVH build: QBVH, Encoding.
-			bvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-
-		case BVHBuilderType_FastQBVH:
-			// 1-step LBVH build: QBVH is built and encoded in one step.
-			bvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-		}
-
+		bvh = BuildBVH(vertices, indices);
 		// Update the total node count
 		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 		// Put this bvh back into the g_LBVHMap
@@ -1469,10 +1461,10 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 		{
 			int root = bvh->nodes[0].rootIdx;
 			auto& debugItem = g_DebugMeshToNameMap[meshKey];
-			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, OPTmeshIndex: %d, facesGroupID: 0x%x, "
+			log_debug("[DBG] [BVH] [FG] MultiBuilder: %s:%s, %s, vertCount: %d, OPTmeshIndex: %d, ID: 0x%x, "
 				"total nodes: %d",
 				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-				std::get<0>(debugItem).c_str(), std::get<1>(debugItem), std::get<2>(debugItem), facesGroupID,
+				std::get<0>(debugItem).c_str(), std::get<1>(debugItem), std::get<2>(debugItem), ID,
 				bvh->numNodes);
 		}
 #endif
@@ -3254,13 +3246,16 @@ void EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
 //
 // The same matrixSlot is used for both maps and makes a direct link between the TLAS
 // and the BLASes
-void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene)
+void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount    = *(int*)((int)scene->MeshVertices - 8);
 	int32_t meshKey          = MakeMeshKey(scene);
 	int32_t faceGroupID      = MakeFaceGroupKey(scene);
+	int32_t ID               = isCoalesced ? meshKey : faceGroupID;
 	int matrixSlot           = -1;
+	FaceGroups FGs;
+	FGs.clear();
 
 	// Update g_TLASMap and get a new matrix slot if necessary -- or find the
 	// existing matrixSlot for the current mesh/centroid
@@ -3276,13 +3271,13 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene)
 			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
 			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
 
-			FaceGroupNCentroid_t faceGroupCentroidKey = FaceGroupNCentroid_t(faceGroupID, centroid.x, centroid.y, centroid.z);
-			auto it = g_TLASMap.find(faceGroupCentroidKey);
+			IDCentroid_t IDCentroidKey = IDCentroid_t(ID, centroid.x, centroid.y, centroid.z);
+			auto it = g_TLASMap.find(IDCentroidKey);
 			if (it == g_TLASMap.end())
 			{
 				// We haven't seen this mesh/centroid combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
-				g_TLASMap[faceGroupCentroidKey] = matrixSlot; // I don't think we're actually using g_TLASMap...
+				g_TLASMap[IDCentroidKey] = matrixSlot;
 				// Store the matrix proper, but inverted. That's what the RT code needs so that
 				// we can transform from WorldView to OPT-coords
 				Matrix4 WInv = W;
@@ -3296,7 +3291,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene)
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, faceGroupID, centroid, matrixSlot, obb));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, ID, centroid, matrixSlot, obb, isCoalesced));
 			}
 			else
 			{
@@ -3310,27 +3305,54 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene)
 	{
 		// Now update the g_BLASMap so that we can build multiple BLASes if needed.
 		BLASData blasData;
-		auto it = g_BLASMap.find(faceGroupID);
-		// We've seen this FG before: there's nothing to do
-		if (it != g_BLASMap.end())
-			return;
+		BLASGetBVH(blasData) = nullptr; // Initialize the new blasData BVH to NULL
+		auto it = g_BLASMap.find(ID);
+		if (isCoalesced)
+		{
+			// This is a coalesced BVH and we've seen this mesh before, we need to check
+			// if we've seen this FG before too
+			blasData = it->second;
+			FGs = BLASGetFaceGroups(blasData);
+			// The FG key is FaceIndices:
+			auto it = FGs.find(faceGroupID);
+			if (it != FGs.end())
+			{
+				// We've seen this mesh/FG combination before, ignore
+				return;
+			}
+		}
+		else
+		{
+			// Not a coalesced BVH and we've seen this FG before, ignore
+			if (it != g_BLASMap.end())
+				return;
+		}
 
 		// Signal that there's at least one BLAS that needs to be rebuilt
 		_BLASNeedsUpdate = true;
-		// Update the g_BLASMap
+
+		// Update the g_BLASMap entry
+		// Delete any previous BVH for this blasData entry
+		LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+		if (bvh != nullptr)
+			delete bvh;
+		BLASGetBVH(blasData)          = nullptr; // Force this BVH to be built
+		// Add the FG to the map so that it's not processed again.
+		// If this is an uncoalesced BVH, then the FGs will only have one entry
+		// If this is a coalesced BVH, then the FGs will have multiple entries
+		FGs[faceGroupID]              = scene->FacesCount;
+		BLASGetFaceGroups(blasData)   = FGs;
 		BLASGetMeshVertices(blasData) = (int)scene->MeshVertices;
-		BLASGetNumVertices(blasData) = scene->VerticesCount;
-		BLASGetNumFaces(blasData) = scene->FacesCount;
-		BLASGetBVH(blasData) = nullptr; // Force this BVH to be built
-		g_BLASMap[faceGroupID] = blasData;
+		BLASGetNumVertices(blasData)  = scene->VerticesCount;
+		g_BLASMap[faceGroupID]        = blasData;
 	}
 	else
 	{
 		// Now update the g_LBVHMap so that we can rebuild BLASes if needed.
 		MeshData meshData;
 		FaceGroups FGs;
-		auto it = g_LBVHMap.find(meshKey);
 		GetLBVH(meshData) = nullptr; // Initialize the new meshData BVH to NULL
+		auto it = g_LBVHMap.find(meshKey);
 		// We have seen this mesh before, but we need to check if we've seen
 		// the FG as well
 		if (it != g_LBVHMap.end())
@@ -3699,7 +3721,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			}
 			*/
 			// Populate the TLAS and BLAS maps so that we can build BVHs at the end of the frame
-			UpdateBVHMaps(scene);
+			UpdateBVHMaps(scene, false);
 		}
 	}
 
