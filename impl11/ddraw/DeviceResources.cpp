@@ -231,6 +231,7 @@ std::map<IDCentroid_t, int32_t> g_TLASMap;
 std::vector<Matrix4> g_TLASMatrices;
 void ClearGlobalLBVHMap();
 
+#undef DEBUG_RT
 #ifdef DEBUG_RT
 // DEBUG: Map of meshKey --> (OPTname, vertcount, meshIndex). Only for debugging purposes.
 std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;

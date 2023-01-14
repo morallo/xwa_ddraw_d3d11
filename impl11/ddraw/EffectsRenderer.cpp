@@ -1415,6 +1415,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 		}
 
 		// DEBUG: Skip meshes we don't care about
+#undef DEBUG_RT
 #ifdef DEBUG_RT
 		if (false)
 		{

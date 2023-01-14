@@ -189,6 +189,7 @@ bool g_isInRenderHyperspaceLines = false;
 
 RendererType g_rendererType = RendererType_Unknown;
 
+bool g_bDumpOptNodes = false;
 char g_curOPTLoaded[MAX_OPT_NAME];
 
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
@@ -1338,6 +1339,7 @@ void ClearGlobalLBVHMap()
 	}
 	g_BLASMap.clear();
 
+#undef DEBUG_RT
 #ifdef DEBUG_RT
 	g_DebugMeshToNameMap.clear();
 #endif
@@ -1774,6 +1776,61 @@ void D3dRendererOptLoadHook(int handle)
 	D3dRendererFlightStart();
 }
 
+char* OptNodeTypeToStr(int type)
+{
+	switch (type) {
+	case 0: return "NodeGroup";
+	case 1:	return "FaceData";
+	case 2:	return "TransformPositionRotation";
+	case 3:	return "MeshVertices";
+	case 4:	return "TransformPosition";
+	case 5:	return "TransformRotation";
+	case 6:	return "TransformScale";
+	case 7:	return "NodeReference";
+	case 9:	return "Unknown9";
+	case 10: return "Unknown10";
+	case 11: return "VertexNormals";
+	case 12: return "Unknown12";
+	case 13: return "TextureVertices";
+	case 14: return "Unknown14";
+	case 15: return "FaceData_0F";
+	case 16: return "FaceData_10";
+	case 17: return "FaceData_11";
+	case 19: return "Unknown19";
+	case 20: return "Texture";
+	case 21: return "FaceGrouping";
+	case 22: return "Hardpoint";
+	case 23: return "RotationScale";
+	case 24: return "NodeSwitch";
+	case 25: return "MeshDescriptor";
+	case 26: return "TextureAlpha";
+	case 27: return "D3DTexture";
+	case 28: return "EngineGlow";
+	};
+	return "Invalid";
+}
+
+void ParseOptNode(OptNode* node, std::string prefix)
+{
+	if (node == nullptr)
+		return;
+
+	log_debug("[DBG] %sname: %s, "
+		"type: %d:%s, "
+		"p1: %d, p2: %d, "
+		"numNodes: %d",
+		prefix.c_str(),
+		node->Name, node->NodeType, OptNodeTypeToStr(node->NodeType),
+		node->Parameter1, node->Parameter2,
+		node->NumOfNodes);
+
+	if (node->NumOfNodes > 0)
+	{
+		for (int i = 0; i < node->NumOfNodes; i++)
+			ParseOptNode(node->Nodes[i], prefix + "   ");
+	}
+}
+
 void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* scene)
 {
 	const auto L00482000 = (void(*)(OptHeader*, OptNode*, SceneCompData*))0x00482000;
@@ -1782,6 +1839,19 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 	g_current_renderer->_currentOptMeshIndex =
 		(node->NodeType == OptNode_Texture || node->NodeType == OptNode_D3DTexture) ?
 		(nodeIndex - 1) : nodeIndex;
+
+	{
+		if (g_bDumpOptNodes && nodeIndex == 0)
+		{
+			log_debug("[DBG] nodeIndex: %d, numNodes: %d",
+				nodeIndex, optHeader->NumOfNodes);
+			for (int i = 0; i < optHeader->NumOfNodes; i++)
+			{
+				ParseOptNode(optHeader->Nodes[i], "");
+			}
+		}
+		g_bDumpOptNodes = false;
+	}
 	L00482000(optHeader, node, scene);
 }
 
