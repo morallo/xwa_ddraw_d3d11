@@ -988,6 +988,7 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 	if (g_pSharedDataJoystick == NULL || !g_SharedMemJoystick.IsDataReady())
 		return;
 	bool RMouseDown = GetAsyncKeyState(VK_RBUTTON);
+	bool CtrlKey = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
 	float DesiredYawRate_s = 0, DesiredPitchRate_s = 0, DesiredRollRate_s = 0;
 
 	const float RollFromYawScale = g_fRollFromYawScale;
@@ -1027,7 +1028,7 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 	DesiredPitchRate_s = g_pSharedDataJoystick->JoystickPitch * MaxPitchRate_s;
 	if (g_config.JoystickEmul)
 	{
-		if (!RMouseDown)
+		if (!RMouseDown && !CtrlKey)
 		{
 			DesiredYawRate_s = g_pSharedDataJoystick->JoystickYaw * MaxYawRate_s;
 			// Apply a little roll when yaw is applied
