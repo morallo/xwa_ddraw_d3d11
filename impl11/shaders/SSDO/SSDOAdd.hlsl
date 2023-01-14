@@ -923,30 +923,32 @@ PixelShaderOutput main(PixelShaderInput input)
 	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
-#ifndef PBR_SHADING
-	// Reinhard tone mapping:
-	if (HDREnabled) {
-		//float I = dot(tmp_color, 0.333);
-		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
-		//tmp_color = ff_filmic_gamma3(tmp_color);
-		
-		//tmp_color = ACESFilm(HDR_white_point * tmp_color);
-		//tmp_color = ACES_approx(tmp_color);
+	if (!bEnablePBRShading)
+	{
+		// Reinhard tone mapping:
+		if (HDREnabled) {
+			//float I = dot(tmp_color, 0.333);
+			//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
+			//tmp_color = ff_filmic_gamma3(tmp_color);
 
-		tmp_color = tmp_color / (HDR_white_point + tmp_color);
-		//tmp_color = uncharted2_filmic(tmp_color);
-		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
+			//tmp_color = ACESFilm(HDR_white_point * tmp_color);
+			//tmp_color = ACES_approx(tmp_color);
+
+			tmp_color = tmp_color / (HDR_white_point + tmp_color);
+			//tmp_color = uncharted2_filmic(tmp_color);
+			//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
+		}
+		output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	}
-	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
-#else
-	//const float exposure = 1.0f;
-	//output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
-	//output.color = float4(sqrt(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1); // Invert gamma approx
-	if (HDREnabled) {
+	else
+	{
+		//const float exposure = 1.0f;
+		//output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
+		//output.color = float4(sqrt(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1); // Invert gamma approx
+		// For PBR shading, HDR is nonoptional:
 		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+		output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
 	}
-	output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
-#endif
 
 #ifdef DISABLED
 	if (ssao_debug == 8)
