@@ -3648,6 +3648,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			*g_playerInHangar ||
 			// Or if we're not in the hangar, not in external view and RTCockpit is off
 			(!*g_playerInHangar && !_bExternalCamera && !g_bRTEnabledInCockpit);
+		//g_RTConstantsBuffer.bEnablePBRShading = 0;
 		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
 		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
@@ -4648,20 +4649,22 @@ void EffectsRenderer::RenderHangarShadowMap()
 	ComPtr<ID3D11DepthStencilState> depthState;
 	Matrix4 S1, S2, ST;
 
-	if (!*g_playerInHangar)
-		goto out;
-
-	if (!g_bShadowMapEnable || _ShadowMapDrawCommands.size() == 0 || _bHangarShadowsRenderedInCurrentFrame ||
-		g_HyperspacePhaseFSM != HS_INIT_ST) {
+	if (!*g_playerInHangar || !g_bShadowMapEnable || _ShadowMapDrawCommands.size() == 0 ||
+		_bHangarShadowsRenderedInCurrentFrame || g_HyperspacePhaseFSM != HS_INIT_ST)
+	{
 		_ShadowMapDrawCommands.clear();
-		_deviceResources->_d3dAnnotation->EndEvent();
 		goto out;
 	}
 
 	// If there's no cockpit shadow map, we must disable the first shadow map slot, but continue rendering hangar shadows
 	if (!g_ShadowMapping.bUseShadowOBJ || _bExternalCamera)
-		g_ShadowMapVSCBuffer.sm_black_levels[0] = 1.0f;
-	else 
+	{
+		// This is getting tricky, but the PBR shader modulates lights and shadows and we need to
+		// keep the first light as a shadow caster or the PBR shader will darken everything when
+		// enabled. For the Deferred shader, the first caster must still be disabled.
+		g_ShadowMapVSCBuffer.sm_black_levels[0] = g_RTConstantsBuffer.bEnablePBRShading ? 0.05f : 1.0f;
+	}
+	else
 		g_ShadowMapVSCBuffer.sm_black_levels[0] = 0.05f;
 	// Make hangar shadows darker, as in the original version
 	g_ShadowMapVSCBuffer.sm_black_levels[1] = 0.05f;
