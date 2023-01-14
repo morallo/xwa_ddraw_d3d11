@@ -6933,8 +6933,8 @@ void PrimarySurface::TagXWALights()
 	// Don't bother tagging lights if we're parked in the hangar.
 	// Don't tag anything in external view if the y_center hasn't been fixed
 	// A few lines below, we use projectMetric() and that uses y_center.
-	if (*g_playerInHangar || (bExternal && !g_bYCenterHasBeenFixed))
-	//if (bExternal)
+	//if (*g_playerInHangar || (bExternal && !g_bYCenterHasBeenFixed))
+	if (*g_playerInHangar || bExternal)
 		return;
 #undef RT_SIDE_LIGHTS
 #ifdef RT_SIDE_LIGHTS
