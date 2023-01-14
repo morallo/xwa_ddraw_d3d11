@@ -10,7 +10,7 @@ cbuffer ConstantBuffer : register(b10) {
 	bool bRTEnabled;
 	bool bRTAllowShadowMapping;
 	bool bEnablePBRShading;
-	uint g_RTUnused;
+	bool RTUnused;
 	// 16 bytes
 };
 

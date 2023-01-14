@@ -1233,6 +1233,7 @@ LBVH* EffectsRenderer::BuildBVH(const std::vector<XwaVector3>& vertices, const s
 		// 1-step LBVH build: QBVH is built and encoded in one step.
 		return LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
 	}
+	return nullptr;
 }
 
 // Build a single BVH from the contents of the g_LBVHMap and put it into _lbvh.

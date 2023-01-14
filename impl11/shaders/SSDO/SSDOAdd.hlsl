@@ -536,8 +536,8 @@ PixelShaderOutput main(PixelShaderInput input)
 #endif
 		{
 			float shadow_factor = 1.0;
-			float black_level, minZ, maxZ;
-			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
+			float black_level, dummyMinZ, dummyMaxZ;
+			get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
 #ifdef RT_SIDE_LIGHTS
 			black_level = 0.1;
 #endif
@@ -553,7 +553,8 @@ PixelShaderOutput main(PixelShaderInput input)
 			// The normal buffer's Z+ points towards the camera
 			// We have to invert N.z:
 			const float3 hover = 0.01 * P.z * float3(N.x, N.y, -N.z);
-			if (bRTEnabled && dotLFlatN > 0) {
+			if (dotLFlatN > 0)
+			{
 				Ray ray;
 				ray.origin   = P + hover; // Metric, Y+ is up, Z+ is forward.
 				ray.dir      = float3(L.x, -L.y, -L.z);
@@ -563,13 +564,18 @@ PixelShaderOutput main(PixelShaderInput input)
 				if (inters.TriID > -1)
 					rt_shadow_factor *= black_level;
 			}
-			if (dotLFlatN <= 0) rt_shadow_factor *= black_level;
+			else
+			{
+				rt_shadow_factor *= black_level;
+			}
 		}
 	}
 
-	// Shadow Mapping
+	// Shadow Mapping.
+	// This block modifies total_shadow_factor.
+	// In other words, the shadow casting contribution for both RT and SM ends up in
+	// total_shadow_factor.
 	float total_shadow_factor = rt_shadow_factor;
-	//float idx = 1.0;
 	// Don't compute shadow mapping if Raytraced shadows are enabled in the cockpit... it's redundant.
 	if (sm_enabled && bRTAllowShadowMapping)
 	{
@@ -785,6 +791,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//const float ambient = 0.05;
 		const float ambient = 0.03;
 		//const float exposure = 1.0;
+
 #ifdef RT_SIDE_LIGHTS
 		i = 0;
 #else
@@ -792,8 +799,28 @@ PixelShaderOutput main(PixelShaderInput input)
 		for (i = 0; i < LightCount; i++)
 #endif
 		{
+			float black_level, dummyMinZ, dummyMaxZ;
+			float shadow_factor = 1.0;
+			float light_modulation = 1.0;
+			get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
+			// Skip lights that won't project black-enough shadows, we'll take care of them later
+			if (black_level > 0.95)
+			{
+				// This is not a shadow caster, ignore RT and SM shadows:
+				shadow_factor = 1.0;
+				// Dim the light a bit
+				light_modulation = 0.2;
+			}
+			else
+			{
+				// This is a shadow caster, apply RT and SM shadows
+				shadow_factor = total_shadow_factor;
+				// Use the full intensity of this light
+				light_modulation = 1.0;
+			}
+
 			float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
-			float LightIntensity = dot(LightColor[i].rgb, 0.333);
+			float LightIntensity = light_modulation * dot(LightColor[i].rgb, 0.333);
 			float3 eye_vec = normalize(-P);
 			float3 N_PBR = N;
 			N_PBR.xy = -N_PBR.xy;
@@ -806,23 +833,9 @@ PixelShaderOutput main(PixelShaderInput input)
 				glossiness, // Glossiness: 0 matte, 1 glossy/glass
 				reflectance,
 				ambient,
-				total_shadow_factor * ssdo.x
+				shadow_factor * ssdo.x
 			);
 
-			/*
-	#ifdef PBR_RAYTRACING
-			// Raytracing Enabled. This path is no longer needed, rt_shadow_factor is computed
-			// for both regular and PBR paths, and total_shadow_factor is initialized with it
-			float3 col = addPBR_RT_TLAS(
-				P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
-				float4(LightColor[i].rgb, LightIntensity),
-				metallicity,
-				glossiness, // Glossiness: 0 matte, 1 glossy/glass
-				reflectance,
-				ambient
-			);
-	#endif
-			*/
 			tmp_color += col;
 			//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 			//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);

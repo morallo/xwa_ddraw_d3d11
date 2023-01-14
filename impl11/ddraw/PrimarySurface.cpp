@@ -6931,12 +6931,10 @@ void PrimarySurface::TagXWALights()
 	float x0, y0, x1, y1;
 	bool bExternal = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	// Don't bother tagging lights if we're parked in the hangar.
-	if (*g_playerInHangar)
-		return;
 	// Don't tag anything in external view if the y_center hasn't been fixed
 	// A few lines below, we use projectMetric() and that uses y_center.
-	//if (bExternal && !g_bYCenterHasBeenFixed)
-	if (bExternal)
+	if (*g_playerInHangar || (bExternal && !g_bYCenterHasBeenFixed))
+	//if (bExternal)
 		return;
 #undef RT_SIDE_LIGHTS
 #ifdef RT_SIDE_LIGHTS

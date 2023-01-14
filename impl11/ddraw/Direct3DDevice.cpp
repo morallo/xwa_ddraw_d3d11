@@ -12,6 +12,8 @@
 // Important commits:
 // Improve Depth Value:
 // https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/f05c0ef6f65b2bf7f9e085baf9ebaf0e7207eb41
+// One BLAS per FaceGroup:
+// https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/673da14a4b717ded5296dc6e17b1d95c43c20147
 
 /*
 From Jeremy, regarding LODs and how to parse the OPT structure:
