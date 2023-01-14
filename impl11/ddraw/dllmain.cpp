@@ -99,6 +99,7 @@ void IncreaseLensK2(float Delta);
 
 // CSM
 void ToggleCSM();
+void SetHDRState(bool state);
 
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;
@@ -777,6 +778,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bRTEnabled = !g_bRTEnabled;
 				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
 				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
+				SetHDRState(g_bRTEnabled);
+				// Force the Deferred rendering mode when RT is enabled
+				if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
 
 				return 0;
 			}

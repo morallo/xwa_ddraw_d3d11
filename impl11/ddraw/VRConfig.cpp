@@ -311,6 +311,12 @@ float g_fLevelsBlackPoint = 16.0f;
 
 #include "D3dRenderer.h"
 
+void SetHDRState(bool state)
+{
+	g_bHDREnabled = state;
+	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+}
+
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
 	log_debug("[DBG] Loading view params...");
@@ -2033,6 +2039,9 @@ bool LoadSSAOParams() {
 			}
 			if (_stricmp(param, "raytracing_enabled") == 0) {
 				g_bRTEnabled = (bool)fValue;
+				// Force the Deferred Rendering mode and enable HDR if RT is enabled.
+				if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
+				SetHDRState(g_bRTEnabled);
 			}
 			if (_stricmp(param, "raytracing_enabled_in_cockpit") == 0) {
 				g_bRTEnabledInCockpit = (bool)fValue;
@@ -2341,8 +2350,7 @@ bool LoadSSAOParams() {
 				g_bDumpOBJEnabled = (bool)fValue;
 			}
 			else if (_stricmp(param, "HDR_enabled") == 0) {
-				g_bHDREnabled = (bool)fValue;
-				g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+				SetHDRState((bool)fValue);
 			}
 			else if (_stricmp(param, "HDR_lights_intensity") == 0) {
 				g_fHDRLightsMultiplier = fValue;
