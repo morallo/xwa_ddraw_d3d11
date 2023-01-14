@@ -808,6 +808,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//	return 0;
 			//}
 
+			case 'E': {
+				g_bRTCoalesceEverything = !g_bRTCoalesceEverything;
+				log_debug("[DBG] [BVH] g_bRTCoalesceEverything: %d", g_bRTCoalesceEverything);
+				return 0;
+			}
+
 			case 'F': {
 				CycleFOVSetting();
 				return 0;

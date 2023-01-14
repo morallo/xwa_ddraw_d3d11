@@ -32,6 +32,7 @@ bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTEnabledInCockpit = false;
 bool g_bEnablePBRShading = false;
+bool g_bRTCoalesceEverything = false;
 bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
@@ -88,6 +89,7 @@ inline float sign(float val)
 void InitializePlayerYawPitchRoll();
 void ApplyYawPitchRoll(float yaw_deg, float pitch_deg, float roll_deg);
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
+void ClearGlobalLBVHMap();
 
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
@@ -1166,6 +1168,18 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	if (g_bRTEnabled)
 	{
+		// DEBUG
+		{
+			static bool bPrevRTCoalesceEverything = false;
+			if (bPrevRTCoalesceEverything != g_bRTCoalesceEverything)
+			{
+				log_debug("[DBG] [BVH] REGEN ALL BLASES");
+				ClearGlobalLBVHMap();
+				_BLASNeedsUpdate = true;
+			}
+			bPrevRTCoalesceEverything = g_bRTCoalesceEverything;
+		}
+
 		// Restart the TLAS for the frame that is about to begin
 		g_iRTMeshesInThisFrame = 0;
 		g_GlobalAABB.SetInfinity();
@@ -3723,7 +3737,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// bCoalesce is set to true if the current Face Group must be coalesced with other
 		// face groups in the same mesh. FGs belonging to different LODs should not be
 		// coalesced, but we know that cockpit and exterior OPTs don't have LODs.
-		bool bCoalesce = _bIsCockpit || _bIsExterior;
+		bool bCoalesce = _bIsCockpit || _bIsExterior || g_bRTCoalesceEverything;
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
 		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
