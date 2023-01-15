@@ -486,6 +486,10 @@ float s_XwaHudScale = 1.0f;
 
 #include "XWAFramework.h"
 
+XwaPlanet* g_XwaPlanets = (XwaPlanet*)0x005B1140;
+TieFlightGroupEx* g_XwaTieFlightGroups = (TieFlightGroupEx*)0x0080DC80;
+ExeEnableEntry* g_ExeObjectsTable = (ExeEnableEntry*)0x005FB240; // (Not sure about the type in this one)
+
 FILE *g_HackFile = NULL;
 
 float RealVertFOVToRawFocalLength(float real_FOV);

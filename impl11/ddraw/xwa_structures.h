@@ -44,22 +44,54 @@ enum OptNodeEnum : unsigned int
 	OptNode_EngineGlow = 28,
 };
 
+struct TieFlightGroup
+{
+	/* 0x0000 */ char Name[20];
+	/* 0x006B */ unsigned char CraftId;
+	/* 0x0E12 */ int PlanetId;
+};
+
+struct TieFlightGroupEx
+{
+	/* 0x0000 */ TieFlightGroup FlightGroup;
+	/* 0x0E3E */ int PlayerIndex;
+};
+
+// V0x0080DC80
+//Array<TieFlightGroupEx, 192> s_XwaTieFlightGroups;
+extern TieFlightGroupEx* g_XwaTieFlightGroups;
+
+struct XwaPlanet
+{
+	/* 0x0000 */ unsigned short ModelIndex;
+	/* 0x0002 */ unsigned char BackdropFlags;
+};
+
+// V0x005B1140
+//Array<XwaPlanet, 104> s_XwaPlanets
+extern XwaPlanet* g_XwaPlanets;
+
 struct ExeEnableEntry
 {
-	unsigned char ExeEnableEntry_m00; // flags
-	unsigned char ExeEnableEntry_m01; // flags
-	unsigned char ObjectCategory;
-	unsigned char ShipCategory;
-	unsigned int ObjectSize;
-	void* pData1;
-	void* pData2;
-	unsigned short ExeEnableEntry_m10; // flags
-	unsigned short CraftIndex;
-	short DataIndex1;
-	short DataIndex2;
+	/* 0x0000 */ char EnableOptions;    // flags ExeEnable00Enum
+	/* 0x0001 */ char RessourceOptions; // flags ExeEnable01Enum
+	/* 0x0002 */ char ObjectCategory;   // ObjectCategoryEnum
+	/* 0x0003 */ char ShipCategory;     // ShipCategoryEnum
+	/* 0x0004 */ unsigned int ObjectSize;
+	/* 0x0008 */ void* pData1;
+	/* 0x000C */ void* pData2;
+	/* 0x0010 */ unsigned short GameOptions; // flags ExeEnable10Enum
+	/* 0x0012 */ short CraftIndex; // CraftIndexEnum
+	/* 0x0014 */ short DataIndex1;
+	/* 0x0016 */ short DataIndex2;
 };
 
 static_assert(sizeof(ExeEnableEntry) == 24, "size of ExeEnableEntry must be 24");
+
+// ExeObjectsTable:
+// V0x005FB240
+//Array<ExeObjectEntry, 557> s_ExeObjectsTable;
+extern ExeEnableEntry* g_ExeObjectsTable;
 
 // This is the same as ObjectEntry
 struct XwaObject

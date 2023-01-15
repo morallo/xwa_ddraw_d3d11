@@ -193,7 +193,10 @@ RendererType g_rendererType = RendererType_Unknown;
 
 bool g_bDumpOptNodes = false;
 char g_curOPTLoaded[MAX_OPT_NAME];
-std::map<int, int> g_OptHeaderMap;
+// Used to tag which meshes have been parsed by the Opt Parser.
+// This map is used just to avoid parsing the same mesh more than once
+std::map<int, int> g_MeshTagMap;
+// Maps Face Groups to LOD.
 std::map<int, int> g_FGToLODMap;
 
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
@@ -1344,8 +1347,10 @@ void ClearGlobalLBVHMap()
 	}
 	g_BLASMap.clear();
 
-	g_BLASIdMap.clear();
 	RTResetBlasIDs();
+	g_BLASIdMap.clear();
+	g_FGToLODMap.clear();
+	g_MeshTagMap.clear();
 
 #undef DEBUG_RT
 #ifdef DEBUG_RT
@@ -1866,11 +1871,6 @@ void ParseOptNode(OptNode* node, std::string prefix)
 	}
 }
 
-void ClearFaceGroupMap()
-{
-	g_FGToLODMap.clear();
-}
-
 void ParseOptFaceGrouping(OptNode* outerNode)
 {
 	if (outerNode->NodeType != OptNode_FaceGrouping) {
@@ -1989,8 +1989,8 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 				if (subnode->NodeType == OptNode_MeshVertices)
 				{
 					int meshKey = subnode->Parameter2;
-					auto& it = g_OptHeaderMap.find(meshKey);
-					if (it == g_OptHeaderMap.end())
+					auto& it = g_MeshTagMap.find(meshKey);
+					if (it == g_MeshTagMap.end())
 					{
 #if VERBOSE_OPT_OUTPUT
 						if (g_bDumpOptNodes)
@@ -1999,7 +1999,7 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 								(int)(subnode->Parameter2));
 						}
 #endif
-						g_OptHeaderMap[meshKey] = 1;
+						g_MeshTagMap[meshKey] = 1;
 						ParseOptMeshEntry(node);
 					}
 				}
