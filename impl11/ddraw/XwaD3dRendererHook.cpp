@@ -194,10 +194,11 @@ RendererType g_rendererType = RendererType_Unknown;
 bool g_bDumpOptNodes = false;
 char g_curOPTLoaded[MAX_OPT_NAME];
 std::map<int, int> g_OptHeaderMap;
-std::map<int, int> g_FGToSetMap;
+std::map<int, int> g_FGToLODMap;
 
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
+void RTResetBlasIDs();
 void ComputeTreeStats(IGenericTreeNode* root);
 
 XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
@@ -1343,6 +1344,9 @@ void ClearGlobalLBVHMap()
 	}
 	g_BLASMap.clear();
 
+	g_BLASIdMap.clear();
+	RTResetBlasIDs();
+
 #undef DEBUG_RT
 #ifdef DEBUG_RT
 	g_DebugMeshToNameMap.clear();
@@ -1864,7 +1868,7 @@ void ParseOptNode(OptNode* node, std::string prefix)
 
 void ClearFaceGroupMap()
 {
-	g_FGToSetMap.clear();
+	g_FGToLODMap.clear();
 }
 
 void ParseOptFaceGrouping(OptNode* outerNode)
@@ -1900,7 +1904,7 @@ void ParseOptFaceGrouping(OptNode* outerNode)
 					// This is not an error, the actual pointer to the scene->FaceIndices starts
 					// 4 bytes after Parameter2
 					int faceGroupID = subnode->Parameter2 + 4;
-					g_FGToSetMap[faceGroupID] = lodID;
+					g_FGToLODMap[faceGroupID] = lodID;
 #if VERBOSE_OPT_OUTPUT
 					if (g_bDumpOptNodes)
 					{

@@ -217,16 +217,19 @@ void ResetRawMouseInput();
 // is called.
 std::map<int32_t, MeshData> g_LBVHMap;
 
-// This maps FaceGroupIDs (FaceIndices pointer) to BLASData tuples.
-// This map is used to build multiple BLASes during regular flight
-// (one per FaceGroup). It gets cleared when OnSizeChanged() is called
-std::map<int32_t, BLASData> g_BLASMap;
+// This maps (MeshKey, LOD) to BlasIds. Gets cleared when OnSizeChanged()
+std::map<BLASKey_t, int> g_BLASIdMap;
 
-// This maps (ID, centroid) to matrix slots.
-// The ID can be either a meshKey or a faceGroupID.
+// This maps BlasIds to BLASData tuples.
+// This map is used to build multiple BLASes during regular flight
+// (one per BlasId). It gets cleared when OnSizeChanged() is called
+std::map<int, BLASData> g_BLASMap;
+
+// This maps (BlasId, centroid) to matrix slots.
 // It gets cleared at the beginning of every frame.
-// The centroid is important because the same mesh may appear multiple
-// times if there are multiple ships in the same FG, for instance.
+// The centroid is important because the same BLAS may appear multiple
+// times if there are multiple ships in the same (Mesh, LOD), but in
+// different locations, for instance.
 std::map<IDCentroid_t, int32_t> g_TLASMap;
 std::vector<Matrix4> g_TLASMatrices;
 void ClearGlobalLBVHMap();

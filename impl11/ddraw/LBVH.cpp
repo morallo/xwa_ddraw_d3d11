@@ -1386,15 +1386,13 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	uint32_t* ubuffer = (uint32_t*)buffer;
 	float* fbuffer    = (float*)buffer;
 	auto& leafItem    = leafItems[leafIdx];
-	int ID            = TLASGetID(leafItem);
+	int blasID        = TLASGetID(leafItem);
 	int matrixSlot    = TLASGetMatrixSlot(leafItem);
 	AABB obb          = TLASGetOBB(leafItem);
 	AABB aabb         = TLASGetAABBFromOBB(leafItem); // This is OBB * WorldViewTransform
 	int BLASBaseNodeOffset = -1;
 
-	// ID can be either a FaceGroupID, or a meshKey. Either way, it
-	// should have an entry in g_BLASMap.
-	const auto& it = g_BLASMap.find(ID);
+	const auto& it = g_BLASMap.find(blasID);
 	if (it != g_BLASMap.end())
 	{
 		BLASData& blasData = it->second;
@@ -1411,7 +1409,7 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 	//	leafIdx, TriID, (EncodeOfs * 4) / 64);
 
 	// Encode the current TLAS leaf into the QBVH buffer, in the leaf section
-	ubuffer[EncodeOfs++] = ID;
+	ubuffer[EncodeOfs++] = blasID;
 	ubuffer[EncodeOfs++] = -1; // parent
 	ubuffer[EncodeOfs++] = matrixSlot;
 	ubuffer[EncodeOfs++] = BLASBaseNodeOffset;

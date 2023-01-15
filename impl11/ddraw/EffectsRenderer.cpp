@@ -13,6 +13,7 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 
 // Control vars
 bool g_bEnableAnimations = true;
+extern bool g_bKeepMouseInsideWindow;
 extern char g_curOPTLoaded[MAX_OPT_NAME];
 
 // Raytracing
@@ -44,6 +45,7 @@ uint32_t g_iRTMaxMeshesSoFar = 0;
 int g_iRTMeshesInThisFrame = 0;
 
 int g_iRTMatricesNextSlot = 0;
+int g_iRTNextBLASId = 0;
 bool g_bRTReAllocateBvhBuffer = false;
 AABB g_CameraAABB; // AABB built from the camera's frustrum
 AABB g_GlobalAABB; // AABB built after all the meshes have been seen in the current frame
@@ -116,6 +118,17 @@ int RTGetNextAvailableMatrixSlot()
 {
 	g_iRTMatricesNextSlot++;
 	return g_iRTMatricesNextSlot - 1;
+}
+
+void RTResetBlasIDs()
+{
+	g_iRTNextBLASId = 0;
+}
+
+int RTGetNextBlasID()
+{
+	g_iRTNextBLASId++;
+	return g_iRTNextBLASId - 1;
 }
 
 Matrix4 GetBLASMatrix(TLASLeafItem& tlasLeaf, int *matrixSlot)
@@ -1166,6 +1179,13 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	if (PlayerDataTable->missionTime == 0)
 		ApplyCustomHUDColor();
 
+	if (g_bKeepMouseInsideWindow)
+	{
+		// I'm a bit tired of clicking the mouse outside the window when debugging.
+		// I. shall. end. this. now.
+		SetCursorPos(0, 0);
+	}
+
 	if (g_bRTEnabled)
 	{
 		// DEBUG
@@ -1399,7 +1419,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 	{
 		std::vector<XwaVector3>   vertices;
 		std::vector<int>          indices;
-		int ID                  = it.first; // The ID is either a meshKey or a faceGroup
+		int blasID              = it.first;
 		BLASData& blasData      = it.second;
 		int meshKey             = BLASGetMeshVertices(blasData);
 		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
@@ -1407,7 +1427,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 		LBVH* bvh               = (LBVH*)BLASGetBVH(blasData);
 		const FaceGroups FGs    = BLASGetFaceGroups(blasData); // To make this code uniform, the FG is populated even when the blasData is not coalesced
 
-		// First, let's check if this mesh/FG already has a BVH. If it does, skip it.
+		// First, let's check if this (mesh, LOD) already has a BVH. If it does, skip it.
 		if (bvh != nullptr) {
 			// Update the total node count
 			g_iRTTotalBLASNodesInFrame += bvh->numNodes;
@@ -1445,7 +1465,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 			vertices.push_back(XwaVertices[i]);
 		}
 
-		// Populate the indices
+		// Populate the indices from all FaceGroups in this entry
 		for (const auto& FG : FGs)
 		{
 			const int facesGroupID = FG.first;
@@ -3266,19 +3286,33 @@ void EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
 //
 // The same matrixSlot is used for both maps and makes a direct link between the TLAS
 // and the BLASes
-void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced)
+void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount    = *(int*)((int)scene->MeshVertices - 8);
 	int32_t meshKey          = MakeMeshKey(scene);
 	int32_t faceGroupID      = MakeFaceGroupKey(scene);
-	int32_t ID               = isCoalesced ? meshKey : faceGroupID;
 	int matrixSlot           = -1;
+	int blasID               = -1;
 	FaceGroups FGs;
 	FGs.clear();
 
-	// Update g_TLASMap and get a new matrix slot if necessary -- or find the
-	// existing matrixSlot for the current mesh/centroid
+	// Fetch the ID for this (MeshKey, LOD)
+	const BLASKey_t blasKey = BLASKey_t(meshKey, LOD);
+	const auto& bit = g_BLASIdMap.find(blasKey);
+	if (bit == g_BLASIdMap.end())
+	{
+		// We've never seen this Mesh/LOD before, create a new ID and add it
+		blasID = RTGetNextBlasID();
+		g_BLASIdMap[blasKey] = blasID;
+	}
+	else
+	{
+		blasID = bit->second;
+	}
+
+	// Update g_TLASMap and get a new BlasID and Matrix Slot if necessary -- or find the
+	// existing blasID and matrixSlot for the current mesh/LOD/centroid
 	{
 		// Get the OBB and centroid for this mesh.
 		Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
@@ -3291,11 +3325,11 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced
 			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
 			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
 
-			IDCentroid_t IDCentroidKey = IDCentroid_t(ID, centroid.x, centroid.y, centroid.z);
+			IDCentroid_t IDCentroidKey = IDCentroid_t(blasID, centroid.x, centroid.y, centroid.z);
 			auto it = g_TLASMap.find(IDCentroidKey);
 			if (it == g_TLASMap.end())
 			{
-				// We haven't seen this mesh/centroid combination before, add a new entry
+				// We haven't seen this (blasID, centroid) combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
 				g_TLASMap[IDCentroidKey] = matrixSlot;
 				// Store the matrix proper, but inverted. That's what the RT code needs so that
@@ -3311,7 +3345,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, ID, centroid, matrixSlot, obb));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, blasID, centroid, matrixSlot, obb));
 			}
 			else
 			{
@@ -3326,26 +3360,18 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced
 		// Now update the g_BLASMap so that we can build multiple BLASes if needed.
 		BLASData blasData;
 		BLASGetBVH(blasData) = nullptr; // Initialize the new blasData BVH to NULL
-		auto it = g_BLASMap.find(ID);
+		auto it = g_BLASMap.find(blasID);
 		if (it != g_BLASMap.end())
 		{
-			if (isCoalesced)
+			// We've seen this (Mesh, LOD) before, we need to check
+			// if we've seen this FG before too
+			blasData = it->second;
+			FGs = BLASGetFaceGroups(blasData);
+			// The FG key is FaceIndices:
+			auto it = FGs.find(faceGroupID);
+			if (it != FGs.end())
 			{
-				// This is a coalesced BVH and we've seen this mesh before, we need to check
-				// if we've seen this FG before too
-				blasData = it->second;
-				FGs = BLASGetFaceGroups(blasData);
-				// The FG key is FaceIndices:
-				auto it = FGs.find(faceGroupID);
-				if (it != FGs.end())
-				{
-					// We've seen this mesh/FG combination before, ignore
-					return;
-				}
-			}
-			else
-			{
-				// Not a coalesced BVH and we've seen this FG before, ignore
+				// We've seen this mesh/FG combination before, ignore
 				return;
 			}
 		}
@@ -3358,15 +3384,13 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, bool isCoalesced
 		LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
 		if (bvh != nullptr)
 			delete bvh;
-		BLASGetBVH(blasData)          = nullptr; // Force this BVH to be built
+		BLASGetBVH(blasData)          = nullptr; // Force this BVH to be rebuilt
 		// Add the FG to the map so that it's not processed again.
-		// If this is an uncoalesced BVH, then the FGs will only have one entry
-		// If this is a coalesced BVH, then the FGs will have multiple entries
 		FGs[faceGroupID]              = scene->FacesCount;
 		BLASGetFaceGroups(blasData)   = FGs;
 		BLASGetMeshVertices(blasData) = (int)scene->MeshVertices;
 		BLASGetNumVertices(blasData)  = scene->VerticesCount;
-		g_BLASMap[ID]                 = blasData;
+		g_BLASMap[blasID]             = blasData;
 	}
 	else
 	{
@@ -3738,8 +3762,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// bCoalesce is set to true if the current Face Group must be coalesced with other
 		// face groups in the same mesh. FGs belonging to different LODs should not be
 		// coalesced, but we know that cockpit and exterior OPTs don't have LODs.
-		bool bCoalesce = _bIsCockpit || _bIsExterior || g_bRTCoalesceEverything;
+		//bool bCoalesce = _bIsCockpit || _bIsExterior || g_bRTCoalesceEverything;
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
+
 		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
@@ -3751,8 +3776,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			{
 				{
 					int faceGroupID = MakeFaceGroupKey(scene);
-					auto& it = g_FGToSetMap.find(faceGroupID);
-					if (it != g_FGToSetMap.end())
+					auto& it = g_FGToLODMap.find(faceGroupID);
+					if (it != g_FGToLODMap.end())
 					{
 						log_debug("[DBG] [OPT] %s FG 0x%x --> %d",
 							OPTname, faceGroupID, it->second);
@@ -3764,8 +3789,20 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 				//log_debug("[DBG] [BVH] MediumTransport, FG: 0x%x", scene->FaceIndices);
 			}
 			*/
+
+			// Find the LOD for this FaceGroup. We need this so that we can coalesce
+			// all the FGs belonging to the same LOD in one BVH. That improves performance.
+			int faceGroupId = MakeFaceGroupKey(scene);
+			auto& it = g_FGToLODMap.find(faceGroupId);
+			int LOD = -1;
+			if (it != g_FGToLODMap.end())
+			{
+				LOD = it->second;
+			}
+			else
+				log_debug("[DBG] [BVH] ERROR. No LOD for FG: 0x%x", faceGroupId);
 			// Populate the TLAS and BLAS maps so that we can build BVHs at the end of the frame
-			UpdateBVHMaps(scene, bCoalesce);
+			UpdateBVHMaps(scene, LOD);
 		}
 	}
 

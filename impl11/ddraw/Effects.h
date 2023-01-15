@@ -125,10 +125,12 @@ float RealVertFOVToRawFocalLength(float real_FOV);
 
 // ********************************
 // Raytracing
-// // Maps face group index --> numTris in face group
+// Maps face group index --> numTris in face group
 using FaceGroups = std::map<int32_t, int32_t>;
-// Each OPT is made of multiple meshes
-// Each mesh is made of multiple face groups
+
+// Each OPT is made of multiple meshes.
+// Each mesh is made of multiple LODs.
+// Each LOD is made of multiple Face Groups.
 // From our perspective, inside ddraw, we see a draw call per face group
 // but each face group references the whole set of vertices from the mesh.
 // The only way to reconstruct the original faces is by accumulating all
@@ -169,28 +171,27 @@ inline void *&     BLASGetBVH(BLASData& X) { return std::get<2>(X); }
 inline int32_t&    BLASGetBaseNodeOffset(BLASData& X) { return std::get<3>(X); }
 inline int32_t&    BLASGetMeshVertices(BLASData& X) { return std::get<4>(X); }
 
-// TLAS leaf keys are made of: (meshKey, FaceGroup)
-using MeshFG_t = std::tuple<int32_t, int32_t>;
+// BLAS Key: <MeshKey, LOD>. This tuple can be used to uniquely identify a BLAS entry.
+// There's one BLAS per mesh per LOD.
+// - MeshKey is scene->MeshVertices
+// - Set is the LOD index. We can get the LOD from its FaceGroup.
+using BLASKey_t = std::tuple<int, int>;
+// Map of unique IDs for BLASes. (MeshKey, LOD) --> BlasId
+extern std::map<BLASKey_t, int> g_BLASIdMap;
 
-// TLAS leaf uniqueness is determined by the {MeshKey|FaceGroupID} and its centroid.
-// The FaceGroupID must be used for OPTs with multiple LODs, so that we only display
-// the FGs for the current LOD.
-// For other meshes without LODs, like the cockpit, it's better to coalesce all FGs
-// belonging to the same mesh into a single BVH. For that case, we use the meshKey.
-// There can be multiple instances of the same Face Group|Mesh belonging to different
-// craft in a Flight Group; or there can be different LODs on the same mesh with
-// different FGs.
+// TLAS leaf uniqueness is determined by the BlasID and its centroid.
+// BlasId, x, y, z:
 using IDCentroid_t = std::tuple<int32_t, float, float, float>;
 
-// The {Single|Coalesced} BLAS map: meshKey --> MeshData
+// The {Single|Coalesced} BLAS map: meshKey --> MeshData (only used in the Tech Room)
 extern std::map<int32_t, MeshData> g_LBVHMap;
-// The Multiple BLAS map: faceGroup --> BLASData
-extern std::map<int32_t, BLASData> g_BLASMap;
-// The TLAS map: ({MeshKey|FaceGroupID}, centroid) --> matrixSlot
+// The Multiple BLAS map: BlasId --> BLASData
+extern std::map<int, BLASData> g_BLASMap;
+// The TLAS map: (BlasId, centroid) --> matrixSlot
 extern std::map<IDCentroid_t, int32_t> g_TLASMap;
 // The TLAS matrix buffer (1:1 correspondence with g_TLASMap)
 extern std::vector<Matrix4> g_TLASMatrices;
-#define DEBUG_RT
+#undef DEBUG_RT
 #ifdef DEBUG_RT
 // DEBUG only
 extern std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;

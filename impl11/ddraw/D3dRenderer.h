@@ -184,6 +184,6 @@ extern bool g_isInRenderMiniature;
 extern bool g_isInRenderHyperspaceLines;
 
 extern std::map<int, int> g_OptHeaderMap;
-extern std::map<int, int> g_FGToSetMap;
+extern std::map<int, int> g_FGToLODMap;
 
 void ClearCachedSRVs();

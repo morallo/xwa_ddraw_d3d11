@@ -198,6 +198,9 @@ int g_iBloomPasses[MAX_BLOOM_PASSES + 1] = {
 
 //extern FILE *colorFile, *lightFile;
 
+// Debugging (personal): I'm tired of the mouse moving outside the window!
+bool g_bKeepMouseInsideWindow = false;
+
 // SSAO
 float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
@@ -2045,6 +2048,10 @@ bool LoadSSAOParams() {
 			}
 			if (_stricmp(param, "raytracing_enabled_in_cockpit") == 0) {
 				g_bRTEnabledInCockpit = (bool)fValue;
+			}
+
+			if (_stricmp(param, "keep_mouse_inside_window") == 0) {
+				g_bKeepMouseInsideWindow = (bool)fValue;
 			}
 
 			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
