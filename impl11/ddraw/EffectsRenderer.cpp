@@ -104,7 +104,7 @@ int32_t MakeMeshKey(const SceneCompData* scene)
 
 int32_t MakeFaceGroupKey(const SceneCompData* scene)
 {
-	return (uint32_t)scene->FaceIndices;
+	return (int32_t)scene->FaceIndices;
 }
 
 void RTResetMatrixSlotCounter()
@@ -3743,13 +3743,24 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
+			// DEBUG
 			/*
 			char OPTname[120];
 			GetOPTNameFromLastTextureSelected(OPTname);
-			if (stristr(OPTname, "MediumTransport") != NULL && _currentOptMeshIndex == 0) {
-				auto& it = g_iDebugFGChecker.find((int)scene->FaceIndices);
-				if (it == g_iDebugFGChecker.end())
-					g_iDebugFGChecker[(int)scene->FaceIndices] = scene->FacesCount;
+			if (stristr(OPTname, "MediumTransport") != NULL && _currentOptMeshIndex == 0)
+			{
+				{
+					int faceGroupID = MakeFaceGroupKey(scene);
+					auto& it = g_FGToSetMap.find(faceGroupID);
+					if (it != g_FGToSetMap.end())
+					{
+						log_debug("[DBG] [OPT] %s FG 0x%x --> %d",
+							OPTname, faceGroupID, it->second);
+					}
+				}
+				//auto& it = g_iDebugFGChecker.find((int)scene->FaceIndices);
+				//if (it == g_iDebugFGChecker.end())
+				//	g_iDebugFGChecker[(int)scene->FaceIndices] = scene->FacesCount;
 				//log_debug("[DBG] [BVH] MediumTransport, FG: 0x%x", scene->FaceIndices);
 			}
 			*/

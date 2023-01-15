@@ -8812,6 +8812,8 @@ HRESULT PrimarySurface::Flip(
 
 						g_bDumpSSAOBuffers = false;
 					}
+					if (g_bDumpOptNodes)
+						g_bDumpOptNodes = false;
 
 					if (g_iDelayedDumpDebugBuffers) {
 						g_iDelayedDumpDebugBuffers--;
@@ -9754,6 +9756,8 @@ HRESULT PrimarySurface::Flip(
 				//*g_playerInHangar = 0;
 				if (g_bDumpSSAOBuffers)
 					g_bDumpSSAOBuffers = false;
+				if (g_bDumpOptNodes)
+					g_bDumpOptNodes = false;
 
 				// Reset the laser pointer intersection
 				if (g_bActiveCockpitEnabled) {

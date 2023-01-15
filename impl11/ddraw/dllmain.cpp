@@ -44,7 +44,6 @@ extern bool g_bTriggerReticleCapture;
 extern bool g_bEnableAnimations;
 extern bool g_bFadeLights;
 extern bool g_bEnableQBVHwSAH;
-extern bool g_bDumpOptNodes;
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -512,8 +511,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bFadeLights = !g_bFadeLights;
-				log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
+				g_bDumpOptNodes = !g_bDumpOptNodes;
+
+				//g_bFadeLights = !g_bFadeLights;
+				//log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
+
 				//g_bDisplayGlowMarks = !g_bDisplayGlowMarks;
 				//log_debug("[DBG] g_bDisplayGlowMarks: %d", g_bDisplayGlowMarks);
 				//g_bShowSSAODebug = !g_bShowSSAODebug;
@@ -529,10 +531,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			// Dump Debug buffers
 			case 'X':
-				if (!g_bInTechRoom)
-					g_bDumpSSAOBuffers = true;
-				else
-					g_bDumpOptNodes = true;
+				g_bDumpSSAOBuffers = true;
 				return 0;
 			//case 'G':
 			//	DumpGlobalLights();

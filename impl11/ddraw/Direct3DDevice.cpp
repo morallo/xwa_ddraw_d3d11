@@ -16,6 +16,41 @@
 // https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/673da14a4b717ded5296dc6e17b1d95c43c20147
 
 /*
+From you-know-who:
+
+The function to create lights for backdrops look like that:
+// L00439040
+void XwaCreateGlobalLightsForBackdrops(  )
+{
+	dword ebx = s_XwaPlayers[s_XwaCurrentPlayerId].Region;
+
+	for( dword edi = 0; edi < s_XwaBackdropsCountPerRegion[ebx]; edi++ )
+	{
+		if( s_XwaBackdrops[ebx * 0x20 + edi].ColorIntensity <= 0.0f )
+			continue;
+
+		XwaAddGlobalLight(
+			s_XwaBackdrops[ebx * 0x20 + edi].WorldX / 256,
+			s_XwaBackdrops[ebx * 0x20 + edi].WorldY / 256,
+			s_XwaBackdrops[ebx * 0x20 + edi].WorldZ / 256,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorIntensity,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorR,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorG,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorB
+			);
+	}
+}
+
+Before the call to XwaCreateGlobalLightsForBackdrops the global lights count is set to 0.
+The lights are created in the same order as the backdrops appear in the mission tie file.
+In the XwaTieFlightGroups array you can get the PlanetId.
+For backdrops the CraftId is CraftId_183_9001_1100_ResData_Backdrop.
+With the PlanetId you can read the backdrop model index in the XwaPlanets.
+With the model index you can read in the ExeObjectsTable the backdrop dat GroupId and ImageId.
+
+*/
+
+/*
 From Jeremy, regarding LODs and how to parse the OPT structure:
 
 There is no direct way to tell which lod is rendered.

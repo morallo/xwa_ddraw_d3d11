@@ -14,7 +14,7 @@ extern bool g_bYCenterHasBeenFixed;
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
 extern bool g_b3DVisionEnabled, g_b3DVisionForceFullScreen;
-extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
+extern bool g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
 extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bGlobalSpecToggle, g_bToggleSkipDC, g_bFadeLights, g_bDisplayGlowMarks;
 extern Vector4 g_LightVector[2];
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll, g_fMinLightIntensity, g_fGlowMarkZOfs;
@@ -264,6 +264,9 @@ extern bool g_bThrottleModulationEnabled;
 // Gimbal lock debug settings
 extern float g_fMouseRangeX, g_fMouseRangeY;
 extern float g_fMouseDecelRate_s;
+
+// OPT Debugging
+extern bool g_bDumpOptNodes;
 
 // *****************************************************
 // Global functions
