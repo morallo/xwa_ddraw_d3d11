@@ -142,6 +142,8 @@ public:
 
 	//Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
+	void OldTagXWALights();
+
 	void TagXWALights();
 
 	void TagAndFadeXWALights();

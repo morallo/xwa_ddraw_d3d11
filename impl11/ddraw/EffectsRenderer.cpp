@@ -1090,6 +1090,65 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
 
+	{
+		if (g_bDumpOptNodes)
+		{
+			int numLights = *s_XwaGlobalLightsCount;
+			log_debug("[DBG] ------------------------------");
+			for (int i = 0; i < numLights; i++)
+			{
+				log_debug("[DBG] light: %d: [%0.3f, %0.3f, %0.3f]",
+					i,
+					s_XwaGlobalLights[i].PositionX / 32768.0f,
+					s_XwaGlobalLights[i].PositionY / 32768.0f,
+					s_XwaGlobalLights[i].PositionZ / 32768.0f);
+			}
+			log_debug("[DBG] ------------------------------");
+
+			constexpr int CraftId_183_9001_1100_ResData_Backdrop = 183;
+			const XwaMission* mission = *(XwaMission**)0x09EB8E0;
+
+			for (int i = 0; i < 192; i++)
+			{
+				int CraftId = mission->FlightGroups[i].CraftId;
+				int PlanetId = mission->FlightGroups[i].PlanetId;
+
+				if (CraftId == CraftId_183_9001_1100_ResData_Backdrop && PlanetId < 104)
+				{
+					short SX = mission->FlightGroups[i].StartPoints->X;
+					short SY = mission->FlightGroups[i].StartPoints->Y;
+					short SZ = mission->FlightGroups[i].StartPoints->Z;
+					int region = mission->FlightGroups[i].StartPointRegions[0];
+					int currentRegion = PlayerDataTable[*g_playerIndex].currentRegion;
+
+					int ModelIndex = g_XwaPlanets[PlanetId].ModelIndex;
+					//log_debug("[DBG]     ModelIndex: %d", ModelIndex);
+					if (ModelIndex < 557)
+					{
+						int data1 = g_ExeObjectsTable[ModelIndex].DataIndex1;
+						int data2 = g_ExeObjectsTable[ModelIndex].DataIndex2;
+						Vector3 S = Vector3((float)SX, (float)-SY, (float)SZ);
+						S = S.normalize();
+						if (data1 >= 9001)
+						{
+							log_debug("[DBG] [%s], CraftId: %d, PlanetId: %d, S:[%0.3f, %0.3f, %0.3f]",
+								mission->FlightGroups[i].Name, CraftId, PlanetId, S.x, S.y, S.z);
+							//log_debug("[DBG]     ShipCategory: %d, ObjectCategory: %d",
+							//	g_ExeObjectsTable[ModelIndex].ShipCategory,
+							//	g_ExeObjectsTable[ModelIndex].ObjectCategory);
+							log_debug("[DBG]     region: %d, curRegion: %d, Group-Id: %d-%d",
+								region, currentRegion,
+								g_ExeObjectsTable[ModelIndex].DataIndex1,
+								g_ExeObjectsTable[ModelIndex].DataIndex2);
+						}
+					}
+				}
+			}
+
+			g_bDumpOptNodes = false;
+		}
+	}
+
 	_BLASNeedsUpdate = false;
 	/*
 	log_debug("[DBG] [BVH] g_iDebugFGChecker.size(): %d", g_iDebugFGChecker.size());

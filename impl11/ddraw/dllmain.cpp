@@ -511,7 +511,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bDumpOptNodes = !g_bDumpOptNodes;
+				g_bDumpOptNodes = true;
 
 				//g_bFadeLights = !g_bFadeLights;
 				//log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);

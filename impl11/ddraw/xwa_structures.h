@@ -44,22 +44,50 @@ enum OptNodeEnum : unsigned int
 	OptNode_EngineGlow = 28,
 };
 
-struct TieFlightGroup
+struct TieFlightGroupWaypoint
 {
-	/* 0x0000 */ char Name[20];
-	/* 0x006B */ unsigned char CraftId;
-	/* 0x0E12 */ int PlanetId;
+	short X;
+	short Y;
+	short Z;
+	short m06;
 };
 
-struct TieFlightGroupEx
+static_assert(sizeof(TieFlightGroupWaypoint) == 8, "size of TieFlightGroupWaypoint must be 8");
+
+struct TieFlightGroup
 {
-	/* 0x0000 */ TieFlightGroup FlightGroup;
-	/* 0x0E3E */ int PlayerIndex;
+	char Name[20];
+	char unk014[5];
+	unsigned char GlobalCargoIndex;
+	char unk01A[14];
+	char Cargo[20];
+	char SpecialCargo[20];
+	char unk050[27];
+	unsigned char CraftId;
+	unsigned char CraftsCount;
+	char unk06D[3];
+	unsigned char Iff;
+	unsigned char Team;
+	char unk072[6];
+	unsigned char GlobalGroupId;
+	char unk079[1];
+	unsigned char WavesCount;
+	char unk07B[47];
+	unsigned char ArrivalDelayMinutes;
+	unsigned char ArrivalDelaySeconds;
+	char unk0AC[3294];
+	TieFlightGroupWaypoint StartPoints[4];
+	char StartPointRegions[4];
+	char unkDAE[100];
+	int PlanetId;
+	char unkE16[40];
 };
+
+static_assert(sizeof(TieFlightGroup) == 3646, "size of TieFlightGroup must be 3646");
 
 // V0x0080DC80
 //Array<TieFlightGroupEx, 192> s_XwaTieFlightGroups;
-extern TieFlightGroupEx* g_XwaTieFlightGroups;
+extern TieFlightGroup* g_XwaTieFlightGroups;
 
 struct XwaPlanet
 {
@@ -91,7 +119,35 @@ static_assert(sizeof(ExeEnableEntry) == 24, "size of ExeEnableEntry must be 24")
 // ExeObjectsTable:
 // V0x005FB240
 //Array<ExeObjectEntry, 557> s_ExeObjectsTable;
-extern ExeEnableEntry* g_ExeObjectsTable;
+const extern ExeEnableEntry* g_ExeObjectsTable;
+
+struct TieHeader
+{
+	char unk0000[9128];
+	unsigned char TimeLimit;
+	char unk23A9[65];
+};
+
+static_assert(sizeof(TieHeader) == 9194, "size of TieHeader must be 9194");
+
+struct XwaMission
+{
+	TieFlightGroup FlightGroups[192];
+	char unkAAE80[18780];
+	TieHeader Header;
+	char unkB1BC6[562426];
+};
+
+static_assert(sizeof(XwaMission) == 1290432, "size of XwaMission must be 1290432");
+
+struct XwaPlayer
+{
+	char unk0000[16];
+	unsigned char Region;
+	char unk0011[3006];
+};
+
+static_assert(sizeof(XwaPlayer) == 3023, "size of XwaPlayer must be 3023");
 
 // This is the same as ObjectEntry
 struct XwaObject
