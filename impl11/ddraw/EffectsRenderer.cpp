@@ -13,6 +13,7 @@ int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCoun
 
 // Control vars
 bool g_bEnableAnimations = true;
+extern bool g_bKeepMouseInsideWindow;
 extern char g_curOPTLoaded[MAX_OPT_NAME];
 
 // Raytracing
@@ -20,6 +21,7 @@ extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+//std::map<int, int> g_iDebugFGChecker;
 
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 	"    BVH2",
@@ -42,6 +44,7 @@ uint32_t g_iRTMaxMeshesSoFar = 0;
 int g_iRTMeshesInThisFrame = 0;
 
 int g_iRTMatricesNextSlot = 0;
+int g_iRTNextBLASId = 0;
 bool g_bRTReAllocateBvhBuffer = false;
 AABB g_CameraAABB; // AABB built from the camera's frustrum
 AABB g_GlobalAABB; // AABB built after all the meshes have been seen in the current frame
@@ -87,6 +90,7 @@ inline float sign(float val)
 void InitializePlayerYawPitchRoll();
 void ApplyYawPitchRoll(float yaw_deg, float pitch_deg, float roll_deg);
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
+void ClearGlobalLBVHMap();
 
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
@@ -99,6 +103,11 @@ int32_t MakeMeshKey(const SceneCompData* scene)
 	return (int32_t)scene->MeshVertices;
 }
 
+int32_t MakeFaceGroupKey(const SceneCompData* scene)
+{
+	return (int32_t)scene->FaceIndices;
+}
+
 void RTResetMatrixSlotCounter()
 {
 	g_iRTMatricesNextSlot = 0;
@@ -108,6 +117,17 @@ int RTGetNextAvailableMatrixSlot()
 {
 	g_iRTMatricesNextSlot++;
 	return g_iRTMatricesNextSlot - 1;
+}
+
+void RTResetBlasIDs()
+{
+	g_iRTNextBLASId = 0;
+}
+
+int RTGetNextBlasID()
+{
+	g_iRTNextBLASId++;
+	return g_iRTNextBLASId - 1;
 }
 
 Matrix4 GetBLASMatrix(TLASLeafItem& tlasLeaf, int *matrixSlot)
@@ -982,6 +1002,7 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 	if (g_pSharedDataJoystick == NULL || !g_SharedMemJoystick.IsDataReady())
 		return;
 	bool RMouseDown = GetAsyncKeyState(VK_RBUTTON);
+	bool CtrlKey = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
 	float DesiredYawRate_s = 0, DesiredPitchRate_s = 0, DesiredRollRate_s = 0;
 
 	const float RollFromYawScale = g_fRollFromYawScale;
@@ -1021,7 +1042,7 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 	DesiredPitchRate_s = g_pSharedDataJoystick->JoystickPitch * MaxPitchRate_s;
 	if (g_config.JoystickEmul)
 	{
-		if (!RMouseDown)
+		if (!RMouseDown && !CtrlKey)
 		{
 			DesiredYawRate_s = g_pSharedDataJoystick->JoystickYaw * MaxYawRate_s;
 			// Apply a little roll when yaw is applied
@@ -1068,7 +1089,74 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
 
-	_BLASNeedsUpdate = false;
+#ifdef DISABLED
+	{
+		if (g_bDumpOptNodes)
+		{
+			int numLights = *s_XwaGlobalLightsCount;
+			log_debug("[DBG] ------------------------------");
+			for (int i = 0; i < numLights; i++)
+			{
+				log_debug("[DBG] light: %d: [%0.3f, %0.3f, %0.3f]",
+					i,
+					s_XwaGlobalLights[i].PositionX / 32768.0f,
+					s_XwaGlobalLights[i].PositionY / 32768.0f,
+					s_XwaGlobalLights[i].PositionZ / 32768.0f);
+			}
+			log_debug("[DBG] ------------------------------");
+
+			constexpr int CraftId_183_9001_1100_ResData_Backdrop = 183;
+			const XwaMission* mission = *(XwaMission**)0x09EB8E0;
+
+			for (int i = 0; i < 192; i++)
+			{
+				int CraftId = mission->FlightGroups[i].CraftId;
+				int PlanetId = mission->FlightGroups[i].PlanetId;
+
+				if (CraftId == CraftId_183_9001_1100_ResData_Backdrop && PlanetId < 104)
+				{
+					short SX = mission->FlightGroups[i].StartPoints->X;
+					short SY = mission->FlightGroups[i].StartPoints->Y;
+					short SZ = mission->FlightGroups[i].StartPoints->Z;
+					int region = mission->FlightGroups[i].StartPointRegions[0];
+					int currentRegion = PlayerDataTable[*g_playerIndex].currentRegion;
+
+					int ModelIndex = g_XwaPlanets[PlanetId].ModelIndex;
+					//log_debug("[DBG]     ModelIndex: %d", ModelIndex);
+					if (ModelIndex < 557)
+					{
+						int data1 = g_ExeObjectsTable[ModelIndex].DataIndex1;
+						int data2 = g_ExeObjectsTable[ModelIndex].DataIndex2;
+						Vector3 S = Vector3((float)SX, (float)-SY, (float)SZ);
+						S = S.normalize();
+						if (data1 >= 9001)
+						{
+							log_debug("[DBG] [%s], CraftId: %d, PlanetId: %d, S:[%0.3f, %0.3f, %0.3f]",
+								mission->FlightGroups[i].Name, CraftId, PlanetId, S.x, S.y, S.z);
+							//log_debug("[DBG]     ShipCategory: %d, ObjectCategory: %d",
+							//	g_ExeObjectsTable[ModelIndex].ShipCategory,
+							//	g_ExeObjectsTable[ModelIndex].ObjectCategory);
+							log_debug("[DBG]     region: %d, curRegion: %d, Group-Id: %d-%d",
+								region, currentRegion,
+								g_ExeObjectsTable[ModelIndex].DataIndex1,
+								g_ExeObjectsTable[ModelIndex].DataIndex2);
+						}
+					}
+				}
+			}
+
+			g_bDumpOptNodes = false;
+		}
+	}
+#endif
+
+	/*
+	log_debug("[DBG] [BVH] g_iDebugFGChecker.size(): %d", g_iDebugFGChecker.size());
+	for (auto &it : g_iDebugFGChecker) {
+		log_debug("[DBG] [BVH]     0x%x --> %d", it.first, it.second);
+	}
+	g_iDebugFGChecker.clear();
+	*/
 
 	static float lastTime = g_HiResTimer.global_time_s;
 	float now = g_HiResTimer.global_time_s;
@@ -1150,6 +1238,14 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	if (PlayerDataTable->missionTime == 0)
 		ApplyCustomHUDColor();
 
+	if (g_bKeepMouseInsideWindow && !g_bInTechRoom)
+	{
+		// I'm a bit tired of clicking the mouse outside the window when debugging.
+		// I. shall. end. this. now.
+		SetCursorPos(0, 0);
+	}
+
+	_BLASNeedsUpdate = false;
 	if (g_bRTEnabled)
 	{
 		// Restart the TLAS for the frame that is about to begin
@@ -1203,7 +1299,27 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	}
 }
 
-// Build a single BVH from the contents of the g_LBVHMap and put it into _lbvh
+LBVH* EffectsRenderer::BuildBVH(const std::vector<XwaVector3>& vertices, const std::vector<int>& indices)
+{
+	// All the data for this FaceGroup is ready, let's build the BLAS BVH
+	switch (g_BVHBuilderType)
+	{
+	case BVHBuilderType_BVH2:
+		// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
+		return LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
+
+	case BVHBuilderType_QBVH:
+		// 2-step LBVH build: QBVH, Encoding.
+		return LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+
+	case BVHBuilderType_FastQBVH:
+		// 1-step LBVH build: QBVH is built and encoded in one step.
+		return LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+	}
+	return nullptr;
+}
+
+// Build a single BVH from the contents of the g_LBVHMap and put it into _lbvh.
 void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 {
 	// DEBUG, dump the vertices we saw in the previous frame to a file
@@ -1324,25 +1440,9 @@ void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 	// g_HiResTimer is called here to measure the time it takes to build the BVH. This should
 	// not be used during regular flight as it will mess up the animations
 	//g_HiResTimer.GetElapsedTime();
-
-	switch (g_BVHBuilderType)
-	{
-	case BVHBuilderType_BVH2:
-		// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-		_lbvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-
-	case BVHBuilderType_QBVH:
-		// 2-step LBVH build: QBVH, Encoding.
-		_lbvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-
-	case BVHBuilderType_FastQBVH:
-		// 1-step LBVH build: QBVH is built and encoded in one step.
-		_lbvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-		break;
-	}
+	_lbvh = BuildBVH(vertices, indices);
 	//g_HiResTimer.GetElapsedTime();
+
 	int root = _lbvh->nodes[0].rootIdx;
 	log_debug("[DBG] [BVH] Builder: %s:%s, %s, total nodes: %d, actual nodes: %d",
 		g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
@@ -1356,25 +1456,26 @@ void EffectsRenderer::BuildSingleBLASFromCurrentBVHMap()
 	}
 }
 
-// Builds one BLAS per mesh and populates its corresponding tuple in g_LBVHMap
-void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
+// Builds one BLAS per mesh and populates its corresponding tuple in g_BLASMap
+void EffectsRenderer::BuildMultipleBLASFromCurrentBLASMap()
 {
 	// At least one BLAS needs to be rebuilt in this frame, let's count
 	// the total nodes again.
 	g_iRTTotalBLASNodesInFrame = 0;
 
-	for (auto& it : g_LBVHMap)
+	for (auto& it : g_BLASMap)
 	{
-		std::vector<XwaVector3> vertices;
-		std::vector<int> indices;
-		int meshKey = it.first;
+		std::vector<XwaVector3>   vertices;
+		std::vector<int>          indices;
+		int blasID              = it.first;
+		BLASData& blasData      = it.second;
+		int meshKey             = BLASGetMeshVertices(blasData);
 		XwaVector3* XwaVertices = (XwaVector3*)meshKey; // The mesh key is actually the Vertex array
-		MeshData& meshData = it.second;
-		const FaceGroups& FGs = GetFaceGroups(meshData);
-		int NumVertices = GetNumMeshVertices(meshData);
-		LBVH* bvh = (LBVH*)GetLBVH(meshData);
+		const int NumVertices   = BLASGetNumVertices(blasData);
+		LBVH* bvh               = (LBVH*)BLASGetBVH(blasData);
+		const FaceGroups FGs    = BLASGetFaceGroups(blasData); // To make this code uniform, the FG is populated even when the blasData is not coalesced
 
-		// First, let's check if this mesh already has a BVH. If it does, skip it.
+		// First, let's check if this (mesh, LOD) already has a BVH. If it does, skip it.
 		if (bvh != nullptr) {
 			// Update the total node count
 			g_iRTTotalBLASNodesInFrame += bvh->numNodes;
@@ -1382,6 +1483,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 		}
 
 		// DEBUG: Skip meshes we don't care about
+#undef DEBUG_RT
 #ifdef DEBUG_RT
 		if (false)
 		{
@@ -1389,7 +1491,7 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			if (stristr(std::get<0>(debugItem).c_str(), "ImperialStarDestroyer") == NULL)
 			{
 				// Remove this BVH
-				GetLBVH(meshData) = nullptr;
+				BLASGetBVH(blasData) = nullptr;
 				continue;
 			}
 
@@ -1411,13 +1513,13 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			vertices.push_back(XwaVertices[i]);
 		}
 
-		// Populate the indices
+		// Populate the indices from all FaceGroups in this entry
 		for (const auto& FG : FGs)
 		{
-			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)(FG.first);
-			int FacesCount = FG.second;
-
-			for (int faceIndex = 0; faceIndex < FacesCount; faceIndex++) {
+			const int facesGroupID = FG.first;
+			const int facesCount = FG.second;
+			OptFaceDataNode_01_Data_Indices* FaceIndices = (OptFaceDataNode_01_Data_Indices*)facesGroupID;
+			for (int faceIndex = 0; faceIndex < facesCount; faceIndex++) {
 				OptFaceDataNode_01_Data_Indices& faceData = FaceIndices[faceIndex];
 				int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
 				indices.push_back(faceData.Vertex[0]);
@@ -1431,49 +1533,34 @@ void EffectsRenderer::BuildMultipleBLASFromCurrentBVHMap()
 			}
 		}
 
-		// All the FaceGroups have been added, the tree can be built now
-		switch (g_BVHBuilderType)
-		{
-		case BVHBuilderType_BVH2:
-			// 3-step LBVH build: BVH2, QBVH conversion, Encoding.
-			bvh = LBVH::Build(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-
-		case BVHBuilderType_QBVH:
-			// 2-step LBVH build: QBVH, Encoding.
-			bvh = LBVH::BuildQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-
-		case BVHBuilderType_FastQBVH:
-			// 1-step LBVH build: QBVH is built and encoded in one step.
-			bvh = LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
-			break;
-		}
-
+		bvh = BuildBVH(vertices, indices);
 		// Update the total node count
 		g_iRTTotalBLASNodesInFrame += bvh->numNodes;
 		// Put this bvh back into the g_LBVHMap
-		GetLBVH(meshData) = bvh;
+		BLASGetBVH(blasData) = bvh;
 
 		// DEBUG
 #ifdef DEBUG_RT
 		{
 			int root = bvh->nodes[0].rootIdx;
-			auto& item = g_DebugMeshToNameMap[meshKey];
-			log_debug("[DBG] [BVH] MultiBuilder: %s:%s, %s, vertCount: %d, meshKey: 0x%x, "
-				"total nodes: %d, actual nodes: %d",
+			auto& debugItem = g_DebugMeshToNameMap[meshKey];
+			log_debug("[DBG] [BVH] %sMultiBuilder: %s:%s, %s, vertCount: %d, FGs: %d, OPTmeshIndex: %d, "
+				"ID: 0x%x, total nodes: %d",
+				(FGs.size() > 1) ? "[CLS] " : "",
 				g_sBVHBuilderTypeNames[g_BVHBuilderType], g_bEnableQBVHwSAH ? "SAH" : "Non-SAH",
-				std::get<0>(item).c_str(), std::get<1>(item), meshKey,
-				bvh->numNodes, bvh->numNodes - root);
+				std::get<0>(debugItem).c_str(), // Name of the OPT
+				std::get<1>(debugItem),         // vertCount
+				FGs.size(),
+				std::get<2>(debugItem),			// OPTmeshIndex
+				ID,
+				bvh->numNodes);
 		}
 #endif
 	}
 
 	g_bRTReAllocateBvhBuffer = (g_iRTTotalBLASNodesInFrame > g_iRTMaxBLASNodesSoFar);
-#ifdef DEBUG_RT
 	log_debug("[DBG] [BVH] MultiBuilder: g_iRTTotalNumNodesInFrame: %d, g_iRTMaxNumNodesSoFar: %d, Reallocate? %d",
 		g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_bRTReAllocateBvhBuffer);
-#endif
 	g_iRTMaxBLASNodesSoFar = max(g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar);
 }
 
@@ -1538,52 +1625,102 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 	}
 
 	// Populate the BVH buffer
-	if (_BLASNeedsUpdate)
+	if (g_bRTReAllocateBvhBuffer || _BLASNeedsUpdate)
 	{
-		D3D11_MAPPED_SUBRESOURCE map;
-		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-		hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		if (SUCCEEDED(hr))
+		if (!g_bInTechRoom)
 		{
-			//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
-			uint8_t* base_ptr = (uint8_t*)map.pData;
-			int BaseNodeOffset = 0;
-			for (auto& it : g_LBVHMap)
+			D3D11_MAPPED_SUBRESOURCE map;
+			ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+			hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+			if (SUCCEEDED(hr))
 			{
-				MeshData& meshData = it.second;
-				LBVH* bvh = (LBVH*)GetLBVH(meshData);
-				if (bvh != nullptr)
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
+				uint8_t* base_ptr = (uint8_t*)map.pData;
+				int BaseNodeOffset = 0;
+				for (auto& it : g_BLASMap)
 				{
-					//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
-#ifdef DEBUG_RT
-					if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
-						BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+					BLASData& blasData = it.second;
+					LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+					if (bvh != nullptr)
 					{
-						log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
-							"g_iRTMaxBLASNodesSoFar: %d",
-							BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
-					}
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
+#ifdef DEBUG_RT
+						if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
+							BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+						{
+							log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
+								"g_iRTMaxBLASNodesSoFar: %d",
+								BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
+						}
 #endif
-					// Save the location where this BLAS begins
-					GetBaseNodeOffset(meshData) = BaseNodeOffset;
-					// Populate the buffer itself
-					memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
-					base_ptr += sizeof(BVHNode) * bvh->numNodes;
-					BaseNodeOffset += bvh->numNodes;
+						// Save the location where this BLAS begins
+						BLASGetBaseNodeOffset(blasData) = BaseNodeOffset;
+						// Populate the buffer itself
+						memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
+						base_ptr += sizeof(BVHNode) * bvh->numNodes;
+						BaseNodeOffset += bvh->numNodes;
+					}
+					else
+					{
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
+						BLASGetBaseNodeOffset(blasData) = -1;
+					}
 				}
-				else
-				{
-					//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
-					GetBaseNodeOffset(meshData) = -1;
-				}
+				context->Unmap(resources->_RTBvh.Get(), 0);
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
 			}
-			context->Unmap(resources->_RTBvh.Get(), 0);
-			//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
+			else
+				log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
 		}
 		else
-			log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
+		{
+			D3D11_MAPPED_SUBRESOURCE map;
+			ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+			hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+			if (SUCCEEDED(hr))
+			{
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
+				uint8_t* base_ptr = (uint8_t*)map.pData;
+				int BaseNodeOffset = 0;
+				for (auto& it : g_LBVHMap)
+				{
+					MeshData& meshData = it.second;
+					LBVH* bvh = (LBVH*)GetLBVH(meshData);
+					if (bvh != nullptr)
+					{
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
+#ifdef DEBUG_RT
+						if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
+							BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
+						{
+							log_debug("[DBG] [BVH] [REALLOC] ERROR: BaseNodeOffset: %d, numNodes: %d, addition: %d, "
+								"g_iRTMaxBLASNodesSoFar: %d",
+								BaseNodeOffset, bvh->numNodes, BaseNodeOffset + bvh->numNodes, g_iRTMaxBLASNodesSoFar);
+						}
+#endif
+						// Save the location where this BLAS begins
+						GetBaseNodeOffset(meshData) = BaseNodeOffset;
+						// Populate the buffer itself
+						memcpy(base_ptr, bvh->nodes, sizeof(BVHNode) * bvh->numNodes);
+						base_ptr += sizeof(BVHNode) * bvh->numNodes;
+						BaseNodeOffset += bvh->numNodes;
+					}
+					else
+					{
+						//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
+						GetBaseNodeOffset(meshData) = -1;
+					}
+				}
+				context->Unmap(resources->_RTBvh.Get(), 0);
+				//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
+			}
+			else
+				log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
+		}
 	}
+
 #ifdef DEBUG_RT
 	log_debug("[DBG] [BVH] [REALLOC] EXIT");
 #endif
@@ -1737,7 +1874,7 @@ void EffectsRenderer::ReAllocateAndPopulateMatrixBuffer()
 	}
 
 	{
-		// Populate the matrices for all the meshes
+		// Populate the matrices for all the faceGroupIDs
 		D3D11_MAPPED_SUBRESOURCE map;
 		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
 		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
@@ -1775,10 +1912,10 @@ void EffectsRenderer::SceneEnd()
 			// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
 			BuildSingleBLASFromCurrentBVHMap();
 		}
-		else if (g_bRTEnabled)
+		else if (g_bRTEnabled && !(*g_playerInHangar))
 		{
 			// Build multiple BLASes and put them in g_LBVHMap
-			BuildMultipleBLASFromCurrentBVHMap();
+			BuildMultipleBLASFromCurrentBLASMap();
 			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
 			ReAllocateAndPopulateBvhBuffers(g_iRTTotalBLASNodesInFrame);
 			g_bRTReAllocateBvhBuffer = false;
@@ -1786,7 +1923,7 @@ void EffectsRenderer::SceneEnd()
 		_BLASNeedsUpdate = false;
 	}
 
-	if (g_bRTEnabled && !g_bInTechRoom)
+	if (g_bRTEnabled && !g_bInTechRoom && !(*g_playerInHangar))
 	{
 		// We may need to reallocate the matrices buffer depending on how many
 		// unique meshes we saw in this frame
@@ -2122,7 +2259,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		//bIsHyperspaceTunnel = lastTextureSelected->is_HyperspaceAnim;
 		_bIsCockpit = _lastTextureSelected->is_CockpitTex;
 		_bIsGunner = _lastTextureSelected->is_GunnerTex;
-		//bIsExterior = lastTextureSelected->is_Exterior;
+		_bIsExterior = _lastTextureSelected->is_Exterior;
 		//bIsDAT = lastTextureSelected->is_DAT;
 		//bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
 		_bIsBlastMark = _lastTextureSelected->is_BlastMark;
@@ -3168,25 +3305,62 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		return &it->second;
 }
 
+void EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
+{
+	char sToken[] = "Flightmodels\\";
+	char* subString = stristr(_lastTextureSelected->_name.c_str(), sToken);
+	subString += strlen(sToken);
+	int i = 0;
+	while (subString[i] != 0 && subString[i] != '.') {
+		OPTname[i] = subString[i];
+		i++;
+	}
+	OPTname[i] = 0;
+}
+
 // Update g_TLASMap: checks if we've seen the current mesh in this frame. If we
 // haven't seen this mesh, a new matrix slot is requested and a new (meshKey, matrixSlot)
 // entry is added to g_TLASMap. Otherwise we fetch the matrixSlot for the meshKey.
 //
+// Regular Flight:
+// Update g_BLASMap: checks if the current mesh/face group combination is new.
+// If it is, then a new blasData entry will be added to g_BLASMap and this will
+// request a BLAS tree to be built at the end of the frame.
+//
+// Tech Room:
 // Update g_LBVHMap: checks if the current mesh/face group combination is new.
-// If it is, then a new meshData tuple will be added into g_LBVHMap and this will
-// request a BLAS tree rebuild at the end of this frame.
+// If it is, then a new face group will be added to the meshData tuple in g_LBVHMap.
+// This will request a single coalesced BLAS rebuild at the end of the frame.
 //
 // The same matrixSlot is used for both maps and makes a direct link between the TLAS
 // and the BLASes
-void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
+void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 {
 	XwaVector3* MeshVertices = scene->MeshVertices;
-	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
-	int32_t meshKey = MakeMeshKey(scene);
-	int matrixSlot = -1;
+	int MeshVerticesCount    = *(int*)((int)scene->MeshVertices - 8);
+	int32_t meshKey          = MakeMeshKey(scene);
+	int32_t faceGroupID      = MakeFaceGroupKey(scene);
+	int matrixSlot           = -1;
+	int blasID               = -1;
+	FaceGroups FGs;
+	FGs.clear();
 
-	// Update g_TLASMap and get a new matrix slot if necessary -- or find the
-	// existing matrixSlot for the current mesh/centroid
+	// Fetch the ID for this (MeshKey, LOD)
+	const BLASKey_t blasKey = BLASKey_t(meshKey, LOD);
+	const auto& bit = g_BLASIdMap.find(blasKey);
+	if (bit == g_BLASIdMap.end())
+	{
+		// We've never seen this Mesh/LOD before, create a new ID and add it
+		blasID = RTGetNextBlasID();
+		g_BLASIdMap[blasKey] = blasID;
+	}
+	else
+	{
+		blasID = bit->second;
+	}
+
+	// Update g_TLASMap and get a new BlasID and Matrix Slot if necessary -- or find the
+	// existing blasID and matrixSlot for the current mesh/LOD/centroid
 	{
 		// Get the OBB and centroid for this mesh.
 		Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
@@ -3199,13 +3373,13 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
 			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
 
-			MeshNCentroid_t meshNcentroidKey = MeshNCentroid_t(meshKey, centroid.x, centroid.y, centroid.z);
-			auto it = g_TLASMap.find(meshNcentroidKey);
+			IDCentroid_t IDCentroidKey = IDCentroid_t(blasID, centroid.x, centroid.y, centroid.z);
+			auto it = g_TLASMap.find(IDCentroidKey);
 			if (it == g_TLASMap.end())
 			{
-				// We haven't seen this mesh/centroid combination before, add a new entry
+				// We haven't seen this (blasID, centroid) combination before, add a new entry
 				matrixSlot = RTGetNextAvailableMatrixSlot();
-				g_TLASMap[meshNcentroidKey] = matrixSlot;
+				g_TLASMap[IDCentroidKey] = matrixSlot;
 				// Store the matrix proper, but inverted. That's what the RT code needs so that
 				// we can transform from WorldView to OPT-coords
 				Matrix4 WInv = W;
@@ -3219,7 +3393,7 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, meshKey, centroid, matrixSlot, obb));
+				tlasLeaves.push_back(TLASLeafItem(0, aabb, blasID, centroid, matrixSlot, obb));
 			}
 			else
 			{
@@ -3229,57 +3403,92 @@ void EffectsRenderer::UpdateGlobalBVH(const SceneCompData* scene)
 		}
 	}
 
-	// Now update the g_LBVHMap so that we can rebuild BLASes if needed.
-	MeshData meshData;
-	FaceGroups FGs;
-	auto it = g_LBVHMap.find(meshKey);
-	GetLBVH(meshData) = nullptr; // Initialize the BVH to NULL
-	// We have seen this mesh before, but we need to check if we've seen
-	// the FG as well
-	if (it != g_LBVHMap.end())
+	if (!g_bInTechRoom)
 	{
-		// Check if we've seen this FG group before
-		meshData = it->second;
-		FGs = GetFaceGroups(meshData);
-		// The FG key is FaceIndices:
-		auto it = FGs.find((int32_t)scene->FaceIndices);
-		if (it != FGs.end())
+		// Now update the g_BLASMap so that we can build multiple BLASes if needed.
+		BLASData blasData;
+		BLASGetBVH(blasData) = nullptr; // Initialize the new blasData BVH to NULL
+		auto it = g_BLASMap.find(blasID);
+		if (it != g_BLASMap.end())
 		{
-			// We've seen this mesh/FG combination before, ignore
-			return;
+			// We've seen this (Mesh, LOD) before, we need to check
+			// if we've seen this FG before too
+			blasData = it->second;
+			FGs = BLASGetFaceGroups(blasData);
+			// The FG key is FaceIndices:
+			auto it = FGs.find(faceGroupID);
+			if (it != FGs.end())
+			{
+				// We've seen this mesh/FG combination before, ignore
+				return;
+			}
 		}
+
+		// Signal that there's at least one BLAS that needs to be rebuilt
+		_BLASNeedsUpdate = true;
+
+		// Update the g_BLASMap entry
+		// Delete any previous BVH for this blasData entry
+		LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+		if (bvh != nullptr)
+			delete bvh;
+		BLASGetBVH(blasData)          = nullptr; // Force this BVH to be rebuilt
+		// Add the FG to the map so that it's not processed again.
+		FGs[faceGroupID]              = scene->FacesCount;
+		BLASGetFaceGroups(blasData)   = FGs;
+		BLASGetMeshVertices(blasData) = (int)scene->MeshVertices;
+		BLASGetNumVertices(blasData)  = scene->VerticesCount;
+		g_BLASMap[blasID]             = blasData;
 	}
+	else
+	{
+		// Now update the g_LBVHMap so that we can rebuild BLASes if needed.
+		MeshData meshData;
+		FaceGroups FGs;
+		GetLBVH(meshData) = nullptr; // Initialize the new meshData BVH to NULL
+		auto it = g_LBVHMap.find(meshKey);
+		// We have seen this mesh before, but we need to check if we've seen
+		// the FG as well
+		if (it != g_LBVHMap.end())
+		{
+			// Check if we've seen this FG group before
+			meshData = it->second;
+			FGs = GetFaceGroups(meshData);
+			// The FG key is FaceIndices:
+			auto it = FGs.find((int32_t)scene->FaceIndices);
+			if (it != FGs.end())
+			{
+				// We've seen this mesh/FG combination before, ignore
+				return;
+			}
+		}
 
-	// Signal that there's at least one BLAS that needs to be rebuilt
-	_BLASNeedsUpdate = true;
-	// Delete any previous BVH for this mesh
-	LBVH* bvh = (LBVH*)GetLBVH(meshData);
-	if (bvh != nullptr)
-		delete bvh;
+		// Signal that there's at least one BLAS that needs to be rebuilt
+		_BLASNeedsUpdate = true;
+		// Delete any previous BVH for this mesh
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
+		if (bvh != nullptr)
+			delete bvh;
 
-	// Update the g_LBVHMap
-	// Add the FG to the map so that it's not processed again
-	FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
-	// Update the FaceGroup in the meshData
-	GetFaceGroups(meshData)		 = FGs;
-	GetNumMeshVertices(meshData) = scene->VerticesCount;
-	GetLBVH(meshData)			 = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
-	g_LBVHMap[meshKey]			 = meshData;
+		// Update the g_LBVHMap
+		// Add the FG to the map so that it's not processed again
+		FGs[(int32_t)scene->FaceIndices] = scene->FacesCount;
+		// Update the FaceGroup in the meshData
+		GetFaceGroups(meshData) = FGs;
+		GetNumMeshVertices(meshData) = scene->VerticesCount;
+		GetLBVH(meshData) = nullptr; // Force an update on this BLAS (only used outside the Tech Room)
+		g_LBVHMap[meshKey] = meshData;
+	}
 
 	// DEBUG: Add the OPT's name to g_MeshToNameMap
 #ifdef DEBUG_RT
 	{
-		char sToken[] = "Flightmodels\\";
-		char* subString = stristr(_lastTextureSelected->_name.c_str(), sToken);
-		subString += strlen(sToken);
 		char OPTname[128];
-		int i = 0;
-		while (subString[i] != 0 && subString[i] != '.') {
-			OPTname[i] = subString[i];
-			i++;
-		}
-		OPTname[i] = 0;
-		g_DebugMeshToNameMap[meshKey] = std::tuple(std::string(OPTname), MeshVerticesCount);
+		GetOPTNameFromLastTextureSelected(OPTname);
+		g_DebugMeshToNameMap[meshKey] = std::tuple(
+			std::string(OPTname),
+			MeshVerticesCount,
+			_currentOptMeshIndex);
 	}
 #endif
 }
@@ -3521,7 +3730,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	{
 		g_RTConstantsBuffer.bRTEnable = g_bRTEnabled &&	(!*g_playerInHangar) &&
 			(g_HyperspacePhaseFSM == HS_INIT_ST);
-		g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
+		// g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
+		g_RTConstantsBuffer.bRTAllowShadowMapping =
+			// Allow shadow mapping if we're in the hangar
+			*g_playerInHangar ||
+			// Or if we're not in the hangar, not in external view and RTCockpit is off
+			(!*g_playerInHangar && !_bExternalCamera && !g_bRTEnabledInCockpit);
+		//g_RTConstantsBuffer.bEnablePBRShading = 0;
 		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
 		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
@@ -3586,16 +3801,56 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// cast and catch shadows otherwise).
 	if ((g_bRTEnabledInTechRoom || g_bRTEnabled) &&
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
+		!(*g_playerInHangar) && // Disable raytracing when parked in the hangar
 		_bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture)
 	{
 		bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
+		// bCoalesce is set to true if the current Face Group must be coalesced with other
+		// face groups in the same mesh. FGs belonging to different LODs should not be
+		// coalesced, but we know that cockpit and exterior OPTs don't have LODs.
+		//bool bCoalesce = _bIsCockpit || _bIsExterior || g_bRTCoalesceEverything;
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
+
 		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
-			UpdateGlobalBVH(scene);
+			// DEBUG
+			/*
+			char OPTname[120];
+			GetOPTNameFromLastTextureSelected(OPTname);
+			if (stristr(OPTname, "MediumTransport") != NULL && _currentOptMeshIndex == 0)
+			{
+				{
+					int faceGroupID = MakeFaceGroupKey(scene);
+					auto& it = g_FGToLODMap.find(faceGroupID);
+					if (it != g_FGToLODMap.end())
+					{
+						log_debug("[DBG] [OPT] %s FG 0x%x --> %d",
+							OPTname, faceGroupID, it->second);
+					}
+				}
+				//auto& it = g_iDebugFGChecker.find((int)scene->FaceIndices);
+				//if (it == g_iDebugFGChecker.end())
+				//	g_iDebugFGChecker[(int)scene->FaceIndices] = scene->FacesCount;
+				//log_debug("[DBG] [BVH] MediumTransport, FG: 0x%x", scene->FaceIndices);
+			}
+			*/
+
+			// Find the LOD for this FaceGroup. We need this so that we can coalesce
+			// all the FGs belonging to the same LOD in one BVH. That improves performance.
+			int faceGroupId = MakeFaceGroupKey(scene);
+			auto& it = g_FGToLODMap.find(faceGroupId);
+			int LOD = -1;
+			if (it != g_FGToLODMap.end())
+			{
+				LOD = it->second;
+			}
+			else
+				log_debug("[DBG] [BVH] ERROR. No LOD for FG: 0x%x", faceGroupId);
+			// Populate the TLAS and BLAS maps so that we can build BVHs at the end of the frame
+			UpdateBVHMaps(scene, LOD);
 		}
 	}
 
@@ -4366,14 +4621,8 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderCockpitShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
-
-	// Don't render the shadow map if Raytraced cockpit shadows is enabled
-	if (g_bRTEnabled && g_bRTEnabledInCockpit)
-	{
-		// ... but set the shadowmapping constants anyway: this is what fades out the lights.
-		resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
-		return;
-	}
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
 
 	// We're still tagging the lights in PrimarySurface::TagXWALights(). Here we just render
 	// the ShadowMap.
@@ -4386,14 +4635,20 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	// we must set the PS constants here even if we're not rendering shadows at all
 	resources->InitPSConstantBufferShadowMap(resources->_shadowMappingPSConstantBuffer.GetAddressOf(), &g_ShadowMapVSCBuffer);
 
+	// Don't render the shadow map if Raytraced cockpit shadows is enabled
+	// ... unless we're in the hangar. Always do shadow mapping in the hangar
+	if ((g_bRTEnabled && g_bRTEnabledInCockpit) && !(*g_playerInHangar))
+	{
+		goto out;
+	}
+
 	// Shadow Mapping is disabled when the we're in external view or traveling through hyperspace.
 	// Maybe also disable it if the cockpit is hidden
 	if (!g_ShadowMapping.bEnabled || !g_bShadowMapEnable || !g_ShadowMapping.bUseShadowOBJ || _bExternalCamera ||
 		!_bCockpitDisplayed || g_HyperspacePhaseFSM != HS_INIT_ST || !_bCockpitConstantsCaptured ||
 		_bShadowsRenderedInCurrentFrame)
 	{
-		_deviceResources->_d3dAnnotation->EndEvent();
-		return;
+		goto out;
 	}
 
 	SaveContext();
@@ -4402,8 +4657,6 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 
 	// Enable ZWrite: we'll need it for the ShadowMap
-	D3D11_DEPTH_STENCIL_DESC desc;
-	ComPtr<ID3D11DepthStencilState> depthState;
 	desc.DepthEnable = TRUE;
 	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	desc.DepthFunc = D3D11_COMPARISON_LESS;
@@ -4494,6 +4747,8 @@ void EffectsRenderer::RenderCockpitShadowMap()
 
 	RestoreContext();
 	_bShadowsRenderedInCurrentFrame = true;
+
+out:
 	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
@@ -4502,21 +4757,26 @@ void EffectsRenderer::RenderHangarShadowMap()
 	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderHangarShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	Matrix4 S1, S2, ST;
 
-	if (!*g_playerInHangar)
-		return;
-
-	if (!g_bShadowMapEnable || _ShadowMapDrawCommands.size() == 0 || _bHangarShadowsRenderedInCurrentFrame ||
-		g_HyperspacePhaseFSM != HS_INIT_ST) {
+	if (!*g_playerInHangar || !g_bShadowMapEnable || _ShadowMapDrawCommands.size() == 0 ||
+		_bHangarShadowsRenderedInCurrentFrame || g_HyperspacePhaseFSM != HS_INIT_ST)
+	{
 		_ShadowMapDrawCommands.clear();
-		_deviceResources->_d3dAnnotation->EndEvent();
-		return;
+		goto out;
 	}
 
 	// If there's no cockpit shadow map, we must disable the first shadow map slot, but continue rendering hangar shadows
 	if (!g_ShadowMapping.bUseShadowOBJ || _bExternalCamera)
-		g_ShadowMapVSCBuffer.sm_black_levels[0] = 1.0f;
-	else 
+	{
+		// This is getting tricky, but the PBR shader modulates lights and shadows and we need to
+		// keep the first light as a shadow caster or the PBR shader will darken everything when
+		// enabled. For the Deferred shader, the first caster must still be disabled.
+		g_ShadowMapVSCBuffer.sm_black_levels[0] = g_RTConstantsBuffer.bEnablePBRShading ? 0.05f : 1.0f;
+	}
+	else
 		g_ShadowMapVSCBuffer.sm_black_levels[0] = 0.05f;
 	// Make hangar shadows darker, as in the original version
 	g_ShadowMapVSCBuffer.sm_black_levels[1] = 0.05f;
@@ -4542,8 +4802,6 @@ void EffectsRenderer::RenderHangarShadowMap()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 
 	// Enable ZWrite: we'll need it for the ShadowMap
-	D3D11_DEPTH_STENCIL_DESC desc;
-	ComPtr<ID3D11DepthStencilState> depthState;
 	desc.DepthEnable = TRUE;
 	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	desc.DepthFunc = D3D11_COMPARISON_LESS;
@@ -4575,7 +4833,7 @@ void EffectsRenderer::RenderHangarShadowMap()
 
 	// Shadow map limits
 	float range, minZ;
-	Matrix4 ST = GetShadowMapLimits(_hangarShadowAABB, &range, &minZ);
+	ST = GetShadowMapLimits(_hangarShadowAABB, &range, &minZ);
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	int ShadowMapIdx = 1; // Shadow maps for the hangar are always located at index 1
@@ -4586,7 +4844,6 @@ void EffectsRenderer::RenderHangarShadowMap()
 	context->ClearDepthStencilView(resources->_shadowMapDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// Set the Shadow Map DSV
 	context->OMSetRenderTargets(0, 0, resources->_shadowMapDSV.Get());
-	Matrix4 S1, S2;
 	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
 	S2.scale(METERS_TO_OPT, -METERS_TO_OPT, METERS_TO_OPT);
 
@@ -4635,6 +4892,8 @@ void EffectsRenderer::RenderHangarShadowMap()
 	RestoreContext();
 	_bHangarShadowsRenderedInCurrentFrame = true;
 	_ShadowMapDrawCommands.clear();
+
+out:
 	_deviceResources->_d3dAnnotation->EndEvent();
 }
 

@@ -181,6 +181,8 @@ void DumpD3dVertices(D3dVertex* vertices, int count)
 
 #endif
 
+#define VERBOSE_OPT_OUTPUT 0
+
 D3dRendererType g_D3dRendererType;
 
 bool g_isInRenderLasers = false;
@@ -189,10 +191,17 @@ bool g_isInRenderHyperspaceLines = false;
 
 RendererType g_rendererType = RendererType_Unknown;
 
+bool g_bDumpOptNodes = false;
 char g_curOPTLoaded[MAX_OPT_NAME];
+// Used to tag which meshes have been parsed by the Opt Parser.
+// This map is used just to avoid parsing the same mesh more than once
+std::map<int, int> g_MeshTagMap;
+// Maps Face Groups to LOD.
+std::map<int, int> g_FGToLODMap;
 
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
+void RTResetBlasIDs();
 void ComputeTreeStats(IGenericTreeNode* root);
 
 XwaVector3 cross(const XwaVector3 &v0, const XwaVector3 &v1)
@@ -1309,21 +1318,41 @@ void D3dRenderer::RenderGlowMarks()
 	_glowMarksTriangles.clear();
 }
 
-// Clears g_LBVHMap
+// Clears g_LBVHMap and g_BLASMap
 void ClearGlobalLBVHMap()
 {
+	// The following code is for the Tech Room/Cockpit/Coalesced BVHs:
 	// Release any BLASes that may be stored in the BVH map
 	for (auto& it : g_LBVHMap)
 	{
 		MeshData& meshData = it.second;
-		LBVH* bvh = (LBVH*)std::get<2>(meshData);
+		LBVH* bvh = (LBVH*)GetLBVH(meshData);
 		if (bvh != nullptr) {
 			delete bvh;
 		}
-		std::get<2>(meshData) = nullptr;
+		GetLBVH(meshData) = nullptr;
 	}
-
 	g_LBVHMap.clear();
+
+	// The following code is for regular flight:
+	// Release any BLASes that may be stored in the BLAS map
+	for (auto& it : g_BLASMap)
+	{
+		BLASData& blasData = it.second;
+		LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+		if (bvh != nullptr) {
+			delete bvh;
+		}
+		BLASGetBVH(blasData) = nullptr;
+	}
+	g_BLASMap.clear();
+
+	RTResetBlasIDs();
+	g_BLASIdMap.clear();
+	g_FGToLODMap.clear();
+	g_MeshTagMap.clear();
+
+#undef DEBUG_RT
 #ifdef DEBUG_RT
 	g_DebugMeshToNameMap.clear();
 #endif
@@ -1760,6 +1789,166 @@ void D3dRendererOptLoadHook(int handle)
 	D3dRendererFlightStart();
 }
 
+char* OptNodeTypeToStr(int type)
+{
+	switch (type) {
+	case OptNode_NodeGroup:
+		return "NodeGroup";
+	case OptNode_FaceData:
+		return "FaceData";
+	case OptNode_TransformPositionRotation:
+		return "TransformPositionRotation";
+	case OptNode_MeshVertices:
+		return "MeshVertices";
+	case OptNode_TransformPosition:
+		return "TransformPosition";
+	case OptNode_TransformRotation:
+		return "TransformRotation";
+	case OptNode_TransformScale:
+		return "TransformScale";
+	case OptNode_NodeReference:
+		return "NodeReference";
+	case OptNode_Unknown9:
+		return "Unknown9";
+	case OptNode_Unknown10:
+		return "Unknown10";
+	case OptNode_VertexNormals:
+		return "VertexNormals";
+	case OptNode_Unknown12:
+		return "Unknown12";
+	case OptNode_TextureVertices:
+		return "TextureVertices";
+	case OptNode_Unknown14:
+		return "Unknown14";
+	case OptNode_FaceData_0F:
+		return "FaceData_0F";
+	case OptNode_FaceData_10:
+		return "FaceData_10";
+	case OptNode_FaceData_11:
+		return "FaceData_11";
+	case OptNode_Unknown19:
+		return "Unknown19";
+	case OptNode_Texture:
+		return "Texture";
+	case OptNode_FaceGrouping:
+		return "FaceGrouping";
+	case OptNode_Hardpoint:
+		return "Hardpoint";
+	case OptNode_RotationScale:
+		return "RotationScale";
+	case OptNode_NodeSwitch:
+		return "NodeSwitch";
+	case OptNode_MeshDescriptor:
+		return "MeshDescriptor";
+	case OptNode_TextureAlpha:
+		return "TextureAlpha";
+	case OptNode_D3DTexture:
+		return "D3DTexture";
+	case OptNode_EngineGlow:
+		return "EngineGlow";
+	};
+	return "Invalid";
+}
+
+void ParseOptNode(OptNode* node, std::string prefix)
+{
+	if (node == nullptr)
+		return;
+
+	log_debug("[DBG] %sname: %s, "
+		"type: %d:%s, "
+		"p1: %d, p2: %d, "
+		"numNodes: %d",
+		prefix.c_str(),
+		node->Name, node->NodeType, OptNodeTypeToStr(node->NodeType),
+		node->Parameter1, node->Parameter2,
+		node->NumOfNodes);
+
+	if (node->NumOfNodes > 0)
+	{
+		for (int i = 0; i < node->NumOfNodes; i++)
+			ParseOptNode(node->Nodes[i], prefix + "   ");
+	}
+}
+
+void ParseOptFaceGrouping(OptNode* outerNode)
+{
+	if (outerNode->NodeType != OptNode_FaceGrouping) {
+		log_debug("[DBG] [OPT] ERROR: Tried to parse wrong type");
+		return;
+	}
+
+	// The number of nodes here tells us the number of LODs
+	int numLODs = outerNode->NumOfNodes;
+#if VERBOSE_OPT_OUTPUT
+	if (g_bDumpOptNodes) log_debug("[DBG] [OPT]        numLODs: %d", numLODs);
+#endif
+
+	for (int lodID = 0; lodID < numLODs; lodID++)
+	{
+		OptNode* node = outerNode->Nodes[lodID];
+		if (node == nullptr) continue;
+
+#if VERBOSE_OPT_OUTPUT
+		if (g_bDumpOptNodes) log_debug("[DBG] [OPT]        Parsing LOD: %d", lodID);
+#endif
+		if (node->NodeType == OptNode_NodeGroup)
+		{
+			for (int j = 0; j < node->NumOfNodes; j++)
+			{
+				OptNode* subnode = node->Nodes[j];
+				if (subnode == nullptr) continue;
+
+				if (subnode->NodeType == OptNode_FaceData)
+				{
+					// This is not an error, the actual pointer to the scene->FaceIndices starts
+					// 4 bytes after Parameter2
+					int faceGroupID = subnode->Parameter2 + 4;
+					g_FGToLODMap[faceGroupID] = lodID;
+#if VERBOSE_OPT_OUTPUT
+					if (g_bDumpOptNodes)
+					{
+						log_debug("[DBG] [OPT]            Adding FaceGroup: 0x%x, LOD: %d",
+							faceGroupID, lodID);
+					}
+#endif
+				}
+			}
+		}
+	}
+}
+
+void ParseOptNodeGroup(OptNode* outerNode)
+{
+	for (int i = 0; i < outerNode->NumOfNodes; i++) {
+		OptNode* node = outerNode->Nodes[i];
+		if (node == nullptr) continue;
+		if (node->NodeType == OptNode_FaceGrouping)
+		{
+#if VERBOSE_OPT_OUTPUT
+			if (g_bDumpOptNodes) log_debug("[DBG] [OPT]    FaceGrouping, numNodes: %d", node->NumOfNodes);
+#endif
+			ParseOptFaceGrouping(node);
+		}
+	}
+}
+
+// Finds the NodeGroup entry in a mesh node.
+// outerNode corresponds to a mesh entry. It's a direct child of the OptHeader.
+void ParseOptMeshEntry(OptNode *outerNode)
+{
+	for (int i = 0; i < outerNode->NumOfNodes; i++)
+	{
+		OptNode* node = outerNode->Nodes[i];
+		if (node == nullptr) continue;
+
+		if (node->NodeType == OptNode_NodeGroup)
+		{
+			ParseOptNodeGroup(node);
+		}
+	}
+}
+
 void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* scene)
 {
 	const auto L00482000 = (void(*)(OptHeader*, OptNode*, SceneCompData*))0x00482000;
@@ -1768,6 +1957,57 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 	g_current_renderer->_currentOptMeshIndex =
 		(node->NodeType == OptNode_Texture || node->NodeType == OptNode_D3DTexture) ?
 		(nodeIndex - 1) : nodeIndex;
+
+	// DEBUG: Dump the node hierarchy when a hotkey is pressed
+#ifdef DISABLED
+	{
+		if (g_bDumpOptNodes && nodeIndex == 0)
+		{
+			log_debug("[DBG] [OPT] nodeIndex: %d, numNodes: %d",
+				nodeIndex, optHeader->NumOfNodes);
+			for (int i = 0; i < optHeader->NumOfNodes; i++)
+			{
+				ParseOptNode(optHeader->Nodes[i], "");
+			}
+		}
+		g_bDumpOptNodes = false;
+	}
+#endif
+	// DEBUG
+
+	{
+		// scene->MeshVertices is always 0 at this point, so it can't be used as a key.
+		// Instead, we need to find tha actual MeshVertices by looking at the data in
+		// this node:
+		if (node->NodeType == OptNode_NodeGroup)
+		{
+			for (int j = 0; j < node->NumOfNodes; j++)
+			{
+				OptNode* subnode = node->Nodes[j];
+				if (subnode == nullptr) continue;
+
+				if (subnode->NodeType == OptNode_MeshVertices)
+				{
+					int meshKey = subnode->Parameter2;
+					auto& it = g_MeshTagMap.find(meshKey);
+					if (it == g_MeshTagMap.end())
+					{
+#if VERBOSE_OPT_OUTPUT
+						if (g_bDumpOptNodes)
+						{
+							log_debug("[DBG] [OPT] Adding MeshVertices: 0x%x",
+								(int)(subnode->Parameter2));
+						}
+#endif
+						g_MeshTagMap[meshKey] = 1;
+						ParseOptMeshEntry(node);
+					}
+				}
+			}
+		}
+
+	}
+
 	L00482000(optHeader, node, scene);
 }
 

@@ -44,22 +44,110 @@ enum OptNodeEnum : unsigned int
 	OptNode_EngineGlow = 28,
 };
 
+struct TieFlightGroupWaypoint
+{
+	short X;
+	short Y;
+	short Z;
+	short m06;
+};
+
+static_assert(sizeof(TieFlightGroupWaypoint) == 8, "size of TieFlightGroupWaypoint must be 8");
+
+struct TieFlightGroup
+{
+	char Name[20];
+	char unk014[5];
+	unsigned char GlobalCargoIndex;
+	char unk01A[14];
+	char Cargo[20];
+	char SpecialCargo[20];
+	char unk050[27];
+	unsigned char CraftId;
+	unsigned char CraftsCount;
+	char unk06D[3];
+	unsigned char Iff;
+	unsigned char Team;
+	char unk072[6];
+	unsigned char GlobalGroupId;
+	char unk079[1];
+	unsigned char WavesCount;
+	char unk07B[47];
+	unsigned char ArrivalDelayMinutes;
+	unsigned char ArrivalDelaySeconds;
+	char unk0AC[3294];
+	TieFlightGroupWaypoint StartPoints[4];
+	char StartPointRegions[4];
+	char unkDAE[100];
+	int PlanetId;
+	char unkE16[40];
+};
+
+static_assert(sizeof(TieFlightGroup) == 3646, "size of TieFlightGroup must be 3646");
+
+// V0x0080DC80
+//Array<TieFlightGroupEx, 192> s_XwaTieFlightGroups;
+extern TieFlightGroup* g_XwaTieFlightGroups;
+
+struct XwaPlanet
+{
+	/* 0x0000 */ unsigned short ModelIndex;
+	/* 0x0002 */ unsigned char BackdropFlags;
+};
+
+// V0x005B1140
+//Array<XwaPlanet, 104> s_XwaPlanets
+extern XwaPlanet* g_XwaPlanets;
+
 struct ExeEnableEntry
 {
-	unsigned char ExeEnableEntry_m00; // flags
-	unsigned char ExeEnableEntry_m01; // flags
-	unsigned char ObjectCategory;
-	unsigned char ShipCategory;
-	unsigned int ObjectSize;
-	void* pData1;
-	void* pData2;
-	unsigned short ExeEnableEntry_m10; // flags
-	unsigned short CraftIndex;
-	short DataIndex1;
-	short DataIndex2;
+	/* 0x0000 */ char EnableOptions;    // flags ExeEnable00Enum
+	/* 0x0001 */ char RessourceOptions; // flags ExeEnable01Enum
+	/* 0x0002 */ char ObjectCategory;   // ObjectCategoryEnum
+	/* 0x0003 */ char ShipCategory;     // ShipCategoryEnum
+	/* 0x0004 */ unsigned int ObjectSize;
+	/* 0x0008 */ void* pData1;
+	/* 0x000C */ void* pData2;
+	/* 0x0010 */ unsigned short GameOptions; // flags ExeEnable10Enum
+	/* 0x0012 */ short CraftIndex; // CraftIndexEnum
+	/* 0x0014 */ short DataIndex1;
+	/* 0x0016 */ short DataIndex2;
 };
 
 static_assert(sizeof(ExeEnableEntry) == 24, "size of ExeEnableEntry must be 24");
+
+// ExeObjectsTable:
+// V0x005FB240
+//Array<ExeObjectEntry, 557> s_ExeObjectsTable;
+const extern ExeEnableEntry* g_ExeObjectsTable;
+
+struct TieHeader
+{
+	char unk0000[9128];
+	unsigned char TimeLimit;
+	char unk23A9[65];
+};
+
+static_assert(sizeof(TieHeader) == 9194, "size of TieHeader must be 9194");
+
+struct XwaMission
+{
+	TieFlightGroup FlightGroups[192];
+	char unkAAE80[18780];
+	TieHeader Header;
+	char unkB1BC6[562426];
+};
+
+static_assert(sizeof(XwaMission) == 1290432, "size of XwaMission must be 1290432");
+
+struct XwaPlayer
+{
+	char unk0000[16];
+	unsigned char Region;
+	char unk0011[3006];
+};
+
+static_assert(sizeof(XwaPlayer) == 3023, "size of XwaPlayer must be 3023");
 
 // This is the same as ObjectEntry
 struct XwaObject

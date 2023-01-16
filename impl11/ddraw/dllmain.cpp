@@ -99,6 +99,7 @@ void IncreaseLensK2(float Delta);
 
 // CSM
 void ToggleCSM();
+void SetHDRState(bool state);
 
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;
@@ -198,7 +199,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL)	& 0x8000) == 0x8000;
 	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)		& 0x8000) == 0x8000;
-	bool UpKey	  = (GetAsyncKeyState(VK_UP)			& 0x8000) == 0x8000;
+	bool UpKey    = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
 	bool DownKey  = (GetAsyncKeyState(VK_DOWN)		& 0x8000) == 0x8000;
 	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
 	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
@@ -510,8 +511,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bFadeLights = !g_bFadeLights;
-				log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
+				g_bDumpOptNodes = true;
+
+				//g_bFadeLights = !g_bFadeLights;
+				//log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
+
 				//g_bDisplayGlowMarks = !g_bDisplayGlowMarks;
 				//log_debug("[DBG] g_bDisplayGlowMarks: %d", g_bDisplayGlowMarks);
 				//g_bShowSSAODebug = !g_bShowSSAODebug;
@@ -568,13 +572,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else
 					DisplayTimedMessage(3, 0, "Animations Disabled");
 				*/
-				return 0;
-			// Ctrl+Alt+C: Toggle Raytraced Cockpit Shadows
-			case 'C':
-				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
-				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
-				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
-					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
 				return 0;
 			// Ctrl+Alt+O
 			case 'O':
@@ -767,6 +764,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
 				//log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
 
+#undef DEBUG_RT
 #ifdef DEBUG_RT
 				if (g_bInTechRoom) {
 					g_bEnableQBVHwSAH = !g_bEnableQBVHwSAH;
@@ -777,6 +775,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bRTEnabled = !g_bRTEnabled;
 				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
 				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
+				SetHDRState(g_bRTEnabled);
+				// Force the Deferred rendering mode when RT is enabled
+				if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
 
 				return 0;
 			}
@@ -893,6 +894,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					//IncreaseScreenScale(0.1f);
 					//SaveVRParams();
+
+					//IncreaseAspectRatio(0.05f);
+					IncreaseReticleScale(0.1f);
+					SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z += 0.1f;
@@ -928,6 +933,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					//IncreaseScreenScale(-0.1f);
 					//SaveVRParams();
+
+					//IncreaseAspectRatio(-0.05f);
+					IncreaseReticleScale(-0.1f);
+					SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z -= 0.1f;
@@ -959,9 +968,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_LEFT:
 				switch (g_KeySet) {
 				case 2:
-					//IncreaseAspectRatio(-0.05f);
-					IncreaseReticleScale(-0.1f);
-					SaveVRParams();
 					break;
 				case 11:
 					g_contOriginWorldSpace.x -= 0.02f;
@@ -973,9 +979,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_RIGHT:
 				switch (g_KeySet) {
 				case 2:
-					//IncreaseAspectRatio(0.05f);
-					IncreaseReticleScale(0.1f);
-					SaveVRParams();
 					break;
 				case 11:
 					g_contOriginWorldSpace.x += 0.02f;
@@ -1010,7 +1013,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					return 0;
 				}
 				*/
-
+			// Ctrl+Shift+R: Toggle Raytraced Cockpit Shadows
+			case 'R':
+				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
+				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
+				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
+					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
+				return 0;
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);
 				return 0;

@@ -8,9 +8,9 @@
 // RTConstantsBuffer
 cbuffer ConstantBuffer : register(b10) {
 	bool bRTEnabled;
-	bool bRTEnabledInCockpit;
+	bool bRTAllowShadowMapping;
 	bool bEnablePBRShading;
-	uint g_RTUnused;
+	bool RTUnused;
 	// 16 bytes
 };
 
@@ -430,7 +430,8 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 	return blank_inters;
 }
 
-// Trace a ray and return as soon as we hit geometry
+// Trace a ray and return as soon as we hit geometry.
+// The Intersection's ID isn't actually used to index anything -- it might as well be a bool.
 Intersection TLASTraceRaySimpleHit(Ray ray) {
 	float3 pos3D = ray.origin;
 	// ray.origin is in the pos3D frame (Metric, Y+ is up, Z+ is forward)

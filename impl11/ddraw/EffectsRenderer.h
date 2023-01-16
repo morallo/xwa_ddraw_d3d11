@@ -44,7 +44,7 @@ Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
 class EffectsRenderer : public D3dRenderer
 {
 protected:
-	bool _bLastTextureSelectedNotNULL, _bLastLightmapSelectedNotNULL, _bIsLaser, _bIsCockpit;
+	bool _bLastTextureSelectedNotNULL, _bLastLightmapSelectedNotNULL, _bIsLaser, _bIsCockpit, _bIsExterior;
 	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bDCIsTransparent, _bDCElemAlwaysVisible;
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
@@ -131,14 +131,16 @@ public:
 	void ApplyNormalMapping();
 
 	// Raytracing
+	LBVH* BuildBVH(const std::vector<XwaVector3>& vertices, const std::vector<int>& indices);
 	void BuildSingleBLASFromCurrentBVHMap();
-	void BuildMultipleBLASFromCurrentBVHMap();
+	void BuildMultipleBLASFromCurrentBLASMap();
 	void ReAllocateAndPopulateBvhBuffers(const int numNodes);
 	void ReAllocateAndPopulateTLASBvhBuffers();
 	void ReAllocateAndPopulateMatrixBuffer();
 	void ApplyRTShadows(const SceneCompData* scene);
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
-	void UpdateGlobalBVH(const SceneCompData* scene);
+	void GetOPTNameFromLastTextureSelected(char* OPTname);
+	void UpdateBVHMaps(const SceneCompData* scene, int LOD);
 
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);

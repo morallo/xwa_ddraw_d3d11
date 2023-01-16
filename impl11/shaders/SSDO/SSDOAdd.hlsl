@@ -18,6 +18,8 @@
 #undef PBR_SHADING
 #undef PBR_DYN_LIGHTS
 
+#undef RT_SIDE_LIGHTS
+
 //#define PBR_SHADING
 //#define PBR_DYN_LIGHTS
 
@@ -534,8 +536,8 @@ PixelShaderOutput main(PixelShaderInput input)
 #endif
 		{
 			float shadow_factor = 1.0;
-			float black_level, minZ, maxZ;
-			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
+			float black_level, dummyMinZ, dummyMaxZ;
+			get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
 #ifdef RT_SIDE_LIGHTS
 			black_level = 0.1;
 #endif
@@ -544,14 +546,15 @@ PixelShaderOutput main(PixelShaderInput input)
 				continue;
 
 			const float3 L = LightVector[i].xyz;
-			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (instead of the smooth one)
+			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (without Normal Mapping)
 			// "hover" prevents noise by displacing the origin of the ray away from the surface
 			// The displacement is directly proportional to the depth of the surface
 			// The position buffer's Z increases with depth
 			// The normal buffer's Z+ points towards the camera
 			// We have to invert N.z:
 			const float3 hover = 0.01 * P.z * float3(N.x, N.y, -N.z);
-			if (bRTEnabled && dotLFlatN > 0) {
+			if (dotLFlatN > 0)
+			{
 				Ray ray;
 				ray.origin   = P + hover; // Metric, Y+ is up, Z+ is forward.
 				ray.dir      = float3(L.x, -L.y, -L.z);
@@ -561,15 +564,20 @@ PixelShaderOutput main(PixelShaderInput input)
 				if (inters.TriID > -1)
 					rt_shadow_factor *= black_level;
 			}
-			if (dotLFlatN <= 0) rt_shadow_factor *= black_level;
+			else
+			{
+				rt_shadow_factor *= black_level;
+			}
 		}
 	}
 
-	// Shadow Mapping
+	// Shadow Mapping.
+	// This block modifies total_shadow_factor.
+	// In other words, the shadow casting contribution for both RT and SM ends up in
+	// total_shadow_factor.
 	float total_shadow_factor = rt_shadow_factor;
-	//float idx = 1.0;
 	// Don't compute shadow mapping if Raytraced shadows are enabled in the cockpit... it's redundant.
-	if (sm_enabled && !bRTEnabledInCockpit)
+	if (sm_enabled && bRTAllowShadowMapping)
 	{
 		//float3 P_bias = P + sm_bias * N;
 		[loop]
@@ -770,19 +778,34 @@ PixelShaderOutput main(PixelShaderInput input)
 	else
 	{
 		// PBR Shading path
-		const float V = dot(0.333, color.rgb);
+		//const float ambient = 0.05;
+		const float ambient = 0.03;
+		const float Value = dot(0.333, color.rgb);
 		//const bool blackish = V < 0.1;
-		const float blackish = smoothstep(0.1, 0.0, V);
+		const float blackish = smoothstep(0.1, 0.0, Value);
 		const float metallicity = 0.25;
 		//const float glossiness = blackish ? 0.25 : 0.75;
 		//const float glossiness = lerp(0.75, 0.5, blackish);
-		const float glossiness = lerp(0.75, 0.25, blackish);
+		float glossiness = lerp(0.75, 0.25, blackish);
 		//const float reflectance = blackish ? 0.0 : 0.30;
 		//const float reflectance = lerp(0.3, 0.1, blackish);
-		const float reflectance = lerp(0.3, 0.05, blackish);
-		//const float ambient = 0.05;
-		const float ambient = 0.03;
+		float reflectance = lerp(0.3, 0.05, blackish);
 		//const float exposure = 1.0;
+		//float spec_bloom = 0.0;
+		/*
+		if (GLASS_LO <= mask && mask < GLASS_HI) {
+			glossiness *= 2.0;
+			spec_bloom = 1.0; // Make the glass bloom more
+		}
+		*/
+		// Make glass more glossy
+		bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
+		if (bIsGlass)
+		{
+			glossiness = 0.92;
+			reflectance = 1.0;
+		}
+
 #ifdef RT_SIDE_LIGHTS
 		i = 0;
 #else
@@ -790,10 +813,34 @@ PixelShaderOutput main(PixelShaderInput input)
 		for (i = 0; i < LightCount; i++)
 #endif
 		{
+			float black_level, dummyMinZ, dummyMaxZ;
+			float shadow_factor = 1.0;
+			float light_modulation = 1.0;
+			float is_shadow_caster = 1.0;
+			get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
+			// Skip lights that won't project black-enough shadows, we'll take care of them later
+			if (black_level > 0.95)
+			{
+				// This is not a shadow caster, ignore RT and SM shadows:
+				shadow_factor = 1.0;
+				// Dim the light a bit
+				light_modulation = 0.2;
+				is_shadow_caster = 0.0;
+			}
+			else
+			{
+				// This is a shadow caster, apply RT and SM shadows
+				shadow_factor = total_shadow_factor;
+				// Use the full intensity of this light
+				light_modulation = 1.0;
+				is_shadow_caster = 1.0;
+			}
+
 			float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
-			float LightIntensity = dot(LightColor[i].rgb, 0.333);
+			float LightIntensity = light_modulation * dot(LightColor[i].rgb, 0.333);
 			float3 eye_vec = normalize(-P);
 			float3 N_PBR = N;
+			float3 specular_out = 0;
 			N_PBR.xy = -N_PBR.xy;
 			L.xy = -L.xy;
 
@@ -804,24 +851,28 @@ PixelShaderOutput main(PixelShaderInput input)
 				glossiness, // Glossiness: 0 matte, 1 glossy/glass
 				reflectance,
 				ambient,
-				total_shadow_factor * ssdo.x
+				//bIsGlass ? 1.0 : shadow_factor * ssdo.x, // Disable RT shadows for glass surfaces
+				shadow_factor * ssdo.x,
+				specular_out
 			);
 
-			/*
-	#ifdef PBR_RAYTRACING
-			// Raytracing Enabled. This path is no longer needed, rt_shadow_factor is computed
-			// for both regular and PBR paths, and total_shadow_factor is initialized with it
-			float3 col = addPBR_RT_TLAS(
-				P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
-				float4(LightColor[i].rgb, LightIntensity),
-				metallicity,
-				glossiness, // Glossiness: 0 matte, 1 glossy/glass
-				reflectance,
-				ambient
-			);
-	#endif
-			*/
-			tmp_color += col;
+			// When there's a glass material, we want to lerp between the current color and
+			// the specular reflection, so that we get a nice white spot when glass reflects
+			// light. This is what we're doing in the following lines.
+			/*if (bIsGlass)
+				tmp_color += lerp(col, spec, saturate(dot(0.333, spec)));
+			else
+				tmp_color += col;*/
+			// Branchless version of the block above:
+			const float spec_val = dot(0.333, specular_out);
+			float glass_interpolator = lerp(0, saturate(spec_val), bIsGlass);
+			float excess_energy = smoothstep(0.95, 4.0, spec_val); // approximate: saturate(spec_val - 1.0);
+			tmp_color += lerp(col, specular_out, glass_interpolator);
+			// Add some bloom where appropriate:
+			// only-shadow-casters-emit-bloom * Glass-blooms-more-than-other-surfaces * excess-specular-energy
+			float spec_bloom = is_shadow_caster * lerp(0.4, 1.25, bIsGlass) * excess_energy;
+			tmp_bloom += total_shadow_factor * spec_bloom;
+
 			//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 			//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 		}
@@ -908,30 +959,32 @@ PixelShaderOutput main(PixelShaderInput input)
 	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
-#ifndef PBR_SHADING
-	// Reinhard tone mapping:
-	if (HDREnabled) {
-		//float I = dot(tmp_color, 0.333);
-		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
-		//tmp_color = ff_filmic_gamma3(tmp_color);
-		
-		//tmp_color = ACESFilm(HDR_white_point * tmp_color);
-		//tmp_color = ACES_approx(tmp_color);
+	if (!bEnablePBRShading)
+	{
+		// Reinhard tone mapping:
+		if (HDREnabled) {
+			//float I = dot(tmp_color, 0.333);
+			//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
+			//tmp_color = ff_filmic_gamma3(tmp_color);
 
-		tmp_color = tmp_color / (HDR_white_point + tmp_color);
-		//tmp_color = uncharted2_filmic(tmp_color);
-		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
+			//tmp_color = ACESFilm(HDR_white_point * tmp_color);
+			//tmp_color = ACES_approx(tmp_color);
+
+			tmp_color = tmp_color / (HDR_white_point + tmp_color);
+			//tmp_color = uncharted2_filmic(tmp_color);
+			//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
+		}
+		output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 	}
-	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
-#else
-	//const float exposure = 1.0f;
-	//output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
-	//output.color = float4(sqrt(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1); // Invert gamma approx
-	if (HDREnabled) {
+	else
+	{
+		//const float exposure = 1.0f;
+		//output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
+		//output.color = float4(sqrt(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1); // Invert gamma approx
+		// For PBR shading, HDR is nonoptional:
 		tmp_color = tmp_color / (HDR_white_point + tmp_color);
+		output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
 	}
-	output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
-#endif
 
 #ifdef DISABLED
 	if (ssao_debug == 8)

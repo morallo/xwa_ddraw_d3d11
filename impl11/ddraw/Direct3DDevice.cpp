@@ -9,6 +9,67 @@
 // resources->_displayWidth, resources->_displayHeight -- in-game resolution
 // g_WindowWidth, g_WindowHeight --> Actual Windows screen as returned by GetWindowRect
 
+// Important commits:
+// Improve Depth Value:
+// https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/f05c0ef6f65b2bf7f9e085baf9ebaf0e7207eb41
+// One BLAS per FaceGroup:
+// https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/673da14a4b717ded5296dc6e17b1d95c43c20147
+
+/*
+From you-know-who:
+
+The function to create lights for backdrops look like that:
+// L00439040
+void XwaCreateGlobalLightsForBackdrops(  )
+{
+	dword ebx = s_XwaPlayers[s_XwaCurrentPlayerId].Region;
+
+	for( dword edi = 0; edi < s_XwaBackdropsCountPerRegion[ebx]; edi++ )
+	{
+		if( s_XwaBackdrops[ebx * 0x20 + edi].ColorIntensity <= 0.0f )
+			continue;
+
+		XwaAddGlobalLight(
+			s_XwaBackdrops[ebx * 0x20 + edi].WorldX / 256,
+			s_XwaBackdrops[ebx * 0x20 + edi].WorldY / 256,
+			s_XwaBackdrops[ebx * 0x20 + edi].WorldZ / 256,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorIntensity,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorR,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorG,
+			s_XwaBackdrops[ebx * 0x20 + edi].ColorB
+			);
+	}
+}
+
+Before the call to XwaCreateGlobalLightsForBackdrops the global lights count is set to 0.
+The lights are created in the same order as the backdrops appear in the mission tie file.
+In the XwaTieFlightGroups array you can get the PlanetId.
+For backdrops the CraftId is CraftId_183_9001_1100_ResData_Backdrop.
+With the PlanetId you can read the backdrop model index in the XwaPlanets.
+With the model index you can read in the ExeObjectsTable the backdrop dat GroupId and ImageId.
+
+*/
+
+/*
+From Jeremy, regarding LODs and how to parse the OPT structure:
+
+There is no direct way to tell which lod is rendered.
+There is int& s_XwaOptCurrentLodDistance = *(int*)0x007D4F8C;.
+There is float& s_XwaFlightLod = *(float*)0x00600288;.
+The distance is 1.0f / ( s_XwaOptCurrentLodDistance * s_XwaFlightLod );
+You can access to the whole opt structure via a model index.
+The SceneCompData struct contains a pObject member. The XwaObject has a model index.
+At offset 0x007CA6E0 there is an array s_XwaOptModelFileMemHandles of 557 short. The index in this array is a model index.
+There are these function to lock and unlock the handle.
+// L0050E2F0
+void* Lock_Handle( short A4 )
+// L0050E350
+void Unlock_Handle( short A4 )
+
+The data struct of the locked handle is a OptHeader pointer.
+With this header you can access to the whole opt.
+*/
+
 /*
 From Jeremy, regarding how to replace the transform matrix in MobileObject
 
@@ -424,6 +485,13 @@ float s_XwaHudScale = 1.0f;
 #include "SharedMem.h"
 
 #include "XWAFramework.h"
+
+//Array<XwaPlanet, 104> s_XwaPlanets
+XwaPlanet* g_XwaPlanets = (XwaPlanet*)0x005B1140;
+//Array<TieFlightGroupEx, 192> s_XwaTieFlightGroups;
+TieFlightGroup* g_XwaTieFlightGroups = (TieFlightGroup*)0x0080DC80;
+//Array<ExeObjectEntry, 557> s_ExeObjectsTable;
+const ExeEnableEntry* g_ExeObjectsTable = (ExeEnableEntry*)0x005FB240; // (Not sure about the type in this one)
 
 FILE *g_HackFile = NULL;
 

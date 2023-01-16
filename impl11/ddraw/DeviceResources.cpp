@@ -208,21 +208,36 @@ void ResetObjectIndexMap();
 void ResetRawMouseInput();
 
 // Raytracing
-// This maps meshKeys (the vertex pointer) to MeshData tuples
-// This map is used to build BLASes and gets cleared in the following situations:
-// - Tech Room: Every time a new OPT is loaded
-// - Regular Flight: When OnSizeChanged() is called
+
+// This maps meshKeys (the vertex pointer) to MeshData tuples.
+// This map is used to build a single BLAS in the Tech Room and
+// gets cleared when a new OPT is loaded.
+// It's also used to build Coalesced BVHs: all FGs in the same mesh
+// are coalesced into a single BVH. It gets cleared when OnSizeChanged()
+// is called.
 std::map<int32_t, MeshData> g_LBVHMap;
-// This maps (meshKey,centroid) to matrix slots. It gets cleared at the beginning of every frame
-// The centroid is important because the same mesh may appear multiple times if there are
-// multiple ships in the same FG, for instance.
-std::map<MeshNCentroid_t, int32_t> g_TLASMap;
+
+// This maps (MeshKey, LOD) to BlasIds. Gets cleared when OnSizeChanged()
+std::map<BLASKey_t, int> g_BLASIdMap;
+
+// This maps BlasIds to BLASData tuples.
+// This map is used to build multiple BLASes during regular flight
+// (one per BlasId). It gets cleared when OnSizeChanged() is called
+std::map<int, BLASData> g_BLASMap;
+
+// This maps (BlasId, centroid) to matrix slots.
+// It gets cleared at the beginning of every frame.
+// The centroid is important because the same BLAS may appear multiple
+// times if there are multiple ships in the same (Mesh, LOD), but in
+// different locations, for instance.
+std::map<IDCentroid_t, int32_t> g_TLASMap;
 std::vector<Matrix4> g_TLASMatrices;
 void ClearGlobalLBVHMap();
 
+#undef DEBUG_RT
 #ifdef DEBUG_RT
-// DEBUG: Map of meshKey --> OPT names. Only for debugging purposes.
-std::map<int32_t, std::tuple<std::string, int>> g_DebugMeshToNameMap;
+// DEBUG: Map of meshKey --> (OPTname, vertcount, meshIndex). Only for debugging purposes.
+std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;
 #endif
 
 /* The different types of Constant Buffers used in the Pixel Shader: */

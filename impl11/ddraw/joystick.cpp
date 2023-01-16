@@ -378,8 +378,8 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 	pji->dwXpos = 256; // This is the center position for this axis
 	pji->dwYpos = 256;
-	pji->dwZpos = 256;
-	pji->dwRpos = 256;
+	pji->dwZpos = 256; // Throttle
+	pji->dwRpos = 256; // Rudder (roll)
 
 	// Mouse input
 	{
@@ -467,14 +467,13 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	log_debug("[DBG] dwXpos,dwRpos: %d, %d", pji->dwZpos, pji->dwRpos);
 	*/
 	
-	// dwZpos is the throttle
 	if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
 		pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
 	}
 	if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
 		pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
 	}
-	
+
 	if (GetAsyncKeyState(VK_UP) & 0x8000) {
 		pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
 	}

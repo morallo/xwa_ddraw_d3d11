@@ -40,6 +40,7 @@ bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v);
+void ResetXWALightInfo();
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -6916,6 +6917,10 @@ void IncreaseSMZFactor(float Delta) {
 }
 
 /*
+ * WE CANNOT DELETE THIS FUNCTION YET.
+ * Tagging using the FlightGroup info does not work during film playback, so we need
+ * to use this version for that case.
+ *
  * For each Sun Centroid stored in the previous frame, check if they match any of
  * XWA's lights. If there's a match, we have found the global sun and we can stop
  * computing shadows from the other lights.
@@ -6923,15 +6928,19 @@ void IncreaseSMZFactor(float Delta) {
  * then we know that this light doesn't correspond to a sun, so we can stop computing
  * shadows for that light.
  */
-void PrimarySurface::TagXWALights()
+void PrimarySurface::OldTagXWALights()
 {
 	int NumTagged = 0;
 	// Get the screen limits, we'll need them to tell when a light is visible on the screen
 	float x0, y0, x1, y1;
 	bool bExternal = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
-	// Don't tag anything in external view (I don't know if y_center needs to be used)
-	if (bExternal)
+	// Don't bother tagging lights if we're parked in the hangar.
+	// Don't tag anything in external view if the y_center hasn't been fixed
+	// A few lines below, we use projectMetric() and that uses y_center.
+	//if (*g_playerInHangar || (bExternal && !g_bYCenterHasBeenFixed))
+	if (*g_playerInHangar || bExternal)
 		return;
+#undef RT_SIDE_LIGHTS
 #ifdef RT_SIDE_LIGHTS
 	return;
 #endif
@@ -7053,6 +7062,134 @@ void PrimarySurface::TagXWALights()
 }
 
 /*
+ * Tag the lights by looking at the Flight Groups and checking the GroupId-ImageId.
+ */
+void PrimarySurface::TagXWALights()
+{
+	int numSuns = 0;
+	const int numLights = *s_XwaGlobalLightsCount;
+	const int curRegion = PlayerDataTable[*g_playerIndex].currentRegion;
+
+	constexpr int MAX_FLIGHT_GROUPS = 192;
+	constexpr int MAX_PLANET_IDS    = 104;
+	constexpr int MAX_MODEL_IDX     = 557;
+	constexpr int CraftId_183_9001_1100_ResData_Backdrop = 183;
+	const XwaMission* mission = *(XwaMission**)0x09EB8E0;
+
+	log_debug("[DBG] ------------------------------");
+	log_debug("[DBG] Tagging Lights");
+
+	// Clear all previous tags so that we can start from scratch.
+	for (int i = 0; i < numLights; i++)
+	{
+		g_XWALightInfo[i].bIsSun = false;
+		g_XWALightInfo[i].bTagged = false;
+	}
+
+	for (int FGIdx = 0; FGIdx < MAX_FLIGHT_GROUPS; FGIdx++)
+	{
+		if (g_ShadowMapping.bAllLightsTagged)
+			break;
+
+		const int CraftId  = mission->FlightGroups[FGIdx].CraftId;
+		const int PlanetId = mission->FlightGroups[FGIdx].PlanetId;
+
+		if (CraftId == CraftId_183_9001_1100_ResData_Backdrop && PlanetId < MAX_PLANET_IDS)
+		{
+			const short SX   = mission->FlightGroups[FGIdx].StartPoints->X;
+			const short SY   = mission->FlightGroups[FGIdx].StartPoints->Y;
+			const short SZ   = mission->FlightGroups[FGIdx].StartPoints->Z;
+			const int region = mission->FlightGroups[FGIdx].StartPointRegions[0];
+
+			const int ModelIndex = g_XwaPlanets[PlanetId].ModelIndex;
+			if (region == curRegion && ModelIndex < MAX_MODEL_IDX)
+			{
+				const int GroupId = g_ExeObjectsTable[ModelIndex].DataIndex1;
+				const int ImageId = g_ExeObjectsTable[ModelIndex].DataIndex2;
+
+				Vector3 S = Vector3((float)SX, (float)-SY, (float)SZ);
+				S = S.normalize();
+
+				// We only care about the GroupIds that correspond to suns.
+				if (9001 <= GroupId && GroupId <= 9010)
+				{
+					log_debug("[DBG] [%s], CraftId: %d, PlanetId: %d, S:[%0.3f, %0.3f, %0.3f]",
+						mission->FlightGroups[FGIdx].Name, CraftId, PlanetId, S.x, S.y, S.z);
+					log_debug("[DBG]     region: %d, curRegion: %d, Group-Id: %d-%d",
+						region, curRegion, GroupId, ImageId);
+
+					// Now check the lights in this region to find a match
+					for (int LightIdx = 0; LightIdx < numLights; LightIdx++)
+					{
+						if (!g_XWALightInfo[LightIdx].bTagged)
+						{
+							Vector3 L = Vector3(
+								s_XwaGlobalLights[LightIdx].PositionX / 32768.0f,
+								s_XwaGlobalLights[LightIdx].PositionY / 32768.0f,
+								s_XwaGlobalLights[LightIdx].PositionZ / 32768.0f);
+							L = L.normalize();
+							float dot = L.dot(S);
+
+							log_debug("[DBG] light: %d: [%0.3f, %0.3f, %0.3f], dot: %0.3f, %s",
+								LightIdx, L.x, L.y, L.z, dot, (dot > 0.975f) ? "SUN" : "");
+							if (dot > 0.975f)
+							{
+								// There may be missions with multiple suns, so, let's tag this one as a sun
+								// but let's keep tagging.
+								g_XWALightInfo[LightIdx].bIsSun = true;
+								g_XWALightInfo[LightIdx].bTagged = true;
+								numSuns++;
+							}
+						}
+					}
+
+				}
+			}
+		}
+	}
+
+	// Finish tagging all the other lights
+	for (int i = 0; i < numLights; i++)
+	{
+		g_XWALightInfo[i].bTagged = true;
+	}
+	g_ShadowMapping.bAllLightsTagged = true;
+
+	// Disable multiple suns if necessary
+	if (!g_ShadowMapping.bMultipleSuns && numSuns > 1)
+	{
+		for (int i = numLights - 1; i >= 0; i--)
+		{
+			if (g_XWALightInfo[i].bIsSun)
+			{
+				g_XWALightInfo[i].bIsSun = false;
+				numSuns--;
+				if (numSuns == 1)
+					break;
+			}
+		}
+	}
+
+	// Check how many suns we have left after all the tagging and leave at least one
+	numSuns = 0;
+	for (int i = 0; i < numLights; i++)
+	{
+		if (g_XWALightInfo[i].bIsSun)
+		{
+			log_debug("[DBG] Light: %d is a SUN", i);
+			numSuns++;
+		}
+	}
+
+	if (numSuns == 0)
+	{
+		log_debug("[DBG] WARNING: No suns after tagging! Enabling first light");
+		g_XWALightInfo[0].bIsSun = true;
+	}
+	log_debug("[DBG] ------------------------------");
+}
+
+/*
  * Calls TagXWALights and then fades the lights if necessary.
  */
 void PrimarySurface::TagAndFadeXWALights()
@@ -7068,7 +7205,15 @@ void PrimarySurface::TagAndFadeXWALights()
 	// the right places and the FOV hasn't been computed, so let's wait until the FOV has been computed
 	// to tag anything and we've finished rendering a few frames
 	if (g_bCustomFOVApplied && !g_ShadowMapping.bAllLightsTagged && g_iPresentCounter > 5)
-		TagXWALights();
+	{
+		if (!(*viewingFilmState))
+			TagXWALights();
+		else
+		{
+			// When viewinig a film, the lights are apparently not in the right position (!)
+			OldTagXWALights();
+		}
+	}
 
 	// Display debug information on g_XWALightInfo (are the lights tagged, are they suns?)
 	if (g_bDumpSSAOBuffers) {
@@ -7080,16 +7225,20 @@ void PrimarySurface::TagAndFadeXWALights()
 		}
 	}
 
-	// Fade all non-sun lights
+	// Turn lights on or off
 	for (int j = 0; j < *s_XwaGlobalLightsCount; j++) 
 	{
+		// Instantaneous:
+		//g_ShadowMapVSCBuffer.sm_black_levels[j] = g_XWALightInfo[j].bIsSun ? g_ShadowMapping.black_level : 1.0f;
+
+		// Soft transition:
 		if (g_ShadowMapVSCBuffer.sm_black_levels[j] >= 0.95f)
 			continue;
 
 		// If this light has been tagged and isn't a sun, then fade it!
 		if (g_XWALightInfo[j].bTagged && !g_XWALightInfo[j].bIsSun) {
 			//g_XWALightInfo[j].fadeout += 0.01f;
-			g_ShadowMapVSCBuffer.sm_black_levels[j] += 0.01f;
+			g_ShadowMapVSCBuffer.sm_black_levels[j] += 0.02f;
 			if (g_ShadowMapVSCBuffer.sm_black_levels[j] > 0.95f)
 				log_debug("[DBG] [SHW] Light %d FADED", j);
 		}
@@ -8807,6 +8956,8 @@ HRESULT PrimarySurface::Flip(
 
 						g_bDumpSSAOBuffers = false;
 					}
+					if (g_bDumpOptNodes)
+						g_bDumpOptNodes = false;
 
 					if (g_iDelayedDumpDebugBuffers) {
 						g_iDelayedDumpDebugBuffers--;
@@ -9716,6 +9867,7 @@ HRESULT PrimarySurface::Flip(
 				// Reset the frame counter if we just exited the hangar
 				if (!(*g_playerInHangar) && g_bPrevPlayerInHangar) {
 					SetPresentCounter(0, 0);
+					ResetXWALightInfo();
 					log_debug("[DBG] EXITED HANGAR");
 				}
 				g_bPrevPlayerInHangar = *g_playerInHangar;
@@ -9748,6 +9900,8 @@ HRESULT PrimarySurface::Flip(
 				//*g_playerInHangar = 0;
 				if (g_bDumpSSAOBuffers)
 					g_bDumpSSAOBuffers = false;
+				if (g_bDumpOptNodes)
+					g_bDumpOptNodes = false;
 
 				// Reset the laser pointer intersection
 				if (g_bActiveCockpitEnabled) {
