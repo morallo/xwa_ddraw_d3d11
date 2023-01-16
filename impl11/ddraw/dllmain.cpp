@@ -573,13 +573,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					DisplayTimedMessage(3, 0, "Animations Disabled");
 				*/
 				return 0;
-			// Ctrl+Alt+C: Toggle Raytraced Cockpit Shadows
-			case 'C':
-				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
-				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
-				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
-					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
-				return 0;
 			// Ctrl+Alt+O
 			case 'O':
 				g_bAOEnabled = !g_bAOEnabled;
@@ -1026,7 +1019,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					return 0;
 				}
 				*/
-
+			// Ctrl+Shift+R: Toggle Raytraced Cockpit Shadows
+			case 'R':
+				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
+				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
+				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
+					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
+				return 0;
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);
 				return 0;

@@ -866,11 +866,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Branchless version of the block above:
 			const float spec_val = dot(0.333, specular_out);
 			float glass_interpolator = lerp(0, saturate(spec_val), bIsGlass);
-			float excess_energy = smoothstep(0.95, 2.0, spec_val); // approximate: saturate(spec_val - 1.0);
+			float excess_energy = smoothstep(0.95, 4.0, spec_val); // approximate: saturate(spec_val - 1.0);
 			tmp_color += lerp(col, specular_out, glass_interpolator);
 			// Add some bloom where appropriate:
 			// only-shadow-casters-emit-bloom * Glass-blooms-more-than-other-surfaces * excess-specular-energy
-			float spec_bloom = is_shadow_caster * lerp(0.5, 1.5, bIsGlass) * excess_energy;
+			float spec_bloom = is_shadow_caster * lerp(0.4, 1.25, bIsGlass) * excess_energy;
 			tmp_bloom += total_shadow_factor * spec_bloom;
 
 			//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
