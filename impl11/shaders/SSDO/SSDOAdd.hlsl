@@ -816,6 +816,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			float black_level, dummyMinZ, dummyMaxZ;
 			float shadow_factor = 1.0;
 			float light_modulation = 1.0;
+			float is_shadow_caster = 1.0;
 			get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
 			// Skip lights that won't project black-enough shadows, we'll take care of them later
 			if (black_level > 0.95)
@@ -824,6 +825,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				shadow_factor = 1.0;
 				// Dim the light a bit
 				light_modulation = 0.2;
+				is_shadow_caster = 0.0;
 			}
 			else
 			{
@@ -831,6 +833,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				shadow_factor = total_shadow_factor;
 				// Use the full intensity of this light
 				light_modulation = 1.0;
+				is_shadow_caster = 1.0;
 			}
 
 			float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
@@ -853,14 +856,22 @@ PixelShaderOutput main(PixelShaderInput input)
 				specular_out
 			);
 
+			// When there's a glass material, we want to lerp between the current color and
+			// the specular reflection, so that we get a nice white spot when glass reflects
+			// light. This is what we're doing in the following lines.
 			/*if (bIsGlass)
 				tmp_color += lerp(col, spec, saturate(dot(0.333, spec)));
 			else
 				tmp_color += col;*/
-			// When
 			// Branchless version of the block above:
-			float glass_interpolator = lerp(0, saturate(dot(0.333, specular_out)), bIsGlass);
+			const float spec_val = dot(0.333, specular_out);
+			float glass_interpolator = lerp(0, saturate(spec_val), bIsGlass);
+			float excess_energy = smoothstep(0.95, 2.0, spec_val); // approximate: saturate(spec_val - 1.0);
 			tmp_color += lerp(col, specular_out, glass_interpolator);
+			// Add some bloom where appropriate:
+			// only-shadow-casters-emit-bloom * Glass-blooms-more-than-other-surfaces * excess-specular-energy
+			float spec_bloom = is_shadow_caster * lerp(0.5, 1.5, bIsGlass) * excess_energy;
+			tmp_bloom += total_shadow_factor * spec_bloom;
 
 			//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 			//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
