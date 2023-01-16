@@ -50,7 +50,8 @@ float3 ToneMapFilmic_Hejl2015(float3 hdr, float whitePt) {
 // L: is the light direction, from the current point (position) to the light
 // position: the current 3D position to be shaded
 float3 computePBRLighting(in float3 L, in float3 light_color, in float3 position, in float3 N, in float3 V,
-	in float3 albedo, in float roughness, in float3 F0, in float shadowFactor, in float lightIntensity)
+	in float3 albedo, in float roughness, in float3 F0, in float shadowFactor, in float lightIntensity,
+	out float3 specular_out)
 {
 	float rough_sqr = roughness * roughness;
 	//float3 L = normalize(light.pos.xyz - position);
@@ -77,13 +78,13 @@ float3 computePBRLighting(in float3 L, in float3 light_color, in float3 position
 	float k = rough_sqr / 2.0;
 	vis = G1V(dotNL, k) * G1V(dotNV, k);
 
-	float3 specular = /*dotNL **/ D * F * vis * shadowFactor * lightIntensity;
+	specular_out = /*dotNL **/ D * F * vis * shadowFactor * lightIntensity;
 
 	//const float3 ambient = 0.01;
 	const float3 diffuse = (albedo * INV_PI);
 
 	//return ambient + (diffuse + specular) * light_color.xyz * dotNL;
-	return (diffuse + specular) * light_color.xyz * dotNL;
+	return (diffuse + specular_out) * light_color.xyz * dotNL;
 }
 
 // Main entry point for PBR shading with Ray-tracing. This is used in
@@ -129,8 +130,9 @@ float3 addPBR_RT_TechRoom(in float3 position, in float3 N, in float3 FlatN, in f
 		}
 		if (dotLFlatN <= 0) shadow = 0.0;
 
+		float3 specular_out;
 		float3 col = computePBRLighting(L, light_color, position,
-			N, V, albedo, roughness, F0, shadow, lightColor.w);
+			N, V, albedo, roughness, F0, shadow, lightColor.w, specular_out);
 		color += col;
 
 		// shadow += softshadow(position, normalize(lights[i].pos.xyz - position), 0.02, 2.5);
@@ -156,7 +158,8 @@ float3 addPBR_RT_TechRoom(in float3 position, in float3 N, in float3 FlatN, in f
 float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 	in float3 baseColor, in float3 lightDir, in float4 lightColor,
 	in float metalMask, in float glossiness, in float reflectance,
-	in float ambient, float shadowFactor)
+	in float ambient, float shadowFactor,
+	out float3 specular_out)
 {
 	float3 color = 0.0;
 	float roughness = 1.0 - glossiness * glossiness;
@@ -188,7 +191,7 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 		L = normalize(L);
 
 		float3 col = computePBRLighting(L, light_color, position,
-			N, V, albedo, roughness, F0, shadowFactor, lightColor.w);
+			N, V, albedo, roughness, F0, shadowFactor, lightColor.w, specular_out);
 		color += col;
 
 		// shadow += softshadow(position, normalize(lights[i].pos.xyz - position), 0.02, 2.5);
@@ -236,8 +239,9 @@ float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float
 		}
 		if (dotLFlatN <= 0) shadow = 0.0;
 
+		float3 specular_out;
 		float3 col = computePBRLighting(L, light_color, position,
-			N, V, albedo, roughness, F0, shadow, lightColor.w);
+			N, V, albedo, roughness, F0, shadow, lightColor.w, specular_out);
 		color += col;
 
 		// shadow += softshadow(position, normalize(lights[i].pos.xyz - position), 0.02, 2.5);

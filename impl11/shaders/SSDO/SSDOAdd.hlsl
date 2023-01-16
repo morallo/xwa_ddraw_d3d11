@@ -778,19 +778,33 @@ PixelShaderOutput main(PixelShaderInput input)
 	else
 	{
 		// PBR Shading path
-		const float V = dot(0.333, color.rgb);
+		//const float ambient = 0.05;
+		const float ambient = 0.03;
+		const float Value = dot(0.333, color.rgb);
 		//const bool blackish = V < 0.1;
-		const float blackish = smoothstep(0.1, 0.0, V);
+		const float blackish = smoothstep(0.1, 0.0, Value);
 		const float metallicity = 0.25;
 		//const float glossiness = blackish ? 0.25 : 0.75;
 		//const float glossiness = lerp(0.75, 0.5, blackish);
-		const float glossiness = lerp(0.75, 0.25, blackish);
+		float glossiness = lerp(0.75, 0.25, blackish);
 		//const float reflectance = blackish ? 0.0 : 0.30;
 		//const float reflectance = lerp(0.3, 0.1, blackish);
-		const float reflectance = lerp(0.3, 0.05, blackish);
-		//const float ambient = 0.05;
-		const float ambient = 0.03;
+		float reflectance = lerp(0.3, 0.05, blackish);
 		//const float exposure = 1.0;
+		//float spec_bloom = 0.0;
+		/*
+		if (GLASS_LO <= mask && mask < GLASS_HI) {
+			glossiness *= 2.0;
+			spec_bloom = 1.0; // Make the glass bloom more
+		}
+		*/
+		// Make glass more glossy
+		bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
+		if (bIsGlass)
+		{
+			glossiness = 0.92;
+			reflectance = 1.0;
+		}
 
 #ifdef RT_SIDE_LIGHTS
 		i = 0;
@@ -823,6 +837,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			float LightIntensity = light_modulation * dot(LightColor[i].rgb, 0.333);
 			float3 eye_vec = normalize(-P);
 			float3 N_PBR = N;
+			float3 specular_out = 0;
 			N_PBR.xy = -N_PBR.xy;
 			L.xy = -L.xy;
 
@@ -833,10 +848,20 @@ PixelShaderOutput main(PixelShaderInput input)
 				glossiness, // Glossiness: 0 matte, 1 glossy/glass
 				reflectance,
 				ambient,
-				shadow_factor * ssdo.x
+				//bIsGlass ? 1.0 : shadow_factor * ssdo.x, // Disable RT shadows for glass surfaces
+				shadow_factor * ssdo.x,
+				specular_out
 			);
 
-			tmp_color += col;
+			/*if (bIsGlass)
+				tmp_color += lerp(col, spec, saturate(dot(0.333, spec)));
+			else
+				tmp_color += col;*/
+			// When
+			// Branchless version of the block above:
+			float glass_interpolator = lerp(0, saturate(dot(0.333, specular_out)), bIsGlass);
+			tmp_color += lerp(col, specular_out, glass_interpolator);
+
 			//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 			//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 		}
