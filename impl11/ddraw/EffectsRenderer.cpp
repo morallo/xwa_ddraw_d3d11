@@ -33,7 +33,6 @@ bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTEnabledInCockpit = false;
 bool g_bEnablePBRShading = false;
-bool g_bRTCoalesceEverything = false;
 bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
@@ -1090,6 +1089,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
 
+#ifdef DISABLED
 	{
 		if (g_bDumpOptNodes)
 		{
@@ -1148,8 +1148,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			g_bDumpOptNodes = false;
 		}
 	}
+#endif
 
-	_BLASNeedsUpdate = false;
 	/*
 	log_debug("[DBG] [BVH] g_iDebugFGChecker.size(): %d", g_iDebugFGChecker.size());
 	for (auto &it : g_iDebugFGChecker) {
@@ -1238,27 +1238,16 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	if (PlayerDataTable->missionTime == 0)
 		ApplyCustomHUDColor();
 
-	if (g_bKeepMouseInsideWindow)
+	if (g_bKeepMouseInsideWindow && !g_bInTechRoom)
 	{
 		// I'm a bit tired of clicking the mouse outside the window when debugging.
 		// I. shall. end. this. now.
 		SetCursorPos(0, 0);
 	}
 
+	_BLASNeedsUpdate = false;
 	if (g_bRTEnabled)
 	{
-		// DEBUG
-		{
-			static bool bPrevRTCoalesceEverything = false;
-			if (bPrevRTCoalesceEverything != g_bRTCoalesceEverything)
-			{
-				log_debug("[DBG] [BVH] REGEN ALL BLASES");
-				ClearGlobalLBVHMap();
-				_BLASNeedsUpdate = true;
-			}
-			bPrevRTCoalesceEverything = g_bRTCoalesceEverything;
-		}
-
 		// Restart the TLAS for the frame that is about to begin
 		g_iRTMeshesInThisFrame = 0;
 		g_GlobalAABB.SetInfinity();
