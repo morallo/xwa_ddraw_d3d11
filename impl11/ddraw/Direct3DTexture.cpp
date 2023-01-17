@@ -1099,6 +1099,24 @@ void Direct3DTexture::TagTexture() {
 					// can't do it now since we're still loading resources here. Instead, let's set a flag
 					// to count them later.
 					g_bLasersIonsNeedCounting = true;
+
+					// Disable the Gimbal Lock Fix on the following ships:
+					g_bYTSeriesShip = false;
+					if (stristr(g_sCurrentCockpit, "CorellianTransport2") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "FamilyTransport") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "Outrider") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "MilleniumFalcon") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "MiniFalcon") != NULL) {
+						g_bYTSeriesShip = true;
+					}
 				}
 					
 			}

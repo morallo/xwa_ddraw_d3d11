@@ -21,7 +21,6 @@ extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
-//std::map<int, int> g_iDebugFGChecker;
 
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 	"    BVH2",
@@ -1150,14 +1149,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	}
 #endif
 
-	/*
-	log_debug("[DBG] [BVH] g_iDebugFGChecker.size(): %d", g_iDebugFGChecker.size());
-	for (auto &it : g_iDebugFGChecker) {
-		log_debug("[DBG] [BVH]     0x%x --> %d", it.first, it.second);
-	}
-	g_iDebugFGChecker.clear();
-	*/
-
 	static float lastTime = g_HiResTimer.global_time_s;
 	float now = g_HiResTimer.global_time_s;
 	if (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME)
@@ -1174,14 +1165,25 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		// while playing a film!
 		// *inMissionFilmState is 0 during regular flight, and becomes 1 when recording (I think)
 
+		// 18 when docking, 6 when flying, 0 when flying, 35 when releasing cargo -- unfortunately it stays
+		// at 35 after the cargo is released, so we can't really use that...
+		//log_debug("[DBG] currentManr: %d", craftInstance->currentManr);
+
 		g_bGimbalLockFixActive = g_bEnableGimbalLockFix && !bExternalCamera && !bGunnerTurret &&
 			!(*g_playerInHangar) && hyperspacePhase == 0 &&
 #undef NO_STEERING_IN_FILMS // #undef this guy to allow steering in films
 #ifdef NO_STEERING_IN_FILMS
 			*viewingFilmState == 0 &&
 #endif
+			// Don't allow this fix when flying a YT-series ship. These ships can pick up cargo and
+			// that operation just fails when this fix is on. Also they move funny anyway.
+			!g_bYTSeriesShip &&
 			// currentManr == 18 when the ship is docking
-			craftInstance != nullptr && craftInstance->currentManr != 18;
+			//craftInstance != nullptr && craftInstance->currentManr != 18; // &&
+
+			// The speed boost section in the DS2 map becomes broken with the gimbal lock fix.
+			// So let's disable the fix in this level for now.
+			(*missionIndexLoaded != DEATH_STAR_MISSION_INDEX);
 
 		// DEBUG, print mobileObject->transformMatrix (RUF)
 		/*
@@ -3831,10 +3833,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 							OPTname, faceGroupID, it->second);
 					}
 				}
-				//auto& it = g_iDebugFGChecker.find((int)scene->FaceIndices);
-				//if (it == g_iDebugFGChecker.end())
-				//	g_iDebugFGChecker[(int)scene->FaceIndices] = scene->FacesCount;
-				//log_debug("[DBG] [BVH] MediumTransport, FG: 0x%x", scene->FaceIndices);
 			}
 			*/
 

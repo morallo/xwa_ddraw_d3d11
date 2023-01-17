@@ -16,7 +16,8 @@ extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
 
 // Gimbal Lock Fix
-bool g_bEnableGimbalLockFix = true, g_bGimbalLockFixActive = false, g_bEnableRudder = true;
+bool g_bEnableGimbalLockFix = true, g_bGimbalLockFixActive = false;
+bool g_bEnableRudder = true, g_bYTSeriesShip = false;
 
 // How much roll is applied when the ship is doing yaw. Set this to 0
 // to have a completely flat yaw, as in the YT-series ships.
