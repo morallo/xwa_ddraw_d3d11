@@ -786,18 +786,12 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float metallicity = 0.25;
 		//const float glossiness = blackish ? 0.25 : 0.75;
 		//const float glossiness = lerp(0.75, 0.5, blackish);
-		float glossiness = lerp(0.75, 0.25, blackish);
+		//float glossiness = lerp(0.75, 0.25, blackish);
+		float glossiness = lerp(0.7, 0.25, blackish);
 		//const float reflectance = blackish ? 0.0 : 0.30;
 		//const float reflectance = lerp(0.3, 0.1, blackish);
 		float reflectance = lerp(0.3, 0.05, blackish);
 		//const float exposure = 1.0;
-		//float spec_bloom = 0.0;
-		/*
-		if (GLASS_LO <= mask && mask < GLASS_HI) {
-			glossiness *= 2.0;
-			spec_bloom = 1.0; // Make the glass bloom more
-		}
-		*/
 		// Make glass more glossy
 		bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
 		if (bIsGlass)
@@ -824,7 +818,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				// This is not a shadow caster, ignore RT and SM shadows:
 				shadow_factor = 1.0;
 				// Dim the light a bit
-				light_modulation = 0.2;
+				light_modulation = 0.25;
 				is_shadow_caster = 0.0;
 			}
 			else
@@ -867,7 +861,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			const float spec_val = dot(0.333, specular_out);
 			float glass_interpolator = lerp(0, saturate(spec_val), bIsGlass);
 			float excess_energy = smoothstep(0.95, 4.0, spec_val); // approximate: saturate(spec_val - 1.0);
-			tmp_color += lerp(col, specular_out, glass_interpolator);
+			float3 col_and_glass = lerp(col, specular_out, glass_interpolator);
+			// Apply the shadeless mask.
+			// In the SSDO path above, I put a comment to the effect that even shadeless surfaces should
+			// receive some shadows. Not sure why, but I didn't implement that in this path.
+			tmp_color += lerp(col_and_glass, color.rgb, shadeless);
 			// Add some bloom where appropriate:
 			// only-shadow-casters-emit-bloom * Glass-blooms-more-than-other-surfaces * excess-specular-energy
 			float spec_bloom = is_shadow_caster * lerp(0.4, 1.25, bIsGlass) * excess_energy;
