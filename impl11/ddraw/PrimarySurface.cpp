@@ -2259,9 +2259,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	g_ShadingSys_PSBuffer.sso_disable = g_bEnableSSAOInShader ? 0.0f : 1.0f;
 	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
 	g_ShadingSys_PSBuffer.HDR_white_point = g_fHDRWhitePoint;
+	if (g_bEnableHeadLights) g_ShadingSys_PSBuffer.ambient = cur_ambient;
 	resources->InitPSConstantShadingSystem(resources->_shadingSysBuffer.GetAddressOf(), &g_ShadingSys_PSBuffer);
-	if (g_bEnableHeadLights)
-		g_ShadingSys_PSBuffer.ambient = cur_ambient;
 }
 
 void PrimarySurface::SSAOPass(float fZoomFactor) {

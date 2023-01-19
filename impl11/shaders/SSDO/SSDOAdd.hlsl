@@ -671,7 +671,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	uint i;
 
 	// Compute the shading contribution from the main lights
-//#ifndef PBR_SHADING
 	if (!bEnablePBRShading)
 	{
 		[loop]
@@ -778,25 +777,26 @@ PixelShaderOutput main(PixelShaderInput input)
 	else
 	{
 		// PBR Shading path
-		//const float ambient = 0.05;
-		const float ambient = 0.03;
+		//const float ambient = 0.03; // Use the global ambient constant from shading_system
 		const float Value = dot(0.333, color.rgb);
 		//const bool blackish = V < 0.1;
 		const float blackish = smoothstep(0.1, 0.0, Value);
-		const float metallicity = 0.25;
-		//const float glossiness = blackish ? 0.25 : 0.75;
-		//const float glossiness = lerp(0.75, 0.5, blackish);
+
+		const float metallicity = (mask < METAL_HI) ? mask / 0.5 : 0.25;
+
 		//float glossiness = lerp(0.75, 0.25, blackish);
-		float glossiness = lerp(0.7, 0.25, blackish);
+		float glossiness = min(0.93, gloss_mask);
+
 		//const float reflectance = blackish ? 0.0 : 0.30;
 		//const float reflectance = lerp(0.3, 0.1, blackish);
 		float reflectance = lerp(0.3, 0.05, blackish);
+
 		//const float exposure = 1.0;
 		// Make glass more glossy
 		bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
 		if (bIsGlass)
 		{
-			glossiness = 0.92;
+			glossiness = 0.93;
 			reflectance = 1.0;
 		}
 
@@ -933,7 +933,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float metallicity	= 0.25;
 		const float glossiness	= 0.75;
 		const float reflectance	= 0.40;
-		const float ambient = 0.05;
+		//const float ambient = 0.05;
 		float3 eye_vec = normalize(-P);
 		float3 L_PBR = L;
 		float3 N_PBR = N;
