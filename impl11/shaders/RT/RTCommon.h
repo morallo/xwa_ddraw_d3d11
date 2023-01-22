@@ -307,6 +307,7 @@ Intersection _TraceRaySimpleHit(Ray ray, in int Offset) {
 	return best_inters;
 }
 
+// Tech Room ray casting.
 // Trace a ray and return as soon as we hit geometry (Tech Room version)
 // This version expects a single matrix in g_Matrices that applies to the
 // whole g_BVH tree
@@ -396,13 +397,11 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 				if (BLASOffset != -1 && matrixSlot != -1)
 				{
 					matrix Matrix = g_Matrices[matrixSlot];
-					float3 obb_min =
-						float3(
+					float3 obb_min = float3(
 							g_TLAS[curnode].min[3],
 							g_TLAS[curnode].max[3],
 							asfloat(g_TLAS[curnode].children[3]));
-					float3 obb_max =
-						float3(
+					float3 obb_max = float3(
 							asfloat(g_TLAS[curnode].children[0]),
 							asfloat(g_TLAS[curnode].children[1]),
 							asfloat(g_TLAS[curnode].children[2]));

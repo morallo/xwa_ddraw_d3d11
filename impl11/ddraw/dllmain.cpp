@@ -815,24 +815,27 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 			// Ctrl+W
 			case 'W': {
-				if (g_bInTechRoom) {
+				if (g_bInTechRoom)
+				{
 					g_config.OnlyGrayscaleInTechRoom = !g_config.OnlyGrayscaleInTechRoom;
 					if (g_config.OnlyGrayscaleInTechRoom)
 						log_debug("[DBG] Displaying Normals");
 					else
 						log_debug("[DBG] Displaying Tangents");
 				}
-
-				// DEBUG: Toggle keyboard joystick emulation
-				if (g_config.KbdSensitivity > 0.0f) {
-					g_config.KbdSensitivity = 0.0f;
-					DisplayTimedMessage(3, 0, "Joystick Emul Paused");
+				else
+				{
+					// DEBUG: Toggle keyboard joystick emulation
+					if (g_config.KbdSensitivity > 0.0f) {
+						g_config.KbdSensitivity = 0.0f;
+						DisplayTimedMessage(3, 0, "Joystick Emul Paused");
+					}
+					else {
+						g_config.KbdSensitivity = 1.0f;
+						DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
+					}
+					log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
 				}
-				else {
-					g_config.KbdSensitivity = 1.0f;
-					DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
-				}
-				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
 				return 0;
 			}
 			case 'V':

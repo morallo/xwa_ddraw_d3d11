@@ -151,10 +151,6 @@ float3 addPBR_RT_TechRoom(in float3 position, in float3 N, in float3 FlatN, in f
 // lightDir:			Vector from the current point to the light source. Lights are at infinity,
 //						so the current point is irrelevant.
 // lightColor:			xyz is the color, w is the intensity.
-// exposure				= 1.00;
-// metallicity			= 0.25;
-// glossiness			= 0.70;
-// reflectance			= 0.60;
 float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 	in float3 baseColor, in float3 lightDir, in float4 lightColor,
 	in float metalMask, in float glossiness, in float reflectance,
@@ -164,41 +160,31 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 	float3 color = 0.0;
 	float roughness = 1.0 - glossiness * glossiness;
 	float3 F0 = 0.16 * reflectance * reflectance * (1.0 - metalMask) + baseColor * metalMask;
-	float3 albedo;
-	//const float ambient = 0.05;
-	//const float ambient = 0.15;
 #ifdef WHITE_ONLY_DEBUG
-	albedo = 1.0;
+	float3 albedo = 1.0;
 #else
 	//albedo = linear_to_srgb(baseColor);
-	albedo = baseColor;
+	float3 albedo = baseColor;
 #endif
 
-	//for (int i = 0; i < globalLightsCount; i++)
-	{
-		//float3 L = float3(0.7, -0.7, 1);
-		//float3 L = float3(0.5, 1.0, 0.7);
-		//float3 light_color = 1.0;
-		float3 L = lightDir;
+	float3 L = lightDir;
 #ifdef WHITE_ONLY_DEBUG
-		float3 light_color = 1.0;
+	float3 light_color = 1.0;
 #else
-		float3 light_color = lightColor.w * lightColor.xyz;
+	float3 light_color = lightColor.w * lightColor.xyz;
 #endif
 
-		// Vector from the current point to the light source. Lights are at infinity,
-		// so the current point is irrelevant.
-		L = normalize(L);
+	// Vector from the current point to the light source. Lights are at infinity,
+	// so the current point is irrelevant.
+	L = normalize(L);
 
-		float3 col = computePBRLighting(L, light_color, position,
-			N, V, albedo, roughness, F0, shadowFactor, lightColor.w, specular_out);
-		color += col;
-
-		// shadow += softshadow(position, normalize(lights[i].pos.xyz - position), 0.02, 2.5);
-	}
+	float3 col = computePBRLighting(L, light_color, position,
+		N, V, albedo, roughness, F0, shadowFactor, lightColor.w, specular_out);
+	color += col;
 
 	//return color * shadow; // Original version
-	return ambient * albedo + color * shadowFactor; // This prevents areas in shadow from becoming full black.
+	// Adding the ambient factor prevents areas in shadow becoming full black
+	return ambient * albedo + color * shadowFactor;
 }
 
 // Main entry point for PBR shading with Ray-tracing during regular flight.

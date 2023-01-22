@@ -778,18 +778,27 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		// PBR Shading path
 		//const float ambient = 0.03; // Use the global ambient constant from shading_system
-		const float Value = dot(0.333, color.rgb);
+		//const float Value = dot(0.333, color.rgb);
+		// Approximate luma:
+		const float Value = max((0.299f * color.x + 0.587f * color.y + 0.114f * color.z), spec_val_mask);
+
 		//const bool blackish = V < 0.1;
 		const float blackish = smoothstep(0.1, 0.0, Value);
 
-		const float metallicity = (mask < METAL_HI) ? mask / 0.5 : 0.25;
+		const float metallicity = (mask < METAL_HI) ? metallic : 0.25;
 
 		//float glossiness = lerp(0.75, 0.25, blackish);
 		float glossiness = min(0.93, gloss_mask);
 
 		//const float reflectance = blackish ? 0.0 : 0.30;
 		//const float reflectance = lerp(0.3, 0.1, blackish);
-		float reflectance = lerp(0.3, 0.05, blackish);
+		//float reflectance = lerp(0.3, 0.05, blackish);
+		float reflectance = lerp(spec_int_mask, 0.0, blackish);
+		//float reflectance = spec_int_mask;
+
+		// The following will reduce the shininess of black areas. This behavior is similar
+		// to the current materials model.
+		total_shadow_factor = lerp(total_shadow_factor, total_shadow_factor * 0.5, blackish);
 
 		//const float exposure = 1.0;
 		// Make glass more glossy
