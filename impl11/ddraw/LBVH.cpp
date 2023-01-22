@@ -506,6 +506,8 @@ static int delta32(uint32_t X, uint32_t Y)
 	return firstbithigh(X ^ Y);
 }
 
+
+#ifdef MORTON_CODE_30
 static uint32_t SpreadBits(uint32_t x, int offset)
 {
 	if ((x < 0) || (x > 1023))
@@ -519,30 +521,54 @@ static uint32_t SpreadBits(uint32_t x, int offset)
 	}
 
 	x = (x | (x << 10)) & 0x000F801F;
-	x = (x | (x << 4)) & 0x00E181C3;
-	x = (x | (x << 2)) & 0x03248649;
-	x = (x | (x << 2)) & 0x09249249;
+	x = (x | (x <<  4)) & 0x00E181C3;
+	x = (x | (x <<  2)) & 0x03248649;
+	x = (x | (x <<  2)) & 0x09249249;
 
 	return x << offset;
 }
+#else
+static uint64_t SpreadBits(uint64_t x, int offset)
+{
+	x = (x | (x << 20)) & 0x000001FFC00003FF;
+	x = (x | (x << 10)) & 0x0007E007C00F801F;
+	x = (x | (x <<  4)) & 0x00786070C0E181C3;
+	x = (x | (x <<  2)) & 0x0199219243248649;
+	x = (x | (x <<  2)) & 0x0649249249249249;
+	x = (x | (x <<  2)) & 0x1249249249249249;
+	return x << offset;
+}
+#endif
 
 // From https://stackoverflow.com/questions/1024754/how-to-compute-a-3d-morton-number-interleave-the-bits-of-3-ints
-MortonCode_t GetMortonCode32(uint32_t x, uint32_t y, uint32_t z)
+MortonCode_t GetMortonCode(uint32_t x, uint32_t y, uint32_t z)
 {
 	return SpreadBits(x, 2) | SpreadBits(y, 1) | SpreadBits(z, 0);
 }
 
-MortonCode_t GetMortonCode32(const XwaVector3 &V)
+#ifdef MORTON_CODE_30
+MortonCode_t GetMortonCode(const XwaVector3 &V)
 {
-	uint32_t x = (uint32_t)(V.x * 1023.0f);
-	uint32_t y = (uint32_t)(V.y * 1023.0f);
-	uint32_t z = (uint32_t)(V.z * 1023.0f);
-	return GetMortonCode32(x, y, z);
+	constexpr float k = 1023.0f; // 0x3FF
+	uint32_t x = (uint32_t)(V.x * k);
+	uint32_t y = (uint32_t)(V.y * k);
+	uint32_t z = (uint32_t)(V.z * k);
+	return GetMortonCode(x, y, z);
 }
+#else
+MortonCode_t GetMortonCode(const XwaVector3& V)
+{
+	constexpr float k = 2097151.0f; // 0x1FFFFF
+	uint32_t x = (uint32_t)(V.x * k);
+	uint32_t y = (uint32_t)(V.y * k);
+	uint32_t z = (uint32_t)(V.z * k);
+	return GetMortonCode(x, y, z);
+}
+#endif
 
 // This is the delta used in Apetrei 2014
 template<class T>
-static int delta(const std::vector<T> &leafItems, int i)
+static MortonCode_t delta(const std::vector<T> &leafItems, int i)
 {
 	MortonCode_t mi = std::get<0>(leafItems[i]);
 	MortonCode_t mj = std::get<0>(leafItems[i + 1]);
@@ -1575,7 +1601,7 @@ void DumpTLASLeafItem(FILE *file, T& X)
 {
 	//using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB>;
 	AABB aabb = std::get<1>(X);
-	fprintf(file, "%d, (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f), %d\n",
+	fprintf(file, "%lld, (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f), %d\n",
 		std::get<0>(X),
 		aabb.min.x, aabb.min.y, aabb.min.z,
 		aabb.max.x, aabb.max.y, aabb.max.z,
@@ -2758,7 +2784,7 @@ LBVH* LBVH::Build(const XwaVector3* vertices, const int numVertices, const int *
 
 		XwaVector3 centroid = aabb.GetCentroid();
 		Normalize(centroid, sceneBox, range);
-		MortonCode_t m = GetMortonCode32(centroid);
+		MortonCode_t m = GetMortonCode(centroid);
 		leafItems.push_back(std::make_tuple(m, aabb, TriID));
 	}
 
@@ -2834,7 +2860,7 @@ LBVH* LBVH::BuildQBVH(const XwaVector3* vertices, const int numVertices, const i
 
 		XwaVector3 centroid = aabb.GetCentroid();
 		Normalize(centroid, sceneBox, range);
-		MortonCode_t m = GetMortonCode32(centroid);
+		MortonCode_t m = GetMortonCode(centroid);
 		leafItems.push_back(std::make_tuple(m, aabb, TriID));
 	}
 
@@ -2914,7 +2940,7 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 
 		XwaVector3 centroid = aabb.GetCentroid();
 		Normalize(centroid, sceneBox, range);
-		MortonCode_t m = GetMortonCode32(centroid);
+		MortonCode_t m = GetMortonCode(centroid);
 		leafItems.push_back(std::make_tuple(m, aabb, TriID));
 	}
 

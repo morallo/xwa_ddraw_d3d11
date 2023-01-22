@@ -788,7 +788,7 @@ void BuildTLAS()
 		auto& leaf = tlasLeaves[i];
 		XwaVector3 centroid = TLASGetCentroid(leaf);
 		Normalize(centroid, g_GlobalAABB, g_GlobalRange);
-		TLASGetMortonCode(leaf) = GetMortonCode32(centroid);
+		TLASGetMortonCode(leaf) = GetMortonCode(centroid);
 	}
 
 	// Sort the tlas leaves

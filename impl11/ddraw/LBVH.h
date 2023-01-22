@@ -206,7 +206,12 @@ public:
 };
 
 // Classes and data used for the Fast LBVH build.
+#undef MORTON_CODE_30
+#ifdef MORTON_CODE_30
 using MortonCode_t = uint32_t;
+#else
+using MortonCode_t = uint64_t;
+#endif
 // 0: Morton Code, 1: Bounding Box, 2: TriID
 using LeafItem = std::tuple<MortonCode_t, AABB, int>;
 // 0: Morton Code, 1: aabbFromOBB, 2: BlasID, 3: Centroid, 4: MatrixSlot, 5: Oriented Bounding Box
@@ -686,7 +691,7 @@ int CalcNumInnerQBVHNodes(int numPrimitives);
 
 void Normalize(XwaVector3& A, const AABB& sceneBox, const XwaVector3& range);
 
-MortonCode_t GetMortonCode32(const XwaVector3& V);
+MortonCode_t GetMortonCode(const XwaVector3& V);
 
 // Red-Black balanced insertion
 TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB& box, const Matrix4& m);
