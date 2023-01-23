@@ -53,7 +53,7 @@ extern bool g_bDynCockpitEnabled;
 
 extern float g_fHangarAmbient, g_fGlobalAmbient;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
-extern bool g_bApplyXWALightsIntensity;
+extern bool g_bApplyXWALightsIntensity, g_bNormalizeLights;
 extern float g_fHDRLightsMultiplier, g_fHDRWhitePoint;
 extern bool g_bHDREnabled;
 extern bool g_bEdgeDetectorEnabled;

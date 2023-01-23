@@ -874,6 +874,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			// Apply the shadeless mask.
 			// In the SSDO path above, I put a comment to the effect that even shadeless surfaces should
 			// receive some shadows. Not sure why, but I didn't implement that in this path.
+			// ... maybe because DC elements are marked as "shadeless", so we want them to get some shadows?
 			tmp_color += lerp(col_and_glass, color.rgb, shadeless);
 			// Add some bloom where appropriate:
 			// only-shadow-casters-emit-bloom * Glass-blooms-more-than-other-surfaces * excess-specular-energy

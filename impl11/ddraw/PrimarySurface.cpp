@@ -2081,6 +2081,30 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 				g_ShadingSys_PSBuffer.LightColor[i].z *= g_fHDRLightsMultiplier;
 			}
 
+			// Normalize low-intensity lights
+			if (g_bNormalizeLights && g_XWALightInfo[i].bIsSun)
+			{
+				Vector3 col;
+				col.x = g_ShadingSys_PSBuffer.LightColor[i].x;
+				col.y = g_ShadingSys_PSBuffer.LightColor[i].y;
+				col.z = g_ShadingSys_PSBuffer.LightColor[i].z;
+
+				// Approx luma
+				float value = (col.x + col.y + col.z) / 3.0f;
+				if (value < 0.9f)
+				{
+					if (g_bDumpSSAOBuffers)
+						log_debug("[DBG] Normalizing light %d, col:[%0.3f, %0.3f, %0.3f]", i, col.x, col.y, col.z);
+					col = 0.9f * g_fHDRLightsMultiplier * col.normalize();
+					if (g_bDumpSSAOBuffers)
+						log_debug("[DBG] New color:[%0.3f, %0.3f, %0.3f]", col.x, col.y, col.z);
+					g_ShadingSys_PSBuffer.LightColor[i].x = col.x;
+					g_ShadingSys_PSBuffer.LightColor[i].y = col.y;
+					g_ShadingSys_PSBuffer.LightColor[i].z = col.z;
+					g_ShadingSys_PSBuffer.LightColor[i].w = 1.0f;
+				}
+			}
+
 			// Keep track of the light with the highest intensity
 			if (intensity > maxIntensity) {
 				maxIntensity = intensity;
@@ -2089,18 +2113,20 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 
 			if (g_bDumpSSAOBuffers)
 			{
-				log_debug("[DBG] light[%d], I: %0.3f: i: %0.3f, m1C: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)",
-					i, s_XwaGlobalLights[i].Intensity, intensity, s_XwaGlobalLights[i].m1C,
+				log_debug("[DBG] light[%d], I: %0.3f: i: %0.3f, V:[%0.3f, %0.3f, %0.3f], XWACOL: (%0.3f, %0.3f, %0.3f), shader col: (%0.3f, %0.3f, %0.3f)",
+					i, s_XwaGlobalLights[i].Intensity, intensity,
 					g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
 					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
 					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
 				);
+				/*
 				log_file("[DBG] light[%d], I: %0.3f: i: %0.3f, m1C: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)\n",
 					i, s_XwaGlobalLights[i].Intensity, intensity, s_XwaGlobalLights[i].m1C,
 					g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
 					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
 					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
 				);
+				*/
 			}
 		}
 		if (g_bDumpSSAOBuffers)
@@ -9774,6 +9800,12 @@ HRESULT PrimarySurface::Flip(
 				//log_debug("[DBG] (%d) offscreenBuffer --> backBuffer", g_iPresentCounter);
 				if (g_bDumpSSAOBuffers)
 					DirectX::SaveDDSTextureToFile(context, resources->_backBuffer, L"C:\\Temp\\_backBuffer.dds");
+			}
+
+			if (g_bDumpSSAOBuffers)
+			{
+				ResetXWALightInfo();
+				TagXWALights();
 			}
 
 			if (g_bDumpSSAOBuffers) 
