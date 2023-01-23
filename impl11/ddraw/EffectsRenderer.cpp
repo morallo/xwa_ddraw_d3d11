@@ -52,6 +52,9 @@ XwaVector3 g_GlobalRange;
 LBVH* g_TLASTree = nullptr;
 std::vector<TLASLeafItem> tlasLeaves;
 
+std::map<std::string, bool> g_RTExcludeOPTNames;
+std::map<int, bool> g_RTExcludeMeshes;
+
 // Maps an ObjectId to its index in the ObjectEntry table.
 // Textures have an associated objectId, this map tells us the slot
 // in the objects array where we'll find the corresponding objectId.
@@ -3184,7 +3187,7 @@ void EffectsRenderer::ApplyNormalMapping()
 	context->PSSetShaderResources(13, 1, &(resources->_extraTextures[_lastTextureSelected->NormalMapIdx]));
 }
 
-void EffectsRenderer::ApplyRTShadows(const SceneCompData* scene)
+void EffectsRenderer::ApplyRTShadowsTechRoom(const SceneCompData* scene)
 {
 	_bModifiedShaders = true;
 	// TODO: These conditions need to be updated to allow In-flight RT
@@ -3726,7 +3729,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 
 	if (g_bInTechRoom)
 	{
-		ApplyRTShadows(scene);
+		ApplyRTShadowsTechRoom(scene);
 	}
 	else
 	{
@@ -3798,9 +3801,9 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		ApplyAnimatedTextures(objectId, bInstanceEvent);
 
 	// BLAS construction
-	// Only add these vertices to the global BVH if we're in the Tech Room and
-	// the texture is not transparent (engine glows are transparent and may both
-	// cast and catch shadows otherwise).
+	// Only add these vertices to the BLAS if the texture is not transparent
+	// (engine glows are transparent and may both cast and catch shadows
+	// otherwise)... and other conditions
 	if ((g_bRTEnabledInTechRoom || g_bRTEnabled) &&
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		!(*g_playerInHangar) && // Disable raytracing when parked in the hangar
@@ -3809,13 +3812,39 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		!_lastTextureSelected->is_LightTexture)
 	{
 		bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
-		// bCoalesce is set to true if the current Face Group must be coalesced with other
-		// face groups in the same mesh. FGs belonging to different LODs should not be
-		// coalesced, but we know that cockpit and exterior OPTs don't have LODs.
-		//bool bCoalesce = _bIsCockpit || _bIsExterior || g_bRTCoalesceEverything;
+		bool bSkip = false;
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
 
-		if (!bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
+		// Let's check if this mesh has been tagged (for skipping)
+		int meshKey = MakeMeshKey(scene);
+		const auto& it = g_RTExcludeMeshes.find(meshKey);
+		if (it == g_RTExcludeMeshes.end())
+		{
+			// This mesh hasn't been tagged, so let's do it now
+			char OPTName[128];
+			GetOPTNameFromLastTextureSelected(OPTName);
+			toupper(OPTName);
+			const auto& nit = g_RTExcludeOPTNames.find(std::string(OPTName));
+			if (nit == g_RTExcludeOPTNames.end())
+			{
+				// This name is not in the list, we can render it
+				g_RTExcludeMeshes[meshKey] = false;
+				bSkip = false;
+			}
+			else
+			{
+				// Name is in the list, exclude it
+				g_RTExcludeMeshes[meshKey] = true;
+				bSkip = true;
+				//log_debug("[DBG] [BVH] Skipping mesh: 0x%x, for OPT: %s", meshKey, OPTName);
+			}
+		}
+		else
+		{
+			bSkip = it->second;
+		}
+
+		if (!bSkip && !bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
 			// DEBUG

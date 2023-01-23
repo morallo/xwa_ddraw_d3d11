@@ -21,8 +21,10 @@ void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
 void toupper(char *string)
 {
 	int i = 0;
-	while (string[i])
-		string[i] = toupper(string[i]);
+	while (string[i]) {
+		string[i] = (char)toupper(string[i]);
+		i++;
+	}
 }
 
 std::string wchar_tostring(LPCWSTR text)

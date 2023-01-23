@@ -137,7 +137,7 @@ public:
 	void ReAllocateAndPopulateBvhBuffers(const int numNodes);
 	void ReAllocateAndPopulateTLASBvhBuffers();
 	void ReAllocateAndPopulateMatrixBuffer();
-	void ApplyRTShadows(const SceneCompData* scene);
+	void ApplyRTShadowsTechRoom(const SceneCompData* scene);
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
 	void GetOPTNameFromLastTextureSelected(char* OPTname);
 	void UpdateBVHMaps(const SceneCompData* scene, int LOD);

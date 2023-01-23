@@ -1351,6 +1351,7 @@ void ClearGlobalLBVHMap()
 	g_BLASIdMap.clear();
 	g_FGToLODMap.clear();
 	g_MeshTagMap.clear();
+	g_RTExcludeMeshes.clear();
 
 #undef DEBUG_RT
 #ifdef DEBUG_RT

@@ -2594,6 +2594,13 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "levels_black_point") == 0) {
 				g_fLevelsBlackPoint = fValue;
 			}
+
+			if (_stricmp(param, "raytracing_exclude_opt") == 0) {
+				toupper(svalue);
+				std::string OPTName(svalue);
+				log_debug("[DBG] [BVH] Excluding OPT: %s", OPTName.c_str());
+				g_RTExcludeOPTNames[OPTName] = true;
+			}
 		}
 	}
 	fclose(file);

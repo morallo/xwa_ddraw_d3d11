@@ -236,6 +236,8 @@ extern uint32_t g_iRTMaxMeshesSoFar;
 extern int g_iRTMatricesNextSlot;
 extern bool g_bRTReAllocateBvhBuffer;
 extern bool g_bRTCaptureCameraAABB;
+extern std::map<std::string, bool> g_RTExcludeOPTNames;
+extern std::map<int, bool> g_RTExcludeMeshes;
 
 // Levels.fx
 extern bool g_bEnableLevelsShader;
