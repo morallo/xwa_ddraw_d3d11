@@ -237,6 +237,7 @@ extern int g_iRTMatricesNextSlot;
 extern bool g_bRTReAllocateBvhBuffer;
 extern bool g_bRTCaptureCameraAABB;
 extern std::map<std::string, bool> g_RTExcludeOPTNames;
+extern std::map<uint8_t, bool> g_RTExcludeShipCategories;
 extern std::map<int, bool> g_RTExcludeMeshes;
 
 // Levels.fx

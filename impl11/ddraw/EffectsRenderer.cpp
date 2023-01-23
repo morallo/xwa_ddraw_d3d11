@@ -53,6 +53,7 @@ LBVH* g_TLASTree = nullptr;
 std::vector<TLASLeafItem> tlasLeaves;
 
 std::map<std::string, bool> g_RTExcludeOPTNames;
+std::map<uint8_t, bool> g_RTExcludeShipCategories;
 std::map<int, bool> g_RTExcludeMeshes;
 
 // Maps an ObjectId to its index in the ObjectEntry table.
@@ -3498,6 +3499,56 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 #endif
 }
 
+bool EffectsRenderer::RTCheckExcludeMesh(const SceneCompData* scene)
+{
+	const int Genus = scene->pObject->ShipCategory;
+	const bool bNonRTObject =
+		(Genus == Genus_PlayerProjectile) ||
+		(Genus == Genus_SmallDebris) ||
+		(Genus == Genus_OtherProjectile) ||
+		(Genus == Genus_SalvageYard) ||
+		(Genus == Genus_Deathstar2);
+
+	if (bNonRTObject)
+		return true;
+
+	// Let's check if this mesh has been tagged (for skipping)
+	const int meshKey = MakeMeshKey(scene);
+	const auto& it = g_RTExcludeMeshes.find(meshKey);
+	// If this mesh has been tagged, just return the tag
+	if (it != g_RTExcludeMeshes.end())
+		return it->second;
+
+	// This mesh has not been tagged, let's check and tag:
+	// Check if this ship's genus must be excluded
+	const auto& git = g_RTExcludeShipCategories.find(Genus);
+	if (git != g_RTExcludeShipCategories.end())
+	{
+		// Yes: this genus must be excluded, tag and return
+		g_RTExcludeMeshes[meshKey] = true;
+		return true;
+	}
+
+	// This genus must not be excluded, let's check for name exclusions
+	char OPTName[128];
+	GetOPTNameFromLastTextureSelected(OPTName);
+	toupper(OPTName);
+	//log_debug("[DBG] OPT: %s, Genus: %d", OPTName, scene->pObject->ShipCategory);
+
+	const auto& nit = g_RTExcludeOPTNames.find(std::string(OPTName));
+	if (nit != g_RTExcludeOPTNames.end())
+	{
+		//log_debug("[DBG] [BVH] Skipping mesh: 0x%x, for OPT: %s", meshKey, OPTName);
+		// Name is in the list, exclude it
+		g_RTExcludeMeshes[meshKey] = true;
+		return true;
+	}
+
+	// Neither the genus nor the name are excluded. Tag and return (we can render it):
+	g_RTExcludeMeshes[meshKey] = false;
+	return false;
+}
+
 void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
@@ -3811,40 +3862,11 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture)
 	{
-		bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
-		bool bSkip = false;
+		const bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
+		bool bExclude = RTCheckExcludeMesh(scene);
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
 
-		// Let's check if this mesh has been tagged (for skipping)
-		int meshKey = MakeMeshKey(scene);
-		const auto& it = g_RTExcludeMeshes.find(meshKey);
-		if (it == g_RTExcludeMeshes.end())
-		{
-			// This mesh hasn't been tagged, so let's do it now
-			char OPTName[128];
-			GetOPTNameFromLastTextureSelected(OPTName);
-			toupper(OPTName);
-			const auto& nit = g_RTExcludeOPTNames.find(std::string(OPTName));
-			if (nit == g_RTExcludeOPTNames.end())
-			{
-				// This name is not in the list, we can render it
-				g_RTExcludeMeshes[meshKey] = false;
-				bSkip = false;
-			}
-			else
-			{
-				// Name is in the list, exclude it
-				g_RTExcludeMeshes[meshKey] = true;
-				bSkip = true;
-				//log_debug("[DBG] [BVH] Skipping mesh: 0x%x, for OPT: %s", meshKey, OPTName);
-			}
-		}
-		else
-		{
-			bSkip = it->second;
-		}
-
-		if (!bSkip && !bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
+		if (!bExclude && !bSkipCockpit && !_bIsLaser && !_bIsExplosion && !_bIsGunner &&
 			!(g_bIsFloating3DObject || g_isInRenderMiniature))
 		{
 			// DEBUG

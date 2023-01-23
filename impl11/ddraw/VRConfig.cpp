@@ -2601,6 +2601,45 @@ bool LoadSSAOParams() {
 				log_debug("[DBG] [BVH] Excluding OPT: %s", OPTName.c_str());
 				g_RTExcludeOPTNames[OPTName] = true;
 			}
+
+			if (_stricmp(param, "raytracing_exclude_class") == 0)
+			{
+				if (_stricmp(svalue, "Starships") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Starship] = true;
+					log_debug("[DBG] [BVH] Excluding Starships");
+				}
+				else if (_stricmp(svalue, "Stations") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Platform] = true;
+					log_debug("[DBG] [BVH] Excluding Stations");
+				}
+				else if (_stricmp(svalue, "Starfighters") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Starfighter] = true;
+					log_debug("[DBG] [BVH] Excluding Starfighters");
+				}
+				else if (_stricmp(svalue, "Freighters") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Freighter] = true;
+					log_debug("[DBG] [BVH] Excluding Freighters");
+				}
+				else if (_stricmp(svalue, "Transports") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Transport] = true;
+					log_debug("[DBG] [BVH] Excluding Transports");
+				}
+				else if (_stricmp(svalue, "Mines") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Mine] = true;
+					log_debug("[DBG] [BVH] Excluding Mines");
+				}
+				else if (_stricmp(svalue, "Satellites") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Satellite] = true;
+					log_debug("[DBG] [BVH] Excluding Satellites");
+				}
+			}
 		}
 	}
 	fclose(file);

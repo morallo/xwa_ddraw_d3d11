@@ -141,6 +141,7 @@ public:
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
 	void GetOPTNameFromLastTextureSelected(char* OPTname);
 	void UpdateBVHMaps(const SceneCompData* scene, int LOD);
+	bool RTCheckExcludeMesh(const SceneCompData* scene);
 
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);

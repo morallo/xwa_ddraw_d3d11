@@ -158,7 +158,7 @@ struct XwaObject
 	//unsigned short ModelIndex;
 	unsigned short ObjectSpecies; // Type enum ObjectTypeEnum
 
-	unsigned char ShipCategory; // ObjectGenus
+	unsigned char ShipCategory; // See XWAEnums.h:ObjectGenus
 	unsigned char TieFlightGroupIndex;
 	unsigned char Region;
 	int PositionX; // The actual position of this craft. We can use this to move the player or pretty much any ship, maybe.
