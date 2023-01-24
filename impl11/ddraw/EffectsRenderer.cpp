@@ -3535,6 +3535,17 @@ bool EffectsRenderer::RTCheckExcludeMesh(const SceneCompData* scene)
 	toupper(OPTName);
 	//log_debug("[DBG] OPT: %s, Genus: %d", OPTName, scene->pObject->ShipCategory);
 
+	// Skydome, Planet3D: No shadows
+	if ((stristr(OPTName, "Skydome") != NULL) ||
+		(stristr(OPTName, "Planet3D") != NULL))
+	{
+		g_RTExcludeMeshes[meshKey] = true;
+		return true;
+	}
+
+	// OPTs containing "Land" must receive shadows even from far away...
+	// ... TODO
+
 	const auto& nit = g_RTExcludeOPTNames.find(std::string(OPTName));
 	if (nit != g_RTExcludeOPTNames.end())
 	{
