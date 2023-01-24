@@ -1607,9 +1607,23 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		curMaterial->bInstanceMaterial = true;
 	}
 
+	else if (_stricmp(param, "DisplayIfMissionSetSpeedGE") == 0) {
+		curMaterial->DisplayIfMissionSetSpeedGE = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	else if (_stricmp(param, "IncreaseBrightnessWithMissionSetSpeed") == 0) {
+		curMaterial->IncreaseBrightnessWithMissionSetSpeed = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	/*
 	else if (_stricmp(param, "Raytrace") == 0) {
 		curMaterial->Raytrace = (int)fValue;
 	}
+	*/
 
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {

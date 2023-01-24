@@ -525,6 +525,7 @@ struct Material {
 	int DisplayIfSpeedGE;
 	float DisplayIfThrottleGE;
 	int DisplayIfMissionSetSpeedGE;
+	int IncreaseBrightnessWithMissionSetSpeed;
 	bool Raytrace;
 
 	// DEBUG properties, remove later
@@ -597,6 +598,7 @@ struct Material {
 		DisplayIfSpeedGE = -INT_MAX;
 		DisplayIfThrottleGE = -FLT_MAX;
 		DisplayIfMissionSetSpeedGE = -INT_MAX;
+		IncreaseBrightnessWithMissionSetSpeed = -1;
 
 		Raytrace = true;
 

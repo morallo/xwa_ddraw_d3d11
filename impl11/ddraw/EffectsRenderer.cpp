@@ -2594,10 +2594,19 @@ void EffectsRenderer::ApplyMeshTransform()
 }
 
 // Apply BLOOM flags and 32-bit mode enhancements
-void EffectsRenderer::ApplyBloomSettings()
+void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 {
 	if (!_bLastTextureSelectedNotNULL)
 		return;
+
+	if (bloomOverride > 0.0f)
+	{
+		_bModifiedShaders = true;
+		g_PSCBuffer.fBloomStrength = bloomOverride;
+		g_PSCBuffer.bIsEngineGlow = 1;
+		log_debug("[DBG] bloomOverride: %0.3f", bloomOverride);
+		return;
+	}
 
 	if (_bIsLaser) {
 		_bModifiedShaders = true;
@@ -2655,12 +2664,12 @@ void EffectsRenderer::ApplyBloomSettings()
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fCockpitSparksStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
 	}
-	else if (_lastTextureSelected->is_Chaff)
+	/* else if (_lastTextureSelected->is_Chaff) // Chaff is rendered in Direct3DDevice.cpp
 	{
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
-	}
+	} */
 	else if (_lastTextureSelected->is_Missile)
 	{
 		_bModifiedShaders = true;
@@ -3658,6 +3667,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		objectId = scene->pObject->ObjectId;
 	const bool bInstanceEvent = _lastTextureSelected->material.bInstanceMaterial && objectId != -1;
 	const int materialId = _lastTextureSelected->material.Id;
+	float bloomOverride = -1.0f;
 
 	// UPDATE THE STATE OF INSTANCE EVENTS.
 	// A material is associated with either a global ATC or an instance ATC for now.
@@ -3698,6 +3708,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			{
 				//log_debug("[DBG] [%s], systems: %d", _lastTextureSelected->_name.c_str(), systems);
 				goto out;
+			}
+
+			if (_lastTextureSelected->material.IncreaseBrightnessWithMissionSetSpeed > 0)
+			{
+				bloomOverride = g_BloomConfig.fEngineGlowStrength *
+					(float)curMissionSetSpeed / (float)_lastTextureSelected->material.IncreaseBrightnessWithMissionSetSpeed;
+				//bloomOverride = g_BloomConfig.fEngineGlowStrength * curThrottle;
 			}
 			
 			if (instanceEvent != nullptr) {
@@ -3825,7 +3842,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Apply BLOOM flags and 32-bit mode enhancements
 	// TODO: This code expects either a lightmap or a regular texture, but now we can have both at the same time
 	// this will mess up all the animation logic when both the regular and lightmap layers have animations
-	ApplyBloomSettings();
+	ApplyBloomSettings(bloomOverride);
 
 	// Transparent textures are currently used with DC to render floating text. However, if the erase region
 	// commands are being ignored, then this will cause the text messages to be rendered twice. To avoid

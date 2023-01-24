@@ -117,7 +117,7 @@ public:
 	void DoStateManagement(const SceneCompData* scene);
 	void ApplyMaterialProperties();
 	void ApplySpecialMaterials();
-	void ApplyBloomSettings();
+	void ApplyBloomSettings(float bloomOverride);
 	void ApplyDiegeticCockpit();
 	void ApplyMeshTransform();
 	void DCCaptureMiniature();
