@@ -106,9 +106,6 @@ std::vector<char*> Explosion_ResNames = {
 std::vector<char*> Smoke_ResNames = {
 	"dat,3003,", // Sparks.dat <-- Smoke when hitting a target
 	"dat,3004,", // Sparks.dat <-- Smoke when hitting a target
-	// The following used to be tagged as explosions, but they look like smoke
-	// Animations.dat
-	"dat,3006,", // Single-frame smoke?
 };
 
 std::vector<char*> Sparks_ResNames = {

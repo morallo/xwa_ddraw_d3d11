@@ -5266,7 +5266,7 @@ HRESULT Direct3DDevice::Execute(
 					else if (lastTextureSelected->is_Chaff)
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+						g_PSCBuffer.fBloomStrength = 4.0f * g_BloomConfig.fSparksStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 					else if (lastTextureSelected->is_Missile)

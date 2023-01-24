@@ -895,7 +895,8 @@ void Direct3DTexture::TagTexture() {
 			this->is_Spark = true;
 		if (strstr(surface->_cname, "dat,22007,") != NULL)
 			this->is_CockpitSpark = true;
-		if (strstr(surface->_cname, "dat,5000,") != NULL)
+		if ((strstr(surface->_cname, "dat,5000,") != NULL) ||
+			(strstr(surface->_cname, "dat,3006,") != NULL))
 			this->is_Chaff = true;
 		if (strstr(surface->_cname, "dat,17002,") != NULL) // DSII reactor core explosion animation textures
 			this->is_DS2_Reactor_Explosion = true;
