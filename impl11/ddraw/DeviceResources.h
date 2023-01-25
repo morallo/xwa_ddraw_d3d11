@@ -33,6 +33,7 @@ class OffscreenSurface;
 //#define AO_MASK_FORMAT DXGI_FORMAT_R8_UINT
 #define AO_MASK_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define HDR_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
+#define RT_SHADOW_FORMAT DXGI_FORMAT_R8_UNORM
 
 
 /*
@@ -264,6 +265,9 @@ public:
 	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
 	ComPtr<ID3D11Texture2D> _csmMap;		 // Main render texture for CSM.
 	ComPtr<ID3D11Texture2D> _csmArray;       // Cascaded Shadow Map array
+	// Raytracing
+	ComPtr<ID3D11Texture2D> _rtShadowMask;
+	ComPtr<ID3D11Texture2D> _rtShadowMaskR;
 	// Generated/Procedural Textures
 	ComPtr<ID3D11Texture2D> _grayNoiseTex;
 	// 3D Vision
@@ -324,6 +328,9 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
+	// Raytracing
+	ComPtr<ID3D11RenderTargetView> _rtShadowMaskRTV;
+	ComPtr<ID3D11RenderTargetView> _rtShadowMaskRTV_R;
 	// 3D vision
 	ComPtr<ID3D11RenderTargetView> _RTVvision3DPost; // Used for the "barrel" effect in 3D vision
 
@@ -376,6 +383,9 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _RTBvhSRV;
 	ComPtr<ID3D11ShaderResourceView> _RTTLASBvhSRV;
 	ComPtr<ID3D11ShaderResourceView> _RTMatricesSRV;
+	// Raytracing Shadow Mask
+	ComPtr<ID3D11ShaderResourceView> _rtShadowMaskSRV;
+	ComPtr<ID3D11ShaderResourceView> _rtShadowMaskSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;

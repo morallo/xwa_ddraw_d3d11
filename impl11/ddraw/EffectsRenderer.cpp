@@ -32,6 +32,7 @@ bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTEnabledInCockpit = false;
 bool g_bEnablePBRShading = false;
+bool g_bRTEnableSoftShadows = false;
 bool g_bRTCaptureCameraAABB = true;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.

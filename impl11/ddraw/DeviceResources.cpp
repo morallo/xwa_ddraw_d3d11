@@ -1759,6 +1759,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 	if (g_bRTEnabled)
 	{
+		if (g_bRTEnableSoftShadows)
+		{
+			this->_rtShadowMask.Release();
+			this->_rtShadowMaskRTV.Release();
+			this->_rtShadowMaskSRV.Release();
+			if (g_bUseSteamVR)
+			{
+				this->_rtShadowMaskR.Release();
+				this->_rtShadowMaskRTV_R.Release();
+				this->_rtShadowMaskSRV_R.Release();
+			}
+		}
+
 		// This path is only hit when we're *not* in the Tech Room
 		ClearGlobalLBVHMap();
 		g_bRTCaptureCameraAABB = true;
@@ -2564,6 +2577,31 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.BindFlags = oldFlags;
 			}
 
+			// In-Flight Raytracing: Create Non-MSAA RT Shadow Buffer
+			if (g_bRTEnabled && g_bRTEnableSoftShadows)
+			{
+				UINT oldFlags = desc.BindFlags;
+				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+				desc.SampleDesc.Count = 1;
+				desc.SampleDesc.Quality = 0;
+				desc.Format = RT_SHADOW_FORMAT;
+
+				step = "_rtShadowMask";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_rtShadowMask);
+				if (FAILED(hr)) goto out;
+
+				if (g_bUseSteamVR)
+				{
+					step = "_rtShadowMaskR";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_rtShadowMaskR);
+					if (FAILED(hr)) goto out;
+				}
+
+				desc.Format = oldFormat;
+				desc.MipLevels = 1;
+				desc.BindFlags = oldFlags;
+			}
+
 			// Create Non-MSAA AO Buffers
 			if (g_bAOEnabled) {
 				UINT oldFlags = desc.BindFlags;
@@ -2931,6 +2969,25 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			}
 
+			// Raytracing Shadow Mask SRVs
+			if (g_bRTEnabled && g_bRTEnableSoftShadows) {
+				DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+				shaderResourceViewDesc.Format = RT_SHADOW_FORMAT;
+
+				step = "_rtShadowMaskSRV";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_rtShadowMask, &shaderResourceViewDesc, &this->_rtShadowMaskSRV);
+				if (FAILED(hr)) goto out;
+
+				if (g_bUseSteamVR) {
+					step = "_rtShadowMaskSRV_R";
+					hr = this->_d3dDevice->CreateShaderResourceView(this->_rtShadowMaskR, &shaderResourceViewDesc, &this->_rtShadowMaskSRV_R);
+					if (FAILED(hr)) goto out;
+				}
+
+				shaderResourceViewDesc.Format = oldFormat;
+				shaderResourceViewDesc.Texture2D.MipLevels = 1;
+			}
+
 			// AO SRVs
 			if (g_bAOEnabled) {
 				shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
@@ -3279,6 +3336,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			renderTargetViewDesc.Format = oldFormat;
 		}
 
+		// SSAO RTVs
 		if (g_bAOEnabled) {
 			renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
 			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
@@ -3313,6 +3371,21 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			renderTargetViewDesc.Format = oldFormat;
+		}
+
+		// Raytracing Shadow Mask RTVs
+		if (g_bRTEnabled && g_bRTEnableSoftShadows) {
+			renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
+			step = "_rtShadowMaskRTV";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMask, &renderTargetViewDescNoMSAA, &this->_rtShadowMaskRTV);
+			if (FAILED(hr)) goto out;
+
+			if (g_bUseSteamVR) {
+				renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
+				step = "_rtShadowMaskRTV_R";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMaskR, &renderTargetViewDescNoMSAA, &this->_rtShadowMaskRTV_R);
+				if (FAILED(hr)) goto out;
+			}
 		}
 	}
 

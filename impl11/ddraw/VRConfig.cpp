@@ -2050,6 +2050,9 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "raytracing_enabled_in_cockpit") == 0) {
 				g_bRTEnabledInCockpit = (bool)fValue;
 			}
+			if (_stricmp(param, "raytracing_enable_soft_shadows") == 0) {
+				g_bRTEnableSoftShadows = (bool)fValue;
+			}
 
 			if (_stricmp(param, "keep_mouse_inside_window") == 0) {
 				g_bKeepMouseInsideWindow = (bool)fValue;
