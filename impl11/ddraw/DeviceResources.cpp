@@ -78,6 +78,7 @@
 #include "../Debug/HangarShadowMapVS.h"
 #include "../Debug/XwaD3dCSMVertexShader.h"
 #include "../Debug/LevelsPS.h"
+#include "../Debug/RTShadowMaskPS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -144,6 +145,7 @@
 #include "../Release/HangarShadowMapVS.h"
 #include "../Release/XwaD3dCSMVertexShader.h"
 #include "../Release/LevelsPS.h"
+#include "../Release/RTShadowMaskPS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3987,7 +3989,10 @@ HRESULT DeviceResources::LoadResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LevelsPS, sizeof(g_LevelsPS), nullptr, &_levelsPS)))
 		return hr;
-	
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
+		return hr;
+
 
 	if (g_bDynCockpitEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))

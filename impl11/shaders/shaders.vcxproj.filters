@@ -88,6 +88,7 @@
     <FxCompile Include="RT\RTShadowCS.hlsl" />
     <FxCompile Include="LevelsPS.hlsl" />
     <FxCompile Include="XwaD3dCSMVertexShader.hlsl" />
+    <FxCompile Include="RT\RTShadowMaskPS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

@@ -7665,7 +7665,6 @@ void PrimarySurface::RenderSunFlare()
 	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
-
 /*
  * Input: offscreenBuffer (resolved here)
  * Output: offscreenBufferPost
@@ -8521,6 +8520,106 @@ nochange:
 	// we just need to prevent applying this effect multiple times.
 	g_bEdgeEffectApplied = true;
 
+	this->_deviceResources->_d3dAnnotation->EndEvent();
+}
+
+void PrimarySurface::RenderRTShadowMask()
+{
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRTShadowMask");
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	D3D11_VIEWPORT viewport{};
+
+	// Save the current context
+	SaveContext();
+
+	// Apply the constants for this effect...
+	// TODO
+	//g_ShadertoyBuffer.twirl = g_fLevelsWhitePoint;
+	//g_ShadertoyBuffer.bloom_strength = g_fLevelsBlackPoint;
+	//resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+	// Reset the viewport for non-VR mode:
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width    = g_fCurScreenWidth;
+	viewport.Height   = g_fCurScreenHeight;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	resources->InitViewport(&viewport);
+
+	// Reset the vertex shader to regular 2D post-process
+	// Set the Vertex Shader Constant buffers
+	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+	// Set/Create the VertexBuffer and set the topology, etc
+	UINT stride = sizeof(MainVertex), offset = 0;
+	resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitInputLayout(resources->_mainInputLayout);
+
+	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitPixelShader(resources->_rtShadowMaskPS);
+	// Clear all the render target views
+	ID3D11RenderTargetView* rtvs_null[5] = {
+		NULL, // Main RTV
+		NULL, // Bloom
+		NULL, // Depth
+		NULL, // Norm Buf
+		NULL, // SSAO Mask
+	};
+	context->OMSetRenderTargets(5, rtvs_null, NULL);
+
+	// Do we need to resolve the offscreen buffer?
+	//context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+	//if (g_bUseSteamVR)
+	//	context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+	context->ClearRenderTargetView(resources->_rtShadowMaskRTV, bgColor);
+
+	ID3D11RenderTargetView* rtvs[1] = {
+		resources->_rtShadowMaskRTV.Get(),
+	};
+	context->OMSetRenderTargets(1, rtvs, NULL);
+	// Set the SRVs:
+	ID3D11ShaderResourceView* srvs[2] = {
+		resources->_normBufSRV.Get(),
+		resources->_depthBufSRV.Get(),
+	};
+	context->PSSetShaderResources(0, 2, srvs);
+	context->Draw(6, 0);
+
+	// Post-process the right image
+	if (g_bUseSteamVR) {
+		context->ClearRenderTargetView(resources->_rtShadowMaskRTV_R, bgColor);
+		ID3D11RenderTargetView* rtvs[1] = {
+			resources->_rtShadowMaskRTV_R.Get(),
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+
+		// Set the SRVs:
+		ID3D11ShaderResourceView* srvs[2] = {
+			resources->_normBufSRV_R.Get(),
+			resources->_depthBufSRV_R.Get(),
+		};
+		context->PSSetShaderResources(0, 2, srvs);
+		context->Draw(6, 0);
+	}
+
+	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
+	//context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
+	//if (g_bUseSteamVR)
+	//	context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_rtShadowMask, L"C:\\Temp\\_rtShadowMask.dds");
+	}
+
+	// Restore the previous context
+	RestoreContext();
 	this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
@@ -9708,6 +9807,11 @@ HRESULT PrimarySurface::Flip(
 			{
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
+			}
+
+			if (g_bRTEnabled && g_bRTEnableSoftShadows)
+			{
+				RenderRTShadowMask();
 			}
 
 			// 3D path final post-processing step. Copied from ReShade's Levels.fx

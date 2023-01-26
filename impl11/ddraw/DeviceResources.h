@@ -33,7 +33,7 @@ class OffscreenSurface;
 //#define AO_MASK_FORMAT DXGI_FORMAT_R8_UINT
 #define AO_MASK_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define HDR_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
-#define RT_SHADOW_FORMAT DXGI_FORMAT_R8_UNORM
+#define RT_SHADOW_FORMAT DXGI_FORMAT_R16G16_FLOAT
 
 
 /*
@@ -492,6 +492,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderAnimDAT;
 	ComPtr<ID3D11PixelShader> _pixelShaderGreeble;
 	ComPtr<ID3D11PixelShader> _levelsPS;
+	ComPtr<ID3D11PixelShader> _rtShadowMaskPS;
 
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless

@@ -160,6 +160,8 @@ public:
 
 	void Add3DVisionSignature();
 
+	void RenderRTShadowMask();
+
 	void RenderEdgeDetector();
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
