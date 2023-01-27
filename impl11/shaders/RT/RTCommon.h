@@ -4,14 +4,20 @@
 // OK. I should know, since I'm one of the co-authors!
 
 #define MAX_RT_STACK 32
+#define RT_MAX_DIST 5000.0f
 
 // RTConstantsBuffer
 cbuffer ConstantBuffer : register(b10) {
 	bool bRTEnabled;
 	bool bRTAllowShadowMapping;
 	bool bEnablePBRShading;
-	bool RTUnused;
+	bool RTGetBestIntersection;
 	// 16 bytes
+	bool RTUseShadowMask;
+	bool RTShadowMaskSizeFactor;
+	bool RTUnused1;
+	bool RTUnused2;
+	// 32 bytes
 };
 
 struct Ray				// 28 bytes
@@ -252,6 +258,7 @@ Intersection _TraceRaySimpleHit(Ray ray, in int Offset) {
 	float3 inv_dir = 1.0f / ray.dir;
 	Intersection best_inters;
 	best_inters.TriID = -1;
+	best_inters.T = RT_MAX_DIST;
 
 	// Read the padding from the first BVHNode. It will contain the location of the root
 	//int root = g_BVH[0].rootIdx;

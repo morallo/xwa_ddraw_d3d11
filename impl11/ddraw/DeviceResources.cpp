@@ -2582,10 +2582,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// In-Flight Raytracing: Create Non-MSAA RT Shadow Buffer
 			if (g_bRTEnabled && g_bRTEnableSoftShadows)
 			{
+				UINT oldW = desc.Width;
+				UINT oldH = desc.Height;
 				UINT oldFlags = desc.BindFlags;
 				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 				desc.SampleDesc.Count = 1;
 				desc.SampleDesc.Quality = 0;
+				desc.Width /= g_RTConstantsBuffer.RTShadowMaskSizeFactor;
+				desc.Height /= g_RTConstantsBuffer.RTShadowMaskSizeFactor;
 				desc.Format = RT_SHADOW_FORMAT;
 
 				step = "_rtShadowMask";
@@ -2602,6 +2606,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.Format = oldFormat;
 				desc.MipLevels = 1;
 				desc.BindFlags = oldFlags;
+				desc.Width = oldW;
+				desc.Height = oldH;
 			}
 
 			// Create Non-MSAA AO Buffers
@@ -2975,6 +2981,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (g_bRTEnabled && g_bRTEnableSoftShadows) {
 				DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 				shaderResourceViewDesc.Format = RT_SHADOW_FORMAT;
+				shaderResourceViewDesc.Texture2D.MipLevels = 1;
+				shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 
 				step = "_rtShadowMaskSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_rtShadowMask, &shaderResourceViewDesc, &this->_rtShadowMaskSRV);
@@ -4317,8 +4326,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the ray-tracer
-	constantBufferDesc.ByteWidth = 16;
-	static_assert(sizeof(RTConstantsBuffer) == 16, "sizeof(RTConstantsBuffer) must be 16");
+	constantBufferDesc.ByteWidth = 32;
+	static_assert(sizeof(RTConstantsBuffer) == 32, "sizeof(RTConstantsBuffer) must be 32");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
 		return hr;
 

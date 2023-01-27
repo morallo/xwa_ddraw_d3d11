@@ -65,14 +65,14 @@ extern std::vector<char*> Trails_ResNames;
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 // Constant Buffers
-extern VertexShaderMatrixCB		g_VSMatrixCB;
-extern BloomPixelShaderCBuffer	g_BloomPSCBuffer;
-extern SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
-extern PSShadingSystemCB			g_ShadingSys_PSBuffer;
-extern ShadertoyCBuffer			g_ShadertoyBuffer;
-extern LaserPointerCBuffer		g_LaserPointerBuffer;
-extern OPTMeshTransformCBuffer	g_OPTMeshTransformCB;
-extern RTConstantsBuffer			g_RTConstantsBuffer;
+extern VertexShaderMatrixCB     g_VSMatrixCB;
+extern BloomPixelShaderCBuffer  g_BloomPSCBuffer;
+extern SSAOPixelShaderCBuffer   g_SSAO_PSCBuffer;
+extern PSShadingSystemCB        g_ShadingSys_PSBuffer;
+extern ShadertoyCBuffer         g_ShadertoyBuffer;
+extern LaserPointerCBuffer      g_LaserPointerBuffer;
+extern OPTMeshTransformCBuffer  g_OPTMeshTransformCB;
+extern RTConstantsBuffer        g_RTConstantsBuffer;
 
 extern D3DTLVERTEX* g_OrigVerts;
 extern uint32_t* g_OrigIndex;

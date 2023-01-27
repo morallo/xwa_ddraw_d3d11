@@ -1,5 +1,3 @@
-//#include "ShaderToyDefs.h"
-//#include "ShadertoyCBuffer.h"
 #include "RTCommon.h"
 #include "../shading_system.h"
 #include "../shadow_mapping_common.h"
@@ -39,13 +37,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 P = pos3D.xyz;
 
 	float rt_shadow_factor = 1.0f;
-	float occ_dist = 5000.0f;
+	float occ_dist = RT_MAX_DIST;
 
 	// If I remove the following, then the bloom mask is messed up!
 	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
 	if (Normal.w < 0.475) {
 		//output.color = float4(rt_shadow_factor, occ_dist, 0, 0);
-		output.color = rt_shadow_factor;
+		//output.color = float2(rt_shadow_factor, occ_dist);
+		//output.color = rt_shadow_factor;
+		output.color = occ_dist;
 		return output;
 	}
 
@@ -78,16 +78,18 @@ PixelShaderOutput main(PixelShaderInput input)
 			if (inters.TriID > -1)
 			{
 				rt_shadow_factor *= black_level;
-				occ_dist = inters.T;
+				occ_dist = inters.T * 0.024414; // Convert to meters (1/40.96)
 			}
 		}
 		else
 		{
 			rt_shadow_factor *= black_level;
+			occ_dist = 0; // This surface faces away from the light. Distance to occluder: 0
 		}
 	}
 
-	//output.color = float4(rt_shadow_factor, occ_dist, 0, 0);
-	output.color = rt_shadow_factor;
+	//output.color = float2(rt_shadow_factor, occ_dist);
+	//output.color = rt_shadow_factor;
+	output.color = occ_dist;
 	return output;
 }

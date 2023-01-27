@@ -3444,12 +3444,13 @@ void PrimarySurface::DeferredPass() {
 		if (g_bRTEnabled)
 		{
 			ID3D11ShaderResourceView* srvs[] = {
-				resources->_RTBvhSRV.Get(),
-				resources->_RTMatricesSRV.Get(),
-				resources->_RTTLASBvhSRV.Get(),
+				resources->_RTBvhSRV.Get(),        // 14
+				resources->_RTMatricesSRV.Get(),   // 15
+				resources->_RTTLASBvhSRV.Get(),    // 16
+				resources->_rtShadowMaskSRV.Get(), // 17
 			};
-			// Slots 14-16 are used for Raytracing buffers (BLASes, Matrices, TLAS)
-			context->PSSetShaderResources(14, 3, srvs);
+			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
+			context->PSSetShaderResources(14, 4, srvs);
 		}
 
 		context->Draw(6, 0);
@@ -3496,12 +3497,13 @@ void PrimarySurface::DeferredPass() {
 		if (g_bRTEnabled)
 		{
 			ID3D11ShaderResourceView* srvs[] = {
-				resources->_RTBvhSRV.Get(),
-				resources->_RTMatricesSRV.Get(),
-				resources->_RTTLASBvhSRV.Get(),
+				resources->_RTBvhSRV.Get(),          // 14
+				resources->_RTMatricesSRV.Get(),     // 15
+				resources->_RTTLASBvhSRV.Get(),      // 16
+				resources->_rtShadowMaskSRV_R.Get(), // 17
 			};
-			// Slots 14-16 are used for Raytracing buffers (BLASes, Matrices, TLAS)
-			context->PSSetShaderResources(14, 3, srvs);
+			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
+			context->PSSetShaderResources(14, 4, srvs);
 		}
 
 		context->Draw(6, 0);
@@ -8536,16 +8538,13 @@ void PrimarySurface::RenderRTShadowMask()
 	SaveContext();
 
 	// Apply the constants for this effect...
-	// TODO
-	//g_ShadertoyBuffer.twirl = g_fLevelsWhitePoint;
-	//g_ShadertoyBuffer.bloom_strength = g_fLevelsBlackPoint;
-	//resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	// ...
 
 	// Reset the viewport for non-VR mode:
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
-	viewport.Width    = g_fCurScreenWidth;
-	viewport.Height   = g_fCurScreenHeight;
+	viewport.Width    = g_fCurScreenWidth  / g_RTConstantsBuffer.RTShadowMaskSizeFactor;
+	viewport.Height   = g_fCurScreenHeight / g_RTConstantsBuffer.RTShadowMaskSizeFactor;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
@@ -8572,11 +8571,6 @@ void PrimarySurface::RenderRTShadowMask()
 		NULL, // SSAO Mask
 	};
 	context->OMSetRenderTargets(5, rtvs_null, NULL);
-
-	// Do we need to resolve the offscreen buffer?
-	//context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	//if (g_bUseSteamVR)
-	//	context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
 	context->ClearRenderTargetView(resources->_rtShadowMaskRTV, bgColor);
 
 	ID3D11RenderTargetView* rtvs[1] = {
@@ -8589,6 +8583,16 @@ void PrimarySurface::RenderRTShadowMask()
 		resources->_depthBufSRV.Get(),
 	};
 	context->PSSetShaderResources(0, 2, srvs);
+
+	// Set the BVH SRVs:
+	ID3D11ShaderResourceView* srvs2[] = {
+		resources->_RTBvhSRV.Get(),          // 14
+		resources->_RTMatricesSRV.Get(),     // 15
+		resources->_RTTLASBvhSRV.Get(),      // 16
+	};
+	// Slots 14-16 are used for Raytracing buffers (BLASes, Matrices, TLAS)
+	context->PSSetShaderResources(14, 3, srvs2);
+
 	context->Draw(6, 0);
 
 	// Post-process the right image
@@ -8607,11 +8611,6 @@ void PrimarySurface::RenderRTShadowMask()
 		context->PSSetShaderResources(0, 2, srvs);
 		context->Draw(6, 0);
 	}
-
-	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
-	//context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	//if (g_bUseSteamVR)
-	//	context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	if (g_bDumpSSAOBuffers)
 	{
@@ -9265,39 +9264,37 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Render the hyperspace effect if necessary
+			if (g_HyperspacePhaseFSM != HS_INIT_ST)
 			{
-				// Render the new hyperspace effect
-				if (g_HyperspacePhaseFSM != HS_INIT_ST)
-				{
-					UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
-					// Preconditions:
-					//		shadertoyBufMSAA has a copy of the cockpit.
-					//		shadertoyAuxBufMSAA has a copy of the offscreen buffer (the background, if applicable).
-					// When we're in hyperspace, the cockpit should be rendered to shadertoyBufMSAA through shadertoyRTV.
-					// This happens in SelectOffscreenBuffer() when we pass the relevant flags. Here, we resolve shaderToyBufMSAA
-					// to shadertoyBuf. This is later used in PrimarySurface::RenderHyperspaceEffect() to compose the cockpit,
-					// in the form of left/right 2D images on top of the the hyperspace effect itself.
-					if (resources->_useMultisampling) {
-						context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_shadertoyBufMSAA, 0, BACKBUFFER_FORMAT);
-						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
-					}
-
-					if (g_bDumpSSAOBuffers) {
-						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"C:\\Temp\\_shadertoyBuf.dds");
-						//DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_shadertoyAuxBuf.dds");
-						if (g_bUseSteamVR)
-							DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBufR, L"C:\\Temp\\_shadertoyBufR.dds");
-					}
-
-					// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
-					// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
-					RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
+				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
+				// Preconditions:
+				//		shadertoyBufMSAA has a copy of the cockpit.
+				//		shadertoyAuxBufMSAA has a copy of the offscreen buffer (the background, if applicable).
+				// When we're in hyperspace, the cockpit should be rendered to shadertoyBufMSAA through shadertoyRTV.
+				// This happens in SelectOffscreenBuffer() when we pass the relevant flags. Here, we resolve shaderToyBufMSAA
+				// to shadertoyBuf. This is later used in PrimarySurface::RenderHyperspaceEffect() to compose the cockpit,
+				// in the form of left/right 2D images on top of the the hyperspace effect itself.
+				if (resources->_useMultisampling) {
+					context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_shadertoyBufMSAA, 0, BACKBUFFER_FORMAT);
+					if (g_bUseSteamVR)
+						context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
 				}
+
+				if (g_bDumpSSAOBuffers) {
+					DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"C:\\Temp\\_shadertoyBuf.dds");
+					//DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_shadertoyAuxBuf.dds");
+					if (g_bUseSteamVR)
+						DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBufR, L"C:\\Temp\\_shadertoyBufR.dds");
+				}
+
+				// This is the right spot to render the post-hyper-exit effect: we've captured the current offscreenBuffer into
+				// shadertoyAuxBuf and we've finished rendering the cockpit/foreground too.
+				RenderHyperspaceEffect(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
 			}
 
 			// Resolve the Bloom, Normals and SSMask before the SSAO and Bloom effects.
-			if (g_bReshadeEnabled) {
+			if (g_bReshadeEnabled)
+			{
 				// Resolve whatever is in the _offscreenBufferBloomMask into _offscreenBufferAsInputBloomMask, and
 				// do the same for the right (SteamVR) image -- I'll worry about the details later.
 				// _offscreenBufferAsInputReshade was previously resolved during Execute() -- right before any GUI is rendered
@@ -9323,19 +9320,26 @@ HRESULT PrimarySurface::Flip(
 				// so nothing to do here!
 			}
 
+			if (!g_bDepthBufferResolved)
+			{
+				// If the depth buffer wasn't resolved during the regular Execute() then resolve it here.
+				// This may happen if there is no GUI (all HUD indicators were switched off) or the
+				// external camera is active.
+				context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+				if (g_bUseSteamVR)
+					context->ResolveSubresource(resources->_depthBufAsInputR, 0,
+						resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+			}
+
+			// Render the Raytraced shadow mask
+			if (g_bRTEnabled && g_bRTEnableSoftShadows)
+			{
+				RenderRTShadowMask();
+			}
+
 			// AO must (?) be computed before the bloom shader -- or at least output to a different buffer
 			// Render the Deferred, SSAO or SSDO passes
 			if (g_bAOEnabled) {
-				if (!g_bDepthBufferResolved) {
-					// If the depth buffer wasn't resolved during the regular Execute() then resolve it here.
-					// This may happen if there is no GUI (all HUD indicators were switched off) or the
-					// external camera is active.
-					context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
-					if (g_bUseSteamVR)
-						context->ResolveSubresource(resources->_depthBufAsInputR, 0,
-							resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
-				}
-
 #ifdef GENMIPMAPS
 				context->GenerateMips(resources->_depthBufSRV);
 				if (g_bUseSteamVR)
@@ -9807,11 +9811,6 @@ HRESULT PrimarySurface::Flip(
 			{
 				UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 				RenderLaserPointer(&g_nonVRViewport, resources->_pixelShaderTexture, NULL, NULL, &vertexBufferStride, &vertexBufferOffset);
-			}
-
-			if (g_bRTEnabled && g_bRTEnableSoftShadows)
-			{
-				RenderRTShadowMask();
 			}
 
 			// 3D path final post-processing step. Copied from ReShade's Levels.fx

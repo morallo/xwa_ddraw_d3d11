@@ -59,6 +59,9 @@ SamplerState samplerSSMask : register(s7);
 Texture2DArray<float> texShadowMap : register(t8);
 SamplerComparisonState cmpSampler : register(s8);
 
+// The RT Shadow Mask
+Texture2D rtShadowMask : register(t17);
+
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
 // it was rendered at half the resolution, for instance)
@@ -527,46 +530,61 @@ PixelShaderOutput main(PixelShaderInput input)
 	float rt_shadow_factor = 1.0f;
 	if (bRTEnabled)
 	{
-		// #define RT_SIDE_LIGHTS to disable light tagging and use the first light only.
-		// This helps get interesting shadows in skirmish missions.
-#ifdef RT_SIDE_LIGHTS
-		uint i = 0;
-#else
-		for (uint i = 0; i < LightCount; i++)
-#endif
+		if (RTUseShadowMask)
 		{
-			float shadow_factor = 1.0;
+			float occ_dist = RT_MAX_DIST;
+			float min_black_level = 1.0;
 			float black_level, dummyMinZ, dummyMaxZ;
-			get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
-#ifdef RT_SIDE_LIGHTS
-			black_level = 0.1;
-#endif
-			// Skip lights that won't project black-enough shadows
-			if (black_level > 0.95)
-				continue;
-
-			const float3 L = LightVector[i].xyz;
-			const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (without Normal Mapping)
-			// "hover" prevents noise by displacing the origin of the ray away from the surface
-			// The displacement is directly proportional to the depth of the surface
-			// The position buffer's Z increases with depth
-			// The normal buffer's Z+ points towards the camera
-			// We have to invert N.z:
-			const float3 hover = 0.01 * P.z * float3(N.x, N.y, -N.z);
-			if (dotLFlatN > 0)
+			for (uint i = 0; i < LightCount; i++)
 			{
-				Ray ray;
-				ray.origin   = P + hover; // Metric, Y+ is up, Z+ is forward.
-				ray.dir      = float3(L.x, -L.y, -L.z);
-				ray.max_dist = 5000.0f;
-
-				Intersection inters = TLASTraceRaySimpleHit(ray);
-				if (inters.TriID > -1)
-					rt_shadow_factor *= black_level;
+				get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
+				min_black_level = min(min_black_level, black_level);
 			}
-			else
+			occ_dist = rtShadowMask.Sample(sampColor, input.uv).x;
+			rt_shadow_factor = occ_dist < RT_MAX_DIST ? min_black_level : 1.0;
+		}
+		else
+		{
+			// #define RT_SIDE_LIGHTS to disable light tagging and use the first light only.
+			// This helps get interesting shadows in skirmish missions.
+#ifdef RT_SIDE_LIGHTS
+			uint i = 0;
+#else
+			for (uint i = 0; i < LightCount; i++)
+#endif
 			{
-				rt_shadow_factor *= black_level;
+				float black_level, dummyMinZ, dummyMaxZ;
+				get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
+#ifdef RT_SIDE_LIGHTS
+				black_level = 0.1;
+#endif
+				// Skip lights that won't project black-enough shadows
+				if (black_level > 0.95)
+					continue;
+
+				const float3 L = LightVector[i].xyz;
+				const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (without Normal Mapping)
+				// "hover" prevents noise by displacing the origin of the ray away from the surface
+				// The displacement is directly proportional to the depth of the surface
+				// The position buffer's Z increases with depth
+				// The normal buffer's Z+ points towards the camera
+				// We have to invert N.z:
+				const float3 hover = 0.01 * P.z * float3(N.x, N.y, -N.z);
+				if (dotLFlatN > 0)
+				{
+					Ray ray;
+					ray.origin = P + hover; // Metric, Y+ is up, Z+ is forward.
+					ray.dir = float3(L.x, -L.y, -L.z);
+					ray.max_dist = RT_MAX_DIST;
+
+					Intersection inters = TLASTraceRaySimpleHit(ray);
+					if (inters.TriID > -1)
+						rt_shadow_factor *= black_level;
+				}
+				else
+				{
+					rt_shadow_factor *= black_level;
+				}
 			}
 		}
 	}

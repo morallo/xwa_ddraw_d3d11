@@ -1990,6 +1990,9 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
 
+	g_RTConstantsBuffer.RTUseShadowMask = false;
+	g_RTConstantsBuffer.RTShadowMaskSizeFactor = 2;
+
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++)
 		if (!g_XWALightInfo[i].bTagged)
 			g_ShadowMapVSCBuffer.sm_black_levels[i] = 0.2f;
@@ -2052,6 +2055,12 @@ bool LoadSSAOParams() {
 			}
 			if (_stricmp(param, "raytracing_enable_soft_shadows") == 0) {
 				g_bRTEnableSoftShadows = (bool)fValue;
+			}
+			if (_stricmp(param, "raytracing_use_shadow_mask") == 0) {
+				g_RTConstantsBuffer.RTUseShadowMask = (bool)fValue;
+			}
+			if (_stricmp(param, "raytracing_shadow_mask_size_factor") == 0) {
+				g_RTConstantsBuffer.RTShadowMaskSizeFactor = (int)fValue;
 			}
 
 			if (_stricmp(param, "keep_mouse_inside_window") == 0) {

@@ -236,8 +236,12 @@ typedef struct RTConstantsBufferStruct {
 	uint32_t bRTEnable;
 	uint32_t bRTAllowShadowMapping;
 	uint32_t bEnablePBRShading;
-	uint32_t RTUnused;
+	uint32_t RTGetBestIntersection;
 	// 16 bytes
+	uint32_t RTUseShadowMask;
+	uint32_t RTShadowMaskSizeFactor;
+	uint32_t RTUnused[2];
+	// 32 bytes
 } RTConstantsBuffer;
 
 typedef struct {
