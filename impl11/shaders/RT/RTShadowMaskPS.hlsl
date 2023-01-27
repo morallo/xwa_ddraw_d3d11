@@ -42,10 +42,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// If I remove the following, then the bloom mask is messed up!
 	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
 	if (Normal.w < 0.475) {
-		//output.color = float4(rt_shadow_factor, occ_dist, 0, 0);
-		//output.color = float2(rt_shadow_factor, occ_dist);
+		output.color = float4(rt_shadow_factor, occ_dist, 0, 1);
 		//output.color = rt_shadow_factor;
-		output.color = occ_dist;
+		//output.color = occ_dist;
 		return output;
 	}
 
@@ -88,8 +87,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	//output.color = float2(rt_shadow_factor, occ_dist);
+	output.color = float4(rt_shadow_factor, occ_dist, 0, 1);
 	//output.color = rt_shadow_factor;
-	output.color = occ_dist;
+	//output.color = occ_dist;
 	return output;
 }

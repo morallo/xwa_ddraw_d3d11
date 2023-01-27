@@ -532,6 +532,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		if (RTUseShadowMask)
 		{
+			/*
 			float occ_dist = RT_MAX_DIST;
 			float min_black_level = 1.0;
 			float black_level, dummyMinZ, dummyMaxZ;
@@ -542,6 +543,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			}
 			occ_dist = rtShadowMask.Sample(sampColor, input.uv).x;
 			rt_shadow_factor = occ_dist < RT_MAX_DIST ? min_black_level : 1.0;
+			*/
+			float4 rtVal = rtShadowMask.Sample(sampColor, input.uv);
+			rt_shadow_factor = rtVal.x;
 		}
 		else
 		{
