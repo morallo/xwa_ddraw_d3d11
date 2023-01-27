@@ -139,7 +139,7 @@ public:
 	void ReAllocateAndPopulateMatrixBuffer();
 	void ApplyRTShadowsTechRoom(const SceneCompData* scene);
 	//void AddAABBToTLAS(const Matrix4& WorldViewTransform, int meshID, AABB aabb, int matrixSlot);
-	void GetOPTNameFromLastTextureSelected(char* OPTname);
+	bool GetOPTNameFromLastTextureSelected(char* OPTname);
 	void UpdateBVHMaps(const SceneCompData* scene, int LOD);
 	bool RTCheckExcludeMesh(const SceneCompData* scene);
 

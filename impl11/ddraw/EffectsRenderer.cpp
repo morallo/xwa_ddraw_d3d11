@@ -3321,10 +3321,15 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		return &it->second;
 }
 
-void EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
+bool EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
 {
 	char sToken[] = "Flightmodels\\";
 	char* subString = stristr(_lastTextureSelected->_name.c_str(), sToken);
+	// Sometimes we'll get a DAT texture here, so subString can be null:
+	if (subString == nullptr) {
+		OPTname[0] = 0;
+		return false;
+	}
 	subString += strlen(sToken);
 	int i = 0;
 	while (subString[i] != 0 && subString[i] != '.') {
@@ -3332,6 +3337,7 @@ void EffectsRenderer::GetOPTNameFromLastTextureSelected(char *OPTname)
 		i++;
 	}
 	OPTname[i] = 0;
+	return true;
 }
 
 // Update g_TLASMap: checks if we've seen the current mesh in this frame. If we
