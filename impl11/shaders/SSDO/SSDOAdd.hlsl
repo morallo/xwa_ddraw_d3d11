@@ -544,8 +544,34 @@ PixelShaderOutput main(PixelShaderInput input)
 			occ_dist = rtShadowMask.Sample(sampColor, input.uv).x;
 			rt_shadow_factor = occ_dist < RT_MAX_DIST ? min_black_level : 1.0;
 			*/
-			float4 rtVal = rtShadowMask.Sample(sampColor, input.uv);
-			rt_shadow_factor = rtVal.x;
+
+			// Hard shadows:
+			/*{
+				float4 rtVal = rtShadowMask.Sample(sampColor, input.uv);
+				rt_shadow_factor = rtVal.x;
+			}*/
+			{
+				float rtVal = 0;
+				const int range = 2;
+				const float wsize = (2 * range + 1) * (2 * range + 1);
+				const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor * range,
+											   RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor * range);
+				const float2 uv0 = input.uv - range * uv_delta;
+				float2 uv = uv0;
+				[unroll]
+				for (int i = -range; i <= range; i++)
+				{
+					uv.x = uv0.x;
+					[unroll]
+					for (int j = -range; j <= range; j++)
+					{
+						rtVal += rtShadowMask.Sample(sampColor, uv).x;
+						uv.x += uv_delta.x;
+					}
+					uv.y += uv_delta.y;
+				}
+				rt_shadow_factor = rtVal / wsize;
+			}
 		}
 		else
 		{

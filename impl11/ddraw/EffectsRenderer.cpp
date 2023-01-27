@@ -3830,6 +3830,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		//g_RTConstantsBuffer.bEnablePBRShading = 0;
 		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
 		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
+		g_RTConstantsBuffer.RTShadowMaskPixelSizeX = g_fCurScreenWidthRcp;
+		g_RTConstantsBuffer.RTShadowMaskPixelSizeY = g_fCurScreenHeightRcp;
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 	}
 

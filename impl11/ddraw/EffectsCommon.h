@@ -240,7 +240,8 @@ typedef struct RTConstantsBufferStruct {
 	// 16 bytes
 	uint32_t RTUseShadowMask;
 	uint32_t RTShadowMaskSizeFactor;
-	uint32_t RTUnused[2];
+	float    RTShadowMaskPixelSizeX;
+	float    RTShadowMaskPixelSizeY;
 	// 32 bytes
 } RTConstantsBuffer;
 

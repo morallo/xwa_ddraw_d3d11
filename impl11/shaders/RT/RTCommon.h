@@ -13,10 +13,10 @@ cbuffer ConstantBuffer : register(b10) {
 	bool bEnablePBRShading;
 	bool RTGetBestIntersection;
 	// 16 bytes
-	bool RTUseShadowMask;
-	bool RTShadowMaskSizeFactor;
-	bool RTUnused1;
-	bool RTUnused2;
+	bool  RTUseShadowMask;
+	uint  RTShadowMaskSizeFactor;
+	float RTShadowMaskPixelSizeX;
+	float RTShadowMaskPixelSizeY;
 	// 32 bytes
 };
 
