@@ -18,6 +18,11 @@ cbuffer ConstantBuffer : register(b10) {
 	float RTShadowMaskPixelSizeX;
 	float RTShadowMaskPixelSizeY;
 	// 32 bytes
+	float g_fRTSoftShadowThresholdMult;
+	float RTUnused1;
+	float RTUnused2;
+	float RTUnused3;
+	// 48 bytes
 };
 
 struct Ray				// 28 bytes

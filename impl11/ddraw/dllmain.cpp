@@ -286,6 +286,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fBlastMarkOfsX += 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
 					break;
+				case 15:
+					g_fRTSoftShadowThresholdMult += 0.05f;
+					log_debug("[DBG] g_fRTSoftShadowThreshold: %0.6f", g_fRTSoftShadowThresholdMult);
+					break;
 				}
 
 				/*
@@ -352,6 +356,11 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 13:
 					g_fBlastMarkOfsX -= 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
+					break;
+				case 15:
+					g_fRTSoftShadowThresholdMult -= 0.05f;
+					if (g_fRTSoftShadowThresholdMult < 0.01f) g_fRTSoftShadowThresholdMult = 0.01f;
+					log_debug("[DBG] g_fRTSoftShadowThresholdMult: %0.6f", g_fRTSoftShadowThresholdMult);
 					break;
 				}
 

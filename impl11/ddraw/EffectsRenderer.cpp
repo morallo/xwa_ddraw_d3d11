@@ -39,6 +39,9 @@ bool g_bRTCaptureCameraAABB = true;
 int g_iRTTotalBLASNodesInFrame = 0;
 int g_iRTMaxBLASNodesSoFar = 0;
 int g_iRTMaxTLASNodesSoFar = 0;
+// Values between 0.05 and 0.35 seem to work fine. These values were determined
+// empirically.
+float g_fRTSoftShadowThresholdMult = 0.05f;
 
 uint32_t g_iRTMaxMeshesSoFar = 0;
 int g_iRTMeshesInThisFrame = 0;
@@ -3832,6 +3835,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeX = g_fCurScreenWidthRcp;
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeY = g_fCurScreenHeightRcp;
+		g_RTConstantsBuffer.RTSoftShadowThreshold = g_fRTSoftShadowThresholdMult;
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 	}
 

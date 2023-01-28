@@ -553,11 +553,13 @@ PixelShaderOutput main(PixelShaderInput input)
 			{
 				float rtVal = 0;
 				const int range = 2;
+				const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
 				const float wsize = (2 * range + 1) * (2 * range + 1);
 				const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor * range,
 											   RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor * range);
 				const float2 uv0 = input.uv - range * uv_delta;
 				float2 uv = uv0;
+				//float sum = 0;
 				[unroll]
 				for (int i = -range; i <= range; i++)
 				{
@@ -565,7 +567,18 @@ PixelShaderOutput main(PixelShaderInput input)
 					[unroll]
 					for (int j = -range; j <= range; j++)
 					{
-						rtVal += rtShadowMask.Sample(sampColor, uv).x;
+						const float z = texPos.Sample(sampPos, uv).z;
+						const float delta_z = abs(P.z - z);
+						// Objects far away should have bigger thresholds too
+						if (delta_z < g_fRTSoftShadowThresholdMult * P.z)
+						{
+							rtVal += rtShadowMask.Sample(sampColor, uv).x;
+						}
+						else
+						{
+							rtVal += rtCenter;
+						}
+						//sum += 1.0;
 						uv.x += uv_delta.x;
 					}
 					uv.y += uv_delta.y;

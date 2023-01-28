@@ -243,6 +243,9 @@ typedef struct RTConstantsBufferStruct {
 	float    RTShadowMaskPixelSizeX;
 	float    RTShadowMaskPixelSizeY;
 	// 32 bytes
+	float    RTSoftShadowThreshold;
+	float    RTUnused[3];
+	// 48 bytes
 } RTConstantsBuffer;
 
 typedef struct {
