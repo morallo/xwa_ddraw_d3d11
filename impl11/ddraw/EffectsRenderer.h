@@ -86,6 +86,7 @@ protected:
 	DXGI_FORMAT _oldFormat;
 	D3D11_VIEWPORT _oldViewports[2];
 	UINT _oldNumViewports = 2;
+	D3D11_RECT _oldScissorRect;
 
 	// Set to true in the current frame if the BLAS needs to be updated.
 	bool _BLASNeedsUpdate;

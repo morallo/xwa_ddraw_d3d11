@@ -30,11 +30,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	float3 pos3D  = texPos.Sample(sampPos, input.uv).xyz;
-	float4 Normal = texNormal.Sample(samplerNormal, input.uv);
-
-	const float3 N = Normal.xyz;
-	const float3 P = pos3D.xyz;
+	const float3 P      = texPos.Sample(sampPos, input.uv).xyz;
+	const float4 Normal = texNormal.Sample(samplerNormal, input.uv);
+	const float3 N      = Normal.xyz;
 
 	float rt_shadow_factor = 1.0f;
 	float occ_dist = RT_MAX_DIST;
@@ -43,8 +41,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
 	if (Normal.w < 0.475) {
 		output.color = float4(rt_shadow_factor, occ_dist, 0, 1);
-		//output.color = rt_shadow_factor;
-		//output.color = occ_dist;
 		return output;
 	}
 
@@ -71,7 +67,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			Ray ray;
 			ray.origin = P + hover; // Metric, Y+ is up, Z+ is forward.
 			ray.dir = float3(L.x, -L.y, -L.z);
-			ray.max_dist = 5000.0f;
+			ray.max_dist = RT_MAX_DIST;
 
 			Intersection inters = TLASTraceRaySimpleHit(ray);
 			if (inters.TriID > -1)
@@ -88,7 +84,5 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	output.color = float4(rt_shadow_factor, occ_dist, 0, 1);
-	//output.color = rt_shadow_factor;
-	//output.color = occ_dist;
 	return output;
 }

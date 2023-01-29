@@ -73,6 +73,7 @@ public:
 
 	STDMETHOD(EnumOverlayZOrders)(THIS_ DWORD, LPVOID, LPDDENUMSURFACESCALLBACK);
 
+	void SetScissoRectFullScreen();
 	void SaveContext();
 	void RestoreContext();
 

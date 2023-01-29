@@ -2080,6 +2080,9 @@ void EffectsRenderer::SaveContext()
 
 	_oldNumViewports = 2;
 	context->RSGetViewports(&_oldNumViewports, _oldViewports);
+
+	UINT NumRects = 1;
+	context->RSGetScissorRects(&NumRects, &_oldScissorRect);
 }
 
 void EffectsRenderer::RestoreContext()
@@ -2119,6 +2122,7 @@ void EffectsRenderer::RestoreContext()
 	context->IASetIndexBuffer(_oldIndexBuffer.Get(), _oldFormat, _oldIOffset);
 
 	context->RSSetViewports(_oldNumViewports, _oldViewports);
+	context->RSSetScissorRects(1, &_oldScissorRect);
 
 	// Release everything. Previous calls to *Get* increase the refcount
 	_oldVSConstantBuffer.Release();
@@ -3833,6 +3837,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		//g_RTConstantsBuffer.bEnablePBRShading = 0;
 		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
 		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
+		g_RTConstantsBuffer.RTUseShadowMask = g_bRTEnableSoftShadows;
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeX = g_fCurScreenWidthRcp;
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeY = g_fCurScreenHeightRcp;
 		g_RTConstantsBuffer.RTSoftShadowThreshold = g_fRTSoftShadowThresholdMult;

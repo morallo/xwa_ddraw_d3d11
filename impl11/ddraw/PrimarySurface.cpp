@@ -646,6 +646,16 @@ HRESULT PrimarySurface::EnumOverlayZOrders(
 	return DDERR_UNSUPPORTED;
 }
 
+void PrimarySurface::SetScissoRectFullScreen()
+{
+	auto& context = this->_deviceResources->_d3dDeviceContext;
+
+	D3D11_RECT rect;
+	rect.left = 0; rect.top = 0;
+	rect.right = (LONG)g_fCurScreenWidth; rect.bottom = (LONG)g_fCurScreenHeight;
+	context->RSSetScissorRects(1, &rect);
+}
+
 void PrimarySurface::SaveContext()
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
@@ -3322,8 +3332,8 @@ out2:
 }
 
 /* Regular deferred shading with fake HDR, no SSAO */
-void PrimarySurface::DeferredPass() {
-
+void PrimarySurface::DeferredPass()
+{
 	this->_deviceResources->_d3dAnnotation->BeginEvent(L"DeferredLightingPass");
 
 	auto& resources = this->_deviceResources;
@@ -5124,6 +5134,7 @@ void PrimarySurface::RenderFXAA()
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
+	SetScissoRectFullScreen();
 
 	// Reset the vertex shader to regular 2D post-process
 	// Set the Vertex Shader Constant buffers
@@ -5219,6 +5230,7 @@ void PrimarySurface::RenderLevels()
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
+	SetScissoRectFullScreen();
 
 	// Reset the vertex shader to regular 2D post-process
 	// Set the Vertex Shader Constant buffers
@@ -8537,9 +8549,6 @@ void PrimarySurface::RenderRTShadowMask()
 	// Save the current context
 	SaveContext();
 
-	// Apply the constants for this effect...
-	// ...
-
 	// Reset the viewport for non-VR mode:
 	viewport.TopLeftX = 0.0f;
 	viewport.TopLeftY = 0.0f;
@@ -8548,6 +8557,7 @@ void PrimarySurface::RenderRTShadowMask()
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
+	SetScissoRectFullScreen();
 
 	// Reset the vertex shader to regular 2D post-process
 	// Set the Vertex Shader Constant buffers
@@ -9369,25 +9379,7 @@ HRESULT PrimarySurface::Flip(
 				desc.StencilEnable = FALSE;
 				resources->InitDepthStencilState(depthState, &desc);
 
-				//resources->_d3dDevice->render
-				//D3D11_SAMPLER_DESC oldSamplerDesc = this->_renderStates->GetSamplerDesc();
-				D3D11_SAMPLER_DESC samplerDesc;
-				samplerDesc.Filter = resources->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-				samplerDesc.MaxAnisotropy = resources->_useAnisotropy ? resources->GetMaxAnisotropy() : 1;
-				samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
-				samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
-				samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
-				samplerDesc.MipLODBias = 0.0f;
-				samplerDesc.MinLOD = 0;
-				samplerDesc.MaxLOD = FLT_MAX;
-				samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-				samplerDesc.BorderColor[0] = 0.0f;
-				samplerDesc.BorderColor[1] = 0.0f;
-				samplerDesc.BorderColor[2] = 0.0f;
-				samplerDesc.BorderColor[3] = 0.0f;
-				ComPtr<ID3D11SamplerState> tempSampler;
-				hr = resources->_d3dDevice->CreateSamplerState(&samplerDesc, &tempSampler);
-				context->PSSetSamplers(1, 1, &tempSampler);
+				context->PSSetSamplers(1, 1, &resources->_mirrorSamplerState);
 
 				if (g_bDumpSSAOBuffers) {
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");

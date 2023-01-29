@@ -619,7 +619,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bEnableVR = !g_bEnableVR;
 				}
 				return 0;
-
+			// Ctrl+Alt+S
 			case 'S':
 				SaveVRParams();
 				DisplayTimedMessage(3, 0, "VRParams.cfg Saved");
@@ -1031,6 +1031,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
 				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
 					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
+				return 0;
+			case 'S':
+				g_bRTEnableSoftShadows = !g_bRTEnableSoftShadows;
+				log_debug("[DBG] g_bRTEnableSoftShadows: %d", g_bRTEnableSoftShadows);
+				DisplayTimedMessage(3, 0, g_bRTEnableSoftShadows ?
+					"Raytraced Soft Shadows" : "Raytraced Hard Shadows");
 				return 0;
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);

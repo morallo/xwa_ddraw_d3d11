@@ -35,7 +35,6 @@ class OffscreenSurface;
 #define HDR_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define RT_SHADOW_FORMAT DXGI_FORMAT_R16G16_FLOAT
 
-
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
  * have their associated lights reset after jumping through hyperspace; and all
@@ -461,6 +460,7 @@ public:
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
+	ComPtr<ID3D11SamplerState> _mirrorSamplerState;
 	ComPtr<ID3D11BlendState> _mainBlendState;
 	ComPtr<ID3D11DepthStencilState> _mainDepthState;
 	ComPtr<ID3D11Buffer> _mainVertexBuffer;

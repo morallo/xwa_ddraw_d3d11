@@ -3877,6 +3877,25 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &this->_mainSamplerState)))
 		return hr;
 
+	// This sampler is used when doing the SSAO/Deferred Pass in PrimarySurface so that samples
+	// can be mirrrored across the boundary of the viewport.
+	samplerDesc.Filter = this->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.MaxAnisotropy = this->_useAnisotropy ? this->GetMaxAnisotropy() : 1;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
+	samplerDesc.MipLODBias = 0.0f;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = FLT_MAX;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.BorderColor[0] = 0.0f;
+	samplerDesc.BorderColor[1] = 0.0f;
+	samplerDesc.BorderColor[2] = 0.0f;
+	samplerDesc.BorderColor[3] = 0.0f;
+
+	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &_mirrorSamplerState)))
+		return hr;
+
 	D3D11_BLEND_DESC blendDesc;
 	blendDesc.AlphaToCoverageEnable = FALSE;
 	blendDesc.IndependentBlendEnable = FALSE;
@@ -4557,14 +4576,14 @@ void DeviceResources::InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32)
 
 void DeviceResources::InitViewport(D3D11_VIEWPORT* viewport)
 {
-	static D3D11_VIEWPORT currentViewport{};
+	//static D3D11_VIEWPORT currentViewport{};
 
 	// For the D3dRendererHook we're now switching between the old and new methods, but sometimes
 	// the viewport isn't set properly. I'm disabling this check now to ensure that we always
 	// set the viewport
 	//if (memcmp(viewport, &currentViewport, sizeof(D3D11_VIEWPORT)) != 0)
 	{
-		currentViewport = *viewport;
+		//currentViewport = *viewport;
 		this->_d3dDeviceContext->RSSetViewports(1, viewport);
 	}
 }
@@ -4774,11 +4793,11 @@ void DeviceResources::InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const
 
 void DeviceResources::InitScissorRect(D3D11_RECT* rect)
 {
-	static D3D11_RECT currentRect{};
+	//static D3D11_RECT currentRect{};
 
-	if (memcmp(rect, &currentRect, sizeof(D3D11_RECT)) != 0)
+	//if (memcmp(rect, &currentRect, sizeof(D3D11_RECT)) != 0)
 	{
-		currentRect = *rect;
+		//currentRect = *rect;
 		this->_d3dDeviceContext->RSSetScissorRects(1, rect);
 	}
 }
