@@ -31,7 +31,7 @@
 #define METAL_LO			0.250
 #define METAL_HI			0.550
 
-#define GLASS_LO			0.550
+#define GLASS_LO			0.575
 #define GLASS_HI			0.625
 
 #define SHADELESS_LO		0.625

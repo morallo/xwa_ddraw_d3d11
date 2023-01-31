@@ -42,6 +42,9 @@ int g_iRTMaxTLASNodesSoFar = 0;
 // Values between 0.05 and 0.35 seem to work fine. These values were determined
 // empirically.
 float g_fRTSoftShadowThresholdMult = 0.05f;
+// GaussFactor: 0.1 -- Soft shadow
+// GaussFactor: 1.5 -- Sharp shadow
+float g_fRTGaussFactor = 0.5f;
 
 uint32_t g_iRTMaxMeshesSoFar = 0;
 int g_iRTMeshesInThisFrame = 0;
@@ -289,8 +292,8 @@ float3 InverseTransformProjectionScreen(float4 input)
 	float3 P;
 	if (input.z == input.w)
 	{
-		//P.z = Zfar / input.w - Zfar;
-		P.z = Zfar / input.w;
+		//P.z = Zfar / input.w - Zfar; // Tech Room version, also provides better Z for engine glows
+		P.z = Zfar / input.w; // Old version
 	}
 	else
 	{
@@ -3836,11 +3839,12 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			(!*g_playerInHangar && !_bExternalCamera && !g_bRTEnabledInCockpit);
 		//g_RTConstantsBuffer.bEnablePBRShading = 0;
 		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
-		g_RTConstantsBuffer.bEnablePBRShading = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
-		g_RTConstantsBuffer.RTUseShadowMask = g_bRTEnableSoftShadows;
+		g_RTConstantsBuffer.bEnablePBRShading      = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
+		g_RTConstantsBuffer.RTEnableSoftShadows    = g_bRTEnableSoftShadows;
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeX = g_fCurScreenWidthRcp;
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeY = g_fCurScreenHeightRcp;
-		g_RTConstantsBuffer.RTSoftShadowThreshold = g_fRTSoftShadowThresholdMult;
+		g_RTConstantsBuffer.RTSoftShadowThreshold  = g_fRTSoftShadowThresholdMult;
+		g_RTConstantsBuffer.RTGaussFactor          = g_fRTGaussFactor;
 		resources->InitPSRTConstantsBuffer(resources->_RTConstantsBuffer.GetAddressOf(), &g_RTConstantsBuffer);
 	}
 

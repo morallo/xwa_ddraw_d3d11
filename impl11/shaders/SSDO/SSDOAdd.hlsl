@@ -530,21 +530,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float rt_shadow_factor = 1.0f;
 	if (bRTEnabled)
 	{
-		if (RTUseShadowMask)
+		if (RTEnableSoftShadows)
 		{
-			/*
-			float occ_dist = RT_MAX_DIST;
-			float min_black_level = 1.0;
-			float black_level, dummyMinZ, dummyMaxZ;
-			for (uint i = 0; i < LightCount; i++)
-			{
-				get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
-				min_black_level = min(min_black_level, black_level);
-			}
-			occ_dist = rtShadowMask.Sample(sampColor, input.uv).x;
-			rt_shadow_factor = occ_dist < RT_MAX_DIST ? min_black_level : 1.0;
-			*/
-
 			// Hard shadows:
 			/*{
 				float4 rtVal = rtShadowMask.Sample(sampColor, input.uv);
@@ -559,6 +546,8 @@ PixelShaderOutput main(PixelShaderInput input)
 											   RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor * range);
 				const float2 uv0 = input.uv - range * uv_delta;
 				float2 uv = uv0;
+				float Gsum = 0;
+				//float gaussFactor = clamp(1.5 - rtCenter.y * 0.1, 0.01, 1.5);
 				//float sum = 0;
 				[unroll]
 				for (int i = -range; i <= range; i++)
@@ -569,25 +558,28 @@ PixelShaderOutput main(PixelShaderInput input)
 					{
 						const float z = texPos.Sample(sampPos, uv).z;
 						const float delta_z = abs(P.z - z);
+						const float delta_ij = -RTGaussFactor * (i*i + j*j);
+						//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
+						const float G = exp(delta_ij);
 						// Objects far away should have bigger thresholds too
-						if (delta_z < g_fRTSoftShadowThresholdMult * P.z)
-						{
-							rtVal += rtShadowMask.Sample(sampColor, uv).x;
-						}
+						if (delta_z < RTSoftShadowThresholdMult * P.z)
+							rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
 						else
-						{
-							rtVal += rtCenter;
-						}
+							rtVal += G * rtCenter;
 						//sum += 1.0;
+						Gsum += G;
 						uv.x += uv_delta.x;
 					}
 					uv.y += uv_delta.y;
 				}
-				rt_shadow_factor = rtVal / wsize;
+				//rt_shadow_factor = rtVal / wsize;
+				rt_shadow_factor = rtVal / Gsum;
 			}
 		}
 		else
 		{
+			// Do ray-tracing right here, no RTShadowMask
+
 			// #define RT_SIDE_LIGHTS to disable light tagging and use the first light only.
 			// This helps get interesting shadows in skirmish missions.
 #ifdef RT_SIDE_LIGHTS

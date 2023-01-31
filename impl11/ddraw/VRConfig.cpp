@@ -315,6 +315,18 @@ float g_fLevelsBlackPoint = 16.0f;
 
 #include "D3dRenderer.h"
 
+inline float lerp(float x, float y, float s)
+{
+	return x + s * (y - x);
+}
+
+inline float clamp(float val, float min, float max)
+{
+	if (val < min) val = min;
+	if (val > max) val = max;
+	return val;
+}
+
 void SetHDRState(bool state)
 {
 	g_bHDREnabled = state;
@@ -1990,8 +2002,10 @@ bool LoadSSAOParams() {
 	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
 
-	g_RTConstantsBuffer.RTUseShadowMask = false;
-	g_RTConstantsBuffer.RTShadowMaskSizeFactor = 2;
+	g_fRTGaussFactor = 0.1f;
+	g_bRTEnableSoftShadows = true;
+	g_RTConstantsBuffer.RTEnableSoftShadows = true;
+	g_RTConstantsBuffer.RTShadowMaskSizeFactor = 4;
 
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++)
 		if (!g_XWALightInfo[i].bTagged)
@@ -2055,12 +2069,15 @@ bool LoadSSAOParams() {
 			}
 			if (_stricmp(param, "raytracing_enable_soft_shadows") == 0) {
 				g_bRTEnableSoftShadows = (bool)fValue;
-			}
-			if (_stricmp(param, "raytracing_use_shadow_mask") == 0) {
-				g_RTConstantsBuffer.RTUseShadowMask = (bool)fValue;
+				g_RTConstantsBuffer.RTEnableSoftShadows = g_bRTEnableSoftShadows;
 			}
 			if (_stricmp(param, "raytracing_shadow_mask_size_factor") == 0) {
 				g_RTConstantsBuffer.RTShadowMaskSizeFactor = (int)fValue;
+			}
+			if (_stricmp(param, "raytracing_soft_shadow_sharpness") == 0) {
+				// 0.01 --> Soft
+				// 1.5 --> Sharp
+				g_fRTGaussFactor = lerp(0.01f, 1.5f, clamp(fValue, 0.0f, 1.0f));
 			}
 
 			if (_stricmp(param, "keep_mouse_inside_window") == 0) {
