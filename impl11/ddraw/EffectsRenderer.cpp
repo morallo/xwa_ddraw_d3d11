@@ -292,8 +292,8 @@ float3 InverseTransformProjectionScreen(float4 input)
 	float3 P;
 	if (input.z == input.w)
 	{
-		//P.z = Zfar / input.w - Zfar; // Tech Room version, also provides better Z for engine glows
-		P.z = Zfar / input.w; // Old version
+		P.z = Zfar / input.w - Zfar; // Tech Room version, also provides better Z for engine glows
+		//P.z = Zfar / input.w; // Old version
 	}
 	else
 	{

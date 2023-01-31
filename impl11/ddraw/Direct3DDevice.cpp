@@ -2957,7 +2957,12 @@ HRESULT Direct3DDevice::Execute(
 		// New constants added with the D3DRendererHook:
 		g_VSCBuffer.s_V0x08B94CC = *(float*)0x08B94CC;
 		g_VSCBuffer.s_V0x05B46B4 = *(float*)0x05B46B4;
-		g_VSCBuffer.s_V0x05B46B4_Offset = IsInTechLibrary() ? *(float*)0x05B46B4 : 0;
+		// This setting is no longer applied here. Look below, after we're done with the
+		// state management instead. The reason for this change is because engine glows
+		// have a better depth if we add 0x05B46B4 -- but we can't add this for the GUI
+		// elements, so we need to know when we're not rendering GUI. Hence, we can only
+		// set this after we're done with state management.
+		//g_VSCBuffer.s_V0x05B46B4_Offset = IsInTechLibrary() ? *(float*)0x05B46B4 : 0;
 		g_VSCBuffer.ProjectionParameters.x = g_config.ProjectionParameterA;
 		g_VSCBuffer.ProjectionParameters.y = g_config.ProjectionParameterB;
 		g_VSCBuffer.ProjectionParameters.z = g_config.ProjectionParameterC;
@@ -3724,6 +3729,10 @@ HRESULT Direct3DDevice::Execute(
 				/*************************************************************************
 					Special state management ends here
 				 *************************************************************************/
+
+				// Adding 0x05B46B4 to the engine glows, makes them easier to see. This is
+				// probably restoring old behavior in the pre-d3d_hook ddraw anyway.
+				g_VSCBuffer.s_V0x05B46B4_Offset = (IsInTechLibrary() || !g_bStartedGUI) ? *(float*)0x05B46B4 : 0;
 
 				// Enable transparency for light textures when AO is disabled
 				if (!g_bAOEnabled && bIsLightTexture) {
