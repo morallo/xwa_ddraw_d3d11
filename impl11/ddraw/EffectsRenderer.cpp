@@ -3395,8 +3395,13 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 	// Update g_TLASMap and get a new BlasID and Matrix Slot if necessary -- or find the
 	// existing blasID and matrixSlot for the current mesh/LOD/centroid
 	{
-		// Get the OBB and centroid for this mesh.
-		Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+		// This is the correct transform chain to apply the Diegetic Joystick in RT; but
+		// I'm getting double shadows. Maybe the IDCentroidKey below needs to be checked?
+		//Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
+		//MeshTransform = MeshTransform.transpose();
+		//Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform) * MeshTransform;
+
+		const Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
 		// Fetch the AABB for this mesh
 		auto aabb_it = _AABBs.find(meshKey);
 		if (aabb_it != _AABBs.end()) {
@@ -3526,6 +3531,11 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 #endif
 }
 
+/// <summary>
+/// Exclude projectiles, debris, salvage yard and DS2 out of RT. Also excludes specific
+/// meshes by OPT name or ship category (i.e. applies the raytracing_exclude_opt and
+/// raytracing_exclude_class settings).
+/// </summary>
 bool EffectsRenderer::RTCheckExcludeMesh(const SceneCompData* scene)
 {
 	const int Genus = scene->pObject->ShipCategory;
@@ -3902,7 +3912,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (g_bEnableAnimations)
 		ApplyAnimatedTextures(objectId, bInstanceEvent);
 
-	// BLAS construction
+	// BLAS/TLAS construction
 	// Only add these vertices to the BLAS if the texture is not transparent
 	// (engine glows are transparent and may both cast and catch shadows
 	// otherwise)... and other conditions
