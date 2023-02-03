@@ -41,6 +41,7 @@ bool rayTriangleIntersect(
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v);
 void ResetXWALightInfo();
+void DumpHyperspaceVertexBuffer(float width, float height);
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -9444,6 +9445,7 @@ HRESULT PrimarySurface::Flip(
 					DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
 					//DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_shadertoyAuxBuf.jpg");
+					DumpHyperspaceVertexBuffer(g_fCurInGameWidth, g_fCurInGameHeight);
 				}
 			}
 

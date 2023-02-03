@@ -158,6 +158,7 @@
 
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
+float3 InverseTransformProjectionScreen(float4 input);
 void SetPresentCounter(int val, int b_resetReticle);
 void ReloadInterdictionMap();
 
@@ -605,6 +606,85 @@ void DeviceResources::BuildHUDVertexBuffer(float width, float height) {
 	}
 
 	this->_bHUDVerticesReady = true;
+}
+
+void DumpHyperspaceVertexBuffer(float width, float height)
+{
+	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	// The values for rhw_depth and sz_depth were taken from the skybox
+	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
+	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
+	D3DTLVERTEX HyperVertices[6] = { 0 };
+
+	HyperVertices[0].sx = 0;
+	HyperVertices[0].sy = 0;
+	HyperVertices[0].sz = sz_depth;
+	HyperVertices[0].rhw = rhw_depth;
+	HyperVertices[0].tu = 0;
+	HyperVertices[0].tv = 0;
+	HyperVertices[0].color = color;
+
+	HyperVertices[1].sx = width;
+	HyperVertices[1].sy = 0;
+	HyperVertices[1].sz = sz_depth;
+	HyperVertices[1].rhw = rhw_depth;
+	HyperVertices[1].tu = 1;
+	HyperVertices[1].tv = 0;
+	HyperVertices[1].color = color;
+
+	HyperVertices[2].sx = width;
+	HyperVertices[2].sy = height;
+	HyperVertices[2].sz = sz_depth;
+	HyperVertices[2].rhw = rhw_depth;
+	HyperVertices[2].tu = 1;
+	HyperVertices[2].tv = 1;
+	HyperVertices[2].color = color;
+
+	HyperVertices[3].sx = width;
+	HyperVertices[3].sy = height;
+	HyperVertices[3].sz = sz_depth;
+	HyperVertices[3].rhw = rhw_depth;
+	HyperVertices[3].tu = 1;
+	HyperVertices[3].tv = 1;
+	HyperVertices[3].color = color;
+
+	HyperVertices[4].sx = 0;
+	HyperVertices[4].sy = height;
+	HyperVertices[4].sz = sz_depth;
+	HyperVertices[4].rhw = rhw_depth;
+	HyperVertices[4].tu = 0;
+	HyperVertices[4].tv = 1;
+	HyperVertices[4].color = color;
+
+	HyperVertices[5].sx = 0;
+	HyperVertices[5].sy = 0;
+	HyperVertices[5].sz = sz_depth;
+	HyperVertices[5].rhw = rhw_depth;
+	HyperVertices[5].tu = 0;
+	HyperVertices[5].tv = 0;
+	HyperVertices[5].color = color;
+
+	FILE* file = NULL;
+	fopen_s(&file, "./HyperspaceVertices.obj", "wt");
+	// See DumpVerticesToOBJ
+	float4 input;
+	for (int i = 0; i < 6; i++)
+	{
+		input.x = HyperVertices[i].sx;
+		input.y = HyperVertices[i].sy;
+		input.z = HyperVertices[i].sz;
+		input.w = HyperVertices[i].rhw;
+		float3 pos = InverseTransformProjectionScreen(input);
+		//pos.x *= OPT_TO_METERS;
+		//pos.y *= OPT_TO_METERS;
+		//pos.z *= OPT_TO_METERS;
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", pos.x, pos.y, pos.z);
+	}
+	fprintf(file, "\n");
+	fprintf(file, "f 1 2 3\n");
+	fprintf(file, "f 4 5 6\n");
+	fclose(file);
+	log_debug("[DBG] Dumped Hyperspace Vertex Buffer");
 }
 
 void DeviceResources::BuildHyperspaceVertexBuffer(float width, float height) {

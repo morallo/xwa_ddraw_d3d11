@@ -199,6 +199,7 @@ float4 TransformProjectionScreen(float3 input)
 
 /*
  * Back-projects a 2D point in normalized DirectX coordinates (-1..1) into an OPT-scale 3D point
+ * This function is probably not up-to-date, use InverseTransformProjectionScreen() instead.
  */
 float3 InverseTransformProjection(float4 input)
 {
