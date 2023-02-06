@@ -2780,6 +2780,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 
 				// This buffer is needed in all cases, not only SteamVR/stereo rendering, since it is used later as Indirect SSDO buffer
+				desc.Format = HDR_FORMAT;
 				step = "_ssaoBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBufR);
 				if (FAILED(hr)) {
@@ -3527,15 +3528,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// Raytracing Shadow Mask RTVs
 		if (g_bRTEnabled && g_bRTEnableSoftShadows) {
-			renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
+			//renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
 			step = "_rtShadowMaskRTV";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMask, &renderTargetViewDescNoMSAA, &this->_rtShadowMaskRTV);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMask, &GetRtvDesc(false, g_bUseSteamVR, RT_SHADOW_FORMAT), &this->_rtShadowMaskRTV);
 			if (FAILED(hr)) goto out;
 
 			if (g_bUseSteamVR) {
-				renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
+				//renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
 				step = "_rtShadowMaskRTV_R";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMaskR, &renderTargetViewDescNoMSAA, &this->_rtShadowMaskRTV_R);
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMaskR, &GetRtvDesc(false, g_bUseSteamVR, RT_SHADOW_FORMAT), &this->_rtShadowMaskRTV_R);
 				if (FAILED(hr)) goto out;
 			}
 		}

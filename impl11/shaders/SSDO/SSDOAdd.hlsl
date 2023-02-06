@@ -519,7 +519,7 @@ PixelShaderOutput main(PixelShaderInput input)
 					[unroll]
 					for (j = -range; j <= range; j++)
 					{
-						const float z = texPos.Sample(sampPos, uv).z;
+						const float z = texPos.Sample(sampPos, float3(input.uv, input.viewId)).z;
 						const float delta_z = abs(P.z - z);
 						const float delta_ij = -RTGaussFactor * (i*i + j*j);
 						//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
