@@ -3244,6 +3244,8 @@ static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildr
 {
 	BuildData* buildData = (BuildData*)userPtr;
 	InterlockedAdd(buildData->pTotalNodes, 1);
+	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(InnerNode), 16);
+
 	//QTreeNode *node = (QTreeNode *)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
 	//node->Init();
 	QTreeNode* node = new QTreeNode();
@@ -3251,6 +3253,34 @@ static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildr
 	//log_debug("[DBG] [BVH] [EMB] Created new inner node, total nodes: %d",
 	//	*buildData->pTotalNodes);
 	return node;
+	//return (void*) new (ptr) InnerNode;
+	//return (void*) new (node)QTreeNode;
+}
+
+static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitive* prims, size_t numPrims, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	//assert(numPrims == 1);
+	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(LeafNode), 16);
+	InterlockedAdd(buildData->pTotalNodes, 1);
+	//QTreeNode* node = (QTreeNode*)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
+	//node->Init();
+	QTreeNode* node = new QTreeNode();
+	//log_debug("[DBG] [BVH] [EMB] Created new leaf node, total nodes: %d",
+	//	*buildData->pTotalNodes);
+
+	node->TriID = prims->primID;
+	node->box.min.x = prims->lower_x;
+	node->box.min.y = prims->lower_y;
+	node->box.min.z = prims->lower_z;
+
+	node->box.max.x = prims->upper_x;
+	node->box.max.y = prims->upper_y;
+	node->box.max.z = prims->upper_z;
+
+	return node;
+	//return (void*) new (ptr) LeafNode(prims->primID, *(BBox3fa*)prims);
+	//return (void*) new (node)QTreeNode(prims->primID);
 }
 
 static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChildren, void* userPtr)
@@ -3270,8 +3300,8 @@ static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChild
 		//	(uint32_t)node, (uint32_t)childPtr[i]);
 
 		// TODO: This is a crutch, we shouldn't have to query the map, but sometimes the
-		// AABBs get set on NULL children (i.e. RTCSetChildren is called after RTCSetBounds),
-		// so here we are
+		// AABBs get set on NULL children (i.e. RTCSetChildren() is called _after_ RTCSetBounds()),
+		// so here we are...
 		const auto& it = buildData->nodeToABBMap.find(key);
 		if (it != buildData->nodeToABBMap.end())
 		{
@@ -3327,32 +3357,6 @@ static void RTCSetBounds(void* nodePtr, const RTCBounds** bounds, unsigned int n
 	node->box = aabb;
 }
 
-static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitive* prims, size_t numPrims, void* userPtr)
-{
-	BuildData* buildData = (BuildData*)userPtr;
-	//const int TriID = prims->primID;
-	//assert(numPrims == 1);
-	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(LeafNode), 16);
-	InterlockedAdd(buildData->pTotalNodes, 1);
-	//QTreeNode *node = (QTreeNode *)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
-	//node->Init();
-	QTreeNode* node = new QTreeNode();
-	//log_debug("[DBG] [BVH] [EMB] Created new leaf node, total nodes: %d",
-	//	*buildData->pTotalNodes);
-
-	node->TriID = prims->primID;
-	node->box.min.x = prims->lower_x;
-	node->box.min.y = prims->lower_y;
-	node->box.min.z = prims->lower_z;
-
-	node->box.max.x = prims->upper_x;
-	node->box.max.y = prims->upper_y;
-	node->box.max.z = prims->upper_z;
-
-	//return (void*) new (ptr) LeafNode(prims->primID, *(BBox3fa*)prims);
-	return node;
-}
-
 bool RTCBuildProgress(void* userPtr, double f) {
 	//log_debug("[DBG] [BVH] [EMB] Build Progress: %0.3f", f);
 	// Return false to cancel this build
@@ -3393,13 +3397,13 @@ LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const
 	arguments.byteSize = sizeof(arguments);
 	arguments.buildFlags = RTCBuildFlags::RTC_BUILD_FLAG_NONE;
 	arguments.buildQuality = RTCBuildQuality::RTC_BUILD_QUALITY_MEDIUM;
-	arguments.maxBranchingFactor = 2; // TODO: Branching factor 4 causes crashes
+	arguments.maxBranchingFactor = 4;
 	arguments.maxDepth = 1024;
 	arguments.sahBlockSize = 1;
 	arguments.minLeafSize = 1;
 	arguments.maxLeafSize = 1;
 	arguments.traversalCost = 1.0f;
-	arguments.intersectionCost = 1.5f;
+	arguments.intersectionCost = 2.0f;
 	arguments.bvh = buildData.bvh;
 	arguments.primitives = buildData.prims.data();
 	arguments.primitiveCount = buildData.prims.size();
@@ -3418,9 +3422,10 @@ LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const
 	QTreeNode* root = (QTreeNode *)rtcBuildBVH(&arguments);
 	int totalNodes = *(buildData.pTotalNodes);
 	root->SetNumNodes(totalNodes);
-	log_debug("[DBG] [BVH] [EMB] Total nodes: %d", totalNodes);
 
 	buildData.QBVHBuffer = (BVHNode *)EncodeNodes(root, vertices, indices);
+	// Initialize the root
+	buildData.QBVHBuffer[0].rootIdx = 0;
 	DeleteTree(root);
 
 	// Initialize the root

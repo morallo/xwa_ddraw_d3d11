@@ -809,12 +809,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//}
 			// Ctrl+S
 			case 'S': {
+#define BENCHMARK_MODE 0
+#if BENCHMARK_MODE
+				g_BVHBuilderType = (BVHBuilderType)(((int)g_BVHBuilderType + 1) % BVHBuilderType_MAX);
+				log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
+#else
 				g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
 				log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
-				// Benchmark mode:
-				//g_BVHBuilderType = (BVHBuilderType )(((int)g_BVHBuilderType + 1) % BVHBuilderType_MAX);
-				//log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
-
+#endif
 				g_bRTEnabled = !g_bRTEnabled;
 				log_debug("[DBG] [BVH] g_bRTEnabled: %s", g_bRTEnabled ? "Enabled" : "Disabled");
 				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");

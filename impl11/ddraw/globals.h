@@ -236,6 +236,7 @@ enum BVHBuilderType
 	BVHBuilderType_MAX,
 };
 extern BVHBuilderType g_BVHBuilderType;
+extern char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX];
 
 extern bool g_bRTEnabledInTechRoom;
 extern bool g_bRTEnabled;
