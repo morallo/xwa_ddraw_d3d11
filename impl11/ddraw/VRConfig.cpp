@@ -2079,6 +2079,10 @@ bool LoadSSAOParams() {
 				// 1.5 --> Sharp
 				g_fRTGaussFactor = lerp(0.01f, 1.5f, clamp(fValue, 0.0f, 1.0f));
 			}
+			if (_stricmp(param, "raytracing_enable_embree") == 0) {
+				g_bRTEnableEmbree = (bool)fValue;
+				g_BVHBuilderType = BVHBuilderType_Embree;
+			}
 
 			if (_stricmp(param, "keep_mouse_inside_window") == 0) {
 				g_bKeepMouseInsideWindow = (bool)fValue;

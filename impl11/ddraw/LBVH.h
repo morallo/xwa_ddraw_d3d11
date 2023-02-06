@@ -150,6 +150,16 @@ public:
 		if (aabb.max.z > max.z) max.z = aabb.max.z;
 	}
 
+	inline void Expand(const RTCBounds* bounds) {
+		if (bounds->lower_x < min.x) min.x = bounds->lower_x;
+		if (bounds->lower_y < min.y) min.y = bounds->lower_y;
+		if (bounds->lower_z < min.z) min.z = bounds->lower_z;
+
+		if (bounds->upper_x > max.x) max.x = bounds->upper_x;
+		if (bounds->upper_y > max.y) max.y = bounds->upper_y;
+		if (bounds->upper_z > max.z) max.z = bounds->upper_z;
+	}
+
 	inline XwaVector3 GetCentroid()
 	{
 		return XwaVector3(
@@ -199,6 +209,17 @@ public:
 		Vector3 range = GetRange();
 		// Area of a parallelepiped: 2ab + 2bc + 2ac
 		return 2.0f * (range.x * range.y + range.y * range.z * range.x * range.z);
+	}
+
+	std::string ToString()
+	{
+		return "(" +
+			std::to_string(min.x) + ", " +
+			std::to_string(min.y) + ", " +
+			std::to_string(min.z) + ")-(" +
+			std::to_string(max.x) + ", " +
+			std::to_string(max.y) + ", " +
+			std::to_string(max.z) + ")";
 	}
 
 	int DumpLimitsToOBJ(FILE *D3DDumpOBJFile, const std::string &name, int VerticesCountOffset);
@@ -475,6 +496,20 @@ public:
 		}
 	}
 
+	void Init()
+	{
+		this->TriID = -1;
+		this->box.SetInfinity();
+		this->numNodes = 0;
+		this->parent = nullptr;
+		SetNullChildren();
+	}
+
+	QTreeNode()
+	{
+		Init();
+	}
+
 	QTreeNode(int TriID)
 	{
 		this->TriID = TriID;
@@ -682,6 +717,8 @@ public:
 	static LBVH *BuildQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 	// Build & Encode the QBVH at the same time as the BVH2 is built.
 	static LBVH *BuildFastQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
+	// Build & Encode using Embree
+	static LBVH* BuildEmbree(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 
 	void PrintTree(std::string level, int curnode);
 	void DumpToOBJ(char *sFileName, bool isTLAS=false, bool useMetricScale=true);

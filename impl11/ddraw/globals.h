@@ -6,8 +6,8 @@
 #include "DynamicCockpit.h"
 #include "ShadowMapping.h"
 #include "SharedMem.h"
-
 #include <map>
+#include "embree/include/rtcore.h"
 
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;
@@ -227,6 +227,16 @@ constexpr float OPT_TO_METERS = 1.0f / 40.96f;
 constexpr float METERS_TO_OPT = 40.96f;
 
 // Raytracing
+enum BVHBuilderType
+{
+	BVHBuilderType_BVH2,
+	BVHBuilderType_QBVH,
+	BVHBuilderType_FastQBVH,
+	BVHBuilderType_Embree,
+	BVHBuilderType_MAX,
+};
+extern BVHBuilderType g_BVHBuilderType;
+
 extern bool g_bRTEnabledInTechRoom;
 extern bool g_bRTEnabled;
 extern bool g_bRTEnabledInCockpit;
@@ -239,9 +249,13 @@ extern uint32_t g_iRTMaxMeshesSoFar;
 extern int g_iRTMatricesNextSlot;
 extern bool g_bRTReAllocateBvhBuffer;
 extern bool g_bRTCaptureCameraAABB;
+extern bool g_bRTEnableEmbree;
 extern std::map<std::string, bool> g_RTExcludeOPTNames;
 extern std::map<uint8_t, bool> g_RTExcludeShipCategories;
 extern std::map<int, bool> g_RTExcludeMeshes;
+
+extern RTCDevice g_rtcDevice;
+extern RTCScene g_rtcScene;
 
 // Levels.fx
 extern bool g_bEnableLevelsShader;

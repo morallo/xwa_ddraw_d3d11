@@ -65,10 +65,12 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>ddraw.def</ModuleDefinitionFile>
       <UACUIAccess>true</UACUIAccess>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib;embree3.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>.\embree\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y $(TargetPath) "C:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance Update 5"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -97,11 +99,15 @@
       <OptimizeReferences>true</OptimizeReferences>
       <ModuleDefinitionFile>ddraw.def</ModuleDefinitionFile>
       <UACUIAccess>true</UACUIAccess>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Zip\XWA-DX11\openvr-master\lib\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib;embree3.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Zip\XWA-DX11\openvr-master\lib\win32;.\embree\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
     <PostBuildEvent />
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="ddraw.cfg">
@@ -180,6 +186,16 @@
     <ClInclude Include="Effects.h" />
     <ClInclude Include="EffectsCommon.h" />
     <ClInclude Include="EffectsRenderer.h" />
+    <ClInclude Include="embree\include\rtcore.h" />
+    <ClInclude Include="embree\include\rtcore_buffer.h" />
+    <ClInclude Include="embree\include\rtcore_builder.h" />
+    <ClInclude Include="embree\include\rtcore_common.h" />
+    <ClInclude Include="embree\include\rtcore_config.h" />
+    <ClInclude Include="embree\include\rtcore_device.h" />
+    <ClInclude Include="embree\include\rtcore_geometry.h" />
+    <ClInclude Include="embree\include\rtcore_quaternion.h" />
+    <ClInclude Include="embree\include\rtcore_ray.h" />
+    <ClInclude Include="embree\include\rtcore_scene.h" />
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />

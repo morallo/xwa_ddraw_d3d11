@@ -21,11 +21,16 @@ extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
 BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+//BVHBuilderType g_BVHBuilderType = BVHBuilderType_Embree;
+
+RTCDevice g_rtcDevice = nullptr;
+RTCScene g_rtcScene = nullptr;
 
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 	"    BVH2",
 	"    QBVH",
-	"FastQBVH"
+	"FastQBVH",
+	"  Embree",
 };
 
 bool g_bRTEnabledInTechRoom = true;
@@ -34,6 +39,7 @@ bool g_bRTEnabledInCockpit = false;
 bool g_bEnablePBRShading = false;
 bool g_bRTEnableSoftShadows = false;
 bool g_bRTCaptureCameraAABB = true;
+bool g_bRTEnableEmbree = false;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
 int g_iRTTotalBLASNodesInFrame = 0;
@@ -1329,6 +1335,9 @@ LBVH* EffectsRenderer::BuildBVH(const std::vector<XwaVector3>& vertices, const s
 	case BVHBuilderType_FastQBVH:
 		// 1-step LBVH build: QBVH is built and encoded in one step.
 		return LBVH::BuildFastQBVH(vertices.data(), vertices.size(), indices.data(), indices.size());
+
+	case BVHBuilderType_Embree:
+		return LBVH::BuildEmbree(vertices.data(), vertices.size(), indices.data(), indices.size());
 	}
 	return nullptr;
 }

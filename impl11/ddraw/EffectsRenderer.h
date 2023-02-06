@@ -16,6 +16,19 @@
 #include "joystick.h"
 
 // ****************************************************
+// Embree
+// ****************************************************
+#include "embree/include/rtcore.h"
+
+/*
+ * How to compile 32-bit Embree:
+ * https://github.com/morallo/xwa_ddraw_d3d11/wiki/Compile-Embree-for-32bit
+ * https://github.com/morallo/xwa_ddraw_d3d11/wiki/Ray-Tracing
+ * https://www.embree.org/api.html
+ * https://github.com/embree/embree/tree/master/tutorials/bvh_builder
+ */
+
+// ****************************************************
 // External variables
 // ****************************************************
 extern bool g_bIsTargetHighlighted, g_bPrevIsTargetHighlighted, g_bAOEnabled;

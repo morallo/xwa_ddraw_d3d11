@@ -1403,6 +1403,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 		InitSharedMem();
 
+		if (g_bRTEnableEmbree)
+		{
+			// TODO: Enabling multiple threads causes crashes and deadlocks. I'm not sure why
+			g_rtcDevice = rtcNewDevice("threads=1,user_threads=1");
+			g_rtcScene = rtcNewScene(g_rtcDevice);
+			log_debug("[DBG] [BVH] [EMB] rtcDevice created");
+		}
+
 		if (IsXwaExe())
 		{
 			if (g_config.Text2DRendererEnabled) 
@@ -1662,6 +1670,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	case DLL_THREAD_DETACH:
 		break;
 	case DLL_PROCESS_DETACH:
+		// Release Embree objects
+		if (g_bRTEnableEmbree)
+		{
+			rtcReleaseScene(g_rtcScene);
+			rtcReleaseDevice(g_rtcDevice);
+			log_debug("[DBG] [BVH] [EMB] Embree objects released");
+		}
+
 		CloseDATReader(); // Idempotent: does nothing if the DATReader wasn't loaded.
 		CloseZIPReader(); // Idempotent: does nothing if the ZIPReader wasn't loaded.
 		if (g_bUseSteamVR)

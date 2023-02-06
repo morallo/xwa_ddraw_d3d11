@@ -5,6 +5,8 @@
 #include <queue>
 #include <algorithm>
 
+#include "embree/include/rtcore.h"
+
 // Remaining issues:
 // - Don't add meshes to the TLAS that come from targeted objects.
 // - The same mesh can have multiple matrices (one per instance). These meshes must be considered
@@ -3028,6 +3030,414 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 
 	// Tidy up
 	//delete[] buffer; // We can't delete the buffer here, lbvh->nodes now owns it
+	return lbvh;
+}
+
+using NodeChildKey = std::tuple<uint32_t, int>;
+
+// https://github.com/embree/embree/blob/master/tutorials/bvh_builder/bvh_builder_device.cpp
+struct BuildData
+{
+	int numVertices = 0;
+	int numIndices = 0;
+	//int numQBVHInnerNodes = 0;
+	//int numQBVHNodes = 0;
+	const XwaVector3* vertices = nullptr;
+	const int* indices = nullptr;
+
+	//LONG* pInnerNodeEncodeOfs = nullptr;
+	//LONG* pLeafNodeEncodeOfs = nullptr;
+	LONG* pTotalNodes = nullptr;
+	std::vector<RTCBuildPrimitive> prims;
+	BVHNode* QBVHBuffer = nullptr;
+	QTreeNode* QTree = nullptr;
+	RTCBVH bvh = nullptr;
+	std::map<NodeChildKey, AABB> nodeToABBMap;
+
+	BuildData(int numTris, const XwaVector3 *vertices, const int numVertices, const int *indices, const int numIndices)
+	{
+		this->numVertices = numVertices;
+		this->numIndices = numIndices;
+		this->vertices = vertices;
+		this->indices = indices;
+
+		//numQBVHInnerNodes = CalcNumInnerQBVHNodes(numTris);
+		//numQBVHNodes = 4 * numTris + numQBVHInnerNodes;
+		//log_debug("[DBG] [BVH] [EMB] numTris: %d, numQBVHInnerNodes: %d, numQBVHNodes: %d",
+		//	numTris, numQBVHInnerNodes, numQBVHNodes);
+
+		// We can reserve the buffer for the QBVH now.
+		//QBVHBuffer = new BVHNode[numQBVHNodes];
+
+		prims.reserve(numTris);
+		prims.resize(numTris);
+
+		pTotalNodes = (LONG*)_aligned_malloc(sizeof(LONG), 32);
+		*pTotalNodes = 0;
+
+		//pInnerNodeEncodeOfs = (LONG*)_aligned_malloc(sizeof(LONG), 32);
+		//*pInnerNodeEncodeOfs = 0;
+
+		//pLeafNodeEncodeOfs = (LONG*)_aligned_malloc(sizeof(LONG), 32);
+		// The first leaf starts at this offset:
+		//*pLeafNodeEncodeOfs = numQBVHInnerNodes;
+
+		bvh = rtcNewBVH(g_rtcDevice);
+	}
+
+	~BuildData()
+	{
+		//_aligned_free(pInnerNodeEncodeOfs);
+		//_aligned_free(pLeafNodeEncodeOfs);
+		_aligned_free(pTotalNodes);
+		rtcReleaseBVH(bvh);
+	}
+};
+
+#ifdef DISABLED
+static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildren, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	BVHNode* QBVHBuffer = buildData->QBVHBuffer;
+
+	InterlockedAdd(buildData->pTotalNodes, 1);
+	// Reserve space for the new node
+	LONG val = InterlockedAdd(buildData->pInnerNodeEncodeOfs, 1);
+	int nodeIndex = val - 1;
+	//log_debug("[DBG] [BVH] [EMB] Allocated Inner Node at offset %d, numChildren: %d, total nodes: %d",
+	//	nodeIndex, numChildren, *buildData->pTotalNodes);
+	if (nodeIndex >= buildData->numQBVHNodes)
+	{
+		log_debug("[DBG] [BVH] [EMB] ERROR: Exceeded max nodes (I), nodeIndex: %d, numQBVHNodes: %d, totalNodes:",
+			nodeIndex, buildData->numQBVHNodes, *buildData->pTotalNodes);
+	}
+	// Initialize the inner node
+	QBVHBuffer[nodeIndex].ref = -1;
+	QBVHBuffer[nodeIndex].numChildren = 0;
+	QBVHBuffer[nodeIndex].parent = -1;
+
+	QBVHBuffer[nodeIndex].min[0] = 0;
+	QBVHBuffer[nodeIndex].min[1] = 0;
+	QBVHBuffer[nodeIndex].min[2] = 0;
+	QBVHBuffer[nodeIndex].min[3] = 0;
+
+	QBVHBuffer[nodeIndex].max[0] = 0;
+	QBVHBuffer[nodeIndex].max[1] = 0;
+	QBVHBuffer[nodeIndex].max[2] = 0;
+	QBVHBuffer[nodeIndex].max[3] = 0;
+	for (int i = 0; i < 4; i++)
+		QBVHBuffer[nodeIndex].children[i] = -1;
+
+	return (void*)&(QBVHBuffer[nodeIndex]);
+}
+
+static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChildren, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	BVHNode* node = (BVHNode*)nodePtr;
+
+	node->numChildren = numChildren;
+	uint32_t start_ofs = (uint32_t)(buildData->QBVHBuffer);
+	for (size_t i = 0; i < numChildren; i++)
+	{
+		//((InnerNode*)nodePtr)->children[i] = (Node*)childPtr[i];
+		uint32_t ofs = (uint32_t)(childPtr[i]) - (uint32_t)start_ofs;
+		int childNodeIdx = ofs / sizeof(BVHNode);
+		if (childNodeIdx >= buildData->numQBVHNodes)
+		{
+			log_debug("[DBG] [BVH] [EMB] ERROR: Exceeded max nodes (C), childNodeIdx: %d, numQBVHNodes: %d, totalNodes: %d",
+				childNodeIdx, buildData->numQBVHNodes, *buildData->pTotalNodes);
+		}
+		node->children[i] = childNodeIdx;
+	}
+}
+
+static void RTCSetBounds(void* nodePtr, const RTCBounds** bounds, unsigned int numChildren, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	//assert(numChildren == 2);
+	BVHNode* QBVHBuffer = buildData->QBVHBuffer;
+	BVHNode* node = (BVHNode*)nodePtr;
+	AABB aabb;
+
+	for (size_t i = 0; i < numChildren; i++)
+	{
+		int childIdx = node->children[i];
+		QBVHBuffer[childIdx].min[0] = bounds[i]->lower_x;
+		QBVHBuffer[childIdx].min[1] = bounds[i]->lower_y;
+		QBVHBuffer[childIdx].min[2] = bounds[i]->lower_z;
+		QBVHBuffer[childIdx].min[3] = 1.0f;
+
+		QBVHBuffer[childIdx].max[0] = bounds[i]->upper_x;
+		QBVHBuffer[childIdx].max[1] = bounds[i]->upper_y;
+		QBVHBuffer[childIdx].max[2] = bounds[i]->upper_z;
+		QBVHBuffer[childIdx].max[3] = 1.0f;
+
+		// Update the AABB for the inner node
+		aabb.Expand(bounds[i]);
+	}
+
+	node->min[0] = aabb.min.x;
+	node->min[1] = aabb.min.y;
+	node->min[2] = aabb.min.z;
+	node->min[3] = 1.0f;
+
+	node->max[0] = aabb.max.x;
+	node->max[1] = aabb.max.y;
+	node->max[2] = aabb.max.z;
+	node->max[3] = 1.0f;
+}
+
+static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitive* prims, size_t numPrims, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	BVHPrimNode* QBVHBuffer = (BVHPrimNode*)buildData->QBVHBuffer;
+
+	//assert(numPrims == 1);
+	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(LeafNode), 16);
+	InterlockedAdd(buildData->pTotalNodes, 1);
+	LONG val = InterlockedAdd(buildData->pLeafNodeEncodeOfs, 1);
+	const int nodeIndex = buildData->numQBVHInnerNodes + (val - 1);
+	//log_debug("[DBG] [BVH] [EMB] Allocated Leaf Node at offset %d, total nodes: %d",
+	//	nodeIndex, *buildData->pTotalNodes);
+	if (nodeIndex >= buildData->numQBVHNodes)
+	{
+		log_debug("[DBG] [BVH] [EMB] ERROR: Exceeded max nodes (L), nodeIndex: %d, numQBVHNodes: %d, totalNodes: %d",
+			nodeIndex, buildData->numQBVHNodes, *buildData->pTotalNodes);
+	}
+
+	//return (void*) new (ptr) LeafNode(prims->primID, *(BBox3fa*)prims);
+	const int TriID = prims->primID;
+	const int i = TriID * 3;
+	if (i + 2 >= buildData->numIndices)
+	{
+		log_debug("[DBG] [BVH] [EMB] ERROR: Exceeded maximum geometry index: %d, numIndices",
+			i, buildData->numIndices);
+	}
+
+	XwaVector3 v0 = buildData->vertices[buildData->indices[i + 0]];
+	XwaVector3 v1 = buildData->vertices[buildData->indices[i + 1]];
+	XwaVector3 v2 = buildData->vertices[buildData->indices[i + 2]];
+
+	QBVHBuffer[nodeIndex].ref = TriID;
+
+	QBVHBuffer[nodeIndex].v0[0] = v0.x;
+	QBVHBuffer[nodeIndex].v0[1] = v0.y;
+	QBVHBuffer[nodeIndex].v0[2] = v0.z;
+	QBVHBuffer[nodeIndex].v0[3] = 1.0f;
+
+	QBVHBuffer[nodeIndex].v1[0] = v1.x;
+	QBVHBuffer[nodeIndex].v1[1] = v1.y;
+	QBVHBuffer[nodeIndex].v1[2] = v1.z;
+	QBVHBuffer[nodeIndex].v1[3] = 1.0f;
+
+	QBVHBuffer[nodeIndex].v2[0] = v2.x;
+	QBVHBuffer[nodeIndex].v2[1] = v2.y;
+	QBVHBuffer[nodeIndex].v2[2] = v2.z;
+	QBVHBuffer[nodeIndex].v2[3] = 1.0f;
+
+	return (void*)&(QBVHBuffer[nodeIndex]);
+}
+#endif
+
+static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildren, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	InterlockedAdd(buildData->pTotalNodes, 1);
+	//QTreeNode *node = (QTreeNode *)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
+	//node->Init();
+	QTreeNode* node = new QTreeNode();
+
+	//log_debug("[DBG] [BVH] [EMB] Created new inner node, total nodes: %d",
+	//	*buildData->pTotalNodes);
+	return node;
+}
+
+static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChildren, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	QTreeNode* node = (QTreeNode*)nodePtr;
+	AABB aabb;
+
+	for (size_t i = 0; i < numChildren; i++)
+	{
+		//((InnerNode*)nodePtr)->children[i] = (Node*)childPtr[i];
+		NodeChildKey key = NodeChildKey((uint32_t)node, i);
+		node->children[i] = (QTreeNode*)childPtr[i];
+		QTreeNode* child = node->children[i];
+
+		//log_debug("[DBG] [BVH] [EMB] node 0x%x connected to 0x%x",
+		//	(uint32_t)node, (uint32_t)childPtr[i]);
+
+		// TODO: This is a crutch, we shouldn't have to query the map, but sometimes the
+		// AABBs get set on NULL children (i.e. RTCSetChildren is called after RTCSetBounds),
+		// so here we are
+		const auto& it = buildData->nodeToABBMap.find(key);
+		if (it != buildData->nodeToABBMap.end())
+		{
+			//log_debug("[DBG] [BVH] [EMB] Found box for 0x%x-%d", (uint32_t)node, i);
+			child->box = it->second;
+		}
+		aabb.Expand(child->box);
+	}
+	//log_debug("[DBG] [BVH] [EMB] node 0x%x, box: %s", (uint32_t)node, aabb.ToString().c_str());
+	node->box = aabb;
+}
+
+static void RTCSetBounds(void* nodePtr, const RTCBounds** bounds, unsigned int numChildren, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	//assert(numChildren == 2);
+	QTreeNode* node = (QTreeNode*)nodePtr;
+	AABB aabb;
+
+	for (size_t i = 0; i < numChildren; i++)
+	{
+		QTreeNode *child = node->children[i];
+		if (child != nullptr)
+		{
+			child->box.min.x = bounds[i]->lower_x;
+			child->box.min.y = bounds[i]->lower_y;
+			child->box.min.z = bounds[i]->lower_z;
+
+			child->box.max.x = bounds[i]->upper_x;
+			child->box.max.y = bounds[i]->upper_y;
+			child->box.max.z = bounds[i]->upper_z;
+			//log_debug("[DBG] [BVH] [EMB] Set bounds on node 0x%x", (uint32_t)child);
+		}
+		else
+		{
+			//log_debug("[DBG] [BVH] [EMB] ERROR: Attempted to set bounds on NULL ptr, parent: 0x%x, child: %d",
+			//	(uint32_t)node, i);
+			AABB childAABB;
+			childAABB.Expand(bounds[i]);
+			// TODO: This silly map is here because sometimes this callback gets triggered when
+			// the children haven't been set yet, so we need to save the AABBs for later.
+			buildData->nodeToABBMap[NodeChildKey((uint32_t)node, i)] = childAABB;
+			//log_debug("[DBG] [BVH] [EMB] Added AABB for 0x%x-%d, box: %s",
+			//	(uint32_t)node, i, childAABB.ToString().c_str());
+			//log_debug("[DBG] [BVH] [EMB] bounds[%d]: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
+			//	i, bounds[i]->lower_x, bounds[i]->lower_y, bounds[i]->lower_z,
+			//	bounds[i]->upper_x, bounds[i]->upper_y, bounds[i]->upper_z);
+		}
+
+		// Update the AABB for the inner node
+		aabb.Expand(bounds[i]);
+	}
+	node->box = aabb;
+}
+
+static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitive* prims, size_t numPrims, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	//const int TriID = prims->primID;
+	//assert(numPrims == 1);
+	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(LeafNode), 16);
+	InterlockedAdd(buildData->pTotalNodes, 1);
+	//QTreeNode *node = (QTreeNode *)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
+	//node->Init();
+	QTreeNode* node = new QTreeNode();
+	//log_debug("[DBG] [BVH] [EMB] Created new leaf node, total nodes: %d",
+	//	*buildData->pTotalNodes);
+
+	node->TriID = prims->primID;
+	node->box.min.x = prims->lower_x;
+	node->box.min.y = prims->lower_y;
+	node->box.min.z = prims->lower_z;
+
+	node->box.max.x = prims->upper_x;
+	node->box.max.y = prims->upper_y;
+	node->box.max.z = prims->upper_z;
+
+	//return (void*) new (ptr) LeafNode(prims->primID, *(BBox3fa*)prims);
+	return node;
+}
+
+bool RTCBuildProgress(void* userPtr, double f) {
+	//log_debug("[DBG] [BVH] [EMB] Build Progress: %0.3f", f);
+	// Return false to cancel this build
+	return true;
+}
+
+LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices)
+{
+	int numTris = numIndices / 3;
+	BuildData buildData(numTris, vertices, numVertices, indices, numIndices);
+
+	for (int i = 0, TriID = 0; i < numIndices; i += 3, TriID++) {
+		AABB aabb;
+		XwaVector3 v0 = vertices[indices[i + 0]];
+		XwaVector3 v1 = vertices[indices[i + 1]];
+		XwaVector3 v2 = vertices[indices[i + 2]];
+		aabb.Expand(v0);
+		aabb.Expand(v1);
+		aabb.Expand(v2);
+
+		RTCBuildPrimitive prim;
+		prim.geomID = 0;
+		prim.primID = TriID;
+
+		prim.lower_x = aabb.min.x;
+		prim.lower_y = aabb.min.y;
+		prim.lower_z = aabb.min.z;
+
+		prim.upper_x = aabb.max.x;
+		prim.upper_y = aabb.max.y;
+		prim.upper_z = aabb.max.z;
+
+		buildData.prims[TriID] = prim;
+	}
+
+	// Configure the BVH build
+	RTCBuildArguments arguments = rtcDefaultBuildArguments();
+	arguments.byteSize = sizeof(arguments);
+	arguments.buildFlags = RTCBuildFlags::RTC_BUILD_FLAG_NONE;
+	arguments.buildQuality = RTCBuildQuality::RTC_BUILD_QUALITY_MEDIUM;
+	arguments.maxBranchingFactor = 2; // TODO: Branching factor 4 causes crashes
+	arguments.maxDepth = 1024;
+	arguments.sahBlockSize = 1;
+	arguments.minLeafSize = 1;
+	arguments.maxLeafSize = 1;
+	arguments.traversalCost = 1.0f;
+	arguments.intersectionCost = 1.5f;
+	arguments.bvh = buildData.bvh;
+	arguments.primitives = buildData.prims.data();
+	arguments.primitiveCount = buildData.prims.size();
+	arguments.primitiveArrayCapacity = buildData.prims.capacity();
+	arguments.createNode = RTCCreateNode;
+	arguments.setNodeChildren = RTCSetChildren;
+	arguments.setNodeBounds = RTCSetBounds;
+	arguments.createLeaf = RTCCreateLeaf;
+	arguments.splitPrimitive = nullptr;
+	arguments.buildProgress = RTCBuildProgress;
+	arguments.userPtr = &buildData;
+
+	// Build the tree
+	//log_debug("[DBG] [BVH] [EMB] Building the BVH using Embree");
+	//BVHNode* root = (BVHNode *)rtcBuildBVH(&arguments);
+	QTreeNode* root = (QTreeNode *)rtcBuildBVH(&arguments);
+	int totalNodes = *(buildData.pTotalNodes);
+	root->SetNumNodes(totalNodes);
+	log_debug("[DBG] [BVH] [EMB] Total nodes: %d", totalNodes);
+
+	buildData.QBVHBuffer = (BVHNode *)EncodeNodes(root, vertices, indices);
+	DeleteTree(root);
+
+	// Initialize the root
+	//uint32_t start_ofs = (uint32_t)(buildData.QBVHBuffer);
+	//uint32_t root_ofs = (uint32_t)root - start_ofs;
+	//log_debug("[DBG] [BVH] [EMB] Root is at offset: %d, total nodes; %d", root_ofs, totalNodes);
+	//buildData.QBVHBuffer[0].rootIdx = root_ofs;
+
+	LBVH* lbvh = new LBVH();
+	lbvh->nodes = buildData.QBVHBuffer;
+	lbvh->numVertices = numVertices;
+	lbvh->numIndices = numIndices;
+	lbvh->numNodes = totalNodes;
+	lbvh->scale = 1.0f;
+	lbvh->scaleComputed = true;
+
+	//lbvh->DumpToOBJ(".\\embree.obj", /* isTLAS */ false, /* useMetricScale */ true);
 	return lbvh;
 }
 
