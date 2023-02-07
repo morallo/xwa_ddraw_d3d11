@@ -760,40 +760,7 @@ void DumpTLASTree(char* sFileName, bool useMetricScale)
 void BuildTLAS()
 {
 	g_iRTMeshesInThisFrame = tlasLeaves.size();
-	// Prune the tlasLeaves (remove all tlas leaves that have NULL BLASes)
-	if (false)
-	{
-		// By this point, the BLASes have been built. It's probably a good idea to prune
-		// the tlasLeaves by removing empty BLASes
-		std::vector<TLASLeafItem> tempLeaves;
-		RTResetMatrixSlotCounter();
-		// Also reset the global AABB, maybe it will be reduced
-		g_GlobalAABB.SetInfinity();
-		for (auto& X : tlasLeaves) {
-			int meshKey = TLASGetID(X);
-			auto& it = g_LBVHMap.find(meshKey);
-			// Mesh not found, skip:
-			if (it == g_LBVHMap.end())
-				continue;
-			else
-			{
-				MeshData& meshData = it->second;
-				void* bvh = GetLBVH(meshData);
-				// Empty BVH, skip:
-				if (bvh == nullptr)
-					continue;
-			}
-			tempLeaves.push_back(X);
-			g_GlobalAABB.Expand(TLASGetAABBFromOBB(X));
-		}
-		tlasLeaves.clear();
-		tlasLeaves = tempLeaves;
-		g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
-		g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
-		g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
-	}
-
-	const uint32_t numLeaves = tlasLeaves.size();
+	const uint32_t numLeaves = g_iRTMeshesInThisFrame;
 	if (numLeaves == 0)
 	{
 		//log_debug("[DBG] [BVH] BuildTLAS: numLeaves 0. Early exit.");
@@ -843,6 +810,249 @@ void BuildTLAS()
 	g_TLASTree = new LBVH();
 	g_TLASTree->nodes = QBVHBuffer;
 	g_TLASTree->numNodes = numQBVHNodes;
+	g_TLASTree->scale = 1.0f;
+	g_TLASTree->scaleComputed = true;
+
+	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+	{
+		// The single-node tree's AABB matches the global AABB and also contains the OBB
+		//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
+		DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
+	}
+}
+
+// https://github.com/embree/embree/blob/master/tutorials/bvh_builder/bvh_builder_device.cpp
+struct BuildDataTLAS
+{
+	LONG* pTotalNodes = nullptr;
+	std::vector<RTCBuildPrimitive> prims;
+	BVHNode* QBVHBuffer = nullptr;
+	RTCBVH bvh = nullptr;
+	std::map<NodeChildKey, AABB> nodeToABBMap;
+
+	BuildDataTLAS(int numPrims)
+	{
+		prims.reserve(numPrims);
+		prims.resize(numPrims);
+
+		pTotalNodes = (LONG*)_aligned_malloc(sizeof(LONG), 32);
+		*pTotalNodes = 0;
+
+		bvh = rtcNewBVH(g_rtcDevice);
+	}
+
+	~BuildDataTLAS()
+	{
+		_aligned_free(pTotalNodes);
+		rtcReleaseBVH(bvh);
+	}
+};
+
+#undef RTC_DEBUG
+
+static void* RTCCreateNodeTLAS(RTCThreadLocalAllocator alloc, unsigned int numChildren, void* userPtr)
+{
+	BuildDataTLAS* buildData = (BuildDataTLAS*)userPtr;
+	InterlockedAdd(buildData->pTotalNodes, 1);
+	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(InnerNode), 16);
+
+	//QTreeNode *node = (QTreeNode *)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
+	//node->Init();
+	QTreeNode* node = new QTreeNode();
+
+#ifdef RTC_DEBUG
+	log_debug("[DBG] [BVH] [EMB] Created new inner node 0x%x, total nodes: %d",
+		node, *buildData->pTotalNodes);
+#endif
+	return node;
+	//return (void*) new (ptr) InnerNode;
+	//return (void*) new (node)QTreeNode;
+}
+
+static void* RTCCreateLeafTLAS(RTCThreadLocalAllocator alloc, const RTCBuildPrimitive* prims, size_t numPrims, void* userPtr)
+{
+	BuildDataTLAS* buildData = (BuildDataTLAS*)userPtr;
+	//assert(numPrims == 1);
+	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(LeafNode), 16);
+	InterlockedAdd(buildData->pTotalNodes, 1);
+	//QTreeNode* node = (QTreeNode*)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
+	//node->Init();
+	QTreeNode* node = new QTreeNode();
+#ifdef RTC_DEBUG
+	log_debug("[DBG] [BVH] [EMB] Created new leaf node 0x%x, total nodes: %d",
+		node, *buildData->pTotalNodes);
+#endif
+
+	node->TriID = prims->primID;
+	node->box.min.x = prims->lower_x;
+	node->box.min.y = prims->lower_y;
+	node->box.min.z = prims->lower_z;
+
+	node->box.max.x = prims->upper_x;
+	node->box.max.y = prims->upper_y;
+	node->box.max.z = prims->upper_z;
+
+	return node;
+	//return (void*) new (ptr) LeafNode(prims->primID, *(BBox3fa*)prims);
+	//return (void*) new (node)QTreeNode(prims->primID);
+}
+
+static void RTCSetChildrenTLAS(void* nodePtr, void** childPtr, unsigned int numChildren, void* userPtr)
+{
+	BuildDataTLAS* buildData = (BuildDataTLAS*)userPtr;
+	QTreeNode* node = (QTreeNode*)nodePtr;
+	AABB aabb;
+
+	for (size_t i = 0; i < numChildren; i++)
+	{
+		//((InnerNode*)nodePtr)->children[i] = (Node*)childPtr[i];
+		NodeChildKey key = NodeChildKey((uint32_t)node, i);
+		node->children[i] = (QTreeNode*)childPtr[i];
+		QTreeNode* child = node->children[i];
+
+#ifdef RTC_DEBUG
+		log_debug("[DBG] [BVH] [EMB] node 0x%x connected to 0x%x",
+			(uint32_t)node, (uint32_t)childPtr[i]);
+#endif
+
+		// TODO: This is a crutch, we shouldn't have to query the map, but sometimes the
+		// AABBs get set on NULL children (i.e. RTCSetChildren() is called _after_ RTCSetBounds()),
+		// so here we are...
+		const auto& it = buildData->nodeToABBMap.find(key);
+		if (it != buildData->nodeToABBMap.end())
+		{
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] Found box for 0x%x-%d", (uint32_t)node, i);
+#endif
+			child->box = it->second;
+		}
+		aabb.Expand(child->box);
+	}
+#ifdef RTC_DEBUG
+	log_debug("[DBG] [BVH] [EMB] node 0x%x, box: %s", (uint32_t)node, aabb.ToString().c_str());
+#endif
+	node->box = aabb;
+}
+
+static void RTCSetBoundsTLAS(void* nodePtr, const RTCBounds** bounds, unsigned int numChildren, void* userPtr)
+{
+	BuildDataTLAS* buildData = (BuildDataTLAS*)userPtr;
+	//assert(numChildren == 2);
+	QTreeNode* node = (QTreeNode*)nodePtr;
+	AABB aabb;
+
+	for (size_t i = 0; i < numChildren; i++)
+	{
+		QTreeNode* child = node->children[i];
+		if (child != nullptr)
+		{
+			child->box.min.x = bounds[i]->lower_x;
+			child->box.min.y = bounds[i]->lower_y;
+			child->box.min.z = bounds[i]->lower_z;
+
+			child->box.max.x = bounds[i]->upper_x;
+			child->box.max.y = bounds[i]->upper_y;
+			child->box.max.z = bounds[i]->upper_z;
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] Set bounds on node 0x%x", (uint32_t)child);
+#endif
+		}
+		else
+		{
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] ERROR: Attempted to set bounds on NULL ptr, parent: 0x%x, child: %d",
+				(uint32_t)node, i);
+#endif
+			AABB childAABB;
+			childAABB.Expand(bounds[i]);
+			// TODO: This silly map is here because sometimes this callback gets triggered when
+			// the children haven't been set yet, so we need to save the AABBs for later.
+			buildData->nodeToABBMap[NodeChildKey((uint32_t)node, i)] = childAABB;
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] Added AABB for 0x%x-%d, box: %s",
+				(uint32_t)node, i, childAABB.ToString().c_str());
+#endif
+		}
+
+		// Update the AABB for the inner node
+		aabb.Expand(bounds[i]);
+	}
+	node->box = aabb;
+}
+
+static bool RTCBuildProgressTLAS(void* userPtr, double f) {
+	//log_debug("[DBG] [BVH] [EMB] Build Progress: %0.3f", f);
+	// Return false to cancel this build
+	return true;
+}
+
+void BuildTLASEmbree()
+{
+	g_iRTMeshesInThisFrame = tlasLeaves.size();
+	const uint32_t numLeaves = g_iRTMeshesInThisFrame;
+	if (numLeaves == 0)
+	{
+		//log_debug("[DBG] [BVH] BuildTLAS: numLeaves 0. Early exit.");
+		return;
+	}
+
+	BuildDataTLAS buildData(numLeaves);
+	// Populate the primitives
+	for (uint32_t ID = 0; ID < numLeaves; ID++) {
+		AABB aabb = TLASGetAABBFromOBB(tlasLeaves[ID]);
+		RTCBuildPrimitive prim;
+
+		prim.geomID = 0;
+		prim.primID = ID;
+
+		prim.lower_x = aabb.min.x;
+		prim.lower_y = aabb.min.y;
+		prim.lower_z = aabb.min.z;
+
+		prim.upper_x = aabb.max.x;
+		prim.upper_y = aabb.max.y;
+		prim.upper_z = aabb.max.z;
+
+		buildData.prims[ID] = prim;
+	}
+
+	// Configure the BVH build
+	RTCBuildArguments arguments = rtcDefaultBuildArguments();
+	arguments.byteSize = sizeof(arguments);
+	arguments.buildFlags = RTCBuildFlags::RTC_BUILD_FLAG_DYNAMIC;
+	arguments.buildQuality = RTCBuildQuality::RTC_BUILD_QUALITY_LOW;
+	arguments.maxBranchingFactor = 4;
+	arguments.maxDepth = 1024;
+	arguments.sahBlockSize = 1;
+	arguments.minLeafSize = 1;
+	arguments.maxLeafSize = 1;
+	arguments.traversalCost = 1.0f;
+	arguments.intersectionCost = 2.0f;
+	arguments.bvh = buildData.bvh;
+	arguments.primitives = buildData.prims.data();
+	arguments.primitiveCount = buildData.prims.size();
+	arguments.primitiveArrayCapacity = buildData.prims.capacity();
+	arguments.createNode = RTCCreateNodeTLAS;
+	arguments.setNodeChildren = RTCSetChildrenTLAS;
+	arguments.setNodeBounds = RTCSetBoundsTLAS;
+	arguments.createLeaf = RTCCreateLeafTLAS;
+	arguments.splitPrimitive = nullptr;
+	arguments.buildProgress = RTCBuildProgressTLAS;
+	arguments.userPtr = &buildData;
+
+	QTreeNode* root = (QTreeNode*)rtcBuildBVH(&arguments);
+	int totalNodes = *(buildData.pTotalNodes);
+	root->SetNumNodes(totalNodes);
+
+	buildData.QBVHBuffer = (BVHNode*)TLASEncodeNodes(root, tlasLeaves);
+	// Initialize the root
+	buildData.QBVHBuffer[0].rootIdx = 0;
+	DeleteTree(root);
+
+	// The previous TLAS tree should be deleted at the beginning of each frame.
+	g_TLASTree = new LBVH();
+	g_TLASTree->nodes = buildData.QBVHBuffer;
+	g_TLASTree->numNodes = totalNodes;
 	g_TLASTree->scale = 1.0f;
 	g_TLASTree->scaleComputed = true;
 
@@ -1962,7 +2172,10 @@ void EffectsRenderer::SceneEnd()
 			g_GlobalRange.x = g_GlobalAABB.max.x - g_GlobalAABB.min.x;
 			g_GlobalRange.y = g_GlobalAABB.max.y - g_GlobalAABB.min.y;
 			g_GlobalRange.z = g_GlobalAABB.max.z - g_GlobalAABB.min.z;
-			BuildTLAS();
+			if (g_bRTEnableEmbree)
+				BuildTLASEmbree();
+			else
+				BuildTLAS();
 			//log_debug("[DBG] [BVH] TLAS Built");
 			ReAllocateAndPopulateMatrixBuffer();
 			//log_debug("[DBG] [BVH] Matrices Realloc'ed");

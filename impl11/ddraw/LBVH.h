@@ -724,6 +724,8 @@ public:
 	void DumpToOBJ(char *sFileName, bool isTLAS=false, bool useMetricScale=true);
 };
 
+using NodeChildKey = std::tuple<uint32_t, int>;
+
 int CalcNumInnerQBVHNodes(int numPrimitives);
 
 void Normalize(XwaVector3& A, const AABB& sceneBox, const XwaVector3& range);
@@ -739,6 +741,7 @@ QTreeNode* BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* inne
 void DeleteTree(QTreeNode* Q);
 
 uint8_t* EncodeNodes(IGenericTreeNode* root, const XwaVector3* Vertices, const int* Indices);
+uint8_t* TLASEncodeNodes(IGenericTreeNode* root, std::vector<TLASLeafItem>& leafItems);
 int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, int leafIdx, int EncodeNodeIdx);
 
 void DeleteBufferTree(BufferTreeNode *node);

@@ -2033,6 +2033,7 @@ static int EncodeTreeNode4(void* buffer, int startOfs, IGenericTreeNode* T, int3
 	{
 		int vertofs = TriID * 3;
 		XwaVector3 v0, v1, v2;
+
 		//if (Vertices != nullptr && Indices != nullptr)
 		{
 			v0 = Vertices[Indices[vertofs]];
@@ -2176,7 +2177,7 @@ static int EncodeTreeNode4(void* buffer, int startOfs,
 }
 
 // Returns a compact buffer containing BVHNode entries that represent the given tree
-// The current ray-tracer uses embedded geometry.
+// The number of nodes is read from root->GetNumNodes();
 uint8_t* EncodeNodes(IGenericTreeNode* root, const XwaVector3* Vertices, const int* Indices)
 {
 	uint8_t* result = nullptr;
@@ -2215,6 +2216,67 @@ uint8_t* EncodeNodes(IGenericTreeNode* root, const XwaVector3* Vertices, const i
 
 		startOfs = EncodeTreeNode4(result, startOfs, T, -1 /* parent (TODO) */,
 			childOfs, Vertices, Indices);
+
+		// Enqueue the children
+		for (const auto& child : children)
+		{
+			Q.push(child);
+			nextNode++;
+		}
+	}
+
+	return result;
+}
+
+// Returns a compact buffer containing BVHNode entries that represent the given TLAS tree
+// The number of nodes is read from root->GetNumNodes();
+uint8_t* TLASEncodeNodes(IGenericTreeNode* root, std::vector<TLASLeafItem>& leafItems)
+{
+	uint8_t* result = nullptr;
+	if (root == nullptr)
+		return result;
+
+	int NumNodes = root->GetNumNodes();
+	result = new uint8_t[NumNodes * ENCODED_TREE_NODE4_SIZE];
+	int startOfs = 0;
+	uint32_t arity = root->GetArity();
+	//log_debug("[DBG] [BVH] Encoding %d BVH nodes", NumNodes);
+
+	// A breadth-first traversal will ensure that each level of the tree is encoded to the
+	// buffer before advancing to the next level. We can thus keep track of the offset in
+	// the buffer where the next node will appear.
+	std::queue<IGenericTreeNode*> Q;
+
+	// Initialize the queue and the offsets.
+	Q.push(root);
+	// Since we're going to put this data in an array, it's easier to specify the children
+	// offsets as indices into this array.
+	int nextNode = 1;
+	std::vector<int> childOfs;
+	constexpr int ofsFactor = sizeof(BVHNode) / 4;
+
+	while (Q.size() != 0)
+	{
+		IGenericTreeNode* T = Q.front();
+		Q.pop();
+		std::vector<IGenericTreeNode*> children = T->GetChildren();
+
+		// In a breadth-first search, the left child will always be at offset nextNode
+		// Add the children offsets
+		childOfs.clear();
+		for (uint32_t i = 0; i < arity; i++)
+			childOfs.push_back(i < children.size() ? nextNode + i : -1);
+
+		if (T->IsLeaf())
+		{
+			TLASEncodeLeafNode((BVHNode*)result, leafItems, T->GetTriID(), startOfs / ofsFactor);
+			startOfs += ofsFactor;
+		}
+		else
+		{
+			startOfs = EncodeTreeNode4(result, startOfs, T, -1 /* parent (TODO) */,
+				childOfs, nullptr, nullptr);
+		}
 
 		// Enqueue the children
 		for (const auto& child : children)
@@ -3033,8 +3095,6 @@ LBVH* LBVH::BuildFastQBVH(const XwaVector3* vertices, const int numVertices, con
 	return lbvh;
 }
 
-using NodeChildKey = std::tuple<uint32_t, int>;
-
 // https://github.com/embree/embree/blob/master/tutorials/bvh_builder/bvh_builder_device.cpp
 struct BuildData
 {
@@ -3054,7 +3114,7 @@ struct BuildData
 	RTCBVH bvh = nullptr;
 	std::map<NodeChildKey, AABB> nodeToABBMap;
 
-	BuildData(int numTris, const XwaVector3 *vertices, const int numVertices, const int *indices, const int numIndices)
+	BuildData(int numTris, const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices)
 	{
 		this->numVertices = numVertices;
 		this->numIndices = numIndices;
@@ -3240,6 +3300,8 @@ static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitiv
 }
 #endif
 
+#undef RTC_DEBUG
+
 static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildren, void* userPtr)
 {
 	BuildData* buildData = (BuildData*)userPtr;
@@ -3250,8 +3312,10 @@ static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildr
 	//node->Init();
 	QTreeNode* node = new QTreeNode();
 
-	//log_debug("[DBG] [BVH] [EMB] Created new inner node, total nodes: %d",
-	//	*buildData->pTotalNodes);
+#ifdef RTC_DEBUG
+	log_debug("[DBG] [BVH] [EMB] Created new inner node 0x%x, total nodes: %d",
+		node, *buildData->pTotalNodes);
+#endif
 	return node;
 	//return (void*) new (ptr) InnerNode;
 	//return (void*) new (node)QTreeNode;
@@ -3266,8 +3330,10 @@ static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitiv
 	//QTreeNode* node = (QTreeNode*)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
 	//node->Init();
 	QTreeNode* node = new QTreeNode();
-	//log_debug("[DBG] [BVH] [EMB] Created new leaf node, total nodes: %d",
-	//	*buildData->pTotalNodes);
+#ifdef RTC_DEBUG
+	log_debug("[DBG] [BVH] [EMB] Created new leaf node 0x%x, total nodes: %d",
+		node, *buildData->pTotalNodes);
+#endif
 
 	node->TriID = prims->primID;
 	node->box.min.x = prims->lower_x;
@@ -3296,8 +3362,10 @@ static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChild
 		node->children[i] = (QTreeNode*)childPtr[i];
 		QTreeNode* child = node->children[i];
 
-		//log_debug("[DBG] [BVH] [EMB] node 0x%x connected to 0x%x",
-		//	(uint32_t)node, (uint32_t)childPtr[i]);
+#ifdef RTC_DEBUG
+		log_debug("[DBG] [BVH] [EMB] node 0x%x connected to 0x%x",
+			(uint32_t)node, (uint32_t)childPtr[i]);
+#endif
 
 		// TODO: This is a crutch, we shouldn't have to query the map, but sometimes the
 		// AABBs get set on NULL children (i.e. RTCSetChildren() is called _after_ RTCSetBounds()),
@@ -3305,12 +3373,16 @@ static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChild
 		const auto& it = buildData->nodeToABBMap.find(key);
 		if (it != buildData->nodeToABBMap.end())
 		{
-			//log_debug("[DBG] [BVH] [EMB] Found box for 0x%x-%d", (uint32_t)node, i);
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] Found box for 0x%x-%d", (uint32_t)node, i);
+#endif
 			child->box = it->second;
 		}
 		aabb.Expand(child->box);
 	}
-	//log_debug("[DBG] [BVH] [EMB] node 0x%x, box: %s", (uint32_t)node, aabb.ToString().c_str());
+#ifdef RTC_DEBUG
+	log_debug("[DBG] [BVH] [EMB] node 0x%x, box: %s", (uint32_t)node, aabb.ToString().c_str());
+#endif
 	node->box = aabb;
 }
 
@@ -3333,22 +3405,25 @@ static void RTCSetBounds(void* nodePtr, const RTCBounds** bounds, unsigned int n
 			child->box.max.x = bounds[i]->upper_x;
 			child->box.max.y = bounds[i]->upper_y;
 			child->box.max.z = bounds[i]->upper_z;
-			//log_debug("[DBG] [BVH] [EMB] Set bounds on node 0x%x", (uint32_t)child);
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] Set bounds on node 0x%x", (uint32_t)child);
+#endif
 		}
 		else
 		{
-			//log_debug("[DBG] [BVH] [EMB] ERROR: Attempted to set bounds on NULL ptr, parent: 0x%x, child: %d",
-			//	(uint32_t)node, i);
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] ERROR: Attempted to set bounds on NULL ptr, parent: 0x%x, child: %d",
+				(uint32_t)node, i);
+#endif
 			AABB childAABB;
 			childAABB.Expand(bounds[i]);
 			// TODO: This silly map is here because sometimes this callback gets triggered when
 			// the children haven't been set yet, so we need to save the AABBs for later.
 			buildData->nodeToABBMap[NodeChildKey((uint32_t)node, i)] = childAABB;
-			//log_debug("[DBG] [BVH] [EMB] Added AABB for 0x%x-%d, box: %s",
-			//	(uint32_t)node, i, childAABB.ToString().c_str());
-			//log_debug("[DBG] [BVH] [EMB] bounds[%d]: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
-			//	i, bounds[i]->lower_x, bounds[i]->lower_y, bounds[i]->lower_z,
-			//	bounds[i]->upper_x, bounds[i]->upper_y, bounds[i]->upper_z);
+#ifdef RTC_DEBUG
+			log_debug("[DBG] [BVH] [EMB] Added AABB for 0x%x-%d, box: %s",
+				(uint32_t)node, i, childAABB.ToString().c_str());
+#endif
 		}
 
 		// Update the AABB for the inner node
@@ -3357,7 +3432,7 @@ static void RTCSetBounds(void* nodePtr, const RTCBounds** bounds, unsigned int n
 	node->box = aabb;
 }
 
-bool RTCBuildProgress(void* userPtr, double f) {
+static bool RTCBuildProgress(void* userPtr, double f) {
 	//log_debug("[DBG] [BVH] [EMB] Build Progress: %0.3f", f);
 	// Return false to cancel this build
 	return true;
@@ -3367,6 +3442,8 @@ LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const
 {
 	int numTris = numIndices / 3;
 	BuildData buildData(numTris, vertices, numVertices, indices, numIndices);
+	//int estimatedInnerNodes = CalcNumInnerQBVHNodes(numTris);
+	//log_debug("[DBG] [BVH] [EMB] Estimated nodes: %d", numTris + estimatedInnerNodes);
 
 	for (int i = 0, TriID = 0; i < numIndices; i += 3, TriID++) {
 		AABB aabb;
