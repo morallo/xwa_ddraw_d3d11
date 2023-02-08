@@ -2678,6 +2678,21 @@ void CalcOccupancy(IGenericTreeNode* node, int &OccupiedNodes_out, int &TotalNod
 	}
 }
 
+int CountNodes(IGenericTreeNode* node)
+{
+	if (node->IsLeaf())
+	{
+		return 1;
+	}
+
+	std::vector<IGenericTreeNode*>children = node->GetChildren();
+	int temp = 1; // Count this node
+	for (const auto& child : children) {
+		temp += CountNodes(child);
+	}
+	return temp;
+}
+
 void ComputeTreeStats(IGenericTreeNode* root)
 {
 	// Get the maximum depth of the tree
@@ -3130,6 +3145,9 @@ struct BuildData
 		//QBVHBuffer = new BVHNode[numQBVHNodes];
 
 		prims.reserve(numTris);
+		//prims.reserve(numTris + (int)(0.1f * numTris));
+		//prims.reserve(numTris + 100);
+		//prims.reserve(numTris + numTris);
 		prims.resize(numTris);
 
 		pTotalNodes = (LONG*)_aligned_malloc(sizeof(LONG), 32);
@@ -3306,6 +3324,7 @@ static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildr
 {
 	BuildData* buildData = (BuildData*)userPtr;
 	InterlockedAdd(buildData->pTotalNodes, 1);
+
 	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(InnerNode), 16);
 
 	//QTreeNode *node = (QTreeNode *)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
@@ -3327,6 +3346,7 @@ static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitiv
 	//assert(numPrims == 1);
 	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(LeafNode), 16);
 	InterlockedAdd(buildData->pTotalNodes, 1);
+
 	//QTreeNode* node = (QTreeNode*)rtcThreadLocalAlloc(alloc, sizeof(QTreeNode), 16);
 	//node->Init();
 	QTreeNode* node = new QTreeNode();
@@ -3432,6 +3452,51 @@ static void RTCSetBounds(void* nodePtr, const RTCBounds** bounds, unsigned int n
 	node->box = aabb;
 }
 
+static void RTCSplitPrimitive(const RTCBuildPrimitive* prim, unsigned int dim, float pos, RTCBounds* lprim, RTCBounds* rprim, void* userPtr)
+{
+	BuildData* buildData = (BuildData*)userPtr;
+	// This function is called many times and it may not spawn new nodes (!). We can't
+	// increase pTotalNodes here.
+	//InterlockedAdd(buildData->pTotalNodes, 1);
+	//assert(dim < 3);
+	//assert(prim->geomID == 0);
+
+	lprim->lower_x = prim->lower_x;
+	lprim->lower_y = prim->lower_y;
+	lprim->lower_z = prim->lower_z;
+
+	lprim->upper_x = prim->upper_x;
+	lprim->upper_y = prim->upper_y;
+	lprim->upper_z = prim->upper_z;
+
+
+	rprim->lower_x = prim->lower_x;
+	rprim->lower_y = prim->lower_y;
+	rprim->lower_z = prim->lower_z;
+
+	rprim->upper_x = prim->upper_x;
+	rprim->upper_y = prim->upper_y;
+	rprim->upper_z = prim->upper_z;
+
+	//(&lprim->upper_x)[dim] = pos;
+	//(&rprim->lower_x)[dim] = pos;
+	switch (dim)
+	{
+	case 0:
+		lprim->upper_x = pos;
+		rprim->lower_x = pos;
+		break;
+	case 1:
+		lprim->upper_y = pos;
+		rprim->lower_y = pos;
+		break;
+	case 2:
+		lprim->upper_z = pos;
+		rprim->lower_z = pos;
+		break;
+	}
+}
+
 static bool RTCBuildProgress(void* userPtr, double f) {
 	//log_debug("[DBG] [BVH] [EMB] Build Progress: %0.3f", f);
 	// Return false to cancel this build
@@ -3473,7 +3538,7 @@ LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const
 	RTCBuildArguments arguments = rtcDefaultBuildArguments();
 	arguments.byteSize = sizeof(arguments);
 	arguments.buildFlags = RTCBuildFlags::RTC_BUILD_FLAG_NONE;
-	arguments.buildQuality = RTCBuildQuality::RTC_BUILD_QUALITY_MEDIUM;
+	arguments.buildQuality = RTCBuildQuality::RTC_BUILD_QUALITY_HIGH;
 	arguments.maxBranchingFactor = 4;
 	arguments.maxDepth = 1024;
 	arguments.sahBlockSize = 1;
@@ -3489,6 +3554,7 @@ LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const
 	arguments.setNodeChildren = RTCSetChildren;
 	arguments.setNodeBounds = RTCSetBounds;
 	arguments.createLeaf = RTCCreateLeaf;
+	//arguments.splitPrimitive = RTCSplitPrimitive;
 	arguments.splitPrimitive = nullptr;
 	arguments.buildProgress = RTCBuildProgress;
 	arguments.userPtr = &buildData;
@@ -3498,7 +3564,9 @@ LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const
 	//BVHNode* root = (BVHNode *)rtcBuildBVH(&arguments);
 	QTreeNode* root = (QTreeNode *)rtcBuildBVH(&arguments);
 	int totalNodes = *(buildData.pTotalNodes);
+	//int totalNodes = CountNodes(root);
 	root->SetNumNodes(totalNodes);
+	//log_debug("[DBG] [BVH] totalNodes: %d, CountNodes: %d", totalNodes, CountNodes(root));
 
 	buildData.QBVHBuffer = (BVHNode *)EncodeNodes(root, vertices, indices);
 	// Initialize the root
