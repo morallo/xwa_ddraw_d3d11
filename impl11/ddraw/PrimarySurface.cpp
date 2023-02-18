@@ -8378,8 +8378,13 @@ void PrimarySurface::RenderEdgeDetector()
 	g_ShadertoyBuffer.SunColor[0].x = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].y = 0.1f;
 	g_ShadertoyBuffer.SunColor[0].z = 0.5f;
+
 	// Read the IFF of the current target and use it to colorize the wireframe display
-	short currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	//short currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	// Jeremy says I should use this to get the target index:
+	short currentTargetIndex = g_playerInHangar ?
+		PlayerDataTable[*g_playerIndex].objectIndex : PlayerDataTable[*g_playerIndex].currentTargetIndex;
+
 	// I think I remember that when currentTargetIndex is 0, the game crashed; but Jeremy
 	// just told me that currentTargetIndex can be 0 (it's -1 when no target is selected).
 	// So, updating changing this code to allow target 0:
