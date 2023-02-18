@@ -838,13 +838,13 @@ struct BuildDataTLAS
 		pTotalNodes = (LONG*)_aligned_malloc(sizeof(LONG), 32);
 		*pTotalNodes = 0;
 
-		bvh = rtcNewBVH(g_rtcDevice);
+		bvh = g_rtcNewBVH(g_rtcDevice);
 	}
 
 	~BuildDataTLAS()
 	{
 		_aligned_free(pTotalNodes);
-		rtcReleaseBVH(bvh);
+		g_rtcReleaseBVH(bvh);
 	}
 };
 
@@ -1040,7 +1040,7 @@ void BuildTLASEmbree()
 	arguments.buildProgress = RTCBuildProgressTLAS;
 	arguments.userPtr = &buildData;
 
-	QTreeNode* root = (QTreeNode*)rtcBuildBVH(&arguments);
+	QTreeNode* root = (QTreeNode*)g_rtcBuildBVH(&arguments);
 	int totalNodes = *(buildData.pTotalNodes);
 	root->SetNumNodes(totalNodes);
 

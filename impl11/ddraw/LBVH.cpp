@@ -21,6 +21,18 @@ static int g_QBVHEncodeNodeIdx = 0;
 
 bool g_bEnableQBVHwSAH = false; // The FastLQBVH builder still has some problems when SAH is enabled
 
+static HMODULE hEmbree = NULL;
+static bool g_bEmbreeLoaded = false;
+rtcNewDeviceFun g_rtcNewDevice = nullptr;
+rtcReleaseDeviceFun g_rtcReleaseDevice = nullptr;
+rtcNewSceneFun g_rtcNewScene = nullptr;
+rtcReleaseSceneFun g_rtcReleaseScene = nullptr;
+
+rtcNewBVHFun g_rtcNewBVH = nullptr;
+rtcBuildBVHFun g_rtcBuildBVH = nullptr;
+rtcThreadLocalAllocFun g_rtcThreadLocalAlloc = nullptr;
+rtcReleaseBVHFun g_rtcReleaseBVH = nullptr;
+
 void PrintTreeBuffer(std::string level, BVHNode* buffer, int curNode);
 int BinTreeToBuffer(BVHNode* buffer, int EncodeOfs,
 	int curNode, bool curNodeIsLeaf, InnerNode* innerNodes, const std::vector<LeafItem>& leafItems,
@@ -3160,7 +3172,7 @@ struct BuildData
 		// The first leaf starts at this offset:
 		//*pLeafNodeEncodeOfs = numQBVHInnerNodes;
 
-		bvh = rtcNewBVH(g_rtcDevice);
+		bvh = g_rtcNewBVH(g_rtcDevice);
 	}
 
 	~BuildData()
@@ -3168,7 +3180,7 @@ struct BuildData
 		//_aligned_free(pInnerNodeEncodeOfs);
 		//_aligned_free(pLeafNodeEncodeOfs);
 		_aligned_free(pTotalNodes);
-		rtcReleaseBVH(bvh);
+		g_rtcReleaseBVH(bvh);
 	}
 };
 
@@ -3561,8 +3573,8 @@ LBVH* LBVH::BuildEmbree(const XwaVector3* vertices, const int numVertices, const
 
 	// Build the tree
 	//log_debug("[DBG] [BVH] [EMB] Building the BVH using Embree");
-	//BVHNode* root = (BVHNode *)rtcBuildBVH(&arguments);
-	QTreeNode* root = (QTreeNode *)rtcBuildBVH(&arguments);
+	//BVHNode* root = (BVHNode *)g_rtcBuildBVH(&arguments);
+	QTreeNode* root = (QTreeNode *)g_rtcBuildBVH(&arguments);
 	int totalNodes = *(buildData.pTotalNodes);
 	//int totalNodes = CountNodes(root);
 	root->SetNumNodes(totalNodes);
@@ -3659,6 +3671,55 @@ QTreeNode *BinTreeToQTree(int curNode, bool curNodeIsLeaf, const InnerNode* inne
 		box.Expand(children[i]->box);
 
 	return new QTreeNode(-1, box, children, nullptr);
+}
+
+bool LoadEmbree()
+{
+	log_debug("[DBG] [BVH] [EMB] Looking for embree3.dll");
+	hEmbree = LoadLibrary(".\\embree3.dll");
+	if (hEmbree == NULL)
+	{
+		g_bEmbreeLoaded = false;
+		g_bRTEnableEmbree = false;
+		g_BVHBuilderType = BVHBuilderType_FastQBVH;
+		log_debug("[DBG] [BVH] [EMB] Embree could not be loaded. Using FastLQBVH instead");
+		return false;
+	}
+
+	g_rtcNewDevice = (rtcNewDeviceFun)GetProcAddress(hEmbree, "rtcNewDevice");
+	if (g_rtcNewDevice == nullptr) return false;
+	g_rtcReleaseDevice = (rtcReleaseDeviceFun)GetProcAddress(hEmbree, "rtcReleaseDevice");
+	if (g_rtcReleaseDevice == nullptr) return false;
+	g_rtcNewScene = (rtcNewSceneFun)GetProcAddress(hEmbree, "rtcNewScene");
+	if (g_rtcNewScene == nullptr) return false;
+	g_rtcReleaseScene = (rtcReleaseSceneFun)GetProcAddress(hEmbree, "rtcReleaseScene");
+	if (g_rtcReleaseScene == nullptr) return false;
+
+	g_rtcNewBVH = (rtcNewBVHFun)GetProcAddress(hEmbree, "rtcNewBVH");
+	if (g_rtcNewBVH == nullptr) return false;
+	g_rtcBuildBVH = (rtcBuildBVHFun)GetProcAddress(hEmbree, "rtcBuildBVH");
+	if (g_rtcBuildBVH == nullptr) return false;
+	g_rtcThreadLocalAlloc = (rtcThreadLocalAllocFun)GetProcAddress(hEmbree, "rtcThreadLocalAlloc");
+	if (g_rtcThreadLocalAlloc == nullptr) return false;
+	g_rtcReleaseBVH = (rtcReleaseBVHFun)GetProcAddress(hEmbree, "rtcReleaseBVH");
+	if (g_rtcReleaseBVH == nullptr) return false;
+
+	g_bEmbreeLoaded = true;
+	log_debug("[DBG] [BVH] [EMB] Embree was loaded dynamically");
+	// TODO: Enabling multiple threads causes crashes and deadlocks. I'm not sure why
+	g_rtcDevice = g_rtcNewDevice("threads=1,user_threads=1");
+	g_rtcScene = g_rtcNewScene(g_rtcDevice);
+	log_debug("[DBG] [BVH] [EMB] rtcDevice created");
+	return g_rtcDevice != nullptr && g_rtcScene != nullptr;
+}
+
+void UnloadEmbree()
+{
+	if (hEmbree == NULL || !g_bEmbreeLoaded)
+		return;
+	g_rtcReleaseScene(g_rtcScene);
+	g_rtcReleaseDevice(g_rtcDevice);
+	log_debug("[DBG] [BVH] [EMB] Embree objects released");
 }
 
 void TestFastLBVH()

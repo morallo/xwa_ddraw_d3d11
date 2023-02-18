@@ -747,3 +747,28 @@ int TLASEncodeLeafNode(BVHNode* buffer, std::vector<TLASLeafItem>& leafItems, in
 void DeleteBufferTree(BufferTreeNode *node);
 
 void TLASSingleStepFastLQBVH(BVHNode* buffer, int numQBVHInnerNodes, std::vector<TLASLeafItem>& leafItems, int& root_out);
+
+// Embree definitions for dynamic DLL loading.
+typedef RTCDevice (*rtcNewDeviceFun)(const char* config);
+typedef void (*rtcReleaseDeviceFun)(RTCDevice device);
+typedef RTCScene (*rtcNewSceneFun)(RTCDevice device);
+typedef void (*rtcReleaseSceneFun)(RTCScene scene);
+
+
+typedef RTCBVH (*rtcNewBVHFun)(RTCDevice device);
+typedef void* (*rtcBuildBVHFun)(const struct RTCBuildArguments* args);
+typedef void* (*rtcThreadLocalAllocFun)(RTCThreadLocalAllocator allocator, size_t bytes, size_t align);
+typedef void (*rtcReleaseBVHFun)(RTCBVH bvh);
+
+bool LoadEmbree();
+void UnloadEmbree();
+
+extern rtcNewDeviceFun g_rtcNewDevice;
+extern rtcReleaseDeviceFun g_rtcReleaseDevice;
+extern rtcNewSceneFun g_rtcNewScene;
+extern rtcReleaseSceneFun g_rtcReleaseScene;
+
+extern rtcNewBVHFun g_rtcNewBVH;
+extern rtcBuildBVHFun g_rtcBuildBVH;
+extern rtcThreadLocalAllocFun g_rtcThreadLocalAlloc;
+extern rtcReleaseBVHFun g_rtcReleaseBVH;

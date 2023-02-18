@@ -28,6 +28,7 @@
 #include "commonVR.h"
 #include "XWAFramework.h"
 #include "SharedMem.h"
+#include "LBVH.h"
 
 extern HiResTimer g_HiResTimer;
 extern PlayerDataEntry* PlayerDataTable;
@@ -1407,10 +1408,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 		if (g_bRTEnableEmbree)
 		{
-			// TODO: Enabling multiple threads causes crashes and deadlocks. I'm not sure why
-			g_rtcDevice = rtcNewDevice("threads=1,user_threads=1");
-			g_rtcScene = rtcNewScene(g_rtcDevice);
-			log_debug("[DBG] [BVH] [EMB] rtcDevice created");
+			LoadEmbree();
 		}
 
 		if (IsXwaExe())
@@ -1675,9 +1673,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		// Release Embree objects
 		if (g_bRTEnableEmbree)
 		{
-			rtcReleaseScene(g_rtcScene);
-			rtcReleaseDevice(g_rtcDevice);
-			log_debug("[DBG] [BVH] [EMB] Embree objects released");
+			UnloadEmbree();
 		}
 
 		CloseDATReader(); // Idempotent: does nothing if the DATReader wasn't loaded.
