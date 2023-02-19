@@ -104,8 +104,6 @@ protected:
 	// Set to true in the current frame if the BLAS needs to be updated.
 	bool _BLASNeedsUpdate;
 
-	ComPtr<ID3D11ComputeShader> _RTShadowCS;
-
 	void OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A);
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();

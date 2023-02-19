@@ -2,12 +2,6 @@
 #include "EffectsRenderer.h"
 #include <algorithm>
 
-#ifdef _DEBUG
-#include "../Debug/RTShadowCS.h"
-#else
-#include "../Release/RTShadowCS.h"
-#endif
-
 // DEBUG vars
 int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCounterSkipLo = -1;
 
@@ -1209,10 +1203,6 @@ void EffectsRenderer::CreateShaders() {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
 	D3dRenderer::CreateShaders();
-
-	if (g_bRTEnabledInTechRoom) {
-		device->CreateComputeShader(g_RTShadowCS, sizeof(g_RTShadowCS), nullptr, &_RTShadowCS);
-	}
 
 	//StartCascadedShadowMap();
 }
