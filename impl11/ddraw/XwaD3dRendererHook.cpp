@@ -194,10 +194,17 @@ RendererType g_rendererType = RendererType_Unknown;
 bool g_bDumpOptNodes = false;
 char g_curOPTLoaded[MAX_OPT_NAME];
 // Used to tag which meshes have been parsed by the Opt Parser.
-// This map is used just to avoid parsing the same mesh more than once
+// This map is used just to avoid parsing the same mesh more than once.
+// Parsing is needed for BVH construction and Tangent maps
 std::map<int, int> g_MeshTagMap;
 // Maps Face Groups to LOD.
 std::map<int, int> g_FGToLODMap;
+
+// FGData = (FGKey, numFaces)
+using FGData = std::tuple<int, int>;
+// Maps meshes to its list of Face Groups (including all LODs).
+// This map is used to compute the tangents for normal mapping.
+std::map<int, std::vector<FGData>> g_meshToFGMap;
 
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
@@ -319,6 +326,7 @@ void D3dRenderer::FlightStart()
 	_AABBs.clear();
 	_LBVHs.clear();
 	_tangentMap.clear();
+	g_meshToFGMap.clear();
 	// TODO: This function gets called every time an OPT is loaded. Calling
 	// ClearCachedSRVs() here may not have the expected effect...
 	ClearCachedSRVs();
@@ -478,8 +486,14 @@ void D3dRenderer::UpdateTextures(const SceneCompData* scene)
 }
 
 // Returns true if all the tangents for the current mesh have been computed.
-bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents, bool *tags)
+bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents)
 {
+	// Fetch all the FGs for this mesh -- including all LODs.
+	const int meshKey = MakeMeshKey(scene);
+	const auto& it = g_meshToFGMap.find(meshKey);
+	if (it == g_meshToFGMap.end())
+		return false;
+
 	XwaVector3* vertices = scene->MeshVertices;
 	XwaVector3* normals = scene->MeshVertexNormals;
 	XwaTextureVertex* textureCoords = scene->MeshTextureVertices;
@@ -488,57 +502,61 @@ bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangen
 
 	int normalsCount = *(int*)((int)normals - 8);
 
-	// Compute a tangent for each face
-	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+	// Compute a tangent for each face in each face group in each LOD
+	for (const FGData fgData : it->second)
 	{
-		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
-		const int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-		XwaVector3 T;
-
+		OptFaceDataNode_01_Data_Indices* faceIndices = (OptFaceDataNode_01_Data_Indices *)std::get<0>(fgData);
+		const int numFaces = std::get<1>(fgData);
+		//for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+		for (int faceIndex = 0; faceIndex < numFaces; faceIndex++)
 		{
-			uv0 = textureCoords[faceData.TextureVertex[0]];
-			uv1 = textureCoords[faceData.TextureVertex[1]];
-			uv2 = textureCoords[faceData.TextureVertex[2]];
-			v0 = vertices[faceData.Vertex[0]];
-			v1 = vertices[faceData.Vertex[1]];
-			v2 = vertices[faceData.Vertex[2]];
+			//OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+			OptFaceDataNode_01_Data_Indices& faceData = faceIndices[faceIndex];
+			const int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+			XwaVector3 T;
 
-			XwaVector3 deltaPos1 = v1 - v0;
-			XwaVector3 deltaPos2 = v2 - v0;
-			XwaVector3 deltaUV1(uv1.u - uv0.u, uv1.v - uv0.v, 0);
-			XwaVector3 deltaUV2(uv2.u - uv0.u, uv2.v - uv0.v, 0);
+			{
+				uv0 = textureCoords[faceData.TextureVertex[0]];
+				uv1 = textureCoords[faceData.TextureVertex[1]];
+				uv2 = textureCoords[faceData.TextureVertex[2]];
+				v0 = vertices[faceData.Vertex[0]];
+				v1 = vertices[faceData.Vertex[1]];
+				v2 = vertices[faceData.Vertex[2]];
 
-			// We're not going to worry about a division by zero here. If that happens, we have either
-			// a collapsed triangle or a triangle with collapsed UVs. If it's a collapsed triangle, we
-			// won't see it as it will render as a line. If it's collapsed UVs, then the modeller must
-			// fix the UVs anyway.
-			float denom = (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
-			float r = 1.0f / denom;
-			T = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
-			T.normalize();
-			//////////////////////////////////////////////////
-		}
+				XwaVector3 deltaPos1 = v1 - v0;
+				XwaVector3 deltaPos2 = v2 - v0;
+				XwaVector3 deltaUV1(uv1.u - uv0.u, uv1.v - uv0.v, 0);
+				XwaVector3 deltaUV2(uv2.u - uv0.u, uv2.v - uv0.v, 0);
 
-		// T has the "flat" tangent for the current face, we can now write it to the
-		// tangent list.
-		for (int i = 0; i < edgesCount; i++) {
-			int idx = faceData.VertexNormal[i];
-			// Let's assume that this mesh already has smoothed normals. In that case,
-			// we can "transfer" the smooth groups to the tangent map by re-orthogonalizing
-			// T with N (doing the cross product with N twice).
-			if (idx < normalsCount) {
-				tangents[idx] = orthogonalize(normals[idx], T);
-				tags[idx] = true;
+				// We're not going to worry about a division by zero here. If that happens, we have either
+				// a collapsed triangle or a triangle with collapsed UVs. If it's a collapsed triangle, we
+				// won't see it as it will render as a line. If it's collapsed UVs, then the modeller must
+				// fix the UVs anyway.
+				float denom = (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+				float r = 1.0f / denom;
+				T = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+				T.normalize();
+				//////////////////////////////////////////////////
+			}
+
+			// T has the "flat" tangent for the current face, we can now write it to the
+			// tangent list.
+			for (int i = 0; i < edgesCount; i++) {
+				int idx = faceData.VertexNormal[i];
+				// Let's assume that this mesh already has smoothed normals. In that case,
+				// we can "transfer" the smooth groups to the tangent map by re-orthogonalizing
+				// T with N (doing the cross product with N twice).
+				if (idx < normalsCount)
+				{
+					tangents[idx] = orthogonalize(normals[idx], T);
+				}
 			}
 		}
 	}
 
-	int counter = 0;
-	for (int i = 0; i < normalsCount; i++)
-		if (tags[i]) counter++;
-
 	// Return true if all tangents have been tagged
-	return counter == normalsCount;
+	// All normals should have a tangent if we iterate over all the FGs in all LODs
+	return true;
 }
 
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
@@ -681,43 +699,38 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		// The key for the tangent map is going to be the same key we use for the normals.
 		// We do this because the scene object does not have a tangent map.
 		auto it_tan = _meshTangentsViews.find((int)normals);
-		if (it_tan != _meshTangentsViews.end()) {
+		if (it_tan != _meshTangentsViews.end())
+		{
+			// The tangents SRV is ready: fetch it
 			_lastMeshVertexTangentsView = it_tan->second;
 		}
-		else {
-			// Tangents aren't ready
+		else
+		{
+			// The tangents SRV isn't ready yet. Try computing it
 			int normalsCount = *(int*)((int)normals - 8);
 			XwaVector3 *tangents = nullptr;
-			bool *tags = nullptr;
-			int counter = 0;
 
 			auto it_tanmap = _tangentMap.find((int)normals);
 			if (it_tanmap == _tangentMap.end()) {
+				// There's no entry yet, create an empty tangent map and add it
 				tangents = new XwaVector3[normalsCount];
-				tags = new bool[normalsCount];
-				for (int i = 0; i < normalsCount; i++)
-					tags[i] = false;
-				_tangentMap.insert(std::make_pair((int)normals,
-					std::make_tuple(tangents, tags, 0)));
+				_tangentMap.insert(std::make_pair((int)normals, tangents));
 				// Make sure it_tanmap is valid. We'll need it below
 				it_tanmap = _tangentMap.find((int)normals);
 			}
 			else {
-				// Existing entry, fetch the data
-				tangents = std::get<0>(it_tanmap->second);
-				tags = std::get<1>(it_tanmap->second);
-				counter = std::get<2>(it_tanmap->second);
+				// Existing entry, fetch the previous data
+				tangents = it_tanmap->second;
 			}
 			
-			if (tangents != nullptr && tags != nullptr && it_tanmap != _tangentMap.end())
+			if (tangents != nullptr && it_tanmap != _tangentMap.end())
 			{
-				// For some reason, sometimes some meshes won't ever "use" all of their
-				// normals. In those cases, the tangent map won't ever be tagged as
-				// complete because we will always be missing a few normals. To work
-				// around that problem, we use a counter. If we've tried to create the
-				// tangent map for this mesh more times than the maximum number of meshes.
-				// Then we're probably done. I believe the max meshes per OPT is 256:
-				if (ComputeTangents(scene, tangents, tags) || counter > 256) {
+				// If the entry in g_meshToFGMap for this mesh hasn't been populated yet (meaning
+				// that we don't know all the FGs in all the LODs for the current mesh yet), then
+				// we won't be able to compute the tangents. Otherwise, the tangents will be populated
+				// and we can create the SRV
+				if (ComputeTangents(scene, tangents))
+				{
 					D3D11_SUBRESOURCE_DATA initialData;
 					initialData.pSysMem = tangents;
 					initialData.SysMemPitch = 0;
@@ -737,15 +750,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 					delete[] tangents;
 					tangents = nullptr;
-					delete[] tags;
-					tags = nullptr;
-					std::get<0>(it_tanmap->second) = tangents;
-					std::get<1>(it_tanmap->second) = tags;
-				}
-				else {
-					std::get<0>(it_tanmap->second) = tangents;
-					std::get<1>(it_tanmap->second) = tags;
-					std::get<2>(it_tanmap->second) = ++counter;
+					it_tanmap->second = tangents;
 				}
 			}
 		}
@@ -1867,12 +1872,19 @@ void ParseOptNode(OptNode* node, std::string prefix)
 
 	if (node->NumOfNodes > 0)
 	{
+		if (node->NodeType == OptNode_FaceGrouping)
+		{
+			int LODs = node->NumOfNodes;
+			if (LODs > 1)
+				log_debug("[DBG] %sLODs: %d", prefix.c_str(), LODs);
+		}
+
 		for (int i = 0; i < node->NumOfNodes; i++)
 			ParseOptNode(node->Nodes[i], prefix + "   ");
 	}
 }
 
-void ParseOptFaceGrouping(OptNode* outerNode)
+void ParseOptFaceGrouping(int meshKey, OptNode* outerNode)
 {
 	if (outerNode->NodeType != OptNode_FaceGrouping) {
 		log_debug("[DBG] [OPT] ERROR: Tried to parse wrong type");
@@ -1903,9 +1915,25 @@ void ParseOptFaceGrouping(OptNode* outerNode)
 				if (subnode->NodeType == OptNode_FaceData)
 				{
 					// This is not an error, the actual pointer to the scene->FaceIndices starts
-					// 4 bytes after Parameter2
+					// 4 bytes after Parameter2.
+					// scene->FaceIndices is the key used in g_FGToLODMap, see MakeFaceGroupKey().
 					int faceGroupID = subnode->Parameter2 + 4;
+					int numFaces = subnode->Parameter1;
+					// g_FGToLODMap is used to coalesce vertices that belong on the same LOD when building the BVH (RT)
 					g_FGToLODMap[faceGroupID] = lodID;
+
+					auto& it = g_meshToFGMap.find(meshKey);
+					if (it == g_meshToFGMap.end())
+					{
+						// Initialize this entry
+						g_meshToFGMap[meshKey] = std::vector<FGData>({ FGData(faceGroupID, numFaces) });
+					}
+					else
+					{
+						// Add this FG to the existing entry
+						it->second.push_back(FGData(faceGroupID, numFaces));
+					}
+
 #if VERBOSE_OPT_OUTPUT
 					if (g_bDumpOptNodes)
 					{
@@ -1919,7 +1947,7 @@ void ParseOptFaceGrouping(OptNode* outerNode)
 	}
 }
 
-void ParseOptNodeGroup(OptNode* outerNode)
+void ParseOptNodeGroup(int meshKey, OptNode* outerNode)
 {
 	for (int i = 0; i < outerNode->NumOfNodes; i++) {
 		OptNode* node = outerNode->Nodes[i];
@@ -1929,14 +1957,15 @@ void ParseOptNodeGroup(OptNode* outerNode)
 #if VERBOSE_OPT_OUTPUT
 			if (g_bDumpOptNodes) log_debug("[DBG] [OPT]    FaceGrouping, numNodes: %d", node->NumOfNodes);
 #endif
-			ParseOptFaceGrouping(node);
+			ParseOptFaceGrouping(meshKey, node);
 		}
 	}
 }
 
-// Finds the NodeGroup entry in a mesh node.
-// outerNode corresponds to a mesh entry. It's a direct child of the OptHeader.
-void ParseOptMeshEntry(OptNode *outerNode)
+// Finds and parses the NodeGroup entry in a mesh node.
+// outerNode should correspond to a mesh entry and it should be a
+// direct child of the OptHeader.
+void ParseOptMeshEntry(int meshKey, OptNode *outerNode)
 {
 	for (int i = 0; i < outerNode->NumOfNodes; i++)
 	{
@@ -1945,7 +1974,7 @@ void ParseOptMeshEntry(OptNode *outerNode)
 
 		if (node->NodeType == OptNode_NodeGroup)
 		{
-			ParseOptNodeGroup(node);
+			ParseOptNodeGroup(meshKey, node);
 		}
 	}
 }
@@ -1959,26 +1988,9 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 		(node->NodeType == OptNode_Texture || node->NodeType == OptNode_D3DTexture) ?
 		(nodeIndex - 1) : nodeIndex;
 
-	// DEBUG: Dump the node hierarchy when a hotkey is pressed
-#ifdef DISABLED
-	{
-		if (g_bDumpOptNodes && nodeIndex == 0)
-		{
-			log_debug("[DBG] [OPT] nodeIndex: %d, numNodes: %d",
-				nodeIndex, optHeader->NumOfNodes);
-			for (int i = 0; i < optHeader->NumOfNodes; i++)
-			{
-				ParseOptNode(optHeader->Nodes[i], "");
-			}
-		}
-		g_bDumpOptNodes = false;
-	}
-#endif
-	// DEBUG
-
 	{
 		// scene->MeshVertices is always 0 at this point, so it can't be used as a key.
-		// Instead, we need to find tha actual MeshVertices by looking at the data in
+		// Instead, we need to find the actual MeshVertices by looking at the data in
 		// this node:
 		if (node->NodeType == OptNode_NodeGroup)
 		{
@@ -1987,12 +1999,38 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 				OptNode* subnode = node->Nodes[j];
 				if (subnode == nullptr) continue;
 
+				/*
+				if (subnode->NodeType == OptNode_VertexNormals)
+				{
+					int numNormals = subnode->Parameter1;
+				}
+
+				if (subnode->NodeType == OptNode_TextureVertices)
+				{
+					int numUVCoords = subnode->Parameter1;
+				}
+				*/
+
 				if (subnode->NodeType == OptNode_MeshVertices)
 				{
+					//int numVertices = subnode->Parameter1;
 					int meshKey = subnode->Parameter2;
 					auto& it = g_MeshTagMap.find(meshKey);
 					if (it == g_MeshTagMap.end())
 					{
+						// DEBUG: Dump the node hierarchy when a hotkey is pressed
+#ifdef DISABLED
+						if (g_bDumpOptNodes && nodeIndex == 0)
+						{
+							log_debug("[DBG] [OPT] nodeIndex: %d, numNodes: %d",
+								nodeIndex, optHeader->NumOfNodes);
+							for (int i = 0; i < optHeader->NumOfNodes; i++)
+							{
+								ParseOptNode(optHeader->Nodes[i], "");
+							}
+						}
+#endif
+
 #if VERBOSE_OPT_OUTPUT
 						if (g_bDumpOptNodes)
 						{
@@ -2001,12 +2039,24 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 						}
 #endif
 						g_MeshTagMap[meshKey] = 1;
-						ParseOptMeshEntry(node);
+						ParseOptMeshEntry(meshKey, node);
+
+						// DEBUG: Display the g_meshToFGMap to confirm it was built properly
+#ifdef DISABLED
+						if (g_bDumpOptNodes)
+						{
+							std::string msg = "";
+							for (const FGData fgData : g_meshToFGMap[meshKey])
+								msg += std::to_string(std::get<1>(fgData)) + ", ";
+
+							log_debug("[DBG] mesh: 0x%x has %d FGs. numFaces: %s",
+								meshKey, g_meshToFGMap[meshKey].size(), msg.c_str());
+						}
+#endif
 					}
 				}
 			}
 		}
-
 	}
 
 	L00482000(optHeader, node, scene);
