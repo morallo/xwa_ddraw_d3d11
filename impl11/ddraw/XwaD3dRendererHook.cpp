@@ -1,8 +1,5 @@
 /*
  * List of known issues:
- * - Normal Mapping sometimes doesn't work. The asteroids tend to look very dark and stay dark.
- *   This seems to be happening because normal mapping is never activated. We may have to just
- *   load the normal maps from the XwaSmoother via an intermediary DLL.
  * - The Map was semi-fixed apparently as a side-effect of fixing the artifacts in the CMD.
  *   Turns out the map lines were being captured in the Dynamic Cockpit FG buffer, probably
  *   because we didn't detect the miniature being rendered when in map mode.
@@ -10,17 +7,17 @@
  *
  * New ideas that might be possible now:
  *
- * - Per-craft damage textures
  * - Control the position of ships hypering in or out. Make them *snap* into place
- * - Animate the 3D cockpit. Moving joysticks, targetting computer, etc
  * - Aiming Reticle with lead
  * - Global shadow mapping?
+ * - Parallax mapping: we have the OPT -> Viewspace transform matrix now!
+ *
+ * - Universal head tracking through the tranformWorldView matrix. DONE -- thanks m0rgg.
  * - Ray-tracing? Do we have all the unculled, unclipped 3D data now?
  *		Use Intel Embree to build the BVH, one ray per pixel to compute global shadows
- *		outside the cockpit.
- * - Universal head tracking through the tranformWorldView matrix
- * - Parallax mapping: we have the OPT -> Viewspace transform matrix now!
-
+ *		outside the cockpit. DONE.
+ * - Animate the 3D cockpit. Moving joysticks, targetting computer, etc. DONE.
+ * - Per-craft damage textures. DONE.
 
  The opt filename is stored in char* s_XwaIOFileName = (char*)0x0080DA60;
 

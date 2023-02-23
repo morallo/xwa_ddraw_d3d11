@@ -627,7 +627,8 @@ PixelShaderOutput main(PixelShaderInput input)
 				// The normal buffer's Z+ points towards the camera
 				// We have to invert N.z:
 				const float3 hover = 0.01 * P.z * float3(N.x, N.y, -N.z);
-				if (dotLFlatN > 0)
+				// Don't do raytracing on surfaces that face away from the light source
+				if (dotLFlatN > 0.01)
 				{
 					Ray ray;
 					ray.origin = P + hover; // Metric, Y+ is up, Z+ is forward.
