@@ -1957,7 +1957,7 @@ bool LoadSSAOParams() {
 	g_SSAO_PSCBuffer.debug = 0;
 	g_SSAO_PSCBuffer.moire_scale = 0.5f; // Previous: 0.1f
 	g_fSSAOAlphaOfs = 0.5;
-	g_SSAO_Type = SSO_AMBIENT;
+	g_SSAO_Type = SSO_PBR;
 	// Default position of the global light (the sun)
 	g_LightVector[0].x = 0;
 	g_LightVector[0].y = 1;
@@ -2052,7 +2052,23 @@ bool LoadSSAOParams() {
 				else if (_stricmp(svalue, "bent_normals") == 0)
 					g_SSAO_Type = SSO_BENT_NORMALS;
 				else if (_stricmp(svalue, "deferred") == 0)
-					g_SSAO_Type = SSO_DEFERRED;
+				{
+					if (!g_bRTEnabled)
+					{
+						g_SSAO_Type = SSO_DEFERRED;
+					}
+					else
+					{
+						// Force the PBR Rendering mode and enable HDR if RT is enabled.
+						if (g_bRTEnabled) g_SSAO_Type = SSO_PBR;
+						SetHDRState(g_bRTEnabled);
+					}
+				}
+				else if (_stricmp(svalue, "PBR") == 0)
+				{
+					g_SSAO_Type = SSO_PBR;
+					SetHDRState(true);
+				}
 			}
 
 			if (_stricmp(param, "raytracing_enabled_in_tech_room") == 0) {
@@ -2060,8 +2076,8 @@ bool LoadSSAOParams() {
 			}
 			if (_stricmp(param, "raytracing_enabled") == 0) {
 				g_bRTEnabled = (bool)fValue;
-				// Force the Deferred Rendering mode and enable HDR if RT is enabled.
-				if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
+				// Force the PBR Rendering mode and enable HDR if RT is enabled.
+				if (g_bRTEnabled) g_SSAO_Type = SSO_PBR;
 				SetHDRState(g_bRTEnabled);
 			}
 			if (_stricmp(param, "raytracing_enabled_in_cockpit") == 0) {

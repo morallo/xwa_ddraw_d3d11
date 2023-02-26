@@ -79,6 +79,7 @@
 #include "../Debug/XwaD3dCSMVertexShader.h"
 #include "../Debug/LevelsPS.h"
 #include "../Debug/RTShadowMaskPS.h"
+#include "../Debug/PBRAdd.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainPixelShader.h"
@@ -146,6 +147,7 @@
 #include "../Release/XwaD3dCSMVertexShader.h"
 #include "../Release/LevelsPS.h"
 #include "../Release/RTShadowMaskPS.h"
+#include "../Release/PBRAdd.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3910,6 +3912,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
+			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -4267,6 +4272,9 @@ HRESULT DeviceResources::LoadResources()
 		//	return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
 			return hr;
 	}
 

@@ -2477,6 +2477,19 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 		};
 		context->PSSetShaderResources(0, 9, srvs_pass2);
+
+
+		if (g_bRTEnabled)
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_RTBvhSRV.Get(),        // 14
+				resources->_RTMatricesSRV.Get(),   // 15
+				resources->_RTTLASBvhSRV.Get(),    // 16
+				resources->_rtShadowMaskSRV.Get(), // 17
+			};
+			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
+			context->PSSetShaderResources(14, 4, srvs);
+		}
 		context->Draw(6, 0);
 	}
 
@@ -2607,6 +2620,18 @@ out1:
 					resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 			};
 			context->PSSetShaderResources(0, 9, srvs_pass2);
+
+			if (g_bRTEnabled)
+			{
+				ID3D11ShaderResourceView* srvs[] = {
+					resources->_RTBvhSRV.Get(),          // 14
+					resources->_RTMatricesSRV.Get(),     // 15
+					resources->_RTTLASBvhSRV.Get(),      // 16
+					resources->_rtShadowMaskSRV_R.Get(), // 17
+				};
+				// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
+				context->PSSetShaderResources(14, 4, srvs);
+			}
 			context->Draw(6, 0);
 		}
 	}
@@ -2986,7 +3011,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			resources->InitPixelShader(resources->_deathStarPS);
 #endif
 		if (!g_bEnableHeadLights)
-			resources->InitPixelShader(resources->_ssdoAddPS);
+			resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS);
 		else
 			resources->InitPixelShader(resources->_headLightsPS);
 			
@@ -3277,7 +3302,7 @@ out1:
 			// output: offscreenBufR
 
 			if (!g_bEnableHeadLights)
-				resources->InitPixelShader(resources->_ssdoAddPS);
+				resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS);
 			else
 				resources->InitPixelShader(resources->_headLightsPS);
 			// Reset the viewport for the final SSAO combine
@@ -3403,7 +3428,7 @@ void PrimarySurface::DeferredPass()
 	resources->InitVertexShader(resources->_mainVertexShader);
 
 	if (!g_bEnableHeadLights)
-		resources->InitPixelShader(resources->_ssdoAddPS);
+		resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS);
 	else
 		resources->InitPixelShader(resources->_headLightsPS);
 
@@ -9429,6 +9454,7 @@ HRESULT PrimarySurface::Flip(
 								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
 						break;
 					case SSO_DEFERRED:
+					case SSO_PBR:
 						DeferredPass();
 						// Resolve the bloom mask again: the deferred pass can modify this mask
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,

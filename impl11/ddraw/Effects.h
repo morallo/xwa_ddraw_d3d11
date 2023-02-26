@@ -16,7 +16,8 @@ typedef enum {
 	SSO_AMBIENT,
 	SSO_DIRECTIONAL,
 	SSO_BENT_NORMALS,
-	SSO_DEFERRED, // New Shading Model
+	SSO_DEFERRED,
+	SSO_PBR,
 } SSAOTypeEnum;
 
 // In order to blend the background with the hyperspace effect when exiting, we need to extend the

@@ -12,18 +12,15 @@
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
 #include "..\shadow_mapping_common.h"
-#include "..\PBRShading.h"
+//#include "..\PBRShading.h"
 #include "..\RT\RTCommon.h"
 
-#undef PBR_SHADING
 #undef PBR_DYN_LIGHTS
-
 #undef RT_SIDE_LIGHTS
 
-//#define PBR_SHADING
 //#define PBR_DYN_LIGHTS
 
- // The color buffer
+// The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
 
@@ -515,12 +512,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float distance_fade = enable_dist_fade * saturate((P.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
 	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
-#ifndef PBR_SHADING
 	color = color * color; // Gamma correction (approx pow 2.2)
-#else
-	//color = srgb_to_linear(color);
-	color = color * color;
-#endif
 	//float3 N = normalize(Normal.xyz);
 	float3 N = Normal.xyz;
 	const float3 smoothN = N;
@@ -696,20 +688,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//ssdo = lerp(ssdo, 1, mask);
 	//ssdoInd = lerp(ssdoInd, 0, mask);
 
-	// Compute normal mapping
-	//float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
-	//float3 FakeNormal = 0;
-	// Glass, Shadeless and Emission should not have normal mapping:
-	//nm_int_mask = lerp(nm_int_mask, 0.0, shadeless);
-	/*
-	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask);
-		// After the normals have blended, we should restore the length of the bent normal:
-		// it should be weighed by AO, which is now in ssdo.y
-		//bentN = ssdo.y * blend_normals(bentN, FakeNormal);
-		N = blend_normals(N, FakeNormal);
-	}
-	*/
 	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 	
 	// ************************************************************************************************
@@ -747,219 +725,105 @@ PixelShaderOutput main(PixelShaderInput input)
 	uint i;
 
 	// Compute the shading contribution from the main lights
-	if (!bEnablePBRShading)
+	[loop]
+	for (i = 0; i < LightCount; i++)
 	{
-		[loop]
-		for (i = 0; i < LightCount; i++)
-		{
-			float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
-			float LightIntensity = dot(LightColor[i].rgb, 0.333);
+		float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
+		float LightIntensity = dot(LightColor[i].rgb, 0.333);
 
-			// diffuse component
-			//bentDiff   = max(dot(smoothB, L), 0.0);
-			smoothDiff = max(dot(smoothN, L), 0.0);
-			// I know that bentN is already multiplied by ssdo.x above; but I'm
-			// multiplying it again here to make the contact shadows more obvious
-			//contactShadow  = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0); // This works almost perfect
-			contactShadow = 1.0 - saturate(smoothDiff - ssdo.x * ssdo.x); // Use SSDO instead of bentDiff --> also good
-			// In low-lighting conditions, maybe we can lerp contactShadow with the AO mask?
-			// This helps a little bit; but mutes the spec reflections, need to think more about this
-			//contactShadow = lerp(ssdo.y, contactShadow * contactShadow, smoothDiff);
+		// diffuse component
+		//bentDiff   = max(dot(smoothB, L), 0.0);
+		smoothDiff = max(dot(smoothN, L), 0.0);
+		// I know that bentN is already multiplied by ssdo.x above; but I'm
+		// multiplying it again here to make the contact shadows more obvious
+		//contactShadow  = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0); // This works almost perfect
+		contactShadow = 1.0 - saturate(smoothDiff - ssdo.x * ssdo.x); // Use SSDO instead of bentDiff --> also good
+		// In low-lighting conditions, maybe we can lerp contactShadow with the AO mask?
+		// This helps a little bit; but mutes the spec reflections, need to think more about this
+		//contactShadow = lerp(ssdo.y, contactShadow * contactShadow, smoothDiff);
+		contactShadow *= contactShadow;
+
+		/*
+		if (ssao_debug == 14) {
+			float temp = dot(smoothB, L);
+			contactShadow = 1.0 - clamp(smoothDiff - temp * temp, 0.0, 1.0);
+			//contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
+			//contactShadow = clamp(dot(smoothB, L), 0.0, 1.0); // This wipes out spec component when diffuse goes to 0 -- when the light is right ahead, no spec
 			contactShadow *= contactShadow;
+		}
+		if (ssao_debug == 15) {
+			contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
+			contactShadow *= contactShadow;
+		}
+		if (ssao_debug == 16)
+			contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
+		if (ssao_debug == 17) {
+			contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
+			contactShadow *= contactShadow;
+		}
+		*/
 
-			/*
-			if (ssao_debug == 14) {
-				float temp = dot(smoothB, L);
-				contactShadow = 1.0 - clamp(smoothDiff - temp * temp, 0.0, 1.0);
-				//contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
-				//contactShadow = clamp(dot(smoothB, L), 0.0, 1.0); // This wipes out spec component when diffuse goes to 0 -- when the light is right ahead, no spec
-				contactShadow *= contactShadow;
-			}
-			if (ssao_debug == 15) {
-				contactShadow = 1.0 - clamp(smoothDiff - bentDiff, 0.0, 1.0);
-				contactShadow *= contactShadow;
-			}
-			if (ssao_debug == 16)
-				contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
-			if (ssao_debug == 17) {
-				contactShadow = 1.0 - clamp(smoothDiff - ssdo.x * ssdo.x * bentDiff, 0.0, 1.0);
-				contactShadow *= contactShadow;
-			}
-			*/
-
-			/*
-			if (ssao_debug == 11)
-				diffuse = max(dot(bentN, L), 0.0);
-			else
-				diffuse = max(dot(N, L), 0.0);
-			*/
+		/*
+		if (ssao_debug == 11)
+			diffuse = max(dot(bentN, L), 0.0);
+		else
 			diffuse = max(dot(N, L), 0.0);
-			//diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
-			diffuse = total_shadow_factor * ssdo.x * diff_int * diffuse + ambient;
+		*/
+		diffuse = max(dot(N, L), 0.0);
+		//diffuse = /* min(shadow, ssdo.x) */ ssdo.x * diff_int * diffuse + ambient;
+		diffuse = total_shadow_factor * ssdo.x * diff_int * diffuse + ambient;
 
-			// Default case
-			//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
-			//diffuse = diff_int * diffuse + ambient;
+		// Default case
+		//diffuse = ssdo.x * diff_int * diffuse + ambient; // ORIGINAL
+		//diffuse = diff_int * diffuse + ambient;
 
-			//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
-			/*
-			if (shadeless) {
-				diffuse = 1.0;
-				contactShadow = 1.0;
-				ssdoInd = 0.0;
-			}
-			*/
-
-			// Avoid harsh transitions:
-			// shadeless surfaces should still receive some amount of shadows
-			diffuse = lerp(diffuse, min(total_shadow_factor + 0.5, 1.0), shadeless);
-			contactShadow = lerp(contactShadow, 1.0, shadeless);
-			ssdoInd = lerp(ssdoInd, 0.0, shadeless);
-
-			// specular component
-			float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
-			// reflect expects an incident vector: a vector that goes from the light source to the current point.
-			// L goes from the current point to the light vector, so we have to use -L:
-			float3 refl_vec = normalize(reflect(-L, N));
-			spec = max(dot(eye_vec, refl_vec), 0.0);
-
-			//const float3 H = normalize(L + eye_vec);
-			//spec = max(dot(N, H), 0.0);
-
-			// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
-			float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
-			debug_spec = LightIntensity * spec_int_mask * pow(spec, exponent);
-			//spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
-			spec = contactShadow * total_shadow_factor * debug_spec;
-
-			// Avoid harsh transitions (the lines below will also kill glass spec)
-			//spec_col = lerp(spec_col, 0.0, shadeless);
-			//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
-
-			// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
-			// intact
-			//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
-			//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
-
-			//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
-			tmp_color += LightColor[i].rgb * saturate(
-				color * diffuse +
-				global_spec_intensity * spec_col * spec +
-				/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
-			//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
-			tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		//diffuse = lerp(diffuse, 1, mask); // This applies the shadeless material; but it's now defined differently
+		/*
+		if (shadeless) {
+			diffuse = 1.0;
+			contactShadow = 1.0;
+			ssdoInd = 0.0;
 		}
-	}
-	else
-	{
-		// PBR Shading path
-		//const float ambient = 0.03; // Use the global ambient constant from shading_system
-		//const float Value = dot(0.333, color.rgb);
-		// Approximate luma:
-		const float Value = max((0.299f * color.x + 0.587f * color.y + 0.114f * color.z), spec_val_mask);
+		*/
 
-		//const bool blackish = V < 0.1;
-		const float blackish = smoothstep(0.1, 0.0, Value);
+		// Avoid harsh transitions:
+		// shadeless surfaces should still receive some amount of shadows
+		diffuse = lerp(diffuse, min(total_shadow_factor + 0.5, 1.0), shadeless);
+		contactShadow = lerp(contactShadow, 1.0, shadeless);
+		ssdoInd = lerp(ssdoInd, 0.0, shadeless);
 
-		const float metallicity = (mask < METAL_HI) ? metallic : 0.25;
+		// specular component
+		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
+		// reflect expects an incident vector: a vector that goes from the light source to the current point.
+		// L goes from the current point to the light vector, so we have to use -L:
+		float3 refl_vec = normalize(reflect(-L, N));
+		spec = max(dot(eye_vec, refl_vec), 0.0);
 
-		//float glossiness = lerp(0.75, 0.25, blackish);
-		float glossiness = min(0.93, gloss_mask);
+		//const float3 H = normalize(L + eye_vec);
+		//spec = max(dot(N, H), 0.0);
 
-		//const float reflectance = blackish ? 0.0 : 0.30;
-		//const float reflectance = lerp(0.3, 0.1, blackish);
-		//float reflectance = lerp(0.3, 0.05, blackish);
-		float reflectance = lerp(spec_int_mask, 0.0, blackish);
-		//float reflectance = spec_int_mask;
+		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
+		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
+		debug_spec = LightIntensity * spec_int_mask * pow(spec, exponent);
+		//spec = /* min(contactShadow, shadow) */ contactShadow * debug_spec;
+		spec = contactShadow * total_shadow_factor * debug_spec;
 
-		// The following will reduce the shininess of black areas. This behavior is similar
-		// to the current materials model.
-		total_shadow_factor = lerp(total_shadow_factor, total_shadow_factor * 0.5, blackish);
+		// Avoid harsh transitions (the lines below will also kill glass spec)
+		//spec_col = lerp(spec_col, 0.0, shadeless);
+		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
 
-		//const float exposure = 1.0;
-		// Make glass more glossy
-		bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
-		if (bIsGlass)
-		{
-			glossiness = 0.93;
-			reflectance = 1.0;
-		}
+		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
+		// intact
+		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
+		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
-#ifdef RT_SIDE_LIGHTS
-		i = 0;
-#else
-		[loop]
-		for (i = 0; i < LightCount; i++)
-#endif
-		{
-			float black_level, dummyMinZ, dummyMaxZ;
-			float shadow_factor = 1.0;
-			float light_modulation = 1.0;
-			float is_shadow_caster = 1.0;
-			get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
-			// Skip lights that won't project black-enough shadows, we'll take care of them later
-			if (black_level > 0.95)
-			{
-				// This is not a shadow caster, ignore RT and SM shadows:
-				shadow_factor = 1.0;
-				// Dim the light a bit
-				light_modulation = 0.25;
-				is_shadow_caster = 0.0;
-			}
-			else
-			{
-				// This is a shadow caster, apply RT and SM shadows
-				shadow_factor = total_shadow_factor;
-				// Use the full intensity of this light
-				light_modulation = 1.0;
-				is_shadow_caster = 1.0;
-			}
-
-			float3 L = LightVector[i].xyz; // Lights come with Z inverted from ddraw, so they expect negative Z values in front of the camera
-			float LightIntensity = light_modulation * dot(LightColor[i].rgb, 0.333);
-			float3 eye_vec = normalize(-P);
-			float3 N_PBR = N;
-			float3 specular_out = 0;
-			N_PBR.xy = -N_PBR.xy;
-			L.xy = -L.xy;
-
-			float3 col = addPBR(
-				P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
-				float4(LightColor[i].rgb, LightIntensity),
-				metallicity,
-				glossiness, // Glossiness: 0 matte, 1 glossy/glass
-				reflectance,
-				ambient,
-				//bIsGlass ? 1.0 : shadow_factor * ssdo.x, // Disable RT shadows for glass surfaces
-				shadow_factor * ssdo.x,
-				specular_out
-			);
-
-			// When there's a glass material, we want to lerp between the current color and
-			// the specular reflection, so that we get a nice white spot when glass reflects
-			// light. This is what we're doing in the following lines.
-			/*if (bIsGlass)
-				tmp_color += lerp(col, spec, saturate(dot(0.333, spec)));
-			else
-				tmp_color += col;*/
-			// Branchless version of the block above:
-			const float spec_val = dot(0.333, specular_out);
-			float glass_interpolator = lerp(0, saturate(spec_val), bIsGlass);
-			float excess_energy = smoothstep(0.95, 4.0, spec_val); // approximate: saturate(spec_val - 1.0);
-			float3 col_and_glass = lerp(col, specular_out, glass_interpolator);
-			// Apply the shadeless mask.
-			// In the SSDO path above, I put a comment to the effect that even shadeless surfaces should
-			// receive some shadows. Not sure why, but I didn't implement that in this path.
-			// ... maybe because DC elements are marked as "shadeless", so we want them to get some shadows?
-			tmp_color += lerp(col_and_glass, color.rgb, shadeless);
-			// Add some bloom where appropriate:
-			// only-shadow-casters-emit-bloom * Glass-blooms-more-than-other-surfaces * excess-specular-energy
-			float spec_bloom = is_shadow_caster * lerp(0.4, 1.25, bIsGlass) * excess_energy;
-			tmp_bloom += total_shadow_factor * spec_bloom;
-
-			//tmp_color += linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
-			//tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
-		}
+		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
+		tmp_color += LightColor[i].rgb * saturate(
+			color * diffuse +
+			global_spec_intensity * spec_col * spec +
+			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
+		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
+		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
 	output.bloom = tmp_bloom;
 
@@ -1043,32 +907,20 @@ PixelShaderOutput main(PixelShaderInput input)
 	//tmp_bloom += float4(laser_light_sum, laser_light_alpha);
 	////tmp_bloom.a = max(tmp_bloom.a, laser_light_alpha); // Modifying the alpha fades the bloom too -- not a good idea
 
-	if (!bEnablePBRShading)
-	{
-		// Reinhard tone mapping:
-		if (HDREnabled) {
-			//float I = dot(tmp_color, 0.333);
-			//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
-			//tmp_color = ff_filmic_gamma3(tmp_color);
+	// Reinhard tone mapping:
+	if (HDREnabled) {
+		//float I = dot(tmp_color, 0.333);
+		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
+		//tmp_color = ff_filmic_gamma3(tmp_color);
 
-			//tmp_color = ACESFilm(HDR_white_point * tmp_color);
-			//tmp_color = ACES_approx(tmp_color);
+		//tmp_color = ACESFilm(HDR_white_point * tmp_color);
+		//tmp_color = ACES_approx(tmp_color);
 
-			tmp_color = tmp_color / (HDR_white_point + tmp_color);
-			//tmp_color = uncharted2_filmic(tmp_color);
-			//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
-		}
-		output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
-	}
-	else
-	{
-		//const float exposure = 1.0f;
-		//output.color = float4(linear_to_srgb(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1);
-		//output.color = float4(sqrt(ToneMapFilmic_Hejl2015(tmp_color /* * exposure*/, 1.0)), 1); // Invert gamma approx
-		// For PBR shading, HDR is nonoptional:
 		tmp_color = tmp_color / (HDR_white_point + tmp_color);
-		output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
+		//tmp_color = uncharted2_filmic(tmp_color);
+		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
 	}
+	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 
 #ifdef DISABLED
 	if (ssao_debug == 8)

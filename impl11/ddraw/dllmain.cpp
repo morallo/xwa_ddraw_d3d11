@@ -795,9 +795,19 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bRTEnabled = !g_bRTEnabled;
 				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
 				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
-				SetHDRState(g_bRTEnabled);
+				if (!g_bRTEnabled)
+				{
+					g_bShadowMapEnable = true;
+					g_bRTEnabledInCockpit = false;
+				}
+				else
+				{
+					g_bShadowMapEnable = false;
+					g_bRTEnabledInCockpit = true;
+				}
+				//SetHDRState(g_bRTEnabled);
 				// Force the Deferred rendering mode when RT is enabled
-				if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
+				//if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
 
 				return 0;
 			}
@@ -817,12 +827,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
 				log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
 #endif
-				g_bRTEnabled = !g_bRTEnabled;
+				/*g_bRTEnabled = !g_bRTEnabled;
 				log_debug("[DBG] [BVH] g_bRTEnabled: %s", g_bRTEnabled ? "Enabled" : "Disabled");
-				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
+				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");*/
 
 				g_bShadowMapEnable = !g_bShadowMapEnable;
-				log_debug("[DBG] g_bShadowMapEnable: %s", g_bShadowMapEnable ? "Enabled" : "Disabled");
+				DisplayTimedMessage(3, 0, g_bShadowMapEnable ? "Shadow Mapping Enabled" : "Shadow Mapping Disabled");
 				return 0;
 			}
 			//case 'E': {
@@ -837,27 +847,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 			// Ctrl+W
 			case 'W': {
-				if (g_bInTechRoom)
-				{
-					g_config.OnlyGrayscaleInTechRoom = !g_config.OnlyGrayscaleInTechRoom;
-					if (g_config.OnlyGrayscaleInTechRoom)
-						log_debug("[DBG] Displaying Normals");
-					else
-						log_debug("[DBG] Displaying Tangents");
-				}
-				else
-				{
-					// DEBUG: Toggle keyboard joystick emulation
-					if (g_config.KbdSensitivity > 0.0f) {
-						g_config.KbdSensitivity = 0.0f;
-						DisplayTimedMessage(3, 0, "Joystick Emul Paused");
-					}
-					else {
-						g_config.KbdSensitivity = 1.0f;
-						DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
-					}
-					log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
-				}
+				g_config.OnlyGrayscaleInTechRoom = !g_config.OnlyGrayscaleInTechRoom;
 				return 0;
 			}
 			case 'V':
@@ -870,10 +860,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+L is the landing gear
 
 			// Ctrl+P Toggle PBR Shading
-			case 'P':
-				g_bEnablePBRShading = !g_bEnablePBRShading;
-				DisplayTimedMessage(3, 0, g_bEnablePBRShading ? "PBR Shading Enabled" : "Regular Shading");
-				log_debug("[DBG] PBR Shading %s", g_bEnablePBRShading ? "Enabled" : "Disabled");
+			//case 'P':
+				//g_bEnablePBRShading = !g_bEnablePBRShading;
+				//DisplayTimedMessage(3, 0, g_bEnablePBRShading ? "PBR Shading Enabled" : "Regular Shading");
+				//log_debug("[DBG] PBR Shading %s", g_bEnablePBRShading ? "Enabled" : "Disabled");
 				//g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
 				//log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
 
@@ -897,7 +887,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
 				}
 				*/
-				break;
+				//break;
 
 #if DBR_VR
 			case 'X':
@@ -1050,6 +1040,18 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] g_bRTEnableSoftShadows: %d", g_bRTEnableSoftShadows);
 				DisplayTimedMessage(3, 0, g_bRTEnableSoftShadows ?
 					"Raytraced Soft Shadows" : "Raytraced Hard Shadows");
+				return 0;
+			// Ctrl+Shift+W: Toggle keyboard joystick emulation
+			case 'W':
+				if (g_config.KbdSensitivity > 0.0f) {
+					g_config.KbdSensitivity = 0.0f;
+					DisplayTimedMessage(3, 0, "Joystick Emul Paused");
+				}
+				else {
+					g_config.KbdSensitivity = 1.0f;
+					DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
+				}
+				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
 				return 0;
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);

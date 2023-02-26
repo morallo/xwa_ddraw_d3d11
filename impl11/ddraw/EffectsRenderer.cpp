@@ -30,7 +30,6 @@ char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
 bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTEnabledInCockpit = false;
-bool g_bEnablePBRShading = false;
 bool g_bRTEnableSoftShadows = false;
 bool g_bRTCaptureCameraAABB = true;
 bool g_bRTEnableEmbree = false;
@@ -4016,7 +4015,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	g_PSCBuffer.AuxColor.z = 1.0f;
 	g_PSCBuffer.AuxColor.w = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
-	if (g_bInTechRoom && g_config.OnlyGrayscaleInTechRoom)
+	if (g_config.OnlyGrayscaleInTechRoom)
 		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_GRAYSCALE;
 
 	// Initialize the mesh transform for each mesh. During MainSceneHook,
@@ -4056,13 +4055,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 			(g_HyperspacePhaseFSM == HS_INIT_ST);
 		// g_RTConstantsBuffer.bRTEnabledInCockpit = g_bRTEnabledInCockpit;
 		g_RTConstantsBuffer.bRTAllowShadowMapping =
-			// Allow shadow mapping if we're in the hangar
-			*g_playerInHangar ||
+			// Allow shadow mapping if we're in the hangar, or if RT is disabled...
+			*g_playerInHangar || !g_bRTEnabled ||
 			// Or if we're not in the hangar, not in external view and RTCockpit is off
 			(!*g_playerInHangar && !_bExternalCamera && !g_bRTEnabledInCockpit);
 		//g_RTConstantsBuffer.bEnablePBRShading = 0;
 		//g_RTConstantsBuffer.bEnablePBRShading = g_bEnablePBRShading;
-		g_RTConstantsBuffer.bEnablePBRShading      = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
+		//g_RTConstantsBuffer.bEnablePBRShading      = g_bRTEnabled; // Let's force PBR shading when RT is on, at least for now
 		g_RTConstantsBuffer.RTEnableSoftShadows    = g_bRTEnableSoftShadows;
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeX = g_fCurScreenWidthRcp;
 		g_RTConstantsBuffer.RTShadowMaskPixelSizeY = g_fCurScreenHeightRcp;
@@ -5096,7 +5095,8 @@ void EffectsRenderer::RenderHangarShadowMap()
 		// This is getting tricky, but the PBR shader modulates lights and shadows and we need to
 		// keep the first light as a shadow caster or the PBR shader will darken everything when
 		// enabled. For the Deferred shader, the first caster must still be disabled.
-		g_ShadowMapVSCBuffer.sm_black_levels[0] = g_RTConstantsBuffer.bEnablePBRShading ? 0.05f : 1.0f;
+		// Currently, the global RT switch controls whether we use the Deferred or PBR shaders.
+		g_ShadowMapVSCBuffer.sm_black_levels[0] = g_bRTEnabled ? 0.05f : 1.0f;
 	}
 	else
 		g_ShadowMapVSCBuffer.sm_black_levels[0] = 0.05f;

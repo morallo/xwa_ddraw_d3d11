@@ -235,7 +235,7 @@ typedef struct PSShadingSystemCBStruct {
 typedef struct RTConstantsBufferStruct {
 	uint32_t bRTEnable;
 	uint32_t bRTAllowShadowMapping;
-	uint32_t bEnablePBRShading;
+	uint32_t RTUnused0;
 	uint32_t RTGetBestIntersection;
 	// 16 bytes
 	uint32_t RTEnableSoftShadows;
@@ -245,7 +245,7 @@ typedef struct RTConstantsBufferStruct {
 	// 32 bytes
 	float    RTSoftShadowThreshold;
 	float    RTGaussFactor;
-	float    RTUnused[2];
+	float    RTUnused1[2];
 	// 48 bytes
 } RTConstantsBuffer;
 

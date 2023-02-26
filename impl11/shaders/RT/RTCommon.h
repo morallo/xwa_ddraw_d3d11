@@ -10,7 +10,7 @@
 cbuffer ConstantBuffer : register(b10) {
 	bool bRTEnabled;
 	bool bRTAllowShadowMapping;
-	bool bEnablePBRShading;
+	bool RTUnused0;
 	bool RTGetBestIntersection;
 	// 16 bytes
 	bool  RTEnableSoftShadows;

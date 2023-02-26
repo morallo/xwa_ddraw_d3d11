@@ -89,6 +89,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D			= float4(P, SSAOAlpha);
 	output.ssMask			= 0;
 
+	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE && alpha >= 0.95)
+		output.color.rgb = float3(0.7, 0.7, 0.7);
+
 	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
