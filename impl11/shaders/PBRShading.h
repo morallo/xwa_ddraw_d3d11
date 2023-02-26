@@ -189,6 +189,8 @@ float3 addPBR(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 
 // Main entry point for PBR shading with Ray-tracing during regular flight.
 // This code expects one TLAS and multiple BLASes/Matrices.
+// NO LONGER USED. Either the RT mask is computed in its own pass (for soft
+// shadows), or the RT component is computed when needed (for hard shadows).
 float3 addPBR_RT_TLAS(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 	in float3 baseColor, in float3 lightDir, in float4 lightColor,
 	in float metalMask, in float glossiness, in float reflectance, in float ambient)

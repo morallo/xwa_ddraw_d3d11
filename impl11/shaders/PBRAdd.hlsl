@@ -276,67 +276,64 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		if (RTEnableSoftShadows)
 		{
-			// Hard shadows:
+			int i, j;
+			float2 uv;
+			float rtVal = 0;
+			const int range = 2;
+			const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+			//const float wsize = (2 * range + 1) * (2 * range + 1);
+			const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor,
+				RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor);
+			const float2 uv_delta_d = /* 0.75 * */ uv_delta; // Dilation filter delta
+			const float2 uv_delta_r = range * uv_delta; // Soft shadow delta
+
+			// Apply a quick-and-dirty dilation filter to prevent haloes
+			const float2 uv0_d = input.uv - uv_delta_d;
+			float rtMin = rtCenter;
+			//if (RTApplyDilateFilter)
 			{
-				int i, j;
-				float2 uv;
-				float rtVal = 0;
-				const int range = 2;
-				const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
-				//const float wsize = (2 * range + 1) * (2 * range + 1);
-				const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor,
-					RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor);
-				const float2 uv_delta_d = /* 0.75 * */ uv_delta; // Dilation filter delta
-				const float2 uv_delta_r = range * uv_delta; // Soft shadow delta
-
-				// Apply a quick-and-dirty dilation filter to prevent haloes
-				const float2 uv0_d = input.uv - uv_delta_d;
-				float rtMin = rtCenter;
-				//if (RTApplyDilateFilter)
-				{
-					uv = uv0_d;
-					[unroll]
-					for (i = -1; i <= 1; i++)
-					{
-						uv.x = uv0_d.x;
-						[unroll]
-						for (j = -1; j <= 1; j++)
-						{
-							rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
-							uv.x += uv_delta_d.x;
-						}
-						uv.y += uv_delta_d.y;
-					}
-				}
-
-				float Gsum = 0;
-				const float2 uv0_r = input.uv - range * uv_delta_r;
-				uv = uv0_r;
-				//float gaussFactor = clamp(1.5 - rtCenter.y * 0.1, 0.01, 1.5);
+				uv = uv0_d;
 				[unroll]
-				for (i = -range; i <= range; i++)
+				for (i = -1; i <= 1; i++)
 				{
-					uv.x = uv0_r.x;
+					uv.x = uv0_d.x;
 					[unroll]
-					for (j = -range; j <= range; j++)
+					for (j = -1; j <= 1; j++)
 					{
-						const float z = texPos.Sample(sampPos, uv).z;
-						const float delta_z = abs(P.z - z);
-						const float delta_ij = -RTGaussFactor * (i * i + j * j);
-						//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
-						const float G = exp(delta_ij);
-						// Objects far away should have bigger thresholds too
-						if (delta_z < RTSoftShadowThresholdMult * P.z)
-							rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
-						else
-							rtVal += G * rtMin;
-						Gsum += G;
-						uv.x += uv_delta_r.x;
+						rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
+						uv.x += uv_delta_d.x;
 					}
-					uv.y += uv_delta_r.y;
+					uv.y += uv_delta_d.y;
 				}
-				rt_shadow_factor = rtVal / Gsum;
 			}
+
+			float Gsum = 0;
+			const float2 uv0_r = input.uv - range * uv_delta_r;
+			uv = uv0_r;
+			//float gaussFactor = clamp(1.5 - rtCenter.y * 0.1, 0.01, 1.5);
+			[unroll]
+			for (i = -range; i <= range; i++)
+			{
+				uv.x = uv0_r.x;
+				[unroll]
+				for (j = -range; j <= range; j++)
+				{
+					const float z = texPos.Sample(sampPos, uv).z;
+					const float delta_z = abs(P.z - z);
+					const float delta_ij = -RTGaussFactor * (i * i + j * j);
+					//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
+					const float G = exp(delta_ij);
+					// Objects far away should have bigger thresholds too
+					if (delta_z < RTSoftShadowThresholdMult * P.z)
+						rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
+					else
+						rtVal += G * rtMin;
+					Gsum += G;
+					uv.x += uv_delta_r.x;
+				}
+				uv.y += uv_delta_r.y;
+			}
+			rt_shadow_factor = rtVal / Gsum;
 		}
 		else
 		{
