@@ -3485,7 +3485,8 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId, MobileObje
 	// Let's be extra-safe in GetPlayerCraftInstanceSafe(), we have a similar check
 	// because sometimes the game will crash if we try to access the craft table in
 	// the first few frames of a new mission.
-	if (g_iPresentCounter <= 5) return nullptr;
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return nullptr;
+	if (*objects == NULL) return nullptr;
 
 	// Have we cached the objectId?
 	auto it = g_objectIdToIndex.find(objectId);

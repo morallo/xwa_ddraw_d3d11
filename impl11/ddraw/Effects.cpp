@@ -877,6 +877,7 @@ CraftInstance *GetPlayerCraftInstanceSafe()
 	// Fetch the pointer to the current CraftInstance
 	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 	if (objectIndex < 0) return NULL;
+	if (*objects == NULL) return NULL;
 	ObjectEntry *object = &((*objects)[objectIndex]);
 	if (object == NULL) return NULL;
 	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
@@ -895,6 +896,7 @@ CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry **object)
 	// Fetch the pointer to the current CraftInstance
 	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 	if (objectIndex < 0) return NULL;
+	if (*objects == NULL) return NULL;
 	*object = &((*objects)[objectIndex]);
 	if (object == NULL) return NULL;
 	MobileObjectEntry* mobileObject = (*object)->MobileObjectPtr;
@@ -913,6 +915,7 @@ CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry** object, MobileObjectEntr
 	// Fetch the pointer to the current CraftInstance
 	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 	if (objectIndex < 0) return NULL;
+	if (*objects == NULL) return NULL;
 	*object = &((*objects)[objectIndex]);
 	if (object == NULL) return NULL;
 	*mobileObject = (*object)->MobileObjectPtr;

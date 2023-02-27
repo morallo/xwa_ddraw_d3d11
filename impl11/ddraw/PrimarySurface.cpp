@@ -8414,6 +8414,7 @@ void PrimarySurface::RenderEdgeDetector()
 	// just told me that currentTargetIndex can be 0 (it's -1 when no target is selected).
 	// So, updating changing this code to allow target 0:
 	if (currentTargetIndex >= 0) {
+		if (*objects == NULL) goto nocolor;
 		ObjectEntry* object = &((*objects)[currentTargetIndex]);
 		if (object == NULL) goto nocolor;
 		MobileObjectEntry* mobileObject = object->MobileObjectPtr;
@@ -8473,6 +8474,7 @@ reset:
 	// due to explosions and gas.
 	g_ShadertoyBuffer.twirl = 1.0f; // Display the CMD
 	if (currentTargetIndex > -1) {
+		if (*objects == NULL) goto nochange;
 		ObjectEntry* object = &((*objects)[currentTargetIndex]);
 		if (object == NULL) goto nochange;
 		MobileObjectEntry* mobileObject = object->MobileObjectPtr;
