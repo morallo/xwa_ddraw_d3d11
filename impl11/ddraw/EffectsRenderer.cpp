@@ -3188,6 +3188,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 			rand1 = instEvent->rand1;
 			rand2 = instEvent->rand2;
 
+			// Populate the index types as instance events (true means this is an instance event)
 			for (size_t i = 0; i < TexATCIndices.size(); i++)
 				TexATCIndexTypes.push_back(true);
 			for (size_t i = 0; i < LightATCIndices.size(); i++)
@@ -3233,7 +3234,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 					int ATCIndex = atcitem.first;
 					int EvtType = atcitem.second;
 					// Instance events in a material override events coming from Default materials.
-					// In other words: if we already have an instance event of the curren type, then
+					// In other words: if we already have an instance event of the current type, then
 					// don't add the event coming from the default material.
 					if (!ATCListContainsEventType(TexATCIndices, EvtType)) {
 						TexATCIndices.push_back(std::make_pair(ATCIndex, EvtType));
@@ -3244,7 +3245,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 					int ATCIndex = atcitem.first;
 					int EvtType = atcitem.second;
 					// Instance events in a material override events coming from Default materials.
-					// In other words: if we already have an instance event of the curren type, then
+					// In other words: if we already have an instance event of the current type, then
 					// don't add the event coming from the default material.
 					if (!ATCListContainsEventType(LightATCIndices, EvtType)) {
 						LightATCIndices.push_back(std::make_pair(ATCIndex, EvtType));
@@ -3285,6 +3286,11 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	g_PSCBuffer.AuxColorLight.z = 1.0f;
 	g_PSCBuffer.AuxColorLight.w = 1.0f;
 
+	g_PSCBuffer.uvSrc0.x = g_PSCBuffer.uvSrc0.y = 0.0f;
+	g_PSCBuffer.uvSrc1.x = g_PSCBuffer.uvSrc1.y = 1.0f;
+	g_PSCBuffer.uvOffset.x = g_PSCBuffer.uvOffset.y = 0.0f;
+	g_PSCBuffer.uvScale.x  = g_PSCBuffer.uvScale.y  = 1.0f;
+
 	uint32_t OverlayCtrl = 0;
 	int extraTexIdx = -1, extraLightIdx = -1;
 	for (size_t i = 0; i < TexATCIndices.size(); i++)
@@ -3305,6 +3311,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 			g_PSCBuffer.special_control.ExclusiveMask = 0;
 		g_PSCBuffer.AuxColor = atc->Tint;
 		g_PSCBuffer.Offset = atc->Offset;
+		g_PSCBuffer.uvSrc0 = atc->uvSrc0;
+		g_PSCBuffer.uvSrc1 = atc->uvSrc1;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
 		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
@@ -3365,6 +3373,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.AuxColorLight = atc->Tint;
 		// TODO: We might need two of these settings below, one for the regular tex and one for the lightmap
 		g_PSCBuffer.Offset = atc->Offset;
+		g_PSCBuffer.uvSrc0 = atc->uvSrc0;
+		g_PSCBuffer.uvSrc1 = atc->uvSrc1;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
 		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
@@ -3917,7 +3927,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		MobileObjectEntry* mobileObject = nullptr;
 		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId, &mobileObject);
 		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId, materialId);
-		if (craftInstance != nullptr) {
+		if (craftInstance != nullptr && mobileObject != nullptr) {
 			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 			int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
 			// This value seems to be somewhat arbitrary. ISDs seem to be 741 when healthy,
@@ -4016,6 +4026,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	g_PSCBuffer.AuxColor.z = 1.0f;
 	g_PSCBuffer.AuxColor.w = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
+	g_PSCBuffer.uvSrc1.x = g_PSCBuffer.uvSrc1.y = 1.0f;
 	if (g_config.OnlyGrayscaleInTechRoom)
 		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_GRAYSCALE;
 

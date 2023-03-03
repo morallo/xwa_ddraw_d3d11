@@ -74,8 +74,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float4 color			= float4(input.color.xyz, 1.0f);
 	float4 texelColor		= texture0.Sample(sampler0, input.tex);
 
-	uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
-	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	const uint bIsBlastMark	 = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	const uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
 		texelColor			= texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 

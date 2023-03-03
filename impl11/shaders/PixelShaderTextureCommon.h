@@ -61,8 +61,16 @@ cbuffer ConstantBuffer : register(b9)
 	float rand0;				// Used as a random values in PixelShaderAnim.hlsl
 	float rand1;
 	float rand2;
-	float PS_unused2;
+	float PS_unused0;
 	// 192 bytes
+
+	float2 uvSrc0; // Used in animated textures to constrain the area where damage textures will be applied
+	float2 uvSrc1;
+	// 208 bytes
+
+	float2 uvOffset; // Used in animated textures to offset the damage textures
+	float2 uvScale;  // Used in animated textures to scale the damage textures
+	// 224 bytes
 };
 
 #endif

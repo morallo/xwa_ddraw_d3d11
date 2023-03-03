@@ -313,6 +313,14 @@ typedef struct PixelShaderCBStruct {
 	float rand2;
 	float PS_unused0;
 	// 192 bytes
+
+	float2 uvSrc0;
+	float2 uvSrc1;
+	// 208 bytes
+
+	float2 uvOffset;
+	float2 uvScale;
+	// 224 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit

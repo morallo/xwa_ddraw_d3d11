@@ -45,6 +45,11 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
+
+	const uint bIsBlastMark       = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	const uint ExclusiveMask      = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	const uint ExclusiveMaskLight = special_control_light & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+
 	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
 	if (Clamp) UV = saturate(UV);
 	float specInt = fSpecInt;
@@ -52,12 +57,20 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 ScreenLyrBloom = 0;
 
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
-	if (special_control & SPECIAL_CONTROL_BLAST_MARK) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+	if (bIsBlastMark)
+		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+	//if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE)
+	//	texelColor.rgb = float3(0.7, 0.7, 0.7);
+
+	const bool uvActive = uvSrc0.x <= input.tex.x && input.tex.x <= uvSrc1.x &&
+			              uvSrc0.y <= input.tex.y && input.tex.y <= uvSrc1.y;
+	const float2 uvRange = uvSrc1 - uvSrc0;
 
 	// Apply the damage texture
 	if ((OverlayCtrl & OVERLAY_CTRL_MULT) != 0)
 	{
-		float4 multColor = overlayTexA.Sample(sampler0, input.tex);
+		const float2 uv = frac((input.tex - uvSrc0) / uvRange * uvScale + uvOffset);
+		const float4 multColor = uvActive ? overlayTexA.Sample(sampler0, uv) : 1.0;
 		texelColor.rgb *= multColor.rgb;
 		specInt *= multColor.r;
 		glossiness *= multColor.r;
@@ -72,6 +85,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		sincos(ang, s, c);
 		float2x2 mat = float2x2(c, s, -s, c);
 		float2 uv = frac(mul(input.tex.xy, mat) + float2(rand1, rand2));
+		// The screen layer will need its own set of uvSrc coords and uvActive.
+		//const float4 layerColor = uvActive ? overlayTexB.Sample(sampler0, uv) : 0.0;
 		const float4 layerColor = overlayTexB.Sample(sampler0, uv);
 		texelColor.rgb = 1.0 - ((1.0 - texelColor.rgb) * (1.0 - layerColor.rgb));
 		const float val = dot(float3(0.33, 0.5, 0.16), layerColor.rgb) * layerColor.a;
@@ -80,7 +95,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float  alpha = texelColor.a;
 	float3 HSV = RGBtoHSV(texelColor.rgb);
-	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alpha = HSV.z;
 
@@ -88,7 +103,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  alphaLight = texelColorLight.a;
 	float3 colorLight = texelColorLight.rgb;
 	float3 HSVLight = RGBtoHSV(colorLight);
-	const uint ExclusiveMaskLight = special_control_light & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (ExclusiveMaskLight == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alphaLight = HSVLight.z;
 

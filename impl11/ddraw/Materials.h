@@ -318,6 +318,12 @@ typedef struct AnimatedTexControlStruct {
 	float AspectRatio;
 	int Clamp;
 	uint32_t OverlayCtrl;
+	float2 uvSrc0;
+	float2 uvSrc1;
+	float2 uvOffset;
+	float2 uvScaleMin;
+	float2 uvScaleMax;
+	bool uvRandomLoc;
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
@@ -344,6 +350,14 @@ typedef struct AnimatedTexControlStruct {
 		// the objectId associated with this material.
 		objectId = -1;
 		OverlayCtrl = 0x0;
+
+		// The animated textures will completely cover the destination surface by default.
+		uvSrc0.x = uvSrc0.y = 0;
+		uvSrc1.x = uvSrc1.y = 1;
+		uvOffset.x = uvOffset.y = 0;
+		uvScaleMin.x = uvScaleMin.y = 1;
+		uvScaleMax.x = uvScaleMax.y = 1;
+		uvRandomLoc = false;
 	}
 
 	void ResetAnimation();

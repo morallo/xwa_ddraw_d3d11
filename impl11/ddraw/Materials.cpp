@@ -401,15 +401,134 @@ bool ParseOptionalTexSeqArgs(char *buf, int *alpha_mode, float4 *AuxColor)
 	return true;
 }
 
+void ParseUVArea(char* s, float2 *uvSrc0, float2 *uvSrc1)
+{
+	float x0, y0, x1, y1;
+	sscanf_s(s, "%f, %f, %f, %f,", &x0, &y0, &x1, &y1);
+	uvSrc0->x = x0;
+	uvSrc0->y = y0;
+	uvSrc1->x = x1;
+	uvSrc1->y = y1;
+}
+
+char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
+{
+	char* t;
+	bool DoLoop = true;
+
+	while (DoLoop)
+	{
+		DoLoop = false;
+
+		// Parse the UV modifier
+		if (stristr(s, "UV_AREA") != NULL) {
+			DoLoop = true;
+
+			t = s;
+			// Skip to the next '=' char
+			while (*t != 0 && *t != '=') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Skip the '='
+			t++;
+
+			// Start a new string here
+			s = t;
+			// Skip 4 commas
+			for (int i = 0; i < 4; i++)
+			{
+				// Skip to the next ',' char
+				while (*t != 0 && *t != ',') t++;
+				// If we reached the end of the string, that's an error
+				if (*t == 0) return nullptr;
+				// Skip the comma
+				t++;
+			}
+
+			// End the string on this comma to make a new substring
+			*t = 0;
+			ParseUVArea(s, &(atc->uvSrc0), &(atc->uvSrc1));
+			// Skip the previous comma to continue parsing
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+		}
+		// Parse the RANDOM_LOC modifier
+		else if (stristr(s, "RANDOM_LOC") != NULL)
+		{
+			DoLoop = true;
+
+			atc->uvRandomLoc = true;
+
+			t = s;
+			// Skip to the next comma
+			while (*t != 0 && *t != ',') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Skip the comma
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+			//log_debug("[DBG] [UV] RandomLoc: %d", atc->uvRandomLoc);
+		}
+		// Parse the SCALE modifier
+		// Parse the RANDOM_LOC modifier
+		else if (stristr(s, "SCALE") != NULL)
+		{
+			DoLoop = true;
+
+			t = s;
+			// Skip to the next '=' char
+			while (*t != 0 && *t != '=') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Skip the '='
+			t++;
+
+			// Start a new string here
+			s = t;
+			// Skip 1 comma
+			for (int i = 0; i < 1; i++)
+			{
+				// Skip to the next ',' char
+				while (*t != 0 && *t != ',') t++;
+				// If we reached the end of the string, that's an error
+				if (*t == 0) return nullptr;
+				// Skip the comma
+				t++;
+			}
+
+			// End the string on this comma to make a new substring
+			*t = 0;
+			float scale;
+			sscanf_s(s, "%f", &scale);
+			atc->uvScaleMin.x = atc->uvScaleMin.y = scale;
+			atc->uvScaleMax.x = atc->uvScaleMax.y = scale;
+			// Skip the previous comma to continue parsing
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+			/*log_debug("[DBG] [UV] Scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				atc->uvScaleMin.x, atc->uvScaleMin.y,
+				atc->uvScaleMax.x, atc->uvScaleMax.y);*/
+		}
+	}
+	return s;
+}
+
 /*
  Load a texture sequence line of the form:
 
  lightmap_seq|rand|anim_seq|rand = [Event], [DATFileName], <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
-
 */
-bool LoadTextureSequence(char *buf, bool IsLightMap, std::vector<TexSeqElem> &tex_sequence,
-	GameEvent *eventType, InstEventType *instEventType, bool *isInstEvent,
-	int *alpha_mode, float4 *AuxColor, uint32_t *overlayCtrl)
+bool LoadTextureSequence(char* buf, bool IsLightMap, std::vector<TexSeqElem>& tex_sequence,
+	int* alpha_mode, AnimatedTexControl *atc)
 {
 	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
@@ -418,15 +537,15 @@ bool LoadTextureSequence(char *buf, bool IsLightMap, std::vector<TexSeqElem> &te
 	char *s = NULL, *t = NULL, texname[80], sDATZIPFileName[128], sOptionalArgs[128];
 	float seconds, intensity = 1.0f;
 	bool IsDATFile = false, IsZIPFile = false, bEllipsis = false;
-	*eventType = EVT_NONE;
-	*instEventType = IEVT_NONE;
-	*isInstEvent = false;
+	atc->Event = EVT_NONE;
+	atc->InstEvent = IEVT_NONE;
+	atc->isInstEvent = false;
 	std::string s_temp;
 	*alpha_mode = 0;
-	AuxColor->x = 1.0f;
-	AuxColor->y = 1.0f;
-	AuxColor->z = 1.0f;
-	AuxColor->w = 1.0f;
+	atc->Tint.x = 1.0f;
+	atc->Tint.y = 1.0f;
+	atc->Tint.z = 1.0f;
+	atc->Tint.w = 1.0f;
 	
 	// Remove any parentheses from the line
 	int i = 0, j = 0;
@@ -455,7 +574,7 @@ bool LoadTextureSequence(char *buf, bool IsLightMap, std::vector<TexSeqElem> &te
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		ParseEvent(s, eventType, instEventType, isInstEvent);
+		ParseEvent(s, &(atc->Event), &(atc->InstEvent), &(atc->isInstEvent));
 		//if (*isInstEvent)
 		//	log_debug("[DBG] [INST] INSTANCE EVENT parsed, %d", *instEventType);
 		// Skip the comma
@@ -472,11 +591,14 @@ bool LoadTextureSequence(char *buf, bool IsLightMap, std::vector<TexSeqElem> &te
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		ParseOverlayControl(s, IsLightMap, overlayCtrl);
+		ParseOverlayControl(s, IsLightMap, &(atc->OverlayCtrl));
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
 	}
+
+	// Parse the optional modifiers
+	s = ParseOptionalModifiers(s, atc);
 
 	// Parse the DAT file name, if specified
 	if (stristr(s, ".dat") != NULL) {
@@ -530,7 +652,7 @@ bool LoadTextureSequence(char *buf, bool IsLightMap, std::vector<TexSeqElem> &te
 		strcpy_s(sOptionalArgs, 128, s);
 		// log_debug("[DBG] [MAT] sOptionalArgs: [%s]", sOptionalArgs);
 		// Parse the optional args...
-		ParseOptionalTexSeqArgs(sOptionalArgs, alpha_mode, AuxColor);
+		ParseOptionalTexSeqArgs(sOptionalArgs, alpha_mode, &(atc->Tint));
 		// Skip the closing braces
 		s = t; s += 1;
 		// Skip to the next comma
@@ -687,24 +809,33 @@ bool LoadTextureSequence(char *buf, bool IsLightMap, std::vector<TexSeqElem> &te
 }
 
 bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
-	GameEvent* eventType, InstEventType* instEventType, bool* isInstEvent,
-	int* is_lightmap, int* alpha_mode, float4* AuxColor, float2* Offset, float* AspectRatio,
-	int* Clamp, uint32_t* overlayCtrl)
+	int* is_lightmap, int* alpha_mode, AnimatedTexControl *atc)
 {
+	constexpr int MAX_TEMP_LEN = 2048;
+	char temp[MAX_TEMP_LEN];
 	int res = 0, clamp, raw_alpha_mode;
 	char* s = NULL, * t = NULL, path[256];
 	float fps = 30.0f, intensity = 0.0f, r, g, b, OfsX, OfsY, ar;
 	*is_lightmap = 0; *alpha_mode = 0;
-	*eventType = EVT_NONE; *instEventType = IEVT_NONE; *isInstEvent = false;
-	AuxColor->x = 1.0f;
-	AuxColor->y = 1.0f;
-	AuxColor->z = 1.0f;
-	AuxColor->w = 1.0f;
-	Offset->x = 0.0f; Offset->y = 0.0f;
-	*AspectRatio = 1.0f; *Clamp = 0;
+	atc->Event = EVT_NONE; atc->InstEvent = IEVT_NONE; atc->isInstEvent = false;
+	atc->Tint.x = 1.0f;
+	atc->Tint.y = 1.0f;
+	atc->Tint.z = 1.0f;
+	atc->Tint.w = 1.0f;
+	atc->Offset.x = 0.0f; atc->Offset.y = 0.0f;
+	atc->AspectRatio = 1.0f; atc->Clamp = 0;
+
+	// Remove any parentheses from the line
+	int i = 0, j = 0;
+	while (buf[i] && j < MAX_TEMP_LEN - 1) {
+		if (buf[i] != '(' && buf[i] != ')')
+			temp[j++] = buf[i];
+		i++;
+	}
+	temp[j] = 0;
 
 	//log_debug("[DBG] [MAT] Reading texture sequence");
-	s = strchr(buf, '=');
+	s = strchr(temp, '=');
 	if (s == NULL) return false;
 
 	// Skip the equals sign:
@@ -719,7 +850,7 @@ bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		ParseEvent(s, eventType, instEventType, isInstEvent);
+		ParseEvent(s, &(atc->Event), &(atc->InstEvent), &(atc->isInstEvent));
 
 		// Skip the comma
 		s = t; s += 1;
@@ -735,11 +866,14 @@ bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		ParseOverlayControl(s, false, overlayCtrl);
+		ParseOverlayControl(s, false, &(atc->OverlayCtrl));
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
 	}
+
+	// Parse the optional modifiers
+	s = ParseOptionalModifiers(s, atc);
 
 	// Skip to the next comma
 	t = s;
@@ -764,7 +898,7 @@ bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
 
 	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
 	try {
-		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], %f, (%f, %f), %d", 
+		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], %f, %f, %f, %d",
 			&fps, is_lightmap, &intensity, &raw_alpha_mode,
 			&r, &g, &b, &ar, &OfsX, &OfsY, &clamp);
 		if (res < 4) {
@@ -773,19 +907,19 @@ bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
 
 		*alpha_mode = AlphaModeToSpecialControl(raw_alpha_mode);
 		if (res >= 7) {
-			AuxColor->x = r;
-			AuxColor->y = g;
-			AuxColor->z = b;
-			AuxColor->w = 1.0f;
+			atc->Tint.x = r;
+			atc->Tint.y = g;
+			atc->Tint.z = b;
+			atc->Tint.w = 1.0f;
 		}
 		if (res >= 8)
-			*AspectRatio = ar; // Aspect Ratio
+			atc->AspectRatio = ar; // Aspect Ratio
 		if (res >= 10) {
-			Offset->x = OfsX;
-			Offset->y = OfsY;
+			atc->Offset.x = OfsX;
+			atc->Offset.y = OfsY;
 		}
 		if (res >= 11)
-			*Clamp = clamp; // clamp uv
+			atc->Clamp = clamp; // clamp uv
 		
 	}
 	catch (...) {
@@ -795,8 +929,8 @@ bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
 
 	// We only know if this is a lightmap animation here, so we need to
 	// upgrade the previous OverlayCtrl now.
-	if (*overlayCtrl != 0) {
-		UpgradeOverayCtrlToLightmap(overlayCtrl, *is_lightmap);
+	if (atc->OverlayCtrl != 0) {
+		UpgradeOverayCtrlToLightmap(&(atc->OverlayCtrl), *is_lightmap);
 	}
 
 	TexSeqElem tex_seq_elem;
@@ -1226,9 +1360,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
-		if (!LoadTextureSequence(buf, IsLightMap, atc.Sequence,
-			&(atc.Event), &(atc.InstEvent), &(atc.isInstEvent),
-			&alpha_mode, &(atc.Tint), &(atc.OverlayCtrl)))
+		if (!LoadTextureSequence(buf, IsLightMap, atc.Sequence, &alpha_mode, &atc))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -1281,10 +1413,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
-		if (!LoadFrameSequence(buf, atc.Sequence,
-			&(atc.Event), &(atc.InstEvent), &(atc.isInstEvent),
-			&is_lightmap, &alpha_mode, &(atc.Tint), &(atc.Offset), &(atc.AspectRatio),
-			&(atc.Clamp), &(atc.OverlayCtrl)))
+		if (!LoadFrameSequence(buf, atc.Sequence, &is_lightmap, &alpha_mode, &atc))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
