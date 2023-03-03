@@ -210,7 +210,6 @@ extern bool g_bYCenterHasBeenFixed;
 
 void ResetXWALightInfo();
 void ResetObjectIndexMap();
-void ResetRawMouseInput();
 
 // Raytracing
 
@@ -1626,7 +1625,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ResetGameEvent();
 	ResetObjectIndexMap();
 	ReloadInterdictionMap();
-	ResetRawMouseInput();
+	//ResetRawMouseInput();
 	if (IsZIPReaderLoaded())
 		DeleteAllTempZIPDirectories();
 	this->ResetExtraTextures();

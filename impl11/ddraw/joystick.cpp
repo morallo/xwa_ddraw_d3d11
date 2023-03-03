@@ -220,6 +220,8 @@ static const DWORD povmap[16] = {
 // https://stackoverflow.com/questions/28879021/winapi-getrawinputbuffer
 // https://stackoverflow.com/questions/59809804/rawinput-winapi-getrawinputbuffer-and-message-handling
 // Returns 0 if no events were read
+// DISABLED: I suspect that registering for low-level events messes the main message pump
+#ifdef DISABLED
 int ReadRawMouseData(int *iDeltaX, int *iDeltaY)
 {
 	uint32_t rawInputBufferSize = sizeof(RAWINPUT) * MAX_RAW_INPUT_ENTRIES;
@@ -269,6 +271,7 @@ void ResetRawMouseInput()
 	ReadRawMouseData(&deltaX, &deltaY);
 	g_fMouseDeltaX = g_fMouseDeltaY = 0.0f;
 }
+#endif
 
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
@@ -384,12 +387,14 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 	// Mouse input
 	{
-		if (!g_bGimbalLockFixActive)
+		//if (!g_bGimbalLockFixActive)
 		{
 			// This is the original code by Reimar
 			pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
 			pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
 		}
+		// DISABLED: I suspect that registering for low-level events messes the main message pump
+#ifdef DISABLED
 		else // if (g_bRendering3D)
 		{
 			static float lastTime = g_HiResTimer.global_time_s;
@@ -420,6 +425,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 			lastTime = now;
 		}
+#endif
 
 		pji->dwButtons = 0;
 		pji->dwButtonNumber = 0;

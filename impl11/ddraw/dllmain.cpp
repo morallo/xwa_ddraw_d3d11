@@ -1241,6 +1241,8 @@ bool ReplaceWindowProc(HWND hwnd)
 	RECT rect;
 
 	// Register the mouse for raw input. This will allow us to receive low-level mouse deltas
+	// DISABLED: I suspect that registering for low-level events messes the main message pump
+#ifdef DISABLED
 	RAWINPUTDEVICE Rid[1];
 	Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
@@ -1248,6 +1250,7 @@ bool ReplaceWindowProc(HWND hwnd)
 	Rid[0].hwndTarget = hwnd;
 	if (!RegisterRawInputDevices(Rid, 1, sizeof(Rid[0])))
 		log_debug("[DBG] Failed to register raw input device");
+#endif
 
 	g_ThisWindow = hwnd;
 	OldWindowProc = (WNDPROC )SetWindowLong(g_ThisWindow, GWL_WNDPROC, (LONG )MyWindowProc);
