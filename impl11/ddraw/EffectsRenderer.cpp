@@ -3173,9 +3173,12 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	std::vector<ATCIndexEvtType> TexATCIndices, LightATCIndices;
 	std::vector<bool> TexATCIndexTypes, LightATCIndexTypes; // false: Global Event, true: Instance Event
 	InstanceEvent* instEvent = nullptr;
-	// Random value used to alter the shields down effect (and others). This
-	// value is set into InstanceEvent every time the event is triggered,
+	// Random value used to alter the shields down effect (and others). These
+	// values are set into InstanceEvent every time the event is triggered,
 	float rand0 = 0.0f, rand1 = 0.0f, rand2 = 0.0f;
+	// Random values used to alter the position and scale of damage textures.
+	// These values are set once in InstanceEvent when it's first instantiated.
+	float fixedrand[MAX_FIXED_RAND_SLOTS];
 
 	if (bInstanceEvent) {
 		// This is an instance ATC. We can have regular materials or
@@ -3187,6 +3190,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 			rand0 = instEvent->rand0;
 			rand1 = instEvent->rand1;
 			rand2 = instEvent->rand2;
+			for (int i = 0; i < MAX_FIXED_RAND_SLOTS; i++)
+				fixedrand[i] = instEvent->fixedrand[i];
 
 			// Populate the index types as instance events (true means this is an instance event)
 			for (size_t i = 0; i < TexATCIndices.size(); i++)
@@ -3226,6 +3231,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 					rand0 = craftInstEvent->rand0;
 					rand1 = craftInstEvent->rand1;
 					rand2 = craftInstEvent->rand2;
+					for (int i = 0; i < MAX_FIXED_RAND_SLOTS; i++)
+						fixedrand[i] = craftInstEvent->fixedrand[i];
 				}
 
 				// Inherit animations from the Default entry
@@ -3311,10 +3318,24 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 			g_PSCBuffer.special_control.ExclusiveMask = 0;
 		g_PSCBuffer.AuxColor = atc->Tint;
 		g_PSCBuffer.Offset = atc->Offset;
-		g_PSCBuffer.uvSrc0 = atc->uvSrc0;
-		g_PSCBuffer.uvSrc1 = atc->uvSrc1;
+
+		// Apply randomization of damage textures
+		if (atc->IsHullDamageEvent())
+		{
+			// Apply UV_AREA or RAND_SCALE:
+			if (!atc->uvRandomScale)
+			{
+				g_PSCBuffer.uvSrc0 = atc->uvSrc0;
+				g_PSCBuffer.uvSrc1 = atc->uvSrc1;
+			}
+		}
+
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
+		if (atc->uvRandomLoc) {
+			g_PSCBuffer.uvOffset.x = fixedrand[0];
+			g_PSCBuffer.uvOffset.y = fixedrand[1];
+		}
 		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
 			g_PSCBuffer.fOverlayBloomPower = atc->Sequence[idx].intensity;
 			// Only enable randomness for specific events
@@ -3371,10 +3392,12 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		else
 			g_PSCBuffer.special_control_light.ExclusiveMask = 0;
 		g_PSCBuffer.AuxColorLight = atc->Tint;
-		// TODO: We might need two of these settings below, one for the regular tex and one for the lightmap
 		g_PSCBuffer.Offset = atc->Offset;
-		g_PSCBuffer.uvSrc0 = atc->uvSrc0;
-		g_PSCBuffer.uvSrc1 = atc->uvSrc1;
+		// TODO: We need separate uvSrc settings: one for regular tex and one for lightmaps, otherwise
+		//       these settings overwrite the uvSrc values set previously and the scale is altered while
+		//       the shields down effect is displayed
+		//g_PSCBuffer.uvSrc0 = atc->uvSrc0;
+		//g_PSCBuffer.uvSrc1 = atc->uvSrc1;
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
 		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {

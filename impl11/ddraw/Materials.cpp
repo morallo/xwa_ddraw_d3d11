@@ -456,7 +456,7 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			SKIP_WHITESPACES(s);
 		}
 		// Parse the RANDOM_LOC modifier
-		else if (stristr(s, "RANDOM_LOC") != NULL)
+		else if (stristr(s, "RAND_LOC") != NULL)
 		{
 			DoLoop = true;
 
@@ -473,11 +473,10 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			// Re-start the string here and continue parsing
 			s = t;
 			SKIP_WHITESPACES(s);
-			//log_debug("[DBG] [UV] RandomLoc: %d", atc->uvRandomLoc);
+			log_debug("[DBG] [UV] RandomLoc: %d", atc->uvRandomLoc);
 		}
 		// Parse the SCALE modifier
-		// Parse the RANDOM_LOC modifier
-		else if (stristr(s, "SCALE") != NULL)
+		else if (stristr(s, "SCALE") != NULL && stristr(s, "RAND_SCALE") == NULL)
 		{
 			DoLoop = true;
 
@@ -514,9 +513,52 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			// Re-start the string here and continue parsing
 			s = t;
 			SKIP_WHITESPACES(s);
-			/*log_debug("[DBG] [UV] Scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+			log_debug("[DBG] [UV] Scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 				atc->uvScaleMin.x, atc->uvScaleMin.y,
-				atc->uvScaleMax.x, atc->uvScaleMax.y);*/
+				atc->uvScaleMax.x, atc->uvScaleMax.y);
+		}
+		// Parse the RANDOM_SCALE modifier
+		else if (stristr(s, "RAND_SCALE") != NULL)
+		{
+			DoLoop = true;
+
+			t = s;
+			// Skip to the next '=' char
+			while (*t != 0 && *t != '=') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Skip the '='
+			t++;
+
+			// Start a new string here
+			s = t;
+			// Skip 2 commas
+			for (int i = 0; i < 2; i++)
+			{
+				// Skip to the next ',' char
+				while (*t != 0 && *t != ',') t++;
+				// If we reached the end of the string, that's an error
+				if (*t == 0) return nullptr;
+				// Skip the comma
+				t++;
+			}
+
+			// End the string on this comma to make a new substring
+			*t = 0;
+			float minScale, maxScale;
+			sscanf_s(s, "%f, %f", &minScale, &maxScale);
+			atc->uvScaleMin.x = atc->uvScaleMin.y = minScale;
+			atc->uvScaleMax.x = atc->uvScaleMax.y = maxScale;
+			atc->uvRandomScale = true;
+			// Skip the previous comma to continue parsing
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+			log_debug("[DBG] [UV] Rand scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				atc->uvScaleMin.x, atc->uvScaleMin.y,
+				atc->uvScaleMax.x, atc->uvScaleMax.y);
 		}
 	}
 	return s;
@@ -2174,6 +2216,15 @@ bool AnimatedTexControl::IsRandomizableOverlay() {
 	if (this->InstEvent == IEVT_SHIELDS_DOWN ||
 		this->InstEvent == IEVT_TRACTOR_BEAM ||
 		this->InstEvent == IEVT_JAMMING_BEAM)
+		return true;
+	return false;
+}
+
+bool AnimatedTexControl::IsHullDamageEvent()
+{
+	if (this->InstEvent == IEVT_HULL_DAMAGE_25 ||
+		this->InstEvent == IEVT_HULL_DAMAGE_50 ||
+		this->InstEvent == IEVT_HULL_DAMAGE_75)
 		return true;
 	return false;
 }
