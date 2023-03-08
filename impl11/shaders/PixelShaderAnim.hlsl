@@ -69,7 +69,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Apply the damage texture
 	if ((OverlayCtrl & OVERLAY_CTRL_MULT) != 0)
 	{
-		const float2 uv = frac((input.tex - uvSrc0) / uvRange * uvScale + uvOffset);
+		const float2 uv = frac((input.tex - uvSrc0) / uvRange);
 		const float4 multColor = uvActive ? overlayTexA.Sample(sampler0, uv) : 1.0;
 		texelColor.rgb *= multColor.rgb;
 		specInt *= multColor.r;

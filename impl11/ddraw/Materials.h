@@ -14,7 +14,6 @@ constexpr auto MAX_CANNONS = 8;
 constexpr auto MAX_GREEBLE_NAME = 80;
 constexpr auto MAX_GREEBLE_LEVELS = 2;
 constexpr auto MAX_NORMALMAP_NAME = 80;
-constexpr int MAX_FIXED_RAND_SLOTS = 4;
 
 float lerp(float x, float y, float s);
 
@@ -258,16 +257,12 @@ public:
 	// Random values, used to rotate and translate the textures for the shields down effect.
 	// These values are set each time an event is triggered.
 	float rand0, rand1, rand2;
-	// Random values that are set only once: when the event is instantiated.
-	float fixedrand[MAX_FIXED_RAND_SLOTS];
 
 	InstanceEvent()
 	{
 		objectId = -1;
 		bATCHasBeenInstanced = false;
 		rand0 = rand1 = rand2 = 0.0f;
-		for (int i = 0; i < MAX_FIXED_RAND_SLOTS; i++)
-			fixedrand[i] = (float)rand() / RAND_MAX;
 		for (int j = 0; j < MAX_ATC_TYPES; j++)
 			for (int i = 0; i < MAX_INST_EVT; i++)
 				InstTextureATCIndices[j][i] = -1;
@@ -285,6 +280,24 @@ public:
 	void CopyCurrentEventsToPrev() {
 		PrevHullEvent = HullEvent;
 		PrevShieldBeamEvent = ShieldBeamEvent;
+	}
+};
+
+// Per-instance, fixed data. This information is associated with an objectId-materialId
+// and it's used to display damage textures. For instance, the normalized random location
+// and scale of a damage texture is computed once and stored here for future use.
+struct FixedInstanceData
+{
+	// Normalized (0..1) location of the damage texture
+	float2 randLocNorm;
+	// Normalized (0..1) scale of the damage texture
+	float randScaleNorm;
+
+	FixedInstanceData()
+	{
+		randLocNorm.x = (float)rand() / RAND_MAX;
+		randLocNorm.y = (float)rand() / RAND_MAX;
+		randScaleNorm = (float)rand() / RAND_MAX;
 	}
 };
 
@@ -874,19 +887,6 @@ struct Material {
 					AnimatedTexControl atc = g_AnimatedMaterials[src_idx];
 					atc.objectId = objectId;
 					atc.materialId = this->Id;
-					// Choose a random scale if necessary
-					if (atc.uvRandomScale)
-					{
-						float rand_selector = (float)rand() / RAND_MAX;
-						float rand_val_x = lerp(atc.uvScaleMin.x, atc.uvScaleMax.x, rand_selector);
-						float rand_val_y = lerp(atc.uvScaleMin.y, atc.uvScaleMax.y, rand_selector);
-						float half_x = (1.0f - rand_val_x) / 2.0f;
-						float half_y = (1.0f - rand_val_y) / 2.0f;
-						atc.uvSrc0.x = half_x;
-						atc.uvSrc1.x = 1.0f - half_x;
-						atc.uvSrc0.y = half_y;
-						atc.uvSrc1.y = 1.0f - half_y;
-					}
 					g_AnimatedInstMaterials.push_back(atc);
 					const int new_slot = g_AnimatedInstMaterials.size() - 1;
 					if (instEvent.InstTextureATCIndices[j][i] != -1)

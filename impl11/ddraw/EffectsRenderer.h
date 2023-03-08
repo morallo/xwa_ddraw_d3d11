@@ -139,7 +139,7 @@ public:
 	void AddLaserLights(const SceneCompData* scene);
 	void ApplyProceduralLava();
 	void ApplyGreebles();
-	void ApplyAnimatedTextures(int objectId, bool bInstanceEvent);
+	void ApplyAnimatedTextures(int objectId, bool bInstanceEvent, FixedInstanceData* fixedInstanceData);
 	void ApplyNormalMapping();
 
 	// Raytracing
@@ -158,6 +158,7 @@ public:
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);
 	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);
+	FixedInstanceData* ObjectIDToFixedInstanceData(int objectId, uint32_t materialId);
 
 	// Deferred rendering
 	void RenderLasers();

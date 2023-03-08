@@ -71,6 +71,10 @@ std::map<int, int> g_objectIdToIndex;
 
 // Maps an ObjectId to its InstanceEvent
 std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
+// Maps an ObjectId-MaterialId to its fixed data struct. The fixed data is
+// used to randomize the location and scale of the damage texture (and probably
+// other stuff in the future)
+std::map<uint64_t, FixedInstanceData> g_fixedInstanceDataMap;
 
 EffectsRenderer *g_effects_renderer = nullptr;
 
@@ -333,6 +337,7 @@ void IncreaseD3DExecuteCounterSkipLo(int Delta) {
 void ResetObjectIndexMap() {
 	g_objectIdToIndex.clear();
 	g_objectIdToInstanceEvent.clear();
+	g_fixedInstanceDataMap.clear();
 }
 
 // ****************************************************
@@ -3162,7 +3167,7 @@ bool ATCListContainsEventType(const std::vector<ATCIndexEvtType>& ATCList, int E
 	return false;
 }
 
-void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
+void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, FixedInstanceData *fixedInstanceData)
 {
 	// Do not apply animations if there's no material or there's a greeble in the current
 	// texture. All textures with a .mat file have at least the default material.
@@ -3176,9 +3181,6 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 	// Random value used to alter the shields down effect (and others). These
 	// values are set into InstanceEvent every time the event is triggered,
 	float rand0 = 0.0f, rand1 = 0.0f, rand2 = 0.0f;
-	// Random values used to alter the position and scale of damage textures.
-	// These values are set once in InstanceEvent when it's first instantiated.
-	float fixedrand[MAX_FIXED_RAND_SLOTS];
 
 	if (bInstanceEvent) {
 		// This is an instance ATC. We can have regular materials or
@@ -3190,8 +3192,6 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 			rand0 = instEvent->rand0;
 			rand1 = instEvent->rand1;
 			rand2 = instEvent->rand2;
-			for (int i = 0; i < MAX_FIXED_RAND_SLOTS; i++)
-				fixedrand[i] = instEvent->fixedrand[i];
 
 			// Populate the index types as instance events (true means this is an instance event)
 			for (size_t i = 0; i < TexATCIndices.size(); i++)
@@ -3231,8 +3231,6 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 					rand0 = craftInstEvent->rand0;
 					rand1 = craftInstEvent->rand1;
 					rand2 = craftInstEvent->rand2;
-					for (int i = 0; i < MAX_FIXED_RAND_SLOTS; i++)
-						fixedrand[i] = craftInstEvent->fixedrand[i];
 				}
 
 				// Inherit animations from the Default entry
@@ -3319,23 +3317,52 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent)
 		g_PSCBuffer.AuxColor = atc->Tint;
 		g_PSCBuffer.Offset = atc->Offset;
 
-		// Apply randomization of damage textures
+		// Apply the randomization of damage textures
 		if (atc->IsHullDamageEvent())
 		{
-			// Apply UV_AREA or RAND_SCALE:
-			if (!atc->uvRandomScale)
-			{
-				g_PSCBuffer.uvSrc0 = atc->uvSrc0;
-				g_PSCBuffer.uvSrc1 = atc->uvSrc1;
+			// Apply RAND_SCALE using fixedInstanceData
+			if (fixedInstanceData != nullptr && atc->uvRandomScale) {
+				float rand_val_x = lerp(atc->uvScaleMin.x, atc->uvScaleMax.x, fixedInstanceData->randScaleNorm);
+				float rand_val_y = lerp(atc->uvScaleMin.y, atc->uvScaleMax.y, fixedInstanceData->randScaleNorm);
+				float half_x = (1.0f - rand_val_x) / 2.0f;
+				float half_y = (1.0f - rand_val_y) / 2.0f;
+				atc->uvSrc0.x = half_x;
+				atc->uvSrc1.x = 1.0f - half_x;
+				atc->uvSrc0.y = half_y;
+				atc->uvSrc1.y = 1.0f - half_y;
+				/*log_debug("[DBG] [UV] uvRandomScale uvScaleMinMax: %0.3f, %0.3f, uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					atc->uvScaleMin.x, atc->uvScaleMax.x,
+					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
 			}
+			// APPLY RAND_LOC using fixedInstanceData
+			if (fixedInstanceData != nullptr && atc->uvRandomLoc)
+			{
+				static int count = 0;
+				/*log_debug("[DBG] [UV] Initial uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
+				float range_x = atc->uvSrc0.x + (1.0f - atc->uvSrc1.x);
+				float range_y = atc->uvSrc0.y + (1.0f - atc->uvSrc1.y);
+				//log_debug("[DBG] [UV]    sel: %0.3f, %0.3f", sel_x, sel_y);
+				//log_debug("[DBG] [UV]    range: %0.3f, %0.3f", range_x, range_y);
+				// This offset moves uvSrc so that it doesn't cross the 0..1 range
+				// (i.e. it doesn't "wrap around")
+				float ofs_x = (range_x * fixedInstanceData->randLocNorm.x) - atc->uvSrc0.x;
+				float ofs_y = (range_y * fixedInstanceData->randLocNorm.y) - atc->uvSrc0.y;
+				//log_debug("[DBG] [UV]    ofs: %0.3f, %0.3f", ofs_x, ofs_y);
+				atc->uvSrc0.x += ofs_x;
+				atc->uvSrc0.y += ofs_y;
+				atc->uvSrc1.x += ofs_x;
+				atc->uvSrc1.y += ofs_y;
+				/*log_debug("[DBG] [UV]    %d Final uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					count++, atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
+			}
+			// Apply UV_AREA (and RAND_SCALE/RAND_LOC indirectly):
+			g_PSCBuffer.uvSrc0 = atc->uvSrc0;
+			g_PSCBuffer.uvSrc1 = atc->uvSrc1;
 		}
 
 		g_PSCBuffer.AspectRatio = atc->AspectRatio;
 		g_PSCBuffer.Clamp = atc->Clamp;
-		if (atc->uvRandomLoc) {
-			g_PSCBuffer.uvOffset.x = fixedrand[0];
-			g_PSCBuffer.uvOffset.y = fixedrand[1];
-		}
 		if ((atc->OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
 			g_PSCBuffer.fOverlayBloomPower = atc->Sequence[idx].intensity;
 			// Only enable randomness for specific events
@@ -3555,7 +3582,7 @@ CraftInstance *EffectsRenderer::ObjectIDToCraftInstance(int objectId, MobileObje
 
 /*
  * Fetches the InstanceEvent associated with the given objectId-materialId or adds a new one
- * if it doesn't exist.
+ * if it doesn't exist. The materialId represents a per-texture material.
  */
 InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t materialId)
 {
@@ -3569,6 +3596,31 @@ InstanceEvent *EffectsRenderer::ObjectIDToInstanceEvent(int objectId, uint32_t m
 		g_objectIdToInstanceEvent.insert(std::make_pair(Id, InstanceEvent()));
 		auto &new_it = g_objectIdToInstanceEvent.find(Id);
 		if (new_it != g_objectIdToInstanceEvent.end())
+			return &new_it->second;
+		else
+			return nullptr;
+	}
+	else
+		return &it->second;
+}
+
+/*
+ * Fetches the FixedInstanceData associated with the given objectId-materialId or adds a new one
+ * if it doesn't exist. The materialId represents a per-texture material, so the output struct
+ * is unique for each objectId-materialId combination.
+ */
+FixedInstanceData* EffectsRenderer::ObjectIDToFixedInstanceData(int objectId, uint32_t materialId)
+{
+	uint64_t Id = InstEventIdFromObjectMaterialId(objectId, materialId);
+	auto it = g_fixedInstanceDataMap.find(Id);
+	if (it == g_fixedInstanceDataMap.end())
+	{
+		// Add a new entry
+		log_debug("[DBG] [UV] New FixedInstance added to objectId-matId: %d-%d",
+			objectId, materialId);
+		g_fixedInstanceDataMap.insert(std::make_pair(Id, FixedInstanceData()));
+		auto& new_it = g_fixedInstanceDataMap.find(Id);
+		if (new_it != g_fixedInstanceDataMap.end())
 			return &new_it->second;
 		else
 			return nullptr;
@@ -3941,6 +3993,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	const bool bInstanceEvent = _lastTextureSelected->material.bInstanceMaterial && objectId != -1;
 	const int materialId = _lastTextureSelected->material.Id;
 	float bloomOverride = -1.0f;
+	FixedInstanceData* fixedInstanceData = nullptr;
 
 	// UPDATE THE STATE OF INSTANCE EVENTS.
 	// A material is associated with either a global ATC or an instance ATC for now.
@@ -3950,6 +4003,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		MobileObjectEntry* mobileObject = nullptr;
 		CraftInstance *craftInstance = ObjectIDToCraftInstance(objectId, &mobileObject);
 		InstanceEvent *instanceEvent = ObjectIDToInstanceEvent(objectId, materialId);
+		fixedInstanceData = ObjectIDToFixedInstanceData(objectId, materialId);
 		if (craftInstance != nullptr && mobileObject != nullptr) {
 			int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 			int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
@@ -4156,7 +4210,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ApplyGreebles();
 
 	if (g_bEnableAnimations)
-		ApplyAnimatedTextures(objectId, bInstanceEvent);
+		ApplyAnimatedTextures(objectId, bInstanceEvent, fixedInstanceData);
 
 	// BLAS/TLAS construction
 	// Only add these vertices to the BLAS if the texture is not transparent

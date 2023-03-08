@@ -14,8 +14,10 @@ namespace fs = std::filesystem;
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
 GlobalGameEvent g_GameEvent, g_PrevGameEvent;
-// Maps an ObjectId to its InstanceEvent
+// Maps an ObjectId-MaterialId to its InstanceEvent
 extern std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
+// Maps an ObjectId-MaterialId to its FixedInstanceData
+extern std::map<uint64_t, FixedInstanceData> g_fixedInstanceDataMap;
 // Set of flags that tell us when events fired on the current frame
 bool bEventsFired[MAX_GAME_EVT] = { 0 };
 // Rule 1: The ordering in this array MUST match the ordering in GameEventEnum
@@ -473,7 +475,6 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			// Re-start the string here and continue parsing
 			s = t;
 			SKIP_WHITESPACES(s);
-			log_debug("[DBG] [UV] RandomLoc: %d", atc->uvRandomLoc);
 		}
 		// Parse the SCALE modifier
 		else if (stristr(s, "SCALE") != NULL && stristr(s, "RAND_SCALE") == NULL)
@@ -507,6 +508,7 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			sscanf_s(s, "%f", &scale);
 			atc->uvScaleMin.x = atc->uvScaleMin.y = scale;
 			atc->uvScaleMax.x = atc->uvScaleMax.y = scale;
+			atc->uvRandomScale = false;
 			// Skip the previous comma to continue parsing
 			t++;
 
