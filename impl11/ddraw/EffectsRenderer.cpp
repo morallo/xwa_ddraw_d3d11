@@ -3334,20 +3334,31 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 					atc->uvScaleMin.x, atc->uvScaleMax.x,
 					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
 			}
-			// APPLY RAND_LOC using fixedInstanceData
+			// Apply RAND_LOC using fixedInstanceData
 			if (fixedInstanceData != nullptr && atc->uvRandomLoc)
 			{
 				static int count = 0;
+				float range_x, range_y, ofs_x, ofs_y;
 				/*log_debug("[DBG] [UV] Initial uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
-				float range_x = atc->uvSrc0.x + (1.0f - atc->uvSrc1.x);
-				float range_y = atc->uvSrc0.y + (1.0f - atc->uvSrc1.y);
+				if (atc->uvRandomLoc == 1)
+				{
+					range_x = atc->uvSrc0.x + (1.0f - atc->uvSrc1.x);
+					range_y = atc->uvSrc0.y + (1.0f - atc->uvSrc1.y);
+					// This offset moves uvSrc so that it doesn't cross the 0..1 range
+					// (i.e. it doesn't "wrap around")
+					ofs_x = (range_x * fixedInstanceData->randLocNorm.x) - atc->uvSrc0.x;
+					ofs_y = (range_y * fixedInstanceData->randLocNorm.y) - atc->uvSrc0.y;
+				}
+				else
+				{
+					range_x = atc->uvOffsetMax.x - atc->uvOffsetMin.x;
+					range_y = atc->uvOffsetMax.y - atc->uvOffsetMin.y;
+					ofs_x = (range_x * fixedInstanceData->randLocNorm.x) - atc->uvOffsetMin.x;
+					ofs_y = (range_y * fixedInstanceData->randLocNorm.y) - atc->uvOffsetMin.y;
+				}
 				//log_debug("[DBG] [UV]    sel: %0.3f, %0.3f", sel_x, sel_y);
 				//log_debug("[DBG] [UV]    range: %0.3f, %0.3f", range_x, range_y);
-				// This offset moves uvSrc so that it doesn't cross the 0..1 range
-				// (i.e. it doesn't "wrap around")
-				float ofs_x = (range_x * fixedInstanceData->randLocNorm.x) - atc->uvSrc0.x;
-				float ofs_y = (range_y * fixedInstanceData->randLocNorm.y) - atc->uvSrc0.y;
 				//log_debug("[DBG] [UV]    ofs: %0.3f, %0.3f", ofs_x, ofs_y);
 				atc->uvSrc0.x += ofs_x;
 				atc->uvSrc0.y += ofs_y;

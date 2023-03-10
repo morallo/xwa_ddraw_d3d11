@@ -462,19 +462,56 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 		{
 			DoLoop = true;
 
-			atc->uvRandomLoc = true;
+			atc->uvRandomLoc = 1; // RAND_LOC, no params
 
 			t = s;
-			// Skip to the next comma
-			while (*t != 0 && *t != ',') t++;
+			// Skip to the next comma or '=' sign
+			while (*t != 0 && (*t != ',' && *t != '=')) t++;
 			// If we reached the end of the string, that's an error
 			if (*t == 0) return nullptr;
-			// Skip the comma
+			// Store the separator char where we stopped
+			char sep = *t;
+			// Skip the comma or equals sign
 			t++;
+
+			// Parse the next values if we found an equals sign
+			if (sep == '=')
+			{
+				// Start a new string here and continue parsing
+				s = t;
+				// Skip 4 commas
+				for (int i = 0; i < 4; i++)
+				{
+					// Skip to the next ',' char
+					while (*t != 0 && *t != ',') t++;
+					// If we reached the end of the string, that's an error
+					if (*t == 0) return nullptr;
+					// Skip the comma
+					t++;
+				}
+
+				// End the string on this comma to make a new substring
+				*t = 0;
+				float x0, y0, x1, y1;
+				sscanf_s(s, "%f, %f, %f, %f", &x0, &y0, &x1, &y1);
+				atc->uvOffsetMin.x = x0;
+				atc->uvOffsetMin.y = y0;
+				atc->uvOffsetMax.x = x1;
+				atc->uvOffsetMax.y = y1;
+				atc->uvRandomLoc = 2; // RAND_LOC with 4 params
+				// Skip the previous comma to continue parsing
+				t++;
+			}
 
 			// Re-start the string here and continue parsing
 			s = t;
 			SKIP_WHITESPACES(s);
+			/*if (atc->uvRandomLoc == 2)
+			{
+				log_debug("[DBG] [UV] RAND_LOC: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					atc->uvOffsetMin.x, atc->uvOffsetMin.y,
+					atc->uvOffsetMax.x, atc->uvOffsetMax.y);
+			}*/
 		}
 		// Parse the SCALE modifier
 		else if (stristr(s, "SCALE") != NULL && stristr(s, "RAND_SCALE") == NULL)
@@ -515,9 +552,9 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			// Re-start the string here and continue parsing
 			s = t;
 			SKIP_WHITESPACES(s);
-			log_debug("[DBG] [UV] Scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+			/*log_debug("[DBG] [UV] Scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 				atc->uvScaleMin.x, atc->uvScaleMin.y,
-				atc->uvScaleMax.x, atc->uvScaleMax.y);
+				atc->uvScaleMax.x, atc->uvScaleMax.y);*/
 		}
 		// Parse the RANDOM_SCALE modifier
 		else if (stristr(s, "RAND_SCALE") != NULL)
@@ -558,9 +595,9 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			// Re-start the string here and continue parsing
 			s = t;
 			SKIP_WHITESPACES(s);
-			log_debug("[DBG] [UV] Rand scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+			/*log_debug("[DBG] [UV] Rand scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 				atc->uvScaleMin.x, atc->uvScaleMin.y,
-				atc->uvScaleMax.x, atc->uvScaleMax.y);
+				atc->uvScaleMax.x, atc->uvScaleMax.y);*/
 		}
 	}
 	return s;

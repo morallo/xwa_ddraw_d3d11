@@ -341,10 +341,11 @@ typedef struct AnimatedTexControlStruct {
 	uint32_t OverlayCtrl;
 	float2 uvSrc0;
 	float2 uvSrc1;
-	float2 uvOffset;
+	float2 uvOffsetMin;
+	float2 uvOffsetMax;
 	float2 uvScaleMin;
 	float2 uvScaleMax;
-	bool uvRandomLoc;
+	uint8_t uvRandomLoc;
 	bool uvRandomScale;
 	
 	AnimatedTexControlStruct() {
@@ -374,12 +375,13 @@ typedef struct AnimatedTexControlStruct {
 		OverlayCtrl = 0x0;
 
 		// The animated textures will completely cover the destination surface by default.
-		uvSrc0.x      = uvSrc0.y     = 0;
-		uvSrc1.x      = uvSrc1.y     = 1;
-		uvOffset.x    = uvOffset.y   = 0;
-		uvScaleMin.x  = uvScaleMin.y = 1;
-		uvScaleMax.x  = uvScaleMax.y = 1;
-		uvRandomLoc   = false;
+		uvSrc0.x      = uvSrc0.y      = 0;
+		uvSrc1.x      = uvSrc1.y      = 1;
+		uvOffsetMin.x = uvOffsetMin.y = 0.5f;
+		uvOffsetMax.x = uvOffsetMax.y = 0.5f;
+		uvScaleMin.x  = uvScaleMin.y  = 1;
+		uvScaleMax.x  = uvScaleMax.y  = 1;
+		uvRandomLoc   = 0;
 		uvRandomScale = false;
 	}
 
