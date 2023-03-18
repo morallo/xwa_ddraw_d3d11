@@ -2454,7 +2454,6 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	g_bSkyBoxJustFinished = true;
 
 	_bIsTargetHighlighted = false;
-	bool bIsGUI = false, bIsLensFlare = false;
 	//bool bIsExterior = false, bIsDAT = false;
 	//bool bIsActiveCockpit = false,
 	//bool bIsDS2CoreExplosion = false;
@@ -2513,7 +2512,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	g_bIsFloating3DObject = g_bTargetCompDrawn && _bLastTextureSelectedNotNULL &&
 		!_lastTextureSelected->is_Text && !_lastTextureSelected->is_TrianglePointer &&
 		!_lastTextureSelected->is_Reticle && !_lastTextureSelected->is_Floating_GUI &&
-		!_lastTextureSelected->is_TargetingComp && !bIsLensFlare;
+		!_lastTextureSelected->is_TargetingComp;
 
 	// The GUI starts rendering whenever we detect a GUI element, or Text, or a bracket.
 	// ... or not at all if we're in external view mode with nothing targeted.
@@ -2525,7 +2524,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	//g_bStartedGUI |= bIsGUI || bIsText || bIsBracket || bIsFloatingGUI || bIsReticle;
 	// bIsScaleableGUIElem is true when we're about to render a HUD element that can be scaled down with Ctrl+Z
 	g_bPrevIsScaleableGUIElem = g_bIsScaleableGUIElem;
-	g_bIsScaleableGUIElem = g_bStartedGUI && !g_bIsTrianglePointer && !bIsLensFlare;
+	g_bIsScaleableGUIElem = g_bStartedGUI && !g_bIsTrianglePointer;
 }
 
 // Apply specific material properties for the current texture
