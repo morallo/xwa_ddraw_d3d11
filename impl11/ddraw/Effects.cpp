@@ -196,6 +196,7 @@ int g_iDraw2DCounter = 0;
 bool g_bRendering3D = false; // Set to true when the system is about to render in 3D
 bool g_bPrevPlayerInHangar = false;
 bool g_bInTechRoom = false; // Set to true in PrimarySurface Present 2D (Flip)
+bool g_bInBriefingRoom = false;
 
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
@@ -928,9 +929,24 @@ CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry** object, MobileObjectEntr
 // This code is courtesy of Jeremy.
 bool InTechGlobe()
 {
-	int currentGameState = *(int*)(0x09F60E0 + 0x25FA9);
-	int updateCallback = *(int*)(0x09F60E0 + 0x25FB1 + currentGameState * 0x850 + 0x0844);
-	int XwaTechLibraryGameStateUpdate = 0x00574D70;
-	g_bInTechRoom = (updateCallback == XwaTechLibraryGameStateUpdate);
+	const int currentGameState = *(int*)(0x09F60E0 + 0x25FA9);
+	const int updateCallback = *(int*)(0x09F60E0 + 0x25FB1 + currentGameState * 0x850 + 0x0844);
+	const int XwaTechLibraryGameStateUpdate = 0x00574D70;
+	const int XwaMissionBriefingGameStateUpdate = 0x00564E90;
+	//g_bInTechRoom = (updateCallback == XwaTechLibraryGameStateUpdate);
+	// For functional purposes, "Tech Room" has been used everywhere where 2D rendering is done,
+	// and that includes the briefing room too.
+	g_bInTechRoom = (updateCallback == XwaTechLibraryGameStateUpdate) ||
+		(updateCallback == XwaMissionBriefingGameStateUpdate);
 	return g_bInTechRoom;
+}
+
+// Also courtesy of Jeremy -- of course.
+bool InBriefingRoom()
+{
+	const int currentGameState = *(int*)(0x009F60E0 + 0x25FA9);
+	const int updateCallback = *(int*)(0x009F60E0 + 0x25FB1 + currentGameState * 0x850 + 0x0844);
+	const int XwaMissionBriefingGameStateUpdate = 0x00564E90;
+	g_bInBriefingRoom = (updateCallback == XwaMissionBriefingGameStateUpdate);
+	return g_bInBriefingRoom;
 }

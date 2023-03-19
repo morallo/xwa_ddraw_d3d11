@@ -2134,18 +2134,21 @@ void EffectsRenderer::SceneEnd()
 
 	if (_BLASNeedsUpdate)
 	{
-		if (g_bRTEnabledInTechRoom && g_bInTechRoom)
+		if (g_bRTEnabled || g_bRTEnabledInTechRoom)
 		{
-			// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
-			BuildSingleBLASFromCurrentBVHMap();
-		}
-		else if (g_bRTEnabled && !(*g_playerInHangar))
-		{
-			// Build multiple BLASes and put them in g_LBVHMap
-			BuildMultipleBLASFromCurrentBLASMap();
-			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
-			ReAllocateAndPopulateBvhBuffers(g_iRTTotalBLASNodesInFrame);
-			g_bRTReAllocateBvhBuffer = false;
+			if (InTechGlobe())
+			{
+				// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
+				BuildSingleBLASFromCurrentBVHMap();
+			}
+			else if (!(*g_playerInHangar))
+			{
+				// Build multiple BLASes and put them in g_LBVHMap
+				BuildMultipleBLASFromCurrentBLASMap();
+				// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
+				ReAllocateAndPopulateBvhBuffers(g_iRTTotalBLASNodesInFrame);
+				g_bRTReAllocateBvhBuffer = false;
+			}
 		}
 		_BLASNeedsUpdate = false;
 	}

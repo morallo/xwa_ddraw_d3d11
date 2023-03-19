@@ -296,6 +296,7 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 	GetViewportScale(_constants.viewportScale);
 	// Update g_bInTechGlobe
 	InTechGlobe();
+	InBriefingRoom();
 
 #if LOGGER_DUMP
 	DumpFrame();
