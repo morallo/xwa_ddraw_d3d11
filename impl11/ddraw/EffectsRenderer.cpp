@@ -4227,7 +4227,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Only add these vertices to the BLAS if the texture is not transparent
 	// (engine glows are transparent and may both cast and catch shadows
 	// otherwise)... and other conditions
-	if ((g_bRTEnabledInTechRoom || g_bRTEnabled) &&
+	if (((g_bRTEnabledInTechRoom && g_bInTechRoom) || g_bRTEnabled) &&
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		!(*g_playerInHangar) && // Disable raytracing when parked in the hangar
 		_bLastTextureSelectedNotNULL &&
