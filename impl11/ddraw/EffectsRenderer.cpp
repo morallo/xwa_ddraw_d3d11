@@ -1854,7 +1854,7 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 	// Populate the BVH buffer
 	if (g_bRTReAllocateBvhBuffer || _BLASNeedsUpdate)
 	{
-		if (!g_bInTechRoom)
+		if (!InTechGlobe())
 		{
 			D3D11_MAPPED_SUBRESOURCE map;
 			ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
@@ -2134,21 +2134,21 @@ void EffectsRenderer::SceneEnd()
 
 	if (_BLASNeedsUpdate)
 	{
-		if (g_bRTEnabled || g_bRTEnabledInTechRoom)
+		if (InTechGlobe())
 		{
-			if (InTechGlobe())
+			if (g_bRTEnabledInTechRoom)
 			{
 				// Build a single BVH from the contents of g_LBVHMap and put it in _lbvh
 				BuildSingleBLASFromCurrentBVHMap();
 			}
-			else if (!(*g_playerInHangar))
-			{
-				// Build multiple BLASes and put them in g_LBVHMap
-				BuildMultipleBLASFromCurrentBLASMap();
-				// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
-				ReAllocateAndPopulateBvhBuffers(g_iRTTotalBLASNodesInFrame);
-				g_bRTReAllocateBvhBuffer = false;
-			}
+		}
+		else if (g_bRTEnabled && !(*g_playerInHangar))
+		{
+			// Build multiple BLASes and put them in g_LBVHMap
+			BuildMultipleBLASFromCurrentBLASMap();
+			// Encode the BLASes in g_LBVHMap into the SRVs and resize them if necessary
+			ReAllocateAndPopulateBvhBuffers(g_iRTTotalBLASNodesInFrame);
+			g_bRTReAllocateBvhBuffer = false;
 		}
 		_BLASNeedsUpdate = false;
 	}
@@ -3496,47 +3496,30 @@ void EffectsRenderer::ApplyNormalMapping()
 void EffectsRenderer::ApplyRTShadowsTechRoom(const SceneCompData* scene)
 {
 	_bModifiedShaders = true;
-	// TODO: These conditions need to be updated to allow In-flight RT
-	// Enable/Disable Raytracing as necessary
+	// Enable/Disable Raytracing in the Tech Room
 	g_PSCBuffer.bDoRaytracing = g_bRTEnabledInTechRoom && (_lbvh != nullptr);
 
-	if (!g_bRTEnabledInTechRoom || _lbvh == nullptr)
+	if (!g_bRTEnabledInTechRoom || !g_bInTechRoom || _lbvh == nullptr)
 		return;
 
 	auto &context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
 
-	if (g_bInTechRoom)
-	{
-		Matrix4 transformWorldViewInv = _constants.transformWorldView;
-		transformWorldViewInv = transformWorldViewInv.invert();
+	Matrix4 transformWorldViewInv = _constants.transformWorldView;
+	transformWorldViewInv = transformWorldViewInv.invert();
 
-		// Update the matrices buffer
-		D3D11_MAPPED_SUBRESOURCE map;
-		ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-		HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-		if (SUCCEEDED(hr)) {
-			memcpy(map.pData, transformWorldViewInv.get(), sizeof(Matrix4));
-			context->Unmap(resources->_RTMatrices.Get(), 0);
-		}
-		else
-			log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
+	// Update the matrices buffer
+	D3D11_MAPPED_SUBRESOURCE map;
+	ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	HRESULT hr = context->Map(resources->_RTMatrices.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+	if (SUCCEEDED(hr)) {
+		memcpy(map.pData, transformWorldViewInv.get(), sizeof(Matrix4));
+		context->Unmap(resources->_RTMatrices.Get(), 0);
 	}
-
-	// Non-embedded geometry:
-	/*
-	// Set the Raytracing SRVs
-	ID3D11ShaderResourceView *srvs[] = {
-		_RTBvhSRV.Get(),
-		_RTVerticesSRV.Get(),
-		_RTIndicesSRV.Get()
-	};
-	// Slots 14-16 are used for Raytracing buffers (BVH, Vertices and Indices)
-	context->PSSetShaderResources(14, 3, srvs);
-	*/
+	else
+		log_debug("[DBG] [BVH] Failed when mapping _RTMatrices: 0x%x", hr);
 
 	// Embedded Geometry:
-	//context->PSSetShaderResources(14, 1, _RTBvhSRV.GetAddressOf());
 	ID3D11ShaderResourceView *srvs[] = {
 		resources->_RTBvhSRV.Get(),
 		resources->_RTMatricesSRV.Get(),
@@ -3704,6 +3687,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 
 	// Update g_TLASMap and get a new BlasID and Matrix Slot if necessary -- or find the
 	// existing blasID and matrixSlot for the current mesh/LOD/centroid
+	if (!g_bInTechRoom)
 	{
 		// This is the correct transform chain to apply the Diegetic Joystick in RT; but
 		// I'm getting double shadows. Maybe the IDCentroidKey below needs to be checked?
@@ -3943,7 +3927,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
-	ComPtr<ID3D11PixelShader> lastPixelShader = g_bInTechRoom ? _techRoomPixelShader : _pixelShader;
+	ComPtr<ID3D11PixelShader> lastPixelShader = InTechGlobe() ? _techRoomPixelShader : _pixelShader;
 	_deviceResources->InitPixelShader(lastPixelShader);
 
 	UpdateTextures(scene);
@@ -4229,7 +4213,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Only add these vertices to the BLAS if the texture is not transparent
 	// (engine glows are transparent and may both cast and catch shadows
 	// otherwise)... and other conditions
-	if (((g_bRTEnabledInTechRoom && g_bInTechRoom) || g_bRTEnabled) &&
+	if (((g_bRTEnabledInTechRoom && InTechGlobe()) || g_bRTEnabled) &&
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		!(*g_playerInHangar) && // Disable raytracing when parked in the hangar
 		_bLastTextureSelectedNotNULL &&
