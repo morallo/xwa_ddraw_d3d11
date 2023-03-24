@@ -296,6 +296,7 @@ void D3dRenderer::SceneBegin(DeviceResources* deviceResources)
 	GetViewportScale(_constants.viewportScale);
 	// Update g_bInTechGlobe
 	InTechGlobe();
+	InBriefingRoom();
 
 #if LOGGER_DUMP
 	DumpFrame();
@@ -867,7 +868,7 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 			D3D11_BUFFER_DESC desc;
 			ZeroMemory(&desc, sizeof(desc));
-			int numMatrices = 1;
+			const int numMatrices = 1;
 			desc.ByteWidth = sizeof(Matrix4) * numMatrices;
 			desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;

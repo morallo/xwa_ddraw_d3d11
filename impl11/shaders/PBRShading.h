@@ -87,8 +87,8 @@ float3 computePBRLighting(in float3 L, in float3 light_color, in float3 position
 	return (diffuse + specular_out) * light_color.xyz * dotNL;
 }
 
-// Main entry point for PBR shading with Ray-tracing. This is used in
-// the Tech Room (there's no TLAS and the single BLAS contains all the meshes)
+// Tech Room main entry point for PBR shading with Ray-tracing.
+// There's no TLAS and the single BLAS contains all the meshes.
 float3 addPBR_RT_TechRoom(in float3 position, in float3 N, in float3 FlatN, in float3 V,
 	in float3 baseColor, in float3 lightDir, in float4 lightColor,
 	in float metalMask, in float glossiness, in float reflectance, in float ambient)
@@ -117,7 +117,8 @@ float3 addPBR_RT_TechRoom(in float3 position, in float3 N, in float3 FlatN, in f
 		// Only do raytraced shadows for surfaces that face towards the light source.
 		// If the current surface faces away, we already know it's shadowed
 		const float dotLFlatN = dot(L, FlatN);
-		if (bDoRaytracing && dotLFlatN > 0) {
+		if (bDoRaytracing && dotLFlatN > 0)
+		{
 			Ray ray;
 			ray.origin = position; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.
 			//ray.origin = position + 0.01f * FlatN; // position comes from pos3D. Metric, Y+ is up, Z+ is forward.

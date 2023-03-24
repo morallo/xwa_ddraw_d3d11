@@ -2097,7 +2097,7 @@ bool LoadSSAOParams() {
 			}
 			if (_stricmp(param, "raytracing_enable_embree") == 0) {
 				g_bRTEnableEmbree = (bool)fValue;
-				g_BVHBuilderType = BVHBuilderType_Embree;
+				g_BVHBuilderType = g_bRTEnableEmbree ? BVHBuilderType_Embree : BVHBuilderType_FastQBVH;
 			}
 
 			if (_stricmp(param, "keep_mouse_inside_window") == 0) {
