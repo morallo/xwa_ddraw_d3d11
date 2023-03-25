@@ -14,8 +14,8 @@ extern char g_curOPTLoaded[MAX_OPT_NAME];
 extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
-BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
-//BVHBuilderType g_BVHBuilderType = BVHBuilderType_Embree;
+//BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+BVHBuilderType g_BVHBuilderType = BVHBuilderType_Embree;
 
 RTCDevice g_rtcDevice = nullptr;
 RTCScene g_rtcScene = nullptr;
@@ -3339,7 +3339,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 			// Apply RAND_LOC using fixedInstanceData
 			if (fixedInstanceData != nullptr && atc->uvRandomLoc)
 			{
-				static int count = 0;
+				//static int count = 0;
 				float range_x, range_y, ofs_x, ofs_y;
 				/*log_debug("[DBG] [UV] Initial uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
