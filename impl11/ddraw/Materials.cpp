@@ -457,6 +457,27 @@ char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
 			s = t;
 			SKIP_WHITESPACES(s);
 		}
+		// Parse the FIXED_LOC modifier
+		else if (stristr(s, "FIXED_LOC") != NULL)
+		{
+			DoLoop = true;
+
+			atc->uvRandomLoc = 0; // Disable RAND_LOC
+
+			t = s;
+			// Skip to the next comma
+			while (*t != 0 && *t != ',') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Store the separator char where we stopped
+			char sep = *t;
+			// Skip the comma
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+		}
 		// Parse the RANDOM_LOC modifier
 		else if (stristr(s, "RAND_LOC") != NULL)
 		{

@@ -3322,19 +3322,30 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 		// Apply the randomization of damage textures
 		if (atc->IsHullDamageEvent())
 		{
-			// Apply RAND_SCALE using fixedInstanceData
-			if (fixedInstanceData != nullptr && atc->uvRandomScale) {
-				float rand_val_x = lerp(atc->uvScaleMin.x, atc->uvScaleMax.x, fixedInstanceData->randScaleNorm);
-				float rand_val_y = lerp(atc->uvScaleMin.y, atc->uvScaleMax.y, fixedInstanceData->randScaleNorm);
-				float half_x = (1.0f - rand_val_x) / 2.0f;
-				float half_y = (1.0f - rand_val_y) / 2.0f;
-				atc->uvSrc0.x = half_x;
-				atc->uvSrc1.x = 1.0f - half_x;
-				atc->uvSrc0.y = half_y;
-				atc->uvSrc1.y = 1.0f - half_y;
-				/*log_debug("[DBG] [UV] uvRandomScale uvScaleMinMax: %0.3f, %0.3f, uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-					atc->uvScaleMin.x, atc->uvScaleMax.x,
-					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
+			if (fixedInstanceData != nullptr)
+			{
+				// Apply RAND_SCALE using fixedInstanceData
+				if (atc->uvRandomScale)
+				{
+					float rand_val_x = lerp(atc->uvScaleMin.x, atc->uvScaleMax.x, fixedInstanceData->randScaleNorm);
+					float rand_val_y = lerp(atc->uvScaleMin.y, atc->uvScaleMax.y, fixedInstanceData->randScaleNorm);
+					float half_x = (1.0f - rand_val_x) / 2.0f;
+					float half_y = (1.0f - rand_val_y) / 2.0f;
+					atc->uvSrc0.x = half_x;
+					atc->uvSrc1.x = 1.0f - half_x;
+					atc->uvSrc0.y = half_y;
+					atc->uvSrc1.y = 1.0f - half_y;
+					/*log_debug("[DBG] [UV] uvRandomScale uvScaleMinMax: %0.3f, %0.3f, uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+						atc->uvScaleMin.x, atc->uvScaleMax.x,
+						atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
+				}
+				else
+				{
+					// Initialize uvSrc with the regular coords: we'll need this to apply RAND_LOC when
+					// RAND_SCALE isn't present
+					atc->uvSrc0.x = atc->uvSrc0.y = 0.0f;
+					atc->uvSrc1.x = atc->uvSrc1.y = 1.0f;
+				}
 			}
 			// Apply RAND_LOC using fixedInstanceData
 			if (fixedInstanceData != nullptr && atc->uvRandomLoc)
@@ -3345,6 +3356,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
 				if (atc->uvRandomLoc == 1)
 				{
+					// Random location, place the texture within the [0..1] bounds so that it doesn't
+					// wrap around
 					range_x = atc->uvSrc0.x + (1.0f - atc->uvSrc1.x);
 					range_y = atc->uvSrc0.y + (1.0f - atc->uvSrc1.y);
 					// This offset moves uvSrc so that it doesn't cross the 0..1 range
@@ -3354,6 +3367,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 				}
 				else
 				{
+					// uvRandomLoc == 2
+					// Random location in the range provided by the mat file.
 					range_x = atc->uvOffsetMax.x - atc->uvOffsetMin.x;
 					range_y = atc->uvOffsetMax.y - atc->uvOffsetMin.y;
 					ofs_x = (range_x * fixedInstanceData->randLocNorm.x) - atc->uvOffsetMin.x;
@@ -3366,8 +3381,8 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 				atc->uvSrc0.y += ofs_y;
 				atc->uvSrc1.x += ofs_x;
 				atc->uvSrc1.y += ofs_y;
-				/*log_debug("[DBG] [UV]    %d Final uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-					count++, atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
+				/*log_debug("[DBG] [UV]    Final uvSrc: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					atc->uvSrc0.x, atc->uvSrc0.y, atc->uvSrc1.x, atc->uvSrc1.y);*/
 			}
 			// Apply UV_AREA (and RAND_SCALE/RAND_LOC indirectly):
 			g_PSCBuffer.uvSrc0 = atc->uvSrc0;

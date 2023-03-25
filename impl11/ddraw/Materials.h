@@ -377,11 +377,11 @@ typedef struct AnimatedTexControlStruct {
 		// The animated textures will completely cover the destination surface by default.
 		uvSrc0.x      = uvSrc0.y      = 0;
 		uvSrc1.x      = uvSrc1.y      = 1;
-		uvOffsetMin.x = uvOffsetMin.y = 0.5f;
-		uvOffsetMax.x = uvOffsetMax.y = 0.5f;
+		uvOffsetMin.x = uvOffsetMin.y = -0.2f;
+		uvOffsetMax.x = uvOffsetMax.y =  0.2f;
 		uvScaleMin.x  = uvScaleMin.y  = 1;
 		uvScaleMax.x  = uvScaleMax.y  = 1;
-		uvRandomLoc   = 0;
+		uvRandomLoc   = 2; // Defaut: random placement dicated by uvOffsetMin/Max
 		uvRandomScale = false;
 	}
 
