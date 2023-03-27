@@ -27,20 +27,20 @@ std::vector<char*> Text_ResNames = {
 };
 
 std::vector<char*> LaserIonEnergy_ResNames = {
-	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
+	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge.
 	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
-	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B - Wing. (master branch)
-	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B - Wing. (master branch)
+	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B-Wing.
+	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B-Wing.
 };
 
 std::vector<char*> Floating_GUI_ResNames = {
-	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
+	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge.
 	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
-	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B - Wing. (master branch)
-	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B - Wing. (master branch)
-	"dat,12000,1100,", // 0x3b9a3741, (256x128) Full targetting computer, solid. (master branch)
-	"dat,12000,100,",  // 0x7e1b021d, (128x128) Left targetting computer, solid. (master branch)
-	"dat,12000,200,",  // 0x771a714,  (256x256) Left targetting computer, frame only. (master branch)
+	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B-Wing.
+	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B-Wing.
+	"dat,12000,1100,", // 0x3b9a3741, (256x128) Full targetting computer, solid.
+	"dat,12000,100,",  // 0x7e1b021d, (128x128) Left targetting computer, solid.
+	"dat,12000,200,",  // 0x771a714,  (256x256) Left targetting computer, frame only.
 };
 
 // List of regular GUI elements (this is not an exhaustive list). It's mostly used to detect when

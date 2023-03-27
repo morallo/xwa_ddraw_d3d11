@@ -7381,28 +7381,6 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 	*u *= g_fCurScreenWidth / g_fCurScreenHeight;
 }
 
-// This is a crutch: I'm using this to temporarily fix the black screen bug that happens
-// in external view. But other stuff is still wrong (the illumination, for instance, disappears).
-void PrimarySurface::FixViewport()
-{
-	auto& resources = this->_deviceResources;
-	float x0, y0, x1, y1;
-	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
-	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	g_ShadertoyBuffer.x0 = x0;
-	g_ShadertoyBuffer.y0 = y0;
-	g_ShadertoyBuffer.x1 = x1;
-	g_ShadertoyBuffer.y1 = y1;
-	g_ShadertoyBuffer.iTime = 0.0f;
-	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
-	g_ShadertoyBuffer.VRmode = g_bEnableVR;
-	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
-	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-	// We need this to ensure backface culling is disabled
-	resources->InitRasterizerState(resources->_rasterizerState); // This line fixes the black screen bug -- not sure why, though
-}
-
 void PrimarySurface::RenderSunFlare()
 {
 	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSunFlare");
@@ -9534,35 +9512,6 @@ HRESULT PrimarySurface::Flip(
 				resources->InitDepthStencilState(depthState, &desc);
 
 				RenderSunFlare();
-			}
-			else
-			{
-				// We need to set the blend state properly for Bloom, or else we might get
-				// different results when brackets are rendered because they alter the 
-				// blend state
-				D3D11_BLEND_DESC blendDesc{};
-				blendDesc.AlphaToCoverageEnable = FALSE;
-				blendDesc.IndependentBlendEnable = FALSE;
-				blendDesc.RenderTarget[0].BlendEnable = TRUE;
-				blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-				blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-				blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-				blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-				blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-				blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-				blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-				hr = resources->InitBlendState(nullptr, &blendDesc);
-
-				// Temporarily disable ZWrite: we won't need it for post-proc effects
-				D3D11_DEPTH_STENCIL_DESC desc;
-				ComPtr<ID3D11DepthStencilState> depthState;
-				desc.DepthEnable = FALSE;
-				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-				desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-				desc.StencilEnable = FALSE;
-				resources->InitDepthStencilState(depthState, &desc);
-
-				FixViewport();
 			}
 
 			//if (g_bDumpSSAOBuffers) {

@@ -2506,9 +2506,12 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		if (_bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 	}
 
-	//g_bPrevIsPlayerObject = g_bIsPlayerObject;
-	//g_bIsPlayerObject = bIsCockpit || bIsExterior || bIsGunner;
-	//const bool bIsFloatingGUI = _bLastTextureSelectedNotNULL && _lastTextureSelected->is_Floating_GUI;
+	// The new d3dhook by Jeremy changes slightly how draw commands are processed.
+	// Sometimes, after the CMD GUI element is rendered, control comes here from
+	// Direct3DDevice::Execute(), so we need to update g_bTargetCompDrawn in this
+	// path as well.
+	if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0)
+		g_bTargetCompDrawn = true;
 	// Hysteresis detection (state is about to switch to render something different, like the HUD)
 	g_bPrevIsFloatingGUI3DObject = g_bIsFloating3DObject;
 	// Do *not* use g_isInRenderMiniature here, it's not reliable.

@@ -3295,11 +3295,15 @@ HRESULT Direct3DDevice::Execute(
 				 * interfering with the z-values of the cockpit.
 				 */
 				bZWriteEnabled = this->_renderStates->GetZWriteEnabled();
-				/* If we have drawn at least one Floating GUI element and now the ZWrite has been enabled
+				/* If we have drawn at least one Floating GUI element and now ZWrite has been enabled
 				   again, then we're about to draw the floating 3D element. Although, g_bTargetCompDrawn
 				   isn't fully semantically correct because it should be set to true *after* it has actually
-				   been drawn. Here it's being set *before* it's drawn. */
-				if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0 && bZWriteEnabled)
+				   been drawn. Here it's being set *before* it's drawn.
+				   g_bTargetCompDrawn is also updated in EffectsRenderer::DoStateManagement() because
+				   sometimes control jumps directly into the d3dhook from here.
+				*/
+				//if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0 && bZWriteEnabled)
+				if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0)
 					g_bTargetCompDrawn = true;
 				// lastTextureSelected can be NULL. This happens when drawing the square
 				// brackets around the currently-selected object (and maybe other situations)
