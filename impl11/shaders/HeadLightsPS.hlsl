@@ -84,58 +84,6 @@ inline float3 getPosition(in float2 uv, in float level) {
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
 
-/*
- * From Pascal Gilcher's SSR shader.
- * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
- * (Used with permission from the author)
- */
-float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensity /*, out float diff */)
-{
-	float3 offset_swiz = float3(offset.xy, 0);
-	float nm_scale = fn_scale * nm_intensity;
-	// Luminosity samples
-	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * nm_scale;
-	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * nm_scale;
-	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
-	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
-
-	// Depth samples
-	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
-	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
-	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
-	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
-
-	// Depth differences in the x and y axes
-	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
-	//xymult = saturate(1.0 - xymult);
-	xymult = saturate(fn_max_xymult - xymult);
-
-	float3 normal;
-	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
-	normal.z = 1.0;
-	//diff = clamp(1.0 - (abs(normal.x) + abs(normal.y)), 0.0, 1.0);
-	////diff *= diff;
-
-	return normalize(normal);
-}
-
-// n1: base normal
-// n2: detail normal
-float3 blend_normals(float3 n1, float3 n2)
-{
-	// I got this from Pascal Gilcher; but there's more details here:
-	// https://blog.selfshadow.com/publications/blending-in-detail/
-	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
-
-	// UDN:
-	//return normalize(float3(n1.xy + n2.xy, n1.z));
-
-	n1.z += 1.0;
-	n2.xy = -n2.xy;
-	return normalize(n1 * dot(n1, n2) - n1.z * n2);
-	//return n1 * dot(n1, n2) - n1.z * n2;
-}
-
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -231,18 +179,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//ssdoInd = lerp(ssdoInd, 0, mask);
 
 	// Compute normal mapping
-	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
-	float3 FakeNormal = 0;
-	// Glass, Shadeless and Emission should not have normal mapping:
-	//nm_int_mask = lerp(nm_int_mask, 0.0, shadeless);
-	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask /*, diffuse_difference */);
-		// After the normals have blended, we should restore the length of the bent normal:
-		// it should be weighed by AO, which is now in ssdo.y
-		//bentN = ssdo.y * blend_normals(bentN, FakeNormal);
-		N = blend_normals(N, FakeNormal);
-	}
-	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
+	// ... this shader needs normal mapping
 
 	// Specular color
 	float3 spec_col = 1.0;

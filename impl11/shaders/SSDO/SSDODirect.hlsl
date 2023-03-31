@@ -57,68 +57,6 @@ inline float3 getNormal(in float2 uv, in float level) {
 	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
 }
 
-/*
- * From Pascal Gilcher's SSR shader.
- * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
- * (Used with permission from the author)
- */
-/*
-float3 get_normal_from_color(float2 uv, float2 offset)
-{
-	float3 offset_swiz = float3(offset.xy, 0);
-	// Luminosity samples
-	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
-	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
-	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
-	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
-
-	// Depth samples
-	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
-	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
-	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
-	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
-
-	// Depth differences in the x and y axes
-	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
-	//xymult = saturate(1.0 - xymult);
-	xymult = saturate(fn_max_xymult - xymult);
-
-	float3 normal;
-	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
-	normal.z = 1.0;
-
-	return normalize(normal);
-}
-*/
-
-/*
-// n1: base normal
-// n2: detail normal
-float3 blend_normals(float3 n1, float3 n2)
-{
-	// I got this from Pascal Gilcher; but there's more details here:
-	// https://blog.selfshadow.com/publications/blending-in-detail/
-	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
-
-	// UDN:
-	//return normalize(float3(n1.xy + n2.xy, n1.z));
-	
-	//n1 += float3( 0,  0, 1);
-	//n2 *= float3(-1, -1, 1);
-	//return n1 * dot(n1, n2) / n1.z - n2;
-
-	//float3 t = tex2D(texBase, uv).xyz*float3(2, 2, 2) + float3(-1, -1, 0);
-	n1.z += 1.0;
-	//float3 u = tex2D(texDetail, uv).xyz*float3(-2, -2, 2) + float3(1, 1, -1);
-	n2.xy = -n2.xy;
-
-	//float3 r = t * dot(t, u) / t.z - u;
-	//return normalize(n1 * dot(n1, n2) / n1.z - n2);
-	return normalize(n1 * dot(n1, n2) - n1.z * n2);
-	//return r * 0.5 + 0.5;
-}
-*/
-
 struct ColNorm {
 	float3 col; // SSDO Direct Color
 	float3 N;   // Normal

@@ -13,9 +13,9 @@ cbuffer ConstantBuffer : register(b3)
 	float moire_offset, ssao_amplifyFactor;
 	uint fn_enable;
 	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, ssao_unused0;
+	float fn_max_xymult, ssao_unused0, fn_sharpness, ssao_unused1;
 	// 80 bytes
-	float far_sample_radius, ssao_unused1, ssao_unused2, ssao_amplifyFactor2;
+	float far_sample_radius, ssao_unused2, ssao_unused3, ssao_amplifyFactor2;
 	// 96 bytes
 	float2 p0, p1; // Viewport limits in uv space
 	// 112 bytes

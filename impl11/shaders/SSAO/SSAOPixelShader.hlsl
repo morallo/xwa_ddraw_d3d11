@@ -45,48 +45,6 @@ inline float3 getNormal(in float2 uv, in float level) {
 	return texNorm.Sample(sampNorm, uv, level).xyz;
 }
 
-/*
- * From Pascal Gilcher's SSR shader.
- * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
- * (Used with permission from the author)
- */
-/*
-float3 get_normal_from_color(float2 uv, float2 offset)
-{
-	float3 offset_swiz = float3(offset.xy, 0);
-	// Luminosity samples
-	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
-	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * fn_scale;
-	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
-	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * fn_scale;
-
-	// Depth samples
-	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
-	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
-	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
-	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
-
-	// Depth differences in the x and y axes
-	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
-	//xymult = saturate(1.0 - xymult);
-	xymult = saturate(fn_max_xymult - xymult);
-
-	float3 normal;
-	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
-	normal.z = 1.0;
-
-	return normalize(normal);
-}
-
-float3 blend_normals(float3 n1, float3 n2)
-{
-	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
-	n1 += float3(0, 0, 1);
-	n2 *= float3(-1, -1, 1);
-	return n1 * dot(n1, n2) / n1.z - n2;
-}
-*/
-
 inline float3 doAmbientOcclusion(in float2 sample_uv, in float3 P, in float3 Normal, in float level)
 {
 	float3 occluder = getPosition(sample_uv, level);

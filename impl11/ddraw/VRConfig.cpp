@@ -1947,7 +1947,6 @@ bool LoadSSAOParams() {
 	g_fMoireOffsetInd = 0.1f;
 	g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetDir;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
-	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
@@ -2186,9 +2185,6 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "nm_max_xymult") == 0) {
 				g_SSAO_PSCBuffer.fn_max_xymult = fValue;
-			}
-			else if (_stricmp(param, "nm_scale") == 0) {
-				g_SSAO_PSCBuffer.fn_scale = fValue;
 			}
 			else if (_stricmp(param, "nm_sharpness") == 0) {
 				g_SSAO_PSCBuffer.fn_sharpness = fValue;
