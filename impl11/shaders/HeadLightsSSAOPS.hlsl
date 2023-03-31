@@ -195,27 +195,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	float distance_fade = enable_dist_fade * saturate((pos3D.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
 	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
-	/*
-	if (fn_enable) {
-		float nm_intensity = lerp(nm_intensity_near, nm_intensity_far, saturate(pos3D.z / 4000.0));
-		float3 FakeNormal = get_normal_from_color(input.uv, offset);
-		n = blend_normals(nm_intensity * FakeNormal, n);
-		ssao *= (1 - n.z);
-	}
-
-	ssao = lerp(ssao, 1, mask);
-	if (debug)
-		return float4(ssao, 1);
-	else
-		return float4(color * ssao, 1);
-	*/
-
 	//float2 offset = float2(pixelSizeX, pixelSizeY);
 	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
 	float3 FakeNormal = 0;
 	// Glass, Shadeless and Emission should not have normal mapping:
 	if (fn_enable && mask < GLASS_LO) {
-		//nm_int = lerp(nm_intensity_near, nm_intensity_far, saturate(pos3D.z / 4000.0));
 		FakeNormal = get_normal_from_color(input.uv, offset, nm_int);
 		N = blend_normals(N, FakeNormal);
 	}

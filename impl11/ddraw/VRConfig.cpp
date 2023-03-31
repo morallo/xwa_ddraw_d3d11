@@ -1946,8 +1946,6 @@ bool LoadSSAOParams() {
 	g_fMoireOffsetDir = 0.02f;
 	g_fMoireOffsetInd = 0.1f;
 	g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetDir;
-	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
-	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
 	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
@@ -2194,12 +2192,6 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "nm_sharpness") == 0) {
 				g_SSAO_PSCBuffer.fn_sharpness = fValue;
-			}
-			else if (_stricmp(param, "nm_intensity_near") == 0) {
-				g_SSAO_PSCBuffer.nm_intensity_near = fValue;
-			}
-			else if (_stricmp(param, "nm_intensity_far") == 0) {
-				g_SSAO_PSCBuffer.nm_intensity_far = fValue;
 			}
 			else if (_stricmp(param, "override_game_light_pos") == 0) {
 				g_bOverrideLightPos = (bool)fValue;

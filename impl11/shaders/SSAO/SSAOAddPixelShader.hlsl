@@ -403,17 +403,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	/*
-	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
-	float3 FakeNormal = 0;
-	// Glass, Shadeless and Emission should not have normal mapping:
-	if (fn_enable && mask < GLASS_LO) {
-		//nm_int = lerp(nm_intensity_near, nm_intensity_far, saturate(pos3D.z / 4000.0));
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int);
-		N = blend_normals(N, FakeNormal);
-	}
-	*/
-
 	// ************************************************************************************************
 	// MATERIAL PROPERTIES
 	// Specular color
