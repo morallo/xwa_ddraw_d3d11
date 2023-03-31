@@ -64,7 +64,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alpha = HSV.z;
-	//float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;

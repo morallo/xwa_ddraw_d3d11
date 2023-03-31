@@ -113,8 +113,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// DEBUG: Make the cover texture transparent to show the DC contents clearly
 	//coverAlpha = 0.0;
 	// DEBUG
-	//float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
-	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = coverColor;

@@ -4645,7 +4645,7 @@ HRESULT Direct3DDevice::Execute(
 				// We should also avoid touching the GUI elements
 				// When the Death Star is destroyed s_XwaGlobalLightsCount becomes 0, we can use the original illumination in that case.
 				if (/* (*s_XwaGlobalLightsCount == 0) || */
-					(g_bRendering3D && g_bDisableDiffuse && !g_bStartedGUI && !g_bIsTrianglePointer)) {
+					(g_bRendering3D && !g_bStartedGUI && !g_bIsTrianglePointer)) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}

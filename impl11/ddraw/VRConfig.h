@@ -42,7 +42,6 @@ extern bool g_bFixedGUI ;
 //extern float g_fXWAScale ; // This is the scale value as computed during Execute()
 
 extern float g_fSSAOAlphaOfs;
-extern bool g_bDisableDiffuse;
 extern bool g_bProceduralLava;
 
 extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1];

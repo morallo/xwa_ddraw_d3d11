@@ -208,7 +208,6 @@ float g_fHangarAmbient = 0.05f, g_fGlobalAmbient = 0.005f;
 
 extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
-bool g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f;
@@ -2104,10 +2103,7 @@ bool LoadSSAOParams() {
 				g_bKeepMouseInsideWindow = (bool)fValue;
 			}
 
-			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
-				g_bDisableDiffuse = (bool)fValue;
-			}
-			else if (_stricmp(param, "bias") == 0) {
+			if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
 			}
 			else if (_stricmp(param, "intensity") == 0) {
