@@ -3302,8 +3302,9 @@ HRESULT Direct3DDevice::Execute(
 				   g_bTargetCompDrawn is also updated in EffectsRenderer::DoStateManagement() because
 				   sometimes control jumps directly into the d3dhook from here.
 				*/
-				//if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0 && bZWriteEnabled)
-				if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0)
+				// You might be tempted to remove the bZWriteEnabled condition below, but doing so
+				// messes up the state (the Hull and Shields indicator disappears).
+				if (!g_bTargetCompDrawn && g_iFloatingGUIDrawnCounter > 0 && bZWriteEnabled)
 					g_bTargetCompDrawn = true;
 				// lastTextureSelected can be NULL. This happens when drawing the square
 				// brackets around the currently-selected object (and maybe other situations)
