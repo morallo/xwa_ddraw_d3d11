@@ -74,7 +74,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	*/
 
 	float3 color;
-	float fg_alpha = fgColor.a;
+	// The following is a bit of a hack. The foreground texture (the cockpit) gets an
+	// alpha value between 0.8 and 0.9 when the hologram is enabled; but I'll be damned
+	// if I can fix the stupid blend operation to yield alpha=1 from PixelShaderDCHolo.
+	// So, instead, let's multiply the alpha for the foreground by 10 so that we can
+	// work around this stupid stupid stupid (stupid) problem.
+	float fg_alpha = saturate(10.0 * fgColor.a);
 	float lightness = dot(0.333, effectColor.rgb);
 	// Combine the background with the hyperspace effect
 	if (hyperspace_phase == 2) {
