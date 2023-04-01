@@ -8407,7 +8407,7 @@ void PrimarySurface::RenderEdgeDetector()
 	// Read the IFF of the current target and use it to colorize the wireframe display
 	//short currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
 	// Jeremy says I should use this to get the target index:
-	short currentTargetIndex = g_playerInHangar ?
+	short currentTargetIndex = *g_playerInHangar ?
 		PlayerDataTable[*g_playerIndex].objectIndex : PlayerDataTable[*g_playerIndex].currentTargetIndex;
 
 	// I think I remember that when currentTargetIndex is 0, the game crashed; but Jeremy
