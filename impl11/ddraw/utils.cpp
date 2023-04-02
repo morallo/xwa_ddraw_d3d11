@@ -6,8 +6,10 @@
 #include "utils.h"
 
 #include <sstream>
+#include <iomanip>
 #include <memory>
 #include <gdiplus.h>
+#include <shellapi.h>
 
 // SteamVR
 #include <headers/openvr.h>
@@ -16,15 +18,13 @@
 
 using namespace Gdiplus;
 
-void DisplayTimedMessage(uint32_t seconds, int row, char *msg);
+void DisplayTimedMessage(uint32_t seconds, int row, char* msg);
 
-void toupper(char *string)
+std::string int_to_hex(int i)
 {
-	int i = 0;
-	while (string[i]) {
-		string[i] = (char)toupper(string[i]);
-		i++;
-	}
+	std::stringstream stream;
+	stream << std::setfill('0') << std::setw(8) << std::hex << i;
+	return stream.str();
 }
 
 std::string wchar_tostring(LPCWSTR text)
@@ -45,6 +45,15 @@ std::wstring string_towstring(const char* text)
 	std::wstringstream path;
 	path << text;
 	return path.str();
+}
+
+void toupper(char* string)
+{
+	int i = 0;
+	while (string[i]) {
+		string[i] = (char)toupper(string[i]);
+		i++;
+	}
 }
 
 #if LOGGER
@@ -477,12 +486,46 @@ void copySurface(char* dest, DWORD destWidth, DWORD destHeight, DWORD destBpp, c
 	}
 }
 
+int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
+{
+	UINT num = 0;
+	UINT size = 0;
+
+	ImageCodecInfo* pImageCodecInfo = nullptr;
+
+	GetImageEncodersSize(&num, &size);
+	if (size == 0)
+		return -1;  // Failure
+
+	pImageCodecInfo = (ImageCodecInfo*)(malloc(size));
+	if (pImageCodecInfo == nullptr)
+		return -1;  // Failure
+
+	GetImageEncoders(num, size, pImageCodecInfo);
+
+	for (UINT j = 0; j < num; ++j)
+	{
+		if (wcscmp(pImageCodecInfo[j].MimeType, format) == 0)
+		{
+			*pClsid = pImageCodecInfo[j].Clsid;
+			free(pImageCodecInfo);
+			return j;  // Success
+		}
+	}
+
+	free(pImageCodecInfo);
+	return -1;  // Failure
+}
+
 class GdiInitializer
 {
 public:
 	GdiInitializer()
 	{
 		this->status = GdiplusStartup(&token, &gdiplusStartupInput, nullptr);
+
+		GetEncoderClsid(L"image/png", &this->pngClsid);
+		GetEncoderClsid(L"image/jpeg", &this->jpgClsid);
 	}
 
 	~GdiInitializer()
@@ -502,6 +545,8 @@ public:
 	GdiplusStartupInput gdiplusStartupInput;
 
 	Status status;
+	CLSID pngClsid;
+	CLSID jpgClsid;
 };
 
 static GdiInitializer g_gdiInitializer;
@@ -516,6 +561,7 @@ void scaleSurface(char* dest, DWORD destWidth, DWORD destHeight, DWORD destBpp, 
 
 	{
 		std::unique_ptr<Graphics> graphics(new Graphics(bitmap.get()));
+		graphics->SetInterpolationMode(InterpolationModeNearestNeighbor);
 
 		Rect rc(0, 0, destWidth, destHeight);
 
@@ -655,37 +701,39 @@ ColorConverterTables::ColorConverterTables()
 
 ColorConverterTables g_colorConverterTables;
 
-//#if LOGGER
-
-int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
+void saveScreenshot(std::wstring filename, char* buffer, DWORD width, DWORD height, DWORD bpp)
 {
-	UINT num = 0;
-	UINT size = 0;
+	if (g_gdiInitializer.hasError())
+		return;
 
-	ImageCodecInfo* pImageCodecInfo = nullptr;
+	char* image;
 
-	GetImageEncodersSize(&num, &size);
-	if (size == 0)
-		return -1;  // Failure
-
-	pImageCodecInfo = (ImageCodecInfo*)(malloc(size));
-	if (pImageCodecInfo == nullptr)
-		return -1;  // Failure
-
-	GetImageEncoders(num, size, pImageCodecInfo);
-
-	for (UINT j = 0; j < num; ++j)
+	if (bpp == 2)
 	{
-		if (wcscmp(pImageCodecInfo[j].MimeType, format) == 0)
-		{
-			*pClsid = pImageCodecInfo[j].Clsid;
-			free(pImageCodecInfo);
-			return j;  // Success
-		}
+		image = new char[width * height * 4];
+		copySurface(image, width, height, 4, buffer, width, height, bpp, 0, 0, nullptr, false);
+	}
+	else
+	{
+		image = buffer;
 	}
 
-	free(pImageCodecInfo);
-	return -1;  // Failure
+	EncoderParameters encoderParameters;
+	ULONG quality = 100;
+	encoderParameters.Count = 1;
+	encoderParameters.Parameter[0].Guid = EncoderQuality;
+	encoderParameters.Parameter[0].Type = EncoderParameterValueTypeLong;
+	encoderParameters.Parameter[0].NumberOfValues = 1;
+	encoderParameters.Parameter[0].Value = &quality;
+
+	std::unique_ptr<Bitmap> bitmap(new Bitmap(width, height, width * 4, PixelFormat32bppRGB, (BYTE*)image));
+
+	bitmap->Save(filename.c_str(), &g_gdiInitializer.jpgClsid, &encoderParameters);
+
+	if (bpp == 2)
+	{
+		delete[] image;
+	}
 }
 
 void saveSurface(std::wstring name, char* buffer, DWORD width, DWORD height, DWORD bpp)
@@ -693,10 +741,28 @@ void saveSurface(std::wstring name, char* buffer, DWORD width, DWORD height, DWO
 	if (g_gdiInitializer.hasError())
 		return;
 
-	//static int index = 0;
-	//std::wstring filename = name + std::to_wstring(index) + L".png";
-	//index++;
-	std::wstring filename = name;
+	static int index = 0;
+
+	if (index == 0)
+	{
+		SHFILEOPSTRUCT file_op = {
+			NULL,
+			FO_DELETE,
+			"_screenshots",
+			"",
+			FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT,
+			false,
+			0,
+			"" };
+
+		SHFileOperation(&file_op);
+
+		CreateDirectory("_screenshots", nullptr);
+	}
+
+	//std::wstring filename = L"_screenshots\\" + std::to_wstring(index) + L"_" + name + L".png";
+	std::wstring filename = L"_screenshots\\" + std::to_wstring(index) + L"_" + name + L"_" + std::to_wstring(width) + L"x" + std::to_wstring(height) + L"x" + std::to_wstring(bpp) + L".png";
+	index++;
 
 	char* image;
 
@@ -712,17 +778,13 @@ void saveSurface(std::wstring name, char* buffer, DWORD width, DWORD height, DWO
 
 	std::unique_ptr<Bitmap> bitmap(new Bitmap(width, height, width * 4, PixelFormat32bppRGB, (BYTE*)image));
 
-	CLSID pngClsid;
-	GetEncoderClsid(L"image/png", &pngClsid);
-	bitmap->Save(filename.c_str(), &pngClsid, nullptr);
+	bitmap->Save(filename.c_str(), &g_gdiInitializer.pngClsid, nullptr);
 
 	if (bpp == 2)
 	{
 		delete[] image;
 	}
 }
-
-//#endif
 
 void log_debug(const char *format, ...)
 {
