@@ -142,6 +142,9 @@
     <ClCompile Include="XwaD3dRendererHook.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
+	<ClCompile Include="XwaConcourseHook.cpp">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
     <ClCompile Include="EffectsRenderer.cpp">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
@@ -152,7 +155,7 @@
       <Filter>Fichiers sources</Filter>
     </ClCompile>
     <ClCompile Include="LBVH.cpp">
-      <Filter>Fichiers sources</Filter>
+	  <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -357,6 +360,18 @@
     <ClInclude Include="embree\include\rtcore_scene.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
+    <ClInclude Include="SurfaceDC.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="XwaConcourseHook.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ddraw.def">
+      <Filter>Fichiers sources</Filter>
+    </None>
+    <None Include="ddraw.cfg" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ddraw.rc">

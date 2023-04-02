@@ -158,6 +158,7 @@
     <ClCompile Include="utils.cpp" />
     <ClCompile Include="VRConfig.cpp" />
     <ClCompile Include="SteamVRRenderer.cpp" />
+    <ClCompile Include="XwaConcourseHook.cpp" />
     <ClCompile Include="XwaD3dRendererHook.cpp" />
     <ClCompile Include="XwaDrawBracketHook.cpp" />
     <ClCompile Include="XwaDrawRadarHook.cpp" />
@@ -216,12 +217,14 @@
     <ClInclude Include="SharedMem.h" />
     <ClInclude Include="SharedMemTemplate.h" />
     <ClInclude Include="SteamVR.h" />
+	<ClInclude Include="SteamVRRenderer.h" />
+    <ClInclude Include="SurfaceDC.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TextureSurface.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="Vectors.h" />
     <ClInclude Include="VRConfig.h" />
-    <ClInclude Include="SteamVRRenderer.h" />
+    <ClInclude Include="XwaConcourseHook.h" />
     <ClInclude Include="XwaD3dRendererHook.h" />
     <ClInclude Include="XWAEnums.h" />
     <ClInclude Include="XWAFramework.h" />

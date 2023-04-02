@@ -16,6 +16,7 @@
 #include "XwaDrawTextHook.h"
 #include "XwaDrawRadarHook.h"
 #include "XwaDrawBracketHook.h"
+#include "XwaConcourseHook.h"
 #include "xwa_structures.h"
 #include "effects.h"
 #include "globals.h"
@@ -300,7 +301,6 @@ void PrimarySurface::capture(int time_delay, ComPtr<ID3D11Texture2D> buffer, con
 	else
 		log_debug("[DBG] NOT captured, hr: %d", hr);
 }
-//#endif
 
 static bool g_PrimarySurfaceInitialized = false;
 
@@ -8756,19 +8756,21 @@ HRESULT PrimarySurface::Flip(
 
 	if (this->_deviceResources->sceneRenderedEmpty && this->_deviceResources->_frontbufferSurface != nullptr && this->_deviceResources->_frontbufferSurface->wasBltFastCalled)
 	{
-		if (!g_bHyperspaceFirstFrame) {
-			context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
-			context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
-		}
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, resources->clearColorRGBA);
-		if (g_b3DVisionEnabled)
-			context->ClearRenderTargetView(resources->_RTVvision3DPost, resources->clearColorRGBA);
-		if (g_bUseSteamVR) {
+		if (!this->_deviceResources->IsInConcourseHd()) {
 			if (!g_bHyperspaceFirstFrame) {
-				context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
-				context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+				context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+				context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 			}
-			context->ClearRenderTargetView(resources->_renderTargetViewPostR, resources->clearColorRGBA);
+			context->ClearRenderTargetView(resources->_renderTargetViewPost, resources->clearColorRGBA);
+			if (g_b3DVisionEnabled)
+				context->ClearRenderTargetView(resources->_RTVvision3DPost, resources->clearColorRGBA);
+			if (g_bUseSteamVR) {
+				if (!g_bHyperspaceFirstFrame) {
+					context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
+					context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+				}
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, resources->clearColorRGBA);
+			}
 		}
 
 		if (!g_bHyperspaceFirstFrame) {
@@ -8798,6 +8800,7 @@ HRESULT PrimarySurface::Flip(
 		/* Present 2D content */
 		if (lpDDSurfaceTargetOverride == this->_deviceResources->_backbufferSurface)
 		{
+			bool isInConcourseHd = this->_deviceResources->IsInConcourseHd();
 			g_bInTechRoom = (g_iDrawCounter > 0);
 			g_iDrawCounter = 0;
 
@@ -8891,7 +8894,7 @@ HRESULT PrimarySurface::Flip(
 			}
 #endif
 
-			if (this->_deviceResources->_frontbufferSurface == nullptr)
+			if (!isInConcourseHd && this->_deviceResources->_frontbufferSurface == nullptr)
 			{
 				if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
 				{
@@ -8899,7 +8902,7 @@ HRESULT PrimarySurface::Flip(
 					return DDERR_GENERIC;
 				}
 			}
-			else
+			else if (!isInConcourseHd)
 			{
 				const unsigned short colorKey = 0x8080;
 
@@ -9183,7 +9186,24 @@ HRESULT PrimarySurface::Flip(
 					memcpy(this->_deviceResources->_frontbufferSurface->_buffer2, this->_deviceResources->_frontbufferSurface->_buffer, this->_deviceResources->_frontbufferSurface->_bufferSize);
 				}
 
+				if (g_config.HDConcourseEnabled)
+				{
+					ConcourseTakeScreenshot();
+				}
+
 				this->_deviceResources->_frontbufferSurface->wasBltFastCalled = false;
+			}
+
+			if (g_config.HDConcourseEnabled)
+			{
+				const int currentGameState = *(int*)(0x009F60E0 + 0x25FA9);
+				const int updateCallback = *(int*)(0x009F60E0 + 0x25FB1 + 0x850 * currentGameState + 0x0844);
+				const bool isConfigMenuGameStateUpdate = updateCallback == 0x0051D100;
+
+				if (!isConfigMenuGameStateUpdate && this->_deviceResources->IsInConcourseHd())
+				{
+					this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer, this->_deviceResources->_offscreenBufferHdBackground);
+				}
 			}
 
 			this->_deviceResources->_d3dAnnotation->EndEvent();
