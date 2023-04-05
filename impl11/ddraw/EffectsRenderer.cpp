@@ -4586,6 +4586,11 @@ bool EffectsRenderer::DCReplaceTextures()
 			g_PSCBuffer.DynCockpitSlots = numCoords;
 			//g_PSCBuffer.bUseCoverTexture = (dc_element->coverTexture != nullptr) ? 1 : 0;
 			g_PSCBuffer.bUseCoverTexture = (resources->dc_coverTexture[idx] != nullptr) ? 1 : 0;
+			// If there are no DC elements to display and no cover texture, then there's nothing to do here.
+			// If we continue anyway and replace the textures below, artifacts will appear on empty elements.
+			// Artifacts appear on ships with no beam weapon in the beam weapon DC cockpit area, for instance.
+			if (numCoords == 0 && !g_PSCBuffer.bUseCoverTexture)
+				goto out;
 
 			// slot 0 is the cover texture
 			// slot 1 is the HUD offscreen buffer
