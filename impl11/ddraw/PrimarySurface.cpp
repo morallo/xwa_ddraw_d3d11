@@ -8986,33 +8986,18 @@ HRESULT PrimarySurface::Flip(
 					RenderLevels();
 				}
 
-				UINT rate = 25 * this->_deviceResources->_refreshRate.Denominator;
+				UINT rate = 24 * this->_deviceResources->_refreshRate.Denominator;
 				UINT numerator = this->_deviceResources->_refreshRate.Numerator + this->_flipFrames;
 				UINT interval = numerator / rate;
 				this->_flipFrames = numerator % rate;
-				// DEBUG
-				//static bool bDisplayInterval = true;
-				// DEBUG
 
 				interval = max(interval, 1);
-				// DEBUG
-				/*if (bDisplayInterval) {
-					log_debug("[DBG] Original interval: %d", interval);
-				}*/
-				// DEBUG
 
 				hr = DD_OK;
 
 				interval = g_iNaturalConcourseAnimations ? interval : 1;
 				if (g_iNaturalConcourseAnimations > 1)
 					interval = g_iNaturalConcourseAnimations;
-				
-				// DEBUG
-				/*if (bDisplayInterval) {
-					log_debug("[DBG] g_iNaturalConcourseAnimations: %d, Final interval: %d", g_iNaturalConcourseAnimations, interval);
-					bDisplayInterval = false;
-				}*/
-				// DEBUG
 
 				for (UINT i = 0; i < interval; i++)
 				{

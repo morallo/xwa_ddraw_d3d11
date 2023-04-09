@@ -217,7 +217,7 @@
     <ClInclude Include="SharedMem.h" />
     <ClInclude Include="SharedMemTemplate.h" />
     <ClInclude Include="SteamVR.h" />
-	<ClInclude Include="SteamVRRenderer.h" />
+    <ClInclude Include="SteamVRRenderer.h" />
     <ClInclude Include="SurfaceDC.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TextureSurface.h" />

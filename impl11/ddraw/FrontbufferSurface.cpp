@@ -476,7 +476,7 @@ HRESULT FrontbufferSurface::GetDC(
 			pDC->displayHeight = this->_deviceResources->_displayHeight;
 			pDC->aspectRatioPreserved = g_config.AspectRatioPreserved;
 			pDC->callback = &this->_deviceResources->_surfaceDcCallback;
-			pDC->d2d1RenderTarget = this->_deviceResources->_d2d1RenderTarget;
+			pDC->d2d1RenderTarget = this->_deviceResources->_d2d1OffscreenRenderTarget;
 		}
 
 		return DD_OK;
