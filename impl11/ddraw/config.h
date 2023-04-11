@@ -56,6 +56,8 @@ public:
 	bool OnlyGrayscaleInTechRoom;
 	bool CullBackFaces;
 
+	bool HDConcourseEnabled;
+
 	float ProjectionParameterA;
 	float ProjectionParameterB;
 	float ProjectionParameterC;

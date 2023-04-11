@@ -454,6 +454,8 @@ float s_XwaHudScale = 1.0f;
 #include "Direct3DExecuteBuffer.h"
 #include "Direct3DTexture.h"
 #include "BackbufferSurface.h"
+#include "FrontbufferSurface.h"
+#include "OffscreenSurface.h"
 #include "ExecuteBufferDumper.h"
 #include "XwaD3dRendererHook.h"
 #include "PrimarySurface.h"
@@ -6393,10 +6395,18 @@ HRESULT Direct3DDevice::BeginScene()
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 	}
 
-	//log_debug("[DBG] BeginScene RenderMain");
-	if (FAILED(this->_deviceResources->RenderMain(resources->_backbufferSurface->_buffer, resources->_displayWidth,
-		resources->_displayHeight, resources->_displayBpp)))
-		return D3DERR_SCENE_BEGIN_FAILED;
+	if (g_config.HDConcourseEnabled)
+	{
+		if (this->_deviceResources->IsInConcourseHd())
+		{
+			this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer, this->_deviceResources->_offscreenBufferHdBackground);
+		}
+	}
+	else
+	{
+		if (FAILED(this->_deviceResources->RenderMain(resources->_backbufferSurface->_buffer, resources->_displayWidth, resources->_displayHeight, resources->_displayBpp)))
+			return D3DERR_SCENE_BEGIN_FAILED;
+	}
 
 	if (this->_deviceResources->_displayBpp == 2)
 	{

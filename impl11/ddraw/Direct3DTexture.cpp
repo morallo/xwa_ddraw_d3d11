@@ -63,6 +63,11 @@ bool Direct3DTexture::LoadShadowOBJ(char* sFileName) {
 	char line[256];
 	while (!feof(file)) {
 		fgets(line, 256, file);
+		// fgets may fail because EOF has been reached, so we need to check
+		// again here.
+		if (feof(file))
+			break;
+
 		if (line[0] == 'v') {
 			D3DTLVERTEX v;
 			float x, y, z;

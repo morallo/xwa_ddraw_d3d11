@@ -177,12 +177,18 @@ public:
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
 	HRESULT RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp);
+	HRESULT RetrieveTextureBuffer(ID3D11Texture2D* textureBuffer, char* buffer, DWORD width, DWORD height, DWORD bpp);
 
 	UINT GetMaxAnisotropy();
 
 	void CheckMultisamplingSupport();
 
 	bool IsTextureFormatSupported(DXGI_FORMAT format);
+
+	bool BeginAnnotatedEvent(_In_ LPCWSTR Name);
+	bool EndAnnotatedEvent();
+
+	bool IsInConcourseHd();
 
 	DWORD _displayWidth;
 	DWORD _displayHeight;
@@ -200,6 +206,7 @@ public:
 	// Buffers/Textures
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
+	ComPtr<ID3D11Texture2D> _offscreenBufferHdBackground;
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
@@ -576,4 +583,6 @@ public:
 	BackbufferSurface* _backbufferSurface;
 	FrontbufferSurface* _frontbufferSurface;
 	OffscreenSurface* _offscreenSurface;
+
+	void (*_surfaceDcCallback)();
 };
