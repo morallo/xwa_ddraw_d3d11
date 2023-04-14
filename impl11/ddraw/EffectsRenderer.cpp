@@ -14,8 +14,8 @@ extern char g_curOPTLoaded[MAX_OPT_NAME];
 extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
-//BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
-BVHBuilderType g_BVHBuilderType = BVHBuilderType_Embree;
+BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+//BVHBuilderType g_BVHBuilderType = BVHBuilderType_Embree;
 
 RTCDevice g_rtcDevice = nullptr;
 RTCScene g_rtcScene = nullptr;
@@ -32,7 +32,7 @@ bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTEnabledInCockpit = false;
 bool g_bRTEnableSoftShadows = false;
 bool g_bRTCaptureCameraAABB = true;
-bool g_bRTEnableEmbree = true;
+bool g_bRTEnableEmbree = false;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
 int g_iRTTotalBLASNodesInFrame = 0;

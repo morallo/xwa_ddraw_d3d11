@@ -1411,9 +1411,18 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 		InitSharedMem();
 
-		if (g_bRTEnableEmbree)
+		// Embree appears to cause random lockups in the Briefing Room and the
+		// Tech Room. Not sure why, as I can't break into the process to see what's
+		// going on, and since it's not a crash, there isn't a crash dump either.
+		// So let's disable this altogether while I think about what to do next
+		//if (g_bRTEnableEmbree)
+		//{
+		//	LoadEmbree();
+		//}
 		{
-			LoadEmbree();
+			g_bRTEnableEmbree = false;
+			g_BVHBuilderType = BVHBuilderType_FastQBVH;
+			log_debug("[DBG] [BVH] [EMB] Embree was not loaded. Using FastLQBVH instead");
 		}
 
 		if (IsXwaExe())

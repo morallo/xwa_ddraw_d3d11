@@ -3331,9 +3331,15 @@ static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitiv
 #endif
 
 #undef RTC_DEBUG
+//#define RTC_DEBUG_CRASH 1
+#undef RTC_DEBUG_CRASH
 
 static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildren, void* userPtr)
 {
+#ifdef RTC_DEBUG_CRASH
+	if (userPtr == nullptr) log_debug("[DBG] [DBG] RTCCreateNode, userPtr == nullptr");
+	//if (numChildren != 0) log_debug("[DBG] [DBG] RTCCreateNode, numChildren != 0: %d", numChildren);
+#endif
 	BuildData* buildData = (BuildData*)userPtr;
 	InterlockedAdd(buildData->pTotalNodes, 1);
 
@@ -3354,6 +3360,12 @@ static void* RTCCreateNode(RTCThreadLocalAllocator alloc, unsigned int numChildr
 
 static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitive* prims, size_t numPrims, void* userPtr)
 {
+#ifdef RTC_DEBUG_CRASH
+	if (prims == nullptr) log_debug("[DBG] [DBG] RTCCreateLeaf, prims == nullptr");
+	if (numPrims != 1) log_debug("[DBG] [DBG] RTCCreateLeaf, numPrims != 1: %d", numPrims);
+	if (userPtr == nullptr) log_debug("[DBG] [DBG] RTCCreateLeaf, userPtr == nullptr");
+#endif
+
 	BuildData* buildData = (BuildData*)userPtr;
 	//assert(numPrims == 1);
 	//void* ptr = rtcThreadLocalAlloc(alloc, sizeof(LeafNode), 16);
@@ -3383,6 +3395,13 @@ static void* RTCCreateLeaf(RTCThreadLocalAllocator alloc, const RTCBuildPrimitiv
 
 static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChildren, void* userPtr)
 {
+#ifdef RTC_DEBUG_CRASH
+	if (nodePtr == nullptr) log_debug("[DBG] [DBG] RTCSetChildren, nodePtr == nullptr");
+	if (childPtr == nullptr) log_debug("[DBG] [DBG] RTCSetChildren, childPtr == nullptr");
+	if (userPtr == nullptr) log_debug("[DBG] [DBG] RTCSetChildren, userPtr == nullptr");
+	if (numChildren == 0) log_debug("[DBG] [DBG] RTCSetChildren, numChildren == 0");
+#endif
+
 	BuildData* buildData = (BuildData*)userPtr;
 	QTreeNode* node = (QTreeNode*)nodePtr;
 	AABB aabb;
@@ -3420,6 +3439,12 @@ static void RTCSetChildren(void* nodePtr, void** childPtr, unsigned int numChild
 
 static void RTCSetBounds(void* nodePtr, const RTCBounds** bounds, unsigned int numChildren, void* userPtr)
 {
+#ifdef RTC_DEBUG_CRASH
+	if (nodePtr == nullptr) log_debug("[DBG] [DBG] RTCSetBounds, nodePtr == nullptr");
+	if (bounds == nullptr) log_debug("[DBG] [DBG] RTCSetBounds, bounds == nullptr");
+	if (userPtr == nullptr) log_debug("[DBG] [DBG] RTCSetBounds, userPtr == nullptr");
+	if (numChildren == 0) log_debug("[DBG] [DBG] RTCSetBounds, numChildren == 0");
+#endif
 	BuildData* buildData = (BuildData*)userPtr;
 	//assert(numChildren == 2);
 	QTreeNode* node = (QTreeNode*)nodePtr;
