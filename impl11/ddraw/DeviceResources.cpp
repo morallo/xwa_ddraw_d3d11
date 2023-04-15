@@ -5766,7 +5766,11 @@ bool DeviceResources::IsInConcourseHd()
 
 	if (isConfigMenuGameStateUpdate)
 	{
-		g_callDrawCursor = false;
+		if (isConcourse)
+		{
+			g_callDrawCursor = false;
+		}
+
 		return true;
 	}
 
