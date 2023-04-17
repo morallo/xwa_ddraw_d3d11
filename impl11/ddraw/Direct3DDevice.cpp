@@ -6124,12 +6124,15 @@ HRESULT Direct3DDevice::BeginScene()
 	CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
 	if (craftInstance != NULL) {
 		CockpitInstrumentState prevDamage = g_GameEvent.CockpitInstruments;
+
 		if (!g_GameEvent.bCockpitInitialized)
 		{
 			g_GameEvent.InitialCockpitInstruments.FromXWADamage(craftInstance->InitialCockpitInstruments);
+			g_GameEvent.CockpitInstruments = g_GameEvent.InitialCockpitInstruments;
 			g_GameEvent.bCockpitInitialized = true;
 			prevDamage = g_GameEvent.CockpitInstruments;
 		}
+
 		// Restore the cockpit and hull damage
 		if (g_bResetCockpitDamage) {
 			log_debug("[DBG] [CPT] Restoring Cockpit and Hull Damage");
@@ -6138,6 +6141,7 @@ HRESULT Direct3DDevice::BeginScene()
 			g_bResetCockpitDamage = false;
 			prevDamage.FromXWADamage(craftInstance->InitialCockpitInstruments);
 		}
+
 		// Apply the cockpit damage if requested
 		if (g_bApplyCockpitDamage) {
 			FILE *MaskFile = NULL;
