@@ -733,13 +733,17 @@ struct Material {
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_LASER_ION];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamWeapon && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON] > -1 &&
+		// Some ships may not be equipped with a beam weapon, so we need to check the initial state too
+		if (g_GameEvent.InitialCockpitInstruments.BeamWeapon && !g_GameEvent.CockpitInstruments.BeamWeapon &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON] > -1 &&
 			g_GameEvent.InitialCockpitInstruments.BeamWeapon) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.Shields && TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELDS] > -1) {
+		// Some ships may not be equipped with shields, so we need to check the intial status too
+		if (g_GameEvent.CockpitInstruments.Shields && !g_GameEvent.CockpitInstruments.Shields &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELDS] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELDS];
 		}
@@ -764,12 +768,16 @@ struct Material {
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_ENGINE_POWER];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.ShieldRecharge && TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELD_RECHARGE] > -1) {
+		// Some ships may not be equipped with shields, so we need to check the intial status too
+		if (g_GameEvent.InitialCockpitInstruments.ShieldRecharge && !g_GameEvent.CockpitInstruments.ShieldRecharge &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELD_RECHARGE] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELD_RECHARGE];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamRecharge && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE] > -1 &&
+		// Some ships may not be equipped with a beam weapon, so we need to check the initial state too
+		if (g_GameEvent.InitialCockpitInstruments.BeamRecharge && !g_GameEvent.CockpitInstruments.BeamRecharge &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE] > -1 &&
 			g_GameEvent.InitialCockpitInstruments.BeamRecharge) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE];
