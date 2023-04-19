@@ -2058,6 +2058,19 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			col.z = s_XwaGlobalLights[i].ColorB;
 			col.w = 0.0f;
 
+			// Prevent black suns.
+			// Some international languages may cause suns to get a black color if the
+			// FGs are messed. This code prevents such black suns, but it's currently
+			// disabled because the proper fix is to have a *good* xwa.tab. I leave this
+			// here just in case we ever need it again.
+			// For testing purposes, install German and try the second region of B5M3.
+			/*
+			if (g_XWALightInfo[i].bIsSun && (col.x + col.y + col.z) < 0.0001f)
+			{
+				col = Vector4(1, 1, 1, 0);
+			}
+			*/
+
 			intensity = s_XwaGlobalLights[i].Intensity;
 			// Compute the value: use Luma to approximate it
 			value = 0.299f * col.x + 0.587f * col.y + 0.114f * col.z;
@@ -2078,8 +2091,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			// We should not fade the lights while we're in the hangar. The lighting doesn't match
 			// the suns anyway.
 			float Lightness = g_bFadeLights && !*g_playerInHangar ?
-				max(g_fMinLightIntensity, 1.0f - g_ShadowMapVSCBuffer.sm_black_levels[i]) :
-				1.0f;
+				max(g_fMinLightIntensity, 1.0f - g_ShadowMapVSCBuffer.sm_black_levels[i]) : 1.0f;
 
 			g_ShadingSys_PSBuffer.LightColor[i].x = Lightness * g_fXWALightsIntensity * col.x;
 			g_ShadingSys_PSBuffer.LightColor[i].y = Lightness * g_fXWALightsIntensity * col.y;
@@ -7275,7 +7287,7 @@ void PrimarySurface::TagAndFadeXWALights()
 			TagXWALights();
 		else
 		{
-			// When viewinig a film, the lights are apparently not in the right position (!)
+			// When viewing a film, the lights are apparently not in the right position (!)
 			OldTagXWALights();
 		}
 	}
