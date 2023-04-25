@@ -230,3 +230,5 @@ $RECYCLE.BIN/
 *.msp
 
 .vs
+/impl11/ddraw/PropertySheetDebug.props
+/impl11/ddraw/PropertySheetRelease.props
