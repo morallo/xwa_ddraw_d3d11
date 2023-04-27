@@ -4,12 +4,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />
   <ItemDefinitionGroup>
-    <ClCompile>
-      <AdditionalIncludeDirectories>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Zip\XWA-DX11\DirectXTK-master\Inc;C:\Zip\XWA-DX11\openvr-master</AdditionalIncludeDirectories>
-    </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories>C:\Zip\XWA-DX11\DirectXTK-master\Bin\Desktop_2017_Win10\Win32\Release;C:\Zip\XWA-DX11\openvr-master\lib\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Link>
+	  <ClCompile />
+	  <Link />
     <PostBuildEvent>
       <Command>copy /Y $(TargetPath) "c:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance"</Command>
     </PostBuildEvent>
