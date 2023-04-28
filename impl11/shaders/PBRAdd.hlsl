@@ -281,9 +281,11 @@ PixelShaderOutput main(PixelShaderInput input)
 			float rtVal = 0;
 			const int range = 2;
 			const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+			// When RTShadowMaskSizeFactor is 1, we won't get soft shadows because the uv_delta
+			// is too small. So we need to set a lower bound to have a good delta.
+			const float rtSizeFactor = max(2.0, RTShadowMaskSizeFactor);
 			//const float wsize = (2 * range + 1) * (2 * range + 1);
-			const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor,
-				RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor);
+			const float2 uv_delta = float2(RTShadowMaskPixelSizeX * rtSizeFactor, RTShadowMaskPixelSizeY * rtSizeFactor);
 			const float2 uv_delta_d = /* 0.75 * */ uv_delta; // Dilation filter delta
 			const float2 uv_delta_r = range * uv_delta; // Soft shadow delta
 
