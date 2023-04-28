@@ -7,7 +7,7 @@
 #include "ShadowMapping.h"
 #include "SharedMem.h"
 #include <map>
-#include "embree/include/rtcore.h"
+#include <rtcore.h> //Embree
 
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;

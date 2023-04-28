@@ -5,7 +5,7 @@
 #include <queue>
 #include <algorithm>
 
-#include "embree/include/rtcore.h"
+#include <rtcore.h> //Embree
 
 // Remaining issues:
 // - Don't add meshes to the TLAS that come from targeted objects.

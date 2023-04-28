@@ -18,7 +18,7 @@
 // ****************************************************
 // Embree
 // ****************************************************
-#include "embree/include/rtcore.h"
+#include <rtcore.h> //Embree
 
 /*
  * How to compile 32-bit Embree:
