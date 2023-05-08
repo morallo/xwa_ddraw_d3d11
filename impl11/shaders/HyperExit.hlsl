@@ -47,8 +47,9 @@ static const float jump_speed = 5.0;
 // I've noticed that the effect tends to have a bluish tint. In this shader, the blue color
 // is towards the start of the trail, and the white color towards the end:
 //static const vec3 blue_col = vec3(0.5, 0.7, 1);
-static const vec3 blue_col = vec3(0.3, 0.3, 0.6);
-static const vec3 white_col = vec3(0.8, 0.8, 0.95);
+static const vec3 blue_col  = vec3(0.30, 0.30, 0.60);
+static const vec3 red_col   = vec3(0.90, 0.15, 0.15);
+static const vec3 white_col = vec3(0.80, 0.80, 0.95);
 
 inline float getTime() {
 	// iTime goes from t2 + t2_zoom - overlap (full t_max) to 0
@@ -67,14 +68,6 @@ inline float getTime() {
 static const vec2 scr_center = vec2(0.5, 0.5);
 static const float speed = 1.0; // 100 is super-fast, 50 is fast, 25 is good
 
-/*
-struct PixelShaderInput
-{
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
-};
-*/
-
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -86,7 +79,6 @@ struct PixelShaderInput
 struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
-	//float4 bloom    : SV_TARGET1;
 };
 
 /*
@@ -243,6 +235,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// Fade all the trails into view from black to a little above full-white:
 	float fade = mix(1.4, 0.0, smoothstep(0.65, 0.95, t));
 	//float bloom = 0.0;
+	// For the interdiction sequence, use red for the trail color
+	const float3 trail_tint = (Style == 2) ? red_col : blue_col;
 
 	// Each slice renders a single trail; but we can render multiple layers of
 	// slices to add more density and randomness to the effect:
@@ -293,8 +287,8 @@ PixelShaderOutput main(PixelShaderInput input) {
 			);
 		}
 
-		float trail_x = smoothstep(trail_start, trail_end, z);
-		trail_color = mix(blue_col, white_col, trail_x);
+		const float trail_x = smoothstep(trail_start, trail_end, z);
+		trail_color = mix(trail_tint, white_col, trail_x);
 
 		// This line computes the distance from the current pixel, in "slice-coordinates"
 		// to the ideal trail centered at the slice center. The last argument makes the lines

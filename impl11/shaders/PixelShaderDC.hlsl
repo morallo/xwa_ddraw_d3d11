@@ -26,25 +26,6 @@ SamplerState sampler2 : register(s2);
 // texture1 == HUD offscreen buffer
 // texture2 == Text buffer
 
-struct PixelShaderInput
-{
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
-	float4 pos3D  : COLOR1;
-	float4 normal : NORMAL;
-};
-
-struct PixelShaderOutput
-{
-	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
-	float4 pos3D    : SV_TARGET2;
-	float4 normal   : SV_TARGET3;
-	float4 ssaoMask : SV_TARGET4;
-	float4 ssMask   : SV_TARGET5;
-};
-
 float4 uintColorToFloat4(uint color, out float intensity, out float text_alpha_override, out float obj_alpha_override, out bool dc_bloom) {
 	float4 result = float4(
 		((color >> 16) & 0xFF) / 255.0,  // R 0xFF0000
@@ -83,34 +64,64 @@ uint getBGColor(uint i) {
 	return bgColor[idx][sub_idx];
 }
 
+/*
+// Old PixelShaderInput (pre-D3DRendererHook):
+struct PixelShaderInput
+{
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 tex    : TEXCOORD0;
+	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL;
+};
+*/
+
+// New PixelShaderInput needed for the D3DRendererHook
+struct PixelShaderInput
+{
+	float4 pos		: SV_POSITION;
+	float4 pos3D		: COLOR1;
+	float4 normal	: NORMAL;
+	float2 tex		: TEXCOORD;
+	//float4 color  : COLOR0;
+};
+
+struct PixelShaderOutput
+{
+	float4 color		: SV_TARGET0;
+	float4 bloom		: SV_TARGET1;
+	float4 pos3D		: SV_TARGET2;
+	float4 normal	: SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
+	float4 ssMask	: SV_TARGET5;
+};
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	// coverColor/texelColor is the cover texture
-	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
-	if (Clamp) UV = saturate(UV);
-	float4 coverColor = AuxColor * texture0.Sample(sampler0, UV);
-	float coverAlpha = coverColor.w; // alpha of the cover texture
-	float3 HSV = RGBtoHSV(coverColor.rgb);
+	float2 UV          = input.tex * float2(AspectRatio, 1) + Offset.xy;
+	if (Clamp) UV      = saturate(UV);
+	float4 coverColor  = AuxColor * texture0.Sample(sampler0, UV);
+	float  coverAlpha  = coverColor.w; // alpha of the cover texture
+	float  SSAOAlpha   = saturate(min(coverAlpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float3 HSV         = RGBtoHSV(coverColor.rgb);
 	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		coverAlpha = HSV.z;
 
 	// DEBUG: Make the cover texture transparent to show the DC contents clearly
-	//const float coverAlpha = 0.0;
+	//coverAlpha = 0.0;
 	// DEBUG
-	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
-	//output.diffuse = float4(diffuse, 1);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = coverColor;
 	output.pos3D = float4(input.pos3D.xyz, 1);
 
-	// hook_normals code:
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
-	output.normal = float4(N, 1);
+	output.normal = float4(N, SSAOAlpha);
 
 	//output.ssaoMask.r = PLASTIC_MAT;
 	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
@@ -118,8 +129,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.ssaoMask.a = 0.0;
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, coverAlpha);
 
-	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
+	// SS Mask: unused, Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, 0.0, 0.0);
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
@@ -180,6 +191,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			hud_texelColor = lerp(bgColor, hud_texelColor, hud_alpha);
 		}
 	}
+
 	// At this point hud_texelColor has the color from the offscreen HUD buffer blended with bgColor
 	// Blend the offscreen buffer HUD texture with the cover texture and go shadeless where transparent.
 	// Also go shadeless where the cover texture is bright enough and mark that in the bloom mask.
@@ -187,14 +199,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		// We don't have an alpha overlay texture anymore; but we can fake it by disabling shading
 		// on areas with a high lightness value
 
-		// coverColor is the cover_texture right now
-		//float3 HSV = RGBtoHSV(coverColor.xyz);
+		// coverColor is the cover_texture now
 		float brightness = ct_brightness;
 		// The cover texture is bright enough, go shadeless and make it brighter
 		if (HSV.z * coverAlpha >= 0.8) {
-			diffuse = 1;
 			// Increase the brightness:
-			//HSV = RGBtoHSV(coverColor.xyz); // Redundant
 			HSV.z *= 1.2;
 			coverColor.xyz = HSVtoRGB(HSV);
 			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
@@ -209,7 +218,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		coverColor = lerp(hud_texelColor, brightness * coverColor, coverAlpha);
 		output.bloom = lerp(0.0, output.bloom, coverAlpha);
 		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
-		diffuse = lerp(1.0, diffuse, coverAlpha);
+		//diffuse = lerp(1.0, diffuse, coverAlpha);
 		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
 		// ssMask: NMIntensity, SpecValue, Shadeless
 		// DC areas are shadeless, have high glossiness and low spec intensity
@@ -219,6 +228,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, coverAlpha); // Normal Mapping intensity, Specular Value
 		output.ssaoMask.a   = max(output.ssaoMask.a, (1.0 - coverAlpha));
 		output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
+		// After all the blending with the cover texture is finished, the final color should
+		// be opaque. Otherwise transparent areas will look black when shading is off.
+		coverColor.a			= 1.0f;
+		coverAlpha			= coverColor.a;
 	}
 	else {
 		// If use_damage_texture is set, then the cover texture will have the damage texture, so
@@ -227,10 +240,10 @@ PixelShaderOutput main(PixelShaderInput input)
 			coverColor = hud_texelColor;
 			coverAlpha = coverColor.w;
 		}
-		diffuse = 1.0;
+		//diffuse = 1.0;
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
 		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
-		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // No NM, White Spec Val, unused
+		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // (unused), White Spec Val, unused
 	}
 	// Let's make the text and other DC elements emissive so that they are readable even in low lighting conditions
 	output.ssaoMask.r = lerp(output.ssaoMask.r, EMISSION_MAT, hud_Lightness);
@@ -240,7 +253,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// coverColor may have changed, we need to convert to HSV again
 		float3 HSV = RGBtoHSV(coverColor.xyz);
 		if (HSV.z >= 0.8) {
-			diffuse = 1.0;
+			//diffuse = 1.0;
 			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
 			output.ssaoMask.r = SHADELESS_MAT;
 			output.ssaoMask.ga = 1; // Maximum glossiness on light areas
@@ -248,7 +261,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	output.color = float4(diffuse * coverColor.xyz, coverAlpha);
+	output.color = float4(/* diffuse * */ coverColor.xyz, coverAlpha);
 	if (bInHyperspace) output.color.a = 1.0;
 
 	// Text DC elements can be made to float inside the cockpit. In that case, we might want

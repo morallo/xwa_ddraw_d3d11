@@ -62,9 +62,11 @@ struct CraftInstance {
 	BYTE CraftState; // enum CraftState. See above
 	BYTE RemovedFromPlay;
 	WORD AiSkill;
-	WORD field_F; // Ofs 0x0F
-	WORD unknown2;
-	DWORD IsUnderBeamEffect[5];
+	WORD field_F;  // Ofs 0x0F
+	WORD unknown2; // Ofs 0x11
+	DWORD IsUnderBeamEffect[5]; // Ofs 0x13
+	// Index 1: Tractor Beam (value goes from 0 to 0xFFFF when activated)
+	// Index 2: Jamming Beam (value goes from 0 to 0xFFFF when activated)
 	BYTE SfoilsState; // Ofs 0x27
 	BYTE XwaAIData_m00;
 	BYTE meshStates[20]; // Ofs 0x29
@@ -450,7 +452,9 @@ struct PlayerDataEntry
 	char primaryLaserLinkStatus;
 	int secondaryLinkStatus;
 	char criticalMessageType;
-	__int16 criticalMessageObjectIndex;
+	// When a hyperspace jump is initiated, this field contains
+	// the destination region
+	int16_t criticalMessageObjectIndex; // 0x53-0x54
 	char field_55;
 	char field_56;
 	char rollHeld;

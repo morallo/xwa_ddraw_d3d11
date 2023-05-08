@@ -1,5 +1,9 @@
-// PixelShaderCBuffer
-cbuffer ConstantBuffer : register(b0)
+#ifndef PIXEL_SHADER_COMMON_H
+#define PIXEL_SHADER_COMMON_H
+
+// PixelShaderCBuffer, used to be register(b0), but the new D3dRendererHook
+// is using that, so let's use another register: b9
+cbuffer ConstantBuffer : register(b9)
 {
 	float brightness;			// Used to dim some elements to prevent the Bloom effect -- mostly for ReShade compatibility
 	uint DynCockpitSlots;		// (DC) How many DC slots will be used.
@@ -8,9 +12,9 @@ cbuffer ConstantBuffer : register(b0)
 	// 16 bytes
 
 	uint bIsLaser;				// 1 for Laser objects, setting this to 2 will make them brighter (intended for 32-bit mode)
-	uint bIsLightTexture;		// 1 if this is a light texture, 2 will make it brighter (intended for 32-bit mode)
+	float fOverlayBloomPower;	// Controls the intensity of the bloom effect coming from SCREEN overlay textures
 	uint bIsEngineGlow;			// 1 if this is an engine glow textures, 2 will make it brighter (intended for 32-bit mode)
-	uint GreebleControl;		// Bitmask: 0x1 0000 -- Use Normal Map
+	uint GreebleControl;			// Bitmask: 0x1 0000 -- Use Normal Map
 								// 0x00F 1st Tex Blend Mode
 								// 0x0F0 2nd Tex Blend Mode
 								// 0xF00 3rd Tex Blend Mode
@@ -46,5 +50,27 @@ cbuffer ConstantBuffer : register(b0)
 	float GreebleMix1, GreebleMix2;
 	float2 UVDispMapResolution;
 	// 144 bytes
+	float4 AuxColorLight;
+	// 160 bytes
+	uint special_control_light;
+	uint bDoNormalMapping;
+	uint bDoRaytracing;
+	uint OverlayCtrl;			// Used to control overlay effects, like shields down or hull damage
+	// 176 bytes
+
+	float rand0;				// Used as a random values in PixelShaderAnim.hlsl
+	float rand1;
+	float rand2;
+	float PS_unused0;
+	// 192 bytes
+
+	float2 uvSrc0; // Used in animated textures to constrain the area where damage textures will be applied
+	float2 uvSrc1;
+	// 208 bytes
+
+	float2 uvOffset; // Used in animated textures to offset the damage textures
+	float2 uvScale;  // Used in animated textures to scale the damage textures
+	// 224 bytes
 };
 
+#endif

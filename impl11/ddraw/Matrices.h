@@ -168,6 +168,8 @@ public:
     Matrix4&    invertAffine();                         // inverse of affine transform matrix
     Matrix4&    invertProjective();                     // inverse of projective matrix using partitioning
     Matrix4&    invertGeneral();                        // inverse of generic matrix
+    bool        equals(const Matrix4& m,
+                       float delta=0.00001f);            // return all(fabs(this->m - m)) <= delta
 
     // transform matrix
     Matrix4&    translate(float x, float y, float z);   // translation by (x,y,z)

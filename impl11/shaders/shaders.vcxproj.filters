@@ -23,6 +23,10 @@
     <FxCompile Include="MainPixelShaderBpp2ColorKey20.hlsl" />
     <FxCompile Include="MainPixelShaderBpp4ColorKey20.hlsl" />
     <FxCompile Include="MainPixelShaderBpp2ColorKey00.hlsl" />
+    <FxCompile Include="XwaD3dVertexShader.hlsl" />
+    <FxCompile Include="XwaD3dPixelShader.hlsl" />
+    <FxCompile Include="XwaD3dShadowVertexShader.hlsl" />
+    <FxCompile Include="XwaD3dShadowPixelShader.hlsl" />
     <FxCompile Include="SBSVertexShader.hlsl" />
     <FxCompile Include="BarrelPixelShader.hlsl" />
     <FxCompile Include="SingleBarrelPixelShader.hlsl" />
@@ -72,9 +76,19 @@
     <FxCompile Include="ExplosionShader.hlsl" />
     <FxCompile Include="AlphaToBloomPS.hlsl" />
     <FxCompile Include="PixelShaderNoGlass.hlsl" />
-    <FxCompile Include="PixelShaderAnimLightMap.hlsl" />
     <FxCompile Include="PixelShaderGreeble.hlsl" />
     <FxCompile Include="SimpleResizePS.hlsl" />
+    <FxCompile Include="PixelShaderAnim.hlsl" />
+    <FxCompile Include="XwaD3dShadowVertexShaderVR.hlsl" />
+    <FxCompile Include="XwaD3dVertexShaderVR.hlsl" />
+    <FxCompile Include="DATVertexShaderVR.hlsl" />
+    <FxCompile Include="HangarShadowMapVS.hlsl" />
+    <FxCompile Include="XwaD3DTechRoomPixelShader.hlsl" />
+    <FxCompile Include="PixelShaderAnimDAT.hlsl" />
+    <FxCompile Include="LevelsPS.hlsl" />
+    <FxCompile Include="XwaD3dCSMVertexShader.hlsl" />
+    <FxCompile Include="RT\RTShadowMaskPS.hlsl" />
+    <FxCompile Include="PBRAdd.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -121,5 +135,17 @@
     <ClInclude Include="NormalMapping.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
+    <ClInclude Include="VertexShaderMatrixCB.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="RT\RTCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="PBRShading.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="XwaD3dCommon.hlsl" />
   </ItemGroup>
 </Project>

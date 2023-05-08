@@ -49,7 +49,7 @@
 	inline const auto DisplayMessage = (int(*)(int messageIndex, int playerIndex))0x497D40;
 	inline const auto GetKeyboardDeviceState = (int(*)())0x42B900;
 	inline const auto DirectInputKeyboardReaquire = (char(*)())0x42B920;
-
+	inline const auto IsObjectEnemy = (bool(*)(unsigned __int16 objectIndex, int playerTeam))0x505D40;
 
 
 	// Globals from XWA
@@ -77,7 +77,11 @@
 	inline const auto battleSelectScrollMovement = (int*)0x78317C;
 	inline const auto loadScrnTotalMissionsListed = (int*)0x7830BC;
 	inline const auto localPlayerIndex = (int*)0x8C1CC8;
+
 	inline ObjectEntry** objects = (ObjectEntry**)0x7B33C4;
+	// The total number of objects in the current mission. Use this to iterate *objects
+	inline int *g_XwaObjectsCount = ((int *)0x007FFD80);
+
 	inline PlayerDataEntry* PlayerDataTable = (PlayerDataEntry*)0x8B94E0;
 	inline CraftDefinitionEntry* CraftDefinitionTable = (CraftDefinitionEntry*)0x005BB480; // 32 Entries
 	inline const auto localPlayerConnectedAs = (int*)0xABD7B4;
@@ -140,6 +144,7 @@
 	inline byte *g_IsCMDVisible = (byte *)0x05B5334;
 	inline uint32_t* g_XwaFlightHudColor = (uint32_t*)0x005B5318; // The current HUD color
 	inline uint32_t* g_XwaFlightHudBorderColor = (uint32_t*)0x005B531C; // The current HUD border color
+	inline const char* xwaMissionFileName = (const char*)0x06002E8; // The current mission loaded, like missions\1b1m3g.tie
 
 	inline int* s_XwaGlobalLightsCount = (int*)0x00782848;
 	inline XwaGlobalLight* s_XwaGlobalLights = (XwaGlobalLight*)0x007D4FA0; // Maximum 8 lights

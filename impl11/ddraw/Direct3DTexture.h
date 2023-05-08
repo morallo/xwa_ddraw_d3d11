@@ -6,6 +6,7 @@
 
 #include "materials.h"
 #include "DeviceResources.h"
+#include <map>
 
 class TextureSurface;
 
@@ -60,6 +61,8 @@ public:
 	bool is_TurboLaser;
 	// True if this is an "illumination" or "light" texture
 	bool is_LightTexture;
+	// True if this is a texture with transparency
+	bool is_Transparent;
 	// True if this is an Engine Glow texture
 	bool is_EngineGlow;
 	// True if this is an Electricity (Sparks or Electric Arcs) texture
@@ -150,6 +153,9 @@ public:
 
 	// **** Greebles
 	int GreebleTexIdx;
+
+	// **** Normal Mapping
+	int NormalMapIdx;
 		
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
@@ -176,9 +182,15 @@ public:
 	
 	STDMETHOD(PaletteChanged)(THIS_ DWORD, DWORD);
 
+	std::string GetDATImageHash(char *sDATZIPFileName, int GroupId, int ImageId);
+	bool GetCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv);
+	void AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView *srv);
+
 	void LoadAnimatedTextures(int ATCIndex);
 
 	int LoadGreebleTexture(char *GreebleDATGroupIdImageId, short *Width=nullptr, short *Height=nullptr);
+
+	int LoadNormalMap(char * DATZIPGroupIdImageId, short * Width, short * Height);
 
 	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
 
@@ -197,6 +209,7 @@ public:
 	DeviceResources* _deviceResources;
 
 	TextureSurface* _surface;
+	std::string _name;
 
 	ComPtr<ID3D11ShaderResourceView> _textureView;
 };

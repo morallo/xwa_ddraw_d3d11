@@ -6,16 +6,19 @@
 #include "DynamicCockpit.h"
 #include "ShadowMapping.h"
 #include "SharedMem.h"
+#include <map>
+#include <rtcore.h> //Embree
 
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;
 
 extern bool g_bDisableBarrelEffect, g_bEnableVR, g_bResetHeadCenter, g_bBloomEnabled, g_bAOEnabled, g_bCustomFOVApplied;
 extern bool g_b3DVisionEnabled, g_b3DVisionForceFullScreen;
-extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
-extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bShadowEnable, g_bGlobalSpecToggle, g_bToggleSkipDC;
+extern bool g_bEnableSSAOInShader, g_bEnableIndirectSSDO, g_bResetDC, g_bProceduralSuns, g_bEnableHeadLights;
+extern bool g_bShowSSAODebug, g_bShowNormBufDebug, g_bFNEnable, g_bGlobalSpecToggle, g_bToggleSkipDC, g_bFadeLights, g_bDisplayGlowMarks;
 extern Vector4 g_LightVector[2];
-extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll;
+extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fFocalDist, g_fFakeRoll, g_fMinLightIntensity, g_fGlowMarkZOfs;
+extern int g_iDelayedDumpDebugBuffers;
 
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
@@ -60,20 +63,12 @@ extern bool g_bPrevIsTargetHighlighted; // The value of g_bIsTargetHighlighted f
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 extern unsigned int g_iFloatingGUIDrawnCounter;
 extern int g_iPresentCounter, g_iNonZBufferCounter, g_iSkipNonZBufferDrawIdx;
+constexpr int PLAYERDATATABLE_MIN_SAFE_FRAME = 5;
 extern float g_fZBracketOverride; // 65535 is probably the maximum Z value in XWA
 extern bool g_bResetDC;
 
 // Performance Counters and Timing
-class HiResTimer {
-public:
-	LARGE_INTEGER PC_Frequency, curT, lastT, elapsed_us, start_time;
-	float global_time_s, elapsed_s, last_time_s;
-
-	void ResetGlobalTime();
-	//float GetElapsedTimeSinceLastCall();
-	float GetElapsedTime();
-};
-extern HiResTimer g_HiResTimer;
+#include "HiResTimer.h"
 
 // DS2 Effects
 extern int g_iReactorExplosionCount;
@@ -98,6 +93,12 @@ extern bool g_bHyperHeadSnapped, g_bHyperspaceEffectRenderedOnCurrentFrame;
 extern int g_iHyperExitPostFrames;
 extern bool g_bKeybExitHyperspace;
 extern Vector4 g_TempLightColor[2], g_TempLightVector[2];
+extern int g_iHyperStyle;
+extern bool g_bInterdictionActive;
+extern uint8_t g_iInterdictionBitfield;
+extern float g_fInterdictionShake;
+extern float g_fInterdictionShakeInVR;
+extern float g_fInterdictionAngleScale;
 
 extern bool g_bFXAAEnabled;
 
@@ -108,7 +109,7 @@ extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos;
-extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bShadowEnable;
+extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector[2];
 extern Vector4 g_LightColor[2];
@@ -173,7 +174,6 @@ extern bool g_bExternalHUDEnabled, g_bEdgeDetectorEnabled, g_bStarDebugEnabled;
 
 extern float g_f2DYawMul, g_f2DPitchMul, g_f2DRollMul;
 extern TrackerType g_TrackerType;
-extern bool g_bCorrectedHeadTracking;
 
 extern bool g_bAOEnabled;
 
@@ -193,10 +193,14 @@ extern float g_fDebugFOVscale, g_fDebugYCenter;
 extern bool g_bCustomFOVApplied, g_bLastFrameWasExterior;
 extern float g_fRealHorzFOV, g_fRealVertFOV;
 
-extern SharedDataProxy *g_pSharedData;
+extern SharedMem<SharedMemDataCockpitLook> g_SharedMemCockpitLook;
+extern SharedMem<SharedMemDataTgSmush> g_SharedMemTgSmush;
+extern SharedMemDataCockpitLook* g_pSharedDataCockpitLook;
+extern SharedMemDataTgSmush* g_pSharedDataTgSmush;
 
 // Custom HUD colors
 extern uint32_t g_iHUDInnerColor, g_iHUDBorderColor;
+extern uint32_t g_iOriginalHUDInnerColor, g_iOriginaHUDBorderColor;
 // Laser/Ion Cannon counting vars
 extern bool g_bLasersIonsNeedCounting;
 extern int g_iNumLaserCannons, g_iNumIonCannons;
@@ -212,3 +216,79 @@ extern int g_AltExplosionSelector[MAX_XWA_EXPLOSIONS];
 // current frame.
 extern bool g_bExplosionsDisplayedOnCurrentFrame;
 extern int g_iForceAltExplosion;
+
+// Sun Colors, to be used to apply colors to the flares later
+extern float4 g_SunColors[MAX_SUN_FLARES];
+extern int g_iSunFlareCount;
+
+// D3DRendererHook draw call counter;
+extern int g_iD3DExecuteCounter;
+constexpr float OPT_TO_METERS = 1.0f / 40.96f;
+constexpr float METERS_TO_OPT = 40.96f;
+
+// Raytracing
+enum BVHBuilderType
+{
+	BVHBuilderType_BVH2,
+	BVHBuilderType_QBVH,
+	BVHBuilderType_FastQBVH,
+	BVHBuilderType_Embree,
+	BVHBuilderType_MAX,
+};
+extern BVHBuilderType g_BVHBuilderType;
+extern char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX];
+
+extern bool g_bRTEnabledInTechRoom;
+extern bool g_bRTEnabled;
+extern bool g_bRTEnabledInCockpit;
+extern bool g_bRTEnableSoftShadows;
+extern float g_fRTSoftShadowThresholdMult;
+extern float g_fRTGaussFactor;
+extern int g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_iRTMaxTLASNodesSoFar;
+extern uint32_t g_iRTMaxMeshesSoFar;
+extern int g_iRTMatricesNextSlot;
+extern bool g_bRTReAllocateBvhBuffer;
+extern bool g_bRTCaptureCameraAABB;
+extern bool g_bRTEnableEmbree;
+extern std::map<std::string, bool> g_RTExcludeOPTNames;
+extern std::map<uint8_t, bool> g_RTExcludeShipCategories;
+extern std::map<int, bool> g_RTExcludeMeshes;
+
+extern RTCDevice g_rtcDevice;
+extern RTCScene g_rtcScene;
+
+// Levels.fx
+extern bool g_bEnableLevelsShader;
+extern float g_fLevelsWhitePoint;
+extern float g_fLevelsBlackPoint;
+
+// Gimbal Lock Fix
+// Configurable settings
+extern bool g_bEnableGimbalLockFix, g_bGimbalLockFixActive;
+extern bool g_bEnableRudder, g_bYTSeriesShip;
+extern float g_fRollFromYawScale;
+
+extern float g_fYawAccelRate_s;
+extern float g_fPitchAccelRate_s;
+extern float g_fRollAccelRate_s;
+
+extern float g_fMaxYawRate_s;
+extern float g_fMaxPitchRate_s;
+extern float g_fMaxRollRate_s;
+
+extern float g_fTurnRateScaleThr_0;
+extern float g_fTurnRateScaleThr_100;
+extern float g_fMaxTurnAccelRate_s;
+extern bool g_bThrottleModulationEnabled;
+
+// Gimbal lock debug settings
+extern float g_fMouseRangeX, g_fMouseRangeY;
+extern float g_fMouseDecelRate_s;
+
+// OPT Debugging
+extern bool g_bDumpOptNodes;
+
+// *****************************************************
+// Global functions
+// *****************************************************
+void RenderDeferredDrawCalls();

@@ -13,6 +13,9 @@ constexpr auto MAX_TEX_SEQ_NAME = 80;
 constexpr auto MAX_CANNONS = 8;
 constexpr auto MAX_GREEBLE_NAME = 80;
 constexpr auto MAX_GREEBLE_LEVELS = 2;
+constexpr auto MAX_NORMALMAP_NAME = 80;
+
+float lerp(float x, float y, float s);
 
 typedef enum GreebleBlendModeEnum {
 	GBM_MULTIPLY = 1,
@@ -28,15 +31,43 @@ typedef enum GreebleBlendModeEnum {
 
 extern char *g_sGreebleBlendModes[GBM_MAX_MODES - 1];
 
+typedef enum DiegeticMeshEnum {
+	DM_NONE,
+
+	DM_JOYSTICK,
+
+	DM_THR_ROT_X,
+	DM_THR_ROT_Y,
+	DM_THR_ROT_Z,
+	DM_THR_TRANS,
+	DM_THR_ROT_ANY,
+
+	DM_HYPER_ROT_X,
+	DM_HYPER_ROT_Y,
+	DM_HYPER_ROT_Z,
+	DM_HYPER_TRANS,
+	DM_HYPER_ROT_ANY,
+} DiegeticMeshType;
+
 /*
 
-How to add support for a new event:
+How to add support for a new global event:
 
 1. Add the new event in GameEventEnum
-2. Add the corresponding string for the new event in g_sGameEventNames
+2. Add the corresponding string for the new event in g_sGameEventNames, follow the naming rules!
 3. Add a new field to g_GameEvent (if applicable).
 4. Add support in BeginScene (or wherever relevant) to detect the new event. Add it to g_GameEvent.<Relevant-Field>
 5. Update Materials.h:GetCurrentATCIndex(). Mind the priority of the new event!
+6. Update Materials.cpp:ResetGameEvent()
+7. Update Materials.cpp:UpdateEventsFired()
+
+How to add support for a new instance event:
+
+1. Add the new event in InstEventType
+2. Add the corresponding string for the new event in Materials.cpp:g_sInstEventNames, follow the naming rules!
+3. Add a new field to InstanceEvent (if applicable).
+4. Add support in EffectsRenderer::MainSceneHook() (or wherever relevant) to detect the new event.
+5. Update Materials.h:GetCurrentInstATCIndex(). Mind the priority of the new event!
 6. Update Materials.cpp:ResetGameEvent()
 7. Update Materials.cpp:UpdateEventsFired()
 
@@ -58,7 +89,7 @@ typedef enum GameEventEnum {
 	EVT_NONE = 0,				// Play when no other event is active
 	TGT_EVT_SELECTED,			// Something has been targeted
 	TGT_EVT_LASER_LOCK,			// Laser is "locked"
-	TGT_EVT_WARHEAD_LOCKING,	// Warhead is locking (yellow)
+	TGT_EVT_WARHEAD_LOCKING,		// Warhead is locking (yellow)
 	TGT_EVT_WARHEAD_LOCKED,		// Warhead is locked (red)
 	// Cockpit Instrument Damage Events
 	CPT_EVT_BROKEN_CMD,
@@ -97,6 +128,26 @@ typedef enum GameEventEnum {
 } GameEvent;
 
 extern char *g_sGameEventNames[MAX_GAME_EVT];
+
+typedef enum {
+	IEVT_NONE = 0,
+	// Hull Damage Events
+	IEVT_HULL_DAMAGE_75,
+	IEVT_HULL_DAMAGE_50,
+	IEVT_HULL_DAMAGE_25,
+
+	IEVT_SHIELDS_DOWN,
+	
+	IEVT_TRACTOR_BEAM,
+	IEVT_JAMMING_BEAM,
+
+	// Add new events here...
+
+	// End-of-events sentinel. Do not remove!
+	MAX_INST_EVT
+} InstEventType;
+
+extern char *g_sInstEventNames[MAX_INST_EVT];
 
 // *********************
 // Cockpit Damage
@@ -185,6 +236,71 @@ typedef struct GlobalGameEventStruct {
 // Global game event. Updated throughout the frame, reset in Direct3DDevice::BeginScene()
 extern GlobalGameEvent g_GameEvent;
 
+// Per-instance events. These events are linked to specific ship instances,
+// instead of being global events applied to all textures of the same name.
+class InstanceEvent {
+public:
+	int objectId;
+
+	InstEventType HullEvent = IEVT_NONE;
+	InstEventType PrevHullEvent = IEVT_NONE;
+
+	InstEventType ShieldBeamEvent = IEVT_NONE;
+	InstEventType PrevShieldBeamEvent = IEVT_NONE;
+
+	bool bEventsFired[MAX_INST_EVT];
+	int InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
+	// For instance materials, their corresponding ATC is always initialized to an entry
+	// in g_AnimatedMaterials. This entry is considered a "template". Once this template
+	// has been copied into g_AnimatedInstMaterials, the following flag must be set to true
+	bool bATCHasBeenInstanced;
+	// Random values, used to rotate and translate the textures for the shields down effect.
+	// These values are set each time an event is triggered.
+	float rand0, rand1, rand2;
+
+	InstanceEvent()
+	{
+		objectId = -1;
+		bATCHasBeenInstanced = false;
+		rand0 = rand1 = rand2 = 0.0f;
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				InstTextureATCIndices[j][i] = -1;
+	}
+
+	void ResetEventsFired() {
+		for (int i = 0; i < MAX_INST_EVT; i++)
+			bEventsFired[i] = false;
+	}
+
+	bool EventFired(InstEventType Event) {
+		return bEventsFired[Event];
+	}
+
+	void CopyCurrentEventsToPrev() {
+		PrevHullEvent = HullEvent;
+		PrevShieldBeamEvent = ShieldBeamEvent;
+	}
+};
+
+// Per-instance, fixed data. This information is associated with an objectId-materialId
+// and it's used to display damage textures. For instance, the normalized random location
+// and scale of a damage texture is computed once and stored here for future use.
+struct FixedInstanceData
+{
+	// Normalized (0..1) location of the damage texture
+	float2 randLocNorm;
+	// Normalized (0..1) scale of the damage texture
+	float randScaleNorm;
+
+	FixedInstanceData()
+	{
+		randLocNorm.x = (float)rand() / RAND_MAX;
+		randLocNorm.y = (float)rand() / RAND_MAX;
+		randScaleNorm = (float)rand() / RAND_MAX;
+	}
+};
+
 // Used to store the information related to animated light maps that
 // is loaded from .mat files:
 typedef struct TexSeqElemStruct {
@@ -213,9 +329,24 @@ typedef struct AnimatedTexControlStruct {
 	bool IsRandom, BlackToAlpha, NoLoop, AlphaIsBloomMask;
 	float4 Tint;
 	GameEvent Event; // Activate this animation according to the value set in this field, this is like a "back-pointer" to the event
+	InstEventType InstEvent; // If isInstEvent is true, then this field tells us what type of event is controlled by this ATC
+	bool isInstEvent;
+	// If this ATC describes an Instance Event, then the following will
+	// contain the objectId associated with this ATC.
+	int objectId;
+	uint32_t materialId;
 	float2 Offset;
 	float AspectRatio;
 	int Clamp;
+	uint32_t OverlayCtrl;
+	float2 uvSrc0;
+	float2 uvSrc1;
+	float2 uvOffsetMin;
+	float2 uvOffsetMax;
+	float2 uvScaleMin;
+	float2 uvScaleMax;
+	uint8_t uvRandomLoc;
+	bool uvRandomScale;
 	
 	AnimatedTexControlStruct() {
 		Sequence.clear();
@@ -229,18 +360,47 @@ typedef struct AnimatedTexControlStruct {
 		Tint.y = 1.0f;
 		Tint.z = 1.0f;
 		Event = EVT_NONE;
+		InstEvent = IEVT_NONE;
 		Offset.x = 0.0f;
 		Offset.y = 0.0f;
 		AspectRatio = 1.0f;
 		Clamp = 0;
 		NoLoop = false; // Animations loop by default
+		// Events are global by default. When this flag is set in g_AnimatedMaterials, it
+		// indicates it's a template for instance events and it should not be animated.
+		isInstEvent = false;
+		// If this ATC is an element of g_AnimatedInstMaterials, this field will be set to
+		// the objectId associated with this material.
+		objectId = -1;
+		OverlayCtrl = 0x0;
+
+		// The animated textures will completely cover the destination surface by default.
+		uvSrc0.x      = uvSrc0.y      = 0;
+		uvSrc1.x      = uvSrc1.y      = 1;
+		uvOffsetMin.x = uvOffsetMin.y = -0.2f;
+		uvOffsetMax.x = uvOffsetMax.y =  0.2f;
+		uvScaleMin.x  = uvScaleMin.y  = 1;
+		uvScaleMax.x  = uvScaleMax.y  = 1;
+		uvRandomLoc   = 2; // Defaut: random placement dicated by uvOffsetMin/Max
+		uvRandomScale = false;
 	}
 
 	void ResetAnimation();
+
 	// Updates the timer/index on the current animated material. Only call this function
 	// if the current material has an animation.
 	void Animate();
+
+	// Returns true if this event can be randomized by sending a random value to the shader.
+	// For instance, shields down and beam effects can be easily randomized
+	bool IsRandomizableOverlay();
+	// Returns true if this event is a hull damage event.
+	bool IsHullDamageEvent();
+
 } AnimatedTexControl;
+
+extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
+extern std::vector<AnimatedTexControl> g_AnimatedInstMaterials;
 
 // Used to store the information related to greebles
 typedef struct GreebleDataStruct {
@@ -287,8 +447,38 @@ typedef struct GreebleDataStruct {
 	}
 } GreebleData;
 
+// Used to animate sections of an OPT
+class MeshTransform {
+public:
+	Vector3 Center;
+	float CurRotX, CurRotY, CurRotZ;
+	float RotXDelta, RotYDelta, RotZDelta;
+	bool bDoTransform;
+
+	MeshTransform()
+	{
+		CurRotX = CurRotY = CurRotZ = 0.0f;
+		RotXDelta = RotYDelta = RotZDelta = 0.0f;
+		bDoTransform = false;
+	}
+
+	Matrix4 ComputeTransform();
+	void UpdateTransform();
+};
+
+uint32_t GenerateUniqueMaterialId();
+uint64_t InstEventIdFromObjectMaterialId(int objectId, uint32_t materialId);
+void InstEventIdToObjectMatId(uint64_t instId, int *objectId, uint32_t *materialId);
+
+// (ATCIndex, EventType)
+typedef std::pair<int, int> ATCIndexEvtType;
+
 // Materials
-typedef struct MaterialStruct {
+struct Material {
+	uint32_t Id;
+	int craftIdx;
+	bool bIsDefaultMaterial;
+
 	float Metallic;
 	float Intensity;
 	float Glossiness;
@@ -298,6 +488,9 @@ typedef struct MaterialStruct {
 	bool  NoBloom;
 	Vector3 Light;
 	Vector2 LightUVCoordPos;
+	float LightFalloff;
+	float LightAngle;
+	bool IsLightEmitter;
 	bool  IsLava;
 	float LavaSpeed;
 	float LavaSize;
@@ -324,17 +517,67 @@ typedef struct MaterialStruct {
 	int GroupId;
 	int ImageId;
 
+	// Global ATC event pointers
 	int TextureATCIndices[MAX_ATC_TYPES][MAX_GAME_EVT];
+	// Instance ATC event pointers, they point to template entries in g_AnimatedMaterials.
+	// It may seem redundant to have InstTextureATCIndices and in InstanceEvent too. But
+	// these indices are for material-level templates (i.e. they are global) and the
+	// indices in InstanceEvent are, well, copies of these indices and they are particular
+	// to each instance. This allows one ATC per material per instance so that each instance
+	// can have its own individual timer (that way, animations aren't globally synchronized).
+	// We also need these here when loading the material files because there are no instances
+	// yet anyway and to load the textures themselves in Direct3DTexture.
+	// We use std::vector<int> here to allow multiple versions of the same event, but when
+	// making an instance of these events, we randomly select one.
+	std::vector<int> InstTextureATCIndices[MAX_ATC_TYPES][MAX_INST_EVT];
 
-	//GreebleData GreebleData;
 	int GreebleDataIdx;
+
+	DiegeticMeshType DiegeticMesh;
+	// If DiegeticMesh == DM_JOYSTICK then the following should be populated:
+	Vector3 JoystickRoot;
+	float JoystickMaxYaw;
+	float JoystickMaxPitch;
+
+	// If DiegeticMesh == DM_THR_ROT_*, then the following should be populated:
+	Vector3 ThrottleRoot;
+	float ThrottleMinAngle;
+	float ThrottleMaxAngle;
+
+	// If DiegeticMesh == DM_THR_TRANS, then the following should be populated
+	Vector3 ThrottleStart;
+	Vector3 ThrottleEnd;
+
+	// Rotation matrix helper around an arbitrary axis. This matrix will align
+	// ThrottleEnd - ThrottleStart with the Z+ axis
+	Matrix4 RotAxisToZPlus;
+	// If this flag is set, then RotAxisToZPlus has been computed and cached
+	bool bRotAxisToZPlusReady;
+
+	MeshTransform meshTransform;
+
+	char NormalMapName[MAX_NORMALMAP_NAME];
+	bool NormalMapLoaded;
+
+	// Set to true if this material has at least one property that is activated on
+	// a per-instance basis.
+	bool bInstanceMaterial;
+	bool SkipWhenDisabled;
+	int DisplayIfSpeedGE;
+	float DisplayIfThrottleGE;
+	int DisplayIfMissionSetSpeedGE;
+	int IncreaseBrightnessWithMissionSetSpeed;
+	bool Raytrace;
 
 	// DEBUG properties, remove later
 	//Vector3 LavaNormalMult;
 	//Vector3 LavaPosMult;
 	//bool LavaTranspose;
 
-	MaterialStruct() {
+	Material() {
+		Id = 0;
+		craftIdx = -1;
+		bIsDefaultMaterial = false;
 		Metallic = DEFAULT_METALLIC;
 		Intensity = DEFAULT_SPEC_INT;
 		Glossiness = DEFAULT_GLOSSINESS;
@@ -343,6 +586,9 @@ typedef struct MaterialStruct {
 		IsShadeless = false;
 		Light = Vector3(0.0f, 0.0f, 0.0f);
 		LightUVCoordPos = Vector2(0.1f, 0.5f);
+		LightFalloff = 0.0f;
+		LightAngle = 0.0f;
+		IsLightEmitter = false;
 		NoBloom = false;
 		IsLava = false;
 		LavaSpeed = 1.0f;
@@ -370,34 +616,32 @@ typedef struct MaterialStruct {
 		GroupId = 0;
 		ImageId = 0;
 
-		/*TextureATCIndex = -1;
-		TgtEvtSelectedATCIndex = -1;
-		TgtEvtLaserLockedATCIndex = -1;
-		TgtEvtWarheadLockingATCIndex = -1;
-		TgtEvtWarheadLockedATCIndex = -1;
-
-		CptEvtBrokenCMDIndex = -1;
-		CptEvtBrokenLaserIonIndex = -1;
-		CptEvtBrokenBeamWeaponIndex = -1;
-		CptEvtBrokenShieldsIndex = -1;
-		CptEvtBrokenThrottleIndex = -1;
-		CptEvtBrokenSensorsIndex = -1;
-		CptEvtBrokenThrottleIndex = -1;
-		CptEvtBrokenLaserRechargeIndex = -1;
-		CptEvtBrokenEnginePowerIndex = -1;
-		CptEvtBrokenShieldRechargeIndex = -1;
-		CptEvtBrokenBeamRechargeIndex = -1;
-		*/
-
-		for (int j = 0; j < MAX_ATC_TYPES; j++)
-			for (int i = 0; i < MAX_GAME_EVT; i++)
-				TextureATCIndices[j][i] = -1;
+		ClearATCIndices();
 
 		GreebleDataIdx = -1;
 
 		for (int i = 0; i < MAX_ALT_EXPLOSIONS; i++)
 			AltExplosionIdx[i] = -1;
 		DS2ExplosionIdx = -1;
+
+		DiegeticMesh = DM_NONE;
+		JoystickRoot = Vector3(0, 0, 0);
+		JoystickMaxYaw = 10.0f;
+		JoystickMaxPitch = -10.0f;
+		RotAxisToZPlus.identity();
+		bRotAxisToZPlusReady = false;
+
+		NormalMapName[0] = 0;
+		NormalMapLoaded = false;
+
+		bInstanceMaterial = false;
+		SkipWhenDisabled = false;
+		DisplayIfSpeedGE = -INT_MAX;
+		DisplayIfThrottleGE = -FLT_MAX;
+		DisplayIfMissionSetSpeedGE = -INT_MAX;
+		IncreaseBrightnessWithMissionSetSpeed = -1;
+
+		Raytrace = true;
 
 		/*
 		// DEBUG properties, remove later
@@ -412,7 +656,17 @@ typedef struct MaterialStruct {
 		*/
 	}
 
-	// Returns true if any of the possible texture indices is enabled
+	void ClearATCIndices() {
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
+			for (int i = 0; i < MAX_GAME_EVT; i++)
+				TextureATCIndices[j][i] = -1;
+
+		for (int j = 0; j < MAX_ATC_TYPES; j++)
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				InstTextureATCIndices[j][i].clear();
+	}
+
+	// Returns true if any of the possible texture indices is enabled for a global event
 	inline bool AnyTextureATCIndex() {
 		for (int i = 0; i < MAX_GAME_EVT; i++)
 			if (TextureATCIndices[TEXTURE_ATC_IDX][i] > -1)
@@ -420,7 +674,7 @@ typedef struct MaterialStruct {
 		return false;
 	}
 
-	// Returns true if any of the possible lightmap indices is enabled
+	// Returns true if any of the possible lightmap indices is enabled for a global event
 	inline bool AnyLightMapATCIndex() {
 		for (int i = 0; i < MAX_GAME_EVT; i++)
 			if (TextureATCIndices[LIGHTMAP_ATC_IDX][i] > -1)
@@ -428,7 +682,23 @@ typedef struct MaterialStruct {
 		return false;
 	}
 
-	inline int GetCurrentATCIndex(bool *bIsDamageTex, int ATCType = TEXTURE_ATC_IDX) {
+	// Returns true if any of the possible texture indices is enabled for an instance event
+	inline bool AnyInstTextureATCIndex() {
+		for (int i = 0; i < MAX_INST_EVT; i++)
+			if (InstTextureATCIndices[TEXTURE_ATC_IDX][i].size() > 0)
+				return true;
+		return false;
+	}
+
+	// Returns true if any of the possible lightmap indices is enabled for an instance event
+	inline bool AnyInstLightMapATCIndex() {
+		for (int i = 0; i < MAX_INST_EVT; i++)
+			if (InstTextureATCIndices[LIGHTMAP_ATC_IDX][i].size() > 0)
+				return true;
+		return false;
+	}
+
+	int GetCurrentATCIndex(bool *bIsDamageTex, int ATCType = TEXTURE_ATC_IDX) {
 		int index = TextureATCIndices[ATCType][EVT_NONE]; // Default index, this is what we'll play if EVT_NONE is set
 		if (bIsDamageTex != NULL) *bIsDamageTex = false;
 
@@ -463,13 +733,17 @@ typedef struct MaterialStruct {
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_LASER_ION];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamWeapon && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON] > -1 &&
+		// Some ships may not be equipped with a beam weapon, so we need to check the initial state too
+		if (g_GameEvent.InitialCockpitInstruments.BeamWeapon && !g_GameEvent.CockpitInstruments.BeamWeapon &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON] > -1 &&
 			g_GameEvent.InitialCockpitInstruments.BeamWeapon) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_WEAPON];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.Shields && TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELDS] > -1) {
+		// Some ships may not be equipped with shields, so we need to check the intial status too
+		if (g_GameEvent.CockpitInstruments.Shields && !g_GameEvent.CockpitInstruments.Shields &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELDS] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELDS];
 		}
@@ -494,12 +768,16 @@ typedef struct MaterialStruct {
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_ENGINE_POWER];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.ShieldRecharge && TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELD_RECHARGE] > -1) {
+		// Some ships may not be equipped with shields, so we need to check the intial status too
+		if (g_GameEvent.InitialCockpitInstruments.ShieldRecharge && !g_GameEvent.CockpitInstruments.ShieldRecharge &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELD_RECHARGE] > -1) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_SHIELD_RECHARGE];
 		}
 
-		if (!g_GameEvent.CockpitInstruments.BeamRecharge && TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE] > -1 &&
+		// Some ships may not be equipped with a beam weapon, so we need to check the initial state too
+		if (g_GameEvent.InitialCockpitInstruments.BeamRecharge && !g_GameEvent.CockpitInstruments.BeamRecharge &&
+			TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE] > -1 &&
 			g_GameEvent.InitialCockpitInstruments.BeamRecharge) {
 			if (bIsDamageTex != NULL) *bIsDamageTex = true;
 			return TextureATCIndices[ATCType][CPT_EVT_BROKEN_BEAM_RECHARGE];
@@ -553,7 +831,115 @@ typedef struct MaterialStruct {
 		return index;
 	}
 
-} Material;
+	std::vector<ATCIndexEvtType> GetCurrentInstATCIndex(const int objectId, InstanceEvent &instEvent, int ATCType=TEXTURE_ATC_IDX) {
+		std::vector<ATCIndexEvtType> indices;
+
+		if (objectId == -1) {
+			log_debug("[DBG] [INST] ERROR: objectId == -1!");
+			return indices;
+		}
+
+		// Lazy instancing of templates in g_AnimatedMaterials: we only make instances when
+		// requesting an ATC index for an animation that is about to be displayed.
+		if (!instEvent.bATCHasBeenInstanced) {
+			instEvent.objectId = objectId;
+			int rand_group = 0;
+			// Create a copy of each template in g_AnimatedMaterials and put it into g_AnimatedInstMaterials
+			for (int j = 0; j < MAX_ATC_TYPES; j++)
+				for (int i = 0; i < MAX_INST_EVT; i++) {
+					int size = InstTextureATCIndices[j][i].size();
+					if (size <= 0)
+						continue;
+					
+					// The randomly-selected entry from the list
+					int src_idx = 0;
+
+					// Hull damage events are grouped. If we select a random hull event, we'll
+					// just display randomly increasing damage. But if hull events are grouped
+					// we can add damage to previous textures and show consistent damage. To
+					// achieve this we select a random group for the first hull event, and then
+					// we choose textures from the same group for the other hull events.
+					if (IEVT_HULL_DAMAGE_75 <= i && i <= IEVT_HULL_DAMAGE_25)
+					{
+						// If this is the first hull event, select a random group. All subsequent hull events will
+						// now use this group.
+						if (i == IEVT_HULL_DAMAGE_75) {
+							rand_group = rand() % size;
+							//log_debug("[DBG] [INST] objectId: %d, size: %d, rand_group selected: %d, evt: %s",
+							//	objectId, size, rand_group, g_sInstEventNames[i]);
+						}
+
+						// If the random group is out of bounds for this event, select a new random slot
+						if (rand_group >= size) {
+							//log_debug("[DBG] [INST] objectId: %d, IGNORING previous rand_group: %d, evt: %s",
+							//	objectId, rand_group, g_sInstEventNames[i]);
+							src_idx = InstTextureATCIndices[j][i][rand() % size];
+						}
+						else {
+							//log_debug("[DBG] [INST] objectId: %d, USING previous rand_group: %d, evt: %s",
+							//	objectId, rand_group, g_sInstEventNames[i]);
+							// Select a slot from the group that was randomly chosen previously.
+							src_idx = InstTextureATCIndices[j][i][rand_group];
+						}
+					} else {
+						int atc_idx = rand() % size;
+						src_idx = InstTextureATCIndices[j][i][atc_idx];
+						//log_debug("[DBG] [INST] global InstTextureATCIndices[j][%s].size(): %d, random idx: %d",
+						//	g_sInstEventNames[i], size, atc_idx);
+
+						if (src_idx == -1) {
+							log_debug("[DBG] [INST] WARN: Template %d, event %s is nonempty, but has src_idx == -1",
+								i, g_sInstEventNames[i]);
+							continue;
+						}
+					}
+
+					AnimatedTexControl atc = g_AnimatedMaterials[src_idx];
+					atc.objectId = objectId;
+					atc.materialId = this->Id;
+					g_AnimatedInstMaterials.push_back(atc);
+					const int new_slot = g_AnimatedInstMaterials.size() - 1;
+					if (instEvent.InstTextureATCIndices[j][i] != -1)
+						log_debug("[DBG] [INST] WARN: Overwritting object-matId %d-%d, instEvent.InstTextureATCIndices[j][%d] <-- %d. Prev value: %d",
+							objectId, this->Id, g_sInstEventNames[i], new_slot, instEvent.InstTextureATCIndices[j][i]);
+					instEvent.InstTextureATCIndices[j][i] = new_slot;
+					//log_debug("[DBG] [INST] ATC object-matId: %d-%d instanced. instEvent.InstTextureATCIndices[j][%s] = g_AnimatedMaterials[%d] = %d",
+					//	objectId, this->Id, g_sInstEventNames[i], src_idx, new_slot);
+				}
+			instEvent.bATCHasBeenInstanced = true;
+		}
+
+		// Overrides: these indices are only selected if specific events are set
+		// Most-specific events first... least-specific events later.
+
+		// Shield and Beam events are mutually exclusive: we can only display one of these
+		// because they all use the SCREEN blending mode.
+		// Beam Events
+		if (instEvent.ShieldBeamEvent == IEVT_TRACTOR_BEAM && instEvent.InstTextureATCIndices[ATCType][IEVT_TRACTOR_BEAM] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_TRACTOR_BEAM], IEVT_TRACTOR_BEAM));
+		else
+		if (instEvent.ShieldBeamEvent == IEVT_JAMMING_BEAM && instEvent.InstTextureATCIndices[ATCType][IEVT_JAMMING_BEAM] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_JAMMING_BEAM], IEVT_JAMMING_BEAM));
+		else
+		// Shield Events
+		if (instEvent.ShieldBeamEvent == IEVT_SHIELDS_DOWN && instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_SHIELDS_DOWN], IEVT_SHIELDS_DOWN));
+
+		// Hull Damage Events
+		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_25 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_25], IEVT_HULL_DAMAGE_25));
+		else
+		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_50 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_50], IEVT_HULL_DAMAGE_50));
+		else
+		if (instEvent.HullEvent == IEVT_HULL_DAMAGE_75 && instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75] > -1)
+			indices.push_back(std::make_pair(instEvent.InstTextureATCIndices[ATCType][IEVT_HULL_DAMAGE_75], IEVT_HULL_DAMAGE_75));
+
+		// Add more events here... remember that least-specific events come later
+
+		return indices;
+	}
+};
 
 /*
  Individual entry in the craft material definition file (*.mat). Maintains a copy
@@ -574,10 +960,10 @@ typedef struct MaterialTexDefStruct {
  Contains all the entries from a *.mat file for a single craft, along with the
  OPT name for this craft
 */
-typedef struct CraftMaterialsStruct {
+struct CraftMaterials {
 	std::vector<MaterialTexDef> MaterialList;
 	char OPTname[MAX_OPT_NAME];
-} CraftMaterials;
+};
 
 typedef struct OPTNameStruct {
 	char name[MAX_OPT_NAME];
@@ -598,6 +984,8 @@ extern std::vector<CraftMaterials> g_Materials;
 // way to iterate over them at the end of the frame to update their timers.
 // This list is used to update the timers on animated materials once per frame.
 extern std::vector<AnimatedTexControl> g_AnimatedMaterials;
+// Same as g_AnimatedMaterials, but used to hold instance materials.
+extern std::vector<AnimatedTexControl> g_AnimatedInstMaterials;
 // List of all the OPTs seen so far
 extern std::vector<OPTNameType> g_OPTnames;
 // Global Greeble Data (mask, textures, blending modes)

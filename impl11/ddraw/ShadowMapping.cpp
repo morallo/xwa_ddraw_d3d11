@@ -26,3 +26,14 @@ int g_iNumSunCentroids = 0;
 
 /*********************************************************/
 
+void DisplayTimedMessage(uint32_t seconds, int row, char* msg);
+
+void ToggleCSM()
+{
+	g_ShadowMapping.bCSMEnabled = !g_ShadowMapping.bCSMEnabled;
+	if (g_ShadowMapping.bCSMEnabled)
+		DisplayTimedMessage(3, 0, "CSM Enabled");
+	else
+		DisplayTimedMessage(3, 0, "CSM Disabled");
+}
+

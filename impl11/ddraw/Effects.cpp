@@ -1,6 +1,6 @@
+#include "common.h"
 #include "Effects.h"
 #include "globals.h"
-#include "common.h"
 #include "XWAFramework.h"
 #include "VRConfig.h"
 
@@ -10,6 +10,8 @@ MainShadersCBuffer			g_MSCBuffer;
 BloomPixelShaderCBuffer		g_BloomPSCBuffer;
 PSShadingSystemCB			g_ShadingSys_PSBuffer;
 SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
+OPTMeshTransformCBuffer		g_OPTMeshTransformCB;
+RTConstantsBuffer			g_RTConstantsBuffer;
 
 std::vector<ColorLightPair> g_TextureVector;
 /*
@@ -25,20 +27,20 @@ std::vector<char*> Text_ResNames = {
 };
 
 std::vector<char*> LaserIonEnergy_ResNames = {
-	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
+	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge.
 	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
-	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B - Wing. (master branch)
-	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B - Wing. (master branch)
+	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B-Wing.
+	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B-Wing.
 };
 
 std::vector<char*> Floating_GUI_ResNames = {
-	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge. (master branch)
+	"dat,12000,2400,", // 0xd08b4437, (16x16) Laser charge.
 	"dat,12000,2300,", // 0xd0168df9, (64x64) Laser charge boxes.
-	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B - Wing. (master branch)
-	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B - Wing. (master branch)
-	"dat,12000,1100,", // 0x3b9a3741, (256x128) Full targetting computer, solid. (master branch)
-	"dat,12000,100,",  // 0x7e1b021d, (128x128) Left targetting computer, solid. (master branch)
-	"dat,12000,200,",  // 0x771a714,  (256x256) Left targetting computer, frame only. (master branch)
+	"dat,12000,2500,", // 0xe321d785, (64x64) Laser and ion charge boxes on B-Wing.
+	"dat,12000,2600,", // 0xca2a5c48, (8x8) Laser and ion charge on B-Wing.
+	"dat,12000,1100,", // 0x3b9a3741, (256x128) Full targetting computer, solid.
+	"dat,12000,100,",  // 0x7e1b021d, (128x128) Left targetting computer, solid.
+	"dat,12000,200,",  // 0x771a714,  (256x256) Left targetting computer, frame only.
 };
 
 // List of regular GUI elements (this is not an exhaustive list). It's mostly used to detect when
@@ -104,9 +106,6 @@ std::vector<char*> Explosion_ResNames = {
 std::vector<char*> Smoke_ResNames = {
 	"dat,3003,", // Sparks.dat <-- Smoke when hitting a target
 	"dat,3004,", // Sparks.dat <-- Smoke when hitting a target
-	// The following used to be tagged as explosions, but they look like smoke
-	// Animations.dat
-	"dat,3006,", // Single-frame smoke?
 };
 
 std::vector<char*> Sparks_ResNames = {
@@ -184,16 +183,20 @@ float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
 bool g_bMetricParamsNeedReapply = false;
 Matrix4 g_ReflRotX;
 
+// LASER LIGHTS AND DYNAMIC LIGHTS
 Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
 float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
 bool g_bHeadLightsAutoTurnOn = true;
+const float DEFAULT_DYNAMIC_LIGHT_FALLOFF = 4.0f;
+const Vector3 DEFAULT_EXPLOSION_COLOR = Vector3(1.0f, 0.75f, 0.375f);
 
 bool g_bKeybExitHyperspace = true;
 int g_iDraw2DCounter = 0;
 bool g_bRendering3D = false; // Set to true when the system is about to render in 3D
 bool g_bPrevPlayerInHangar = false;
 bool g_bInTechRoom = false; // Set to true in PrimarySurface Present 2D (Flip)
+bool g_bInBriefingRoom = false;
 
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
@@ -222,10 +225,15 @@ DeleteAllTempZIPDirectoriesFun	DeleteAllTempZIPDirectories = nullptr;
 GetZIPImageMetadataFun			GetZIPImageMetadata = nullptr;
 // **************************
 
-
-void SmallestK::insert(Vector3 P, Vector3 col) {
+void SmallestK::insert(Vector3 P, Vector3 col, Vector3 dir, float falloff, float angle) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {
+		float dx = fabs(_elems[i].P.x - P.x);
+		float dy = fabs(_elems[i].P.y - P.y);
+		float dz = fabs(_elems[i].P.z - P.z);
+		// Avoid inserting duplicate elements in the list.
+		if (dx < 0.0001f && dy < 0.0001f && dz < 0.0001f)
+			return;
 		// Copy the i-th element to the (i+1)-th index to make space at i
 		if (i + 1 < MAX_CB_POINT_LIGHTS)
 			_elems[i + 1] = _elems[i];
@@ -236,9 +244,49 @@ void SmallestK::insert(Vector3 P, Vector3 col) {
 	if (i + 1 < MAX_CB_POINT_LIGHTS) {
 		_elems[i + 1].P = P;
 		_elems[i + 1].col = col;
+		_elems[i + 1].falloff = falloff;
+		_elems[i + 1].angle = angle;
+		_elems[i + 1].dir = dir;
 		if (_size < MAX_CB_POINT_LIGHTS)
 			_size++;
 	}
+}
+
+void SmallestK::remove_duplicates() {
+	bool Active[MAX_CB_POINT_LIGHTS] = { true };
+	VectorColor tmp[MAX_CB_POINT_LIGHTS];
+	int j = 0;
+
+	for (int i = 0; i < _size - 1; i++) {
+		float dx = fabs(_elems[i].P.x - _elems[i + 1].P.x);
+		float dy = fabs(_elems[i].P.y - _elems[i + 1].P.y);
+		float dz = fabs(_elems[i].P.z - _elems[i + 1].P.z);
+		if (dx < 0.0001f && dy < 0.0001f && dz < 0.0001f) {
+			if (g_bDumpSSAOBuffers)
+				log_debug("[DBG] Laser light %d disabled: it's duplicated", i);
+			Active[i] = false;
+		}
+		else if (fabs(_elems[i].P.x < 2.0f) &&
+			fabs(_elems[i].P.y < 2.0f) &&
+			fabs(_elems[i].P.z < 2.0f))
+		{
+			if (g_bDumpSSAOBuffers)
+				log_debug("[DBG] Laser light: %d disabled: too close to the camera", i);
+			Active[i] = false;
+		}
+		else {
+			Active[i] = true;
+			tmp[i] = _elems[i];
+		}
+	}
+
+	for (int i = 0; i < _size; i++) {
+		if (Active[i])
+		{
+			_elems[j++] = tmp[i];
+		}
+	}
+	_size = j;
 }
 
 bool isInVector(uint32_t crc, std::vector<uint32_t>& vector) {
@@ -541,7 +589,7 @@ bool SavePOVOffsetToIniFile()
 		OUT_OF_TAG_ST
 	} fsm = INIT_ST;
 
-	if (g_pSharedData == NULL || !g_pSharedData->bDataReady) {
+	if (g_pSharedDataCockpitLook == NULL || !g_SharedMemCockpitLook.IsDataReady()) {
 		log_debug("[DBG] [POV] Shared Memory has not been initialized, cannot write POV Offset");
 		return false;
 	}
@@ -602,9 +650,9 @@ bool SavePOVOffsetToIniFile()
 				if (fsm == IN_TAG_ST) {
 					fsm = OUT_OF_TAG_ST;
 					fprintf(out_file, "[CockpitPOVOffset]\n");
-					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedData->pSharedData->POVOffsetX);
-					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedData->pSharedData->POVOffsetY);
-					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedData->pSharedData->POVOffsetZ);
+					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
+					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
+					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);
 					fprintf(out_file, "\n");
 					bPOVWritten = true;
 				}
@@ -619,9 +667,9 @@ bool SavePOVOffsetToIniFile()
 	// This DC file may not have the "xwahacker_fov" line, so let's add it:
 	if (!bPOVWritten) {
 		fprintf(out_file, "[CockpitPOVOffset]\n");
-		fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedData->pSharedData->POVOffsetX);
-		fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedData->pSharedData->POVOffsetY);
-		fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedData->pSharedData->POVOffsetZ);
+		fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
+		fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
+		fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);
 		fprintf(out_file, "\n");
 		bPOVWritten = true;
 	}
@@ -636,8 +684,8 @@ bool SavePOVOffsetToIniFile()
 }
 
 /*
- * Saves the current POV Offset to the current .ini file.
- * Only call this function if the shared memory pointer proxy (g_pSharedData)
+ * Loads the current POV Offset from the current .ini file.
+ * Only call this function if the shared memory pointer (g_pSharedDataCockpitLook)
  * has been initialized.
  */
 bool LoadPOVOffsetFromIniFile()
@@ -656,7 +704,7 @@ bool LoadPOVOffsetFromIniFile()
 	} fsm = OUT_OF_TAG_ST;
 
 	log_debug("[DBG] [POV] LoadPOVOffset");
-	if (g_pSharedData == NULL || !g_pSharedData->bDataReady) {
+	if (g_pSharedDataCockpitLook == NULL || !g_SharedMemCockpitLook.IsDataReady()) {
 		log_debug("[DBG] [POV] Shared Memory has not been initialized. Cannot read current POV Offset");
 		return false;
 	}
@@ -706,15 +754,15 @@ bool LoadPOVOffsetFromIniFile()
 				// Read the relevant parameters
 				if (_stricmp(param, "OffsetX") == 0) {
 					log_debug("[DBG] [POV] Read OffsetX: %0.3f", fValue);
-					g_pSharedData->pSharedData->POVOffsetX = fValue;
+					g_pSharedDataCockpitLook->POVOffsetX = fValue;
 				}
 				if (_stricmp(param, "OffsetY") == 0) {
 					log_debug("[DBG] [POV] Read OffsetY: %0.3f", fValue);
-					g_pSharedData->pSharedData->POVOffsetY = fValue;
+					g_pSharedDataCockpitLook->POVOffsetY = fValue;
 				}
 				if (_stricmp(param, "OffsetZ") == 0) {
 					log_debug("[DBG] [POV] Read OffsetZ: %0.3f", fValue);
-					g_pSharedData->pSharedData->POVOffsetZ = fValue;
+					g_pSharedDataCockpitLook->POVOffsetZ = fValue;
 				}
 			}
 		}
@@ -746,6 +794,8 @@ bool LoadHUDColorFromIniFile()
 	uint32_t color = 0x0;
 	g_iHUDInnerColor = 0;
 	g_iHUDBorderColor = 0;
+	//g_iHUDInnerColor = g_iOriginalHUDInnerColor;
+	//g_iHUDBorderColor = g_iOriginaHUDBorderColor;
 
 	// In order to parse the .ini file, we need a finite state machine so that we can
 	// tell when we see the [Section] we're interested in, and when we exit that same
@@ -823,11 +873,12 @@ CraftInstance *GetPlayerCraftInstanceSafe()
 {
 	// I've seen the game crash when trying to access the CraftInstance table in the
 	// first few frames of a new mission. Let's add this test to prevent this crash.
-	if (g_iPresentCounter <= 5) return NULL;
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return NULL;
 
 	// Fetch the pointer to the current CraftInstance
 	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
 	if (objectIndex < 0) return NULL;
+	if (*objects == NULL) return NULL;
 	ObjectEntry *object = &((*objects)[objectIndex]);
 	if (object == NULL) return NULL;
 	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
@@ -835,4 +886,67 @@ CraftInstance *GetPlayerCraftInstanceSafe()
 	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 	if (craftInstance == NULL) return NULL;
 	return craftInstance;
+}
+
+CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry **object)
+{
+	// I've seen the game crash when trying to access the CraftInstance table in the
+	// first few frames of a new mission. Let's add this test to prevent this crash.
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return NULL;
+
+	// Fetch the pointer to the current CraftInstance
+	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+	if (objectIndex < 0) return NULL;
+	if (*objects == NULL) return NULL;
+	*object = &((*objects)[objectIndex]);
+	if (object == NULL) return NULL;
+	MobileObjectEntry* mobileObject = (*object)->MobileObjectPtr;
+	if (mobileObject == NULL) return NULL;
+	CraftInstance* craftInstance = mobileObject->craftInstancePtr;
+	if (craftInstance == NULL) return NULL;
+	return craftInstance;
+}
+
+CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry** object, MobileObjectEntry **mobileObject)
+{
+	// I've seen the game crash when trying to access the CraftInstance table in the
+	// first few frames of a new mission. Let's add this test to prevent this crash.
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return NULL;
+
+	// Fetch the pointer to the current CraftInstance
+	int16_t objectIndex = (int16_t)PlayerDataTable[*g_playerIndex].objectIndex;
+	if (objectIndex < 0) return NULL;
+	if (*objects == NULL) return NULL;
+	*object = &((*objects)[objectIndex]);
+	if (object == NULL) return NULL;
+	*mobileObject = (*object)->MobileObjectPtr;
+	if (*mobileObject == NULL) return NULL;
+	CraftInstance* craftInstance = (*mobileObject)->craftInstancePtr;
+	if (craftInstance == NULL) return NULL;
+	return craftInstance;
+}
+
+// This code is courtesy of Jeremy.
+bool InTechGlobe()
+{
+	const int currentGameState = *(int*)(0x09F60E0 + 0x25FA9);
+	const int updateCallback = *(int*)(0x09F60E0 + 0x25FB1 + currentGameState * 0x850 + 0x0844);
+	const int XwaTechLibraryGameStateUpdate = 0x00574D70;
+	const int XwaMissionBriefingGameStateUpdate = 0x00564E90;
+	//g_bInTechRoom = (updateCallback == XwaTechLibraryGameStateUpdate);
+	// For functional purposes, "Tech Room" has been used everywhere where 2D rendering is done,
+	// and that includes the briefing room too.
+	g_bInTechRoom = (updateCallback == XwaTechLibraryGameStateUpdate) ||
+		(updateCallback == XwaMissionBriefingGameStateUpdate);
+	return g_bInTechRoom;
+}
+
+// Also courtesy of Jeremy -- of course.
+bool InBriefingRoom()
+{
+	const int currentGameState = *(int*)(0x009F60E0 + 0x25FA9);
+	const int updateCallback = *(int*)(0x009F60E0 + 0x25FB1 + currentGameState * 0x850 + 0x0844);
+	const int XwaMissionBriefingGameStateUpdate = 0x00564E90;
+	g_bInBriefingRoom = (updateCallback == XwaMissionBriefingGameStateUpdate);
+	return g_bInBriefingRoom;
 }

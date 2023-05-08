@@ -1,3 +1,4 @@
+#include "common.h"
 #include "VRConfig.h"
 #include "config.h"
 #include "utils.h"
@@ -10,6 +11,8 @@
 #include "Direct3DTexture.h"
 #include "TextureSurface.h"
 #include "SharedMem.h"
+
+#include <map>
 
 // This value (2.0f) was determined experimentally. It provides an almost 1:1 metric reconstruction when compared with the original models
 //const float DEFAULT_FOCAL_DIST = 2.0f; 
@@ -36,7 +39,7 @@ const float DEFAULT_GUI_SCALE = 0.7f;
 const float GAME_SCALE_FACTOR = 60.0f; // Estimated empirically
 const float GAME_SCALE_FACTOR_Z = 60.0f; // Estimated empirically
 
-										 /*
+/*
 const float DEFAULT_LENS_K1 = 2.0f;
 const float DEFAULT_LENS_K2 = 0.22f;
 const float DEFAULT_LENS_K3 = 0.0f;
@@ -51,7 +54,6 @@ const int DEFAULT_SKYBOX_INDEX = 2;
 const bool DEFAULT_BARREL_EFFECT_STATE = true;
 const bool DEFAULT_BARREL_EFFECT_STATE_STEAMVR = false; // SteamVR provides its own lens correction, only enable it if the user really wants it
 const float DEFAULT_BRIGHTNESS = 0.95f;
-const float MAX_BRIGHTNESS = 1.0f;
 const bool DEFAULT_FLOATING_AIMING_HUD = true;
 const int DEFAULT_NATURAL_CONCOURSE_ANIM = 1;
 const bool DEFAULT_DYNAMIC_COCKPIT_ENABLED = false;
@@ -120,7 +122,6 @@ const char* ROLL_MULTIPLIER_VRPARAM = "roll_multiplier";
 const char* FREEPIE_SLOT_VRPARAM = "freepie_slot";
 const char* STEAMVR_POS_FROM_FREEPIE_VRPARAM = "steamvr_pos_from_freepie";
 // Cockpitlook params
-const char* POSE_CORRECTED_HEADTRACKING = "pose_corrected_headtracking";
 const char* YAW_MULTIPLIER_CLPARAM = "yaw_multiplier";
 const char* PITCH_MULTIPLIER_CLPARAM = "pitch_multiplier";
 const char* YAW_OFFSET_CLPARAM = "yaw_offset";
@@ -148,16 +149,17 @@ bool g_bOverrideAspectRatio = false;
 /*
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
-bool g_bEnableVR = true;
+bool g_bEnableVR = false;
 bool g_b3DVisionEnabled = false, g_b3DVisionForceFullScreen = true;
 TrackerType g_TrackerType = TRACKER_NONE;
-bool g_bCorrectedHeadTracking = false;
 
 float g_fDebugFOVscale = 1.0f;
 float g_fDebugYCenter = 0.0f;
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
+
+const float POVOffsetIncr = 0.025f;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -196,6 +198,9 @@ int g_iBloomPasses[MAX_BLOOM_PASSES + 1] = {
 
 //extern FILE *colorFile, *lightFile;
 
+// Debugging (personal): I'm tired of the mouse moving outside the window!
+bool g_bKeepMouseInsideWindow = false;
+
 // SSAO
 float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
@@ -203,24 +208,42 @@ float g_fHangarAmbient = 0.05f, g_fGlobalAmbient = 0.005f;
 
 extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
-bool g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lightsf
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
+float g_fMinLightIntensity = 0.1f; // When lights are faded, this is the minimum intensity they will get
 bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false, g_bProceduralLava = true;
+bool g_bNormalizeLights = true;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true, g_bFadeLights = false, g_bDisplayGlowMarks = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false, g_bShadowEnable = true, g_bEnableSpeedShader = true, g_bEnableAdditionalGeometry = false;
+bool g_bOverrideLightPos = false, g_bEnableSpeedShader = true, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
 float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
 float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
+float g_fGlowMarkZOfs = -1.0f; // Small offset to make the hit effects more visible (avoids Z-Fighting a little bit)
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
+int g_iHyperStyle = 1; // 0 = Regular, 1 = Disney style, 2 = Interdiction
+bool g_bInterdictionActive; // If true, then the current hyperjump must render an interdiction
+// The global interdiction bitfield. Each time a mission changes, this bitfield
+// is populated from the mission's ini file and bits are turned on for regions
+// that contain interdictors. For instance a value of 0x5 means regions 0 and 2
+// contain interdictors. This information is used to render the Interdiction Effect.
+uint8_t g_iInterdictionBitfield = 0;
+// Modulates the magnitude of the cockpit shake when an interdiction is happening.
+// Set to 0 to remove the shake effect
+float g_fInterdictionShake = 0.5f;
+// Modulates the cockpit shake when an interdiction is happening in VR
+float g_fInterdictionShakeInVR = 0.0f;
+// Controls the angle of the sin/cos used to shake the cockpit during an interdiction
+float g_fInterdictionAngleScale = 0.25f;
+
+int g_iDelayedDumpDebugBuffers = 0;
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
 
 // white_point = 1 --> OK
@@ -285,6 +308,29 @@ bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
 
 float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
 
+bool g_bEnableLevelsShader = false;
+float g_fLevelsWhitePoint = 235.0f;
+float g_fLevelsBlackPoint = 16.0f;
+
+#include "D3dRenderer.h"
+
+inline float lerp(float x, float y, float s)
+{
+	return x + s * (y - x);
+}
+
+inline float clamp(float val, float min, float max)
+{
+	if (val < min) val = min;
+	if (val > max) val = max;
+	return val;
+}
+
+void SetHDRState(bool state)
+{
+	g_bHDREnabled = state;
+	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+}
 
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
@@ -292,6 +338,8 @@ void LoadVRParams() {
 	FILE* file;
 	int error = 0, line = 0;
 	static int lastDCElemSelected = -1;
+	// Initialize the current renderer to use Effects by default.
+	g_D3dRendererType = D3dRendererType::EFFECTS;
 
 	try {
 		error = fopen_s(&file, "./vrparams.cfg", "rt");
@@ -419,6 +467,7 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_DIRECT_SBS;
 					g_bSteamVREnabled = false;
 					g_bEnableVR = true;
+					g_D3dRendererType = D3dRendererType::DIRECTSBS;
 					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
 					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using Direct SBS mode");
@@ -427,6 +476,7 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_STEAMVR;
 					g_bSteamVREnabled = true;
 					g_bEnableVR = true;
+					g_D3dRendererType = D3dRendererType::STEAMVR;
 					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
 					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using SteamVR");
@@ -527,6 +577,10 @@ next:
 	LoadFocalLength();
 	// Load the default global material
 	LoadDefaultGlobalMaterial();
+	// Load hook_tourmultiplayer.cfg
+	LoadMultiplayerConfig();
+	// Load gimbal lock fix parameters
+	LoadGimbaLockFixConfig();
 	// Reload the materials
 	ReloadMaterials();
 }
@@ -830,10 +884,6 @@ void LoadCockpitLookParams() {
 					g_TrackerType = TRACKER_NONE;
 				}
 
-			}
-			else if (_stricmp(param, POSE_CORRECTED_HEADTRACKING) == 0) {
-				log_debug("Using pose corrected head tracking");
-				g_bCorrectedHeadTracking = (bool)fValue;
 			}
 			/*else if (_stricmp(param, "cockpit_inertia_enabled") == 0) {
 				g_bCockpitInertiaEnabled = (bool)fValue;
@@ -1373,6 +1423,16 @@ bool LoadDCParams() {
 	g_DCWireframeLuminance.z = 0.16f;
 	g_DCWireframeLuminance.w = 0.05f;
 
+	g_DCTargetingFriend.x = 0.1f;
+	g_DCTargetingFriend.y = 0.6f;
+	g_DCTargetingFriend.z = 0.1f;
+	g_DCTargetingFriend.w = 1.0f;
+
+	g_DCTargetingFoe.x = 0.6f;
+	g_DCTargetingFoe.y = 0.1f;
+	g_DCTargetingFoe.z = 0.1f;
+	g_DCTargetingFoe.w = 1.0f;
+
 	g_DCWireframeContrast = 3.0f;
 
 	// Reset the dynamic cockpit vector if we're not rendering in 3D
@@ -1495,6 +1555,24 @@ bool LoadDCParams() {
 					g_DCTargetingIFFColors[5].w = 1.0f;
 				}
 			}
+			else if (_stricmp(param, "wireframe_color_friend") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingFriend.x = x;
+					g_DCTargetingFriend.y = y;
+					g_DCTargetingFriend.z = z;
+					g_DCTargetingFriend.w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_color_foe") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingFoe.x = x;
+					g_DCTargetingFoe.y = y;
+					g_DCTargetingFoe.z = z;
+					g_DCTargetingFoe.w = 1.0f;
+				}
+			}
 			else if (_stricmp(param, "wireframe_luminance_vector") == 0) {
 				float x, y, z;
 				log_debug("[DBG] [DC] Loading wireframe luminance vector...");
@@ -1511,7 +1589,9 @@ bool LoadDCParams() {
 				g_DCWireframeContrast = fValue;
 				log_debug("[DBG] [DC] Wireframe contrast: %0.3f", g_DCWireframeContrast);
 			}
-
+			else if (_stricmp(param, "diegetic_cockpit_enabled") == 0) {
+				g_bDiegeticCockpitEnabled = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);
@@ -1866,17 +1946,14 @@ bool LoadSSAOParams() {
 	g_fMoireOffsetDir = 0.02f;
 	g_fMoireOffsetInd = 0.1f;
 	g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetDir;
-	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
-	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
-	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_SSAO_PSCBuffer.debug = 0;
 	g_SSAO_PSCBuffer.moire_scale = 0.5f; // Previous: 0.1f
 	g_fSSAOAlphaOfs = 0.5;
-	g_SSAO_Type = SSO_AMBIENT;
+	g_SSAO_Type = SSO_PBR;
 	// Default position of the global light (the sun)
 	g_LightVector[0].x = 0;
 	g_LightVector[0].y = 1;
@@ -1896,7 +1973,7 @@ bool LoadSSAOParams() {
 
 	// Default values for the shading system CB
 	g_ShadingSys_PSBuffer.spec_intensity = 1.0f;
-	g_ShadingSys_PSBuffer.spec_bloom_intensity = 1.25f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = 0.9f;
 	g_ShadingSys_PSBuffer.glossiness = 128.0f;
 	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
@@ -1914,11 +1991,17 @@ bool LoadSSAOParams() {
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
 	g_ShadowMapping.bEnabled = false;
+	g_ShadowMapping.bCSMEnabled = false;
 	g_bShadowMapDebug = false;
 	g_ShadowMapVSCBuffer.sm_bias = 0.01f;
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
+
+	g_fRTGaussFactor = 0.1f;
+	g_bRTEnableSoftShadows = true;
+	g_RTConstantsBuffer.RTEnableSoftShadows = true;
+	g_RTConstantsBuffer.RTShadowMaskSizeFactor = 4;
 
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++)
 		if (!g_XWALightInfo[i].bTagged)
@@ -1965,12 +2048,60 @@ bool LoadSSAOParams() {
 				else if (_stricmp(svalue, "bent_normals") == 0)
 					g_SSAO_Type = SSO_BENT_NORMALS;
 				else if (_stricmp(svalue, "deferred") == 0)
-					g_SSAO_Type = SSO_DEFERRED;
+				{
+					if (!g_bRTEnabled)
+					{
+						g_SSAO_Type = SSO_DEFERRED;
+					}
+					else
+					{
+						// Force the PBR Rendering mode and enable HDR if RT is enabled.
+						if (g_bRTEnabled) g_SSAO_Type = SSO_PBR;
+						SetHDRState(g_bRTEnabled);
+					}
+				}
+				else if (_stricmp(svalue, "PBR") == 0)
+				{
+					g_SSAO_Type = SSO_PBR;
+					SetHDRState(true);
+				}
 			}
-			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
-				g_bDisableDiffuse = (bool)fValue;
+
+			if (_stricmp(param, "raytracing_enabled_in_tech_room") == 0) {
+				g_bRTEnabledInTechRoom = (bool)fValue;
 			}
-			else if (_stricmp(param, "bias") == 0) {
+			if (_stricmp(param, "raytracing_enabled") == 0) {
+				g_bRTEnabled = (bool)fValue;
+				// Force the PBR Rendering mode and enable HDR if RT is enabled.
+				if (g_bRTEnabled) g_SSAO_Type = SSO_PBR;
+				SetHDRState(g_bRTEnabled);
+			}
+			if (_stricmp(param, "raytracing_enabled_in_cockpit") == 0) {
+				g_bRTEnabledInCockpit = (bool)fValue;
+			}
+			if (_stricmp(param, "raytracing_enable_soft_shadows") == 0) {
+				g_bRTEnableSoftShadows = (bool)fValue;
+				g_RTConstantsBuffer.RTEnableSoftShadows = g_bRTEnableSoftShadows;
+			}
+			if (_stricmp(param, "raytracing_shadow_mask_size_factor") == 0) {
+				g_RTConstantsBuffer.RTShadowMaskSizeFactor = (int)fValue;
+			}
+			if (_stricmp(param, "raytracing_soft_shadow_sharpness") == 0) {
+				// 0.01 --> Soft
+				// 1.5 --> Sharp
+				g_fRTGaussFactor = lerp(0.01f, 1.5f, clamp(fValue, 0.0f, 1.0f));
+			}
+			if (_stricmp(param, "raytracing_enable_embree") == 0) {
+				//g_bRTEnableEmbree = (bool)fValue;
+				g_bRTEnableEmbree = false;
+				g_BVHBuilderType = g_bRTEnableEmbree ? BVHBuilderType_Embree : BVHBuilderType_FastQBVH;
+			}
+
+			if (_stricmp(param, "keep_mouse_inside_window") == 0) {
+				g_bKeepMouseInsideWindow = (bool)fValue;
+			}
+
+			if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
 			}
 			else if (_stricmp(param, "intensity") == 0) {
@@ -2056,17 +2187,8 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "nm_max_xymult") == 0) {
 				g_SSAO_PSCBuffer.fn_max_xymult = fValue;
 			}
-			else if (_stricmp(param, "nm_scale") == 0) {
-				g_SSAO_PSCBuffer.fn_scale = fValue;
-			}
 			else if (_stricmp(param, "nm_sharpness") == 0) {
 				g_SSAO_PSCBuffer.fn_sharpness = fValue;
-			}
-			else if (_stricmp(param, "nm_intensity_near") == 0) {
-				g_SSAO_PSCBuffer.nm_intensity_near = fValue;
-			}
-			else if (_stricmp(param, "nm_intensity_far") == 0) {
-				g_SSAO_PSCBuffer.nm_intensity_far = fValue;
 			}
 			else if (_stricmp(param, "override_game_light_pos") == 0) {
 				g_bOverrideLightPos = (bool)fValue;
@@ -2090,6 +2212,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "xwa_lights_global_intensity") == 0) {
 				g_fXWALightsIntensity = fValue;
+			}
+			else if (_stricmp(param, "xwa_normalize_lights") == 0) {
+				g_bNormalizeLights = (bool)fValue;
 			}
 			else if (_stricmp(param, "procedural_suns") == 0) {
 				g_bProceduralSuns = (bool)fValue;
@@ -2132,6 +2257,11 @@ bool LoadSSAOParams() {
 				g_bShadowMapEnable = (bool)fValue;
 				g_ShadowMapping.bEnabled = g_bShadowMapEnable;
 				g_ShadowMapVSCBuffer.sm_enabled = g_ShadowMapping.bEnabled;
+				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.bEnabled);
+			}
+			else if (_stricmp(param, "cascaded_shadow_mapping_enable") == 0) {
+				g_ShadowMapping.bCSMEnabled = (bool)fValue;
+				g_ShadowMapVSCBuffer.sm_csm_enabled = g_ShadowMapping.bEnabled;
 				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.bEnabled);
 			}
 			else if (_stricmp(param, "shadow_mapping_anisotropic_scale") == 0) {
@@ -2261,14 +2391,11 @@ bool LoadSSAOParams() {
 			}
 			*/
 
-
 			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
 				g_bDumpOBJEnabled = (bool)fValue;
 			}
-
 			else if (_stricmp(param, "HDR_enabled") == 0) {
-				g_bHDREnabled = (bool)fValue;
-				g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+				SetHDRState((bool)fValue);
 			}
 			else if (_stricmp(param, "HDR_lights_intensity") == 0) {
 				g_fHDRLightsMultiplier = fValue;
@@ -2305,10 +2432,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_epsilon") == 0) {
 				g_SSAO_PSCBuffer.shadow_epsilon = fValue;
 			}
-			else if (_stricmp(param, "shadow_enable") == 0) {
-				g_bShadowEnable = (bool)fValue;
-				g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
-			}*/
+			*/
 			/*
 			else if (_stricmp(param, "white_point") == 0) {
 				g_SSAO_PSCBuffer.white_point = fValue;
@@ -2381,6 +2505,12 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "lightness_boost") == 0) {
 				g_ShadingSys_PSBuffer.lightness_boost = fValue;
 			}
+			else if (_stricmp(param, "min_light_intensity_after_fade") == 0) {
+				g_fMinLightIntensity = fValue;
+			}
+			else if (_stricmp(param, "fade_lights") == 0) {
+				g_bFadeLights = (bool)fValue;
+			}
 			else if (_stricmp(param, "saturation_boost") == 0) {
 				g_ShadingSys_PSBuffer.saturation_boost = fValue;
 			}
@@ -2399,6 +2529,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "enable_laser_lights") == 0) {
 				g_bEnableLaserLights = (bool)fValue;
+			}
+			else if (_stricmp(param, "enable_explosion_lights") == 0) {
+				g_bEnableExplosionLights = (bool)fValue;
 			}
 			else if (_stricmp(param, "sqr_attenuation") == 0) {
 				g_ShadingSys_PSBuffer.sqr_attenuation = fValue;
@@ -2485,6 +2618,62 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "force_alt_explosion") == 0) {
 				g_iForceAltExplosion = (int)fValue;
 			}
+
+			if (_stricmp(param, "enable_levels_shader") == 0) {
+				g_bEnableLevelsShader = (bool)fValue;
+			}
+			if (_stricmp(param, "levels_white_point") == 0) {
+				g_fLevelsWhitePoint = fValue;
+			}
+			if (_stricmp(param, "levels_black_point") == 0) {
+				g_fLevelsBlackPoint = fValue;
+			}
+
+			if (_stricmp(param, "raytracing_exclude_opt") == 0) {
+				toupper(svalue);
+				std::string OPTName(svalue);
+				log_debug("[DBG] [BVH] Excluding OPT: %s", OPTName.c_str());
+				g_RTExcludeOPTNames[OPTName] = true;
+			}
+
+			if (_stricmp(param, "raytracing_exclude_class") == 0)
+			{
+				if (_stricmp(svalue, "Starships") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Starship] = true;
+					log_debug("[DBG] [BVH] Excluding Starships");
+				}
+				else if (_stricmp(svalue, "Stations") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Platform] = true;
+					log_debug("[DBG] [BVH] Excluding Stations");
+				}
+				else if (_stricmp(svalue, "Starfighters") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Starfighter] = true;
+					log_debug("[DBG] [BVH] Excluding Starfighters");
+				}
+				else if (_stricmp(svalue, "Freighters") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Freighter] = true;
+					log_debug("[DBG] [BVH] Excluding Freighters");
+				}
+				else if (_stricmp(svalue, "Transports") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Transport] = true;
+					log_debug("[DBG] [BVH] Excluding Transports");
+				}
+				else if (_stricmp(svalue, "Mines") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Mine] = true;
+					log_debug("[DBG] [BVH] Excluding Mines");
+				}
+				else if (_stricmp(svalue, "Satellites") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Satellite] = true;
+					log_debug("[DBG] [BVH] Excluding Satellites");
+				}
+			}
 		}
 	}
 	fclose(file);
@@ -2512,7 +2701,7 @@ bool LoadHyperParams() {
 	g_ShadertoyBuffer.y_center = 0.15f;
 	g_ShadertoyBuffer.FOVscale = 1.0f;
 	g_ShadertoyBuffer.viewMat.identity();
-	g_ShadertoyBuffer.bDisneyStyle = 1;
+	g_ShadertoyBuffer.Style = g_iHyperStyle;
 	g_ShadertoyBuffer.tunnel_speed = 5.5f;
 	g_ShadertoyBuffer.twirl = 1.0f;
 	g_fHyperLightRotationSpeed = 50.0f;
@@ -2547,7 +2736,8 @@ bool LoadHyperParams() {
 			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, "disney_style") == 0) {
-				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
+				g_iHyperStyle = (int)fValue;
+				g_ShadertoyBuffer.Style = g_iHyperStyle;
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
 				g_fHyperspaceTunnelSpeed = fValue;
@@ -2566,6 +2756,15 @@ bool LoadHyperParams() {
 			}
 			else if (_stricmp(param, "shake_speed") == 0) {
 				g_fHyperShakeRotationSpeed = fValue;
+			}
+			else if (_stricmp(param, "interdiction_shake_scale") == 0) {
+				g_fInterdictionShake = fValue;
+			}
+			else if (_stricmp(param, "interdiction_shake_scale_in_VR") == 0) {
+				g_fInterdictionShakeInVR = fValue;
+			}
+			else if (_stricmp(param, "interdiction_angle_scale") == 0) {
+				g_fInterdictionAngleScale = fValue;
 			}
 		}
 	}
@@ -2664,6 +2863,141 @@ bool LoadDefaultGlobalMaterial() {
 	return true;
 }
 
+bool LoadMultiplayerConfig() {
+	log_debug("[DBG] Loading hook_tourmultiplayer.cfg...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./hook_tourmultiplayer.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load hook_tourmultiplayer.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading hook_tourmultiplayer.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "GreenAndRedForIFFColorsOnly") == 0) {
+				g_bGreenAndRedForIFFColorsOnly = (bool)fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
+bool LoadGimbaLockFixConfig() {
+	log_debug("[DBG] Loading GimbalLockFix.cfg...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./GimbalLockFix.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load GimbalLockFix.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading GimbalLockFix.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
+				g_bEnableGimbalLockFix = (bool)fValue;
+			}
+			else if (_stricmp(param, "enable_rudder") == 0) {
+				g_bEnableRudder = (bool)fValue;
+			}
+			/*
+			else if (_stricmp(param, "debug_mode") == 0) {
+				g_bGimbalLockDebugMode = (bool)fValue;
+			}
+			*/
+			else if (_stricmp(param, "yaw_accel_rate_s") == 0) {
+				g_fYawAccelRate_s = fValue;
+			}
+			else if (_stricmp(param, "pitch_accel_rate_s") == 0) {
+				g_fPitchAccelRate_s = fValue;
+			}
+			else if (_stricmp(param, "roll_accel_rate_s") == 0) {
+				g_fRollAccelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "max_yaw_rate_s") == 0) {
+				g_fMaxYawRate_s = fValue;
+			}
+			else if (_stricmp(param, "max_pitch_rate_s") == 0) {
+				g_fMaxYawRate_s = fValue;
+			}
+			else if (_stricmp(param, "max_roll_rate_s") == 0) {
+				g_fMaxRollRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "turn_rate_scale_throttle_0") == 0) {
+				g_fTurnRateScaleThr_0 = fValue;
+			}
+			else if (_stricmp(param, "turn_rate_scale_throttle_100") == 0) {
+				g_fTurnRateScaleThr_100 = fValue;
+			}
+			else if (_stricmp(param, "max_turn_accel_rate_s") == 0) {
+				g_fMaxTurnAccelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "mouse_range_x") == 0) {
+				g_fMouseRangeX = fValue;
+			}
+			else if (_stricmp(param, "mouse_range_y") == 0) {
+				g_fMouseRangeY = fValue;
+			}
+			else if (_stricmp(param, "mouse_decel_rate_s") == 0) {
+				g_fMouseDecelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "modulate_accel_rate_with_throttle") == 0) {
+				g_bThrottleModulationEnabled = (bool)fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
 void ReloadMaterials()
 {
 	char* surface_name;
@@ -2683,7 +3017,7 @@ void ReloadMaterials()
 
 	for (Direct3DTexture* texture : g_AuxTextureVector) {
 		OPTname.name[0] = 0;
-		surface_name = texture->_surface->_name;
+		surface_name = texture->_surface->_cname;
 		bIsDat = false;
 		//bIsDat = strstr(surface_name, "dat,") != NULL;
 
@@ -2741,6 +3075,167 @@ void ReloadMaterials()
 		//if (Debug)
 		//	log_debug("[DBG] Re-Applied Mat: %0.3f, %0.3f, %0.3f", texture->material.Metallic, texture->material.Intensity, texture->material.Glossiness);
 		texture->bHasMaterial = true;
+	}
+}
+
+std::map<int, std::string> LoadMissionList() {
+	FILE* file;
+	int error = 0, line = 0;
+	std::map<int, std::string> missionMap;
+	log_debug("[DBG] [INT] Loading Mission List...");
+
+	// Read Missions\Mission.lst and build a map of mission index -> filename.
+	try {
+		error = fopen_s(&file, ".\\Missions\\Mission.lst", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load Mission.lst");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading Mission.lst", error);
+		return missionMap;
+	}
+
+	char buf[256], param[256], *aux;
+	int curIdx = -1;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		int len = strlen(buf);
+		if (strlen(buf) == 0)
+			continue;
+		if (buf[0] == '/' || buf[0] == '!')
+			continue;
+
+		if (stristr(buf, ".tie") != NULL) {
+			aux = &(buf[0]);
+			// Sometimes, missions begin with "* "
+			if (*aux == '*') {
+				aux += 2;
+				len -= 2;
+			}
+			// Remove the ".tie" ending
+			aux[len - 5] = 0;
+			sprintf_s(param, 256, ".\\Missions\\%s.ini", aux);
+			missionMap[curIdx] = std::string(param);
+			//log_debug("[DBG] [INT] %d --> %s", curIdx, missionMap[curIdx].c_str());
+		} else if (isdigit(buf[0])) {
+			curIdx = atoi(buf);
+		}
+	}
+	fclose(file);
+	return missionMap;
+}
+
+// Reads a list of integers of the form:
+// X, Y, Z, ...
+// and returns the equivalent vector
+std::vector<int> ReadIntegerList(char *svalue) {
+	int i = 0;
+	int len = strlen(svalue);
+	std::vector<int> result;
+
+	while (i < len) {
+		int j = i;
+		// Advance to the next comma
+		while (j < len && svalue[j] != ',') j++;
+		// Terminate the string at the comma
+		if (j < len) svalue[j] = 0;
+		// Parse the integer
+		int elem = atoi(svalue + i);
+		result.push_back(elem);
+		// Repeat, starting at the first character after the comma
+		i = j + 1;
+	}
+	return result;
+}
+
+uint8_t LoadInterdictionMap(const char *fileName)
+{
+	int error = 0;
+	FILE *file = NULL;
+
+	try {
+		error = fopen_s(&file, fileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [INT] Could not load %s", fileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [INT] Error %d when loading %s", error, fileName);
+		return 0;
+	}
+
+	// Read the mission's .ini file. Find the "[Interdiction]" section and
+	// populate the bitfield
+	bool interdictionSection = false;
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	int iValue = -1, line = 0;
+	uint8_t bitfield = 0x0;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		if (strlen(buf) == 0)
+			continue;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+
+		if (buf[0] == '[') {
+			bool prevInterdictioSection = interdictionSection;
+			interdictionSection = (stristr(buf, "[Interdiction]") != NULL);
+			if (!interdictionSection && prevInterdictioSection)
+				break;
+		}
+		else if (interdictionSection) {
+			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+				iValue = atoi(svalue);
+
+				if (_stricmp(param, "Region") == 0) {
+					// scanf stops reading strings on commas, so we need the full right
+					// substring:
+					char *right_side = stristr(buf, "=");
+					// Skip the "=" sign
+					right_side++;
+					std::vector regions = ReadIntegerList(right_side);
+					for (int region : regions)
+						bitfield |= (0x1 << region);
+					//log_debug("[DBG] [INT] Interdiction set on current mission, bitfield: 0x%x", bitfield);
+				}
+			}
+		}
+
+	}
+	fclose(file);
+	return bitfield;
+}
+
+void ReloadInterdictionMap() {
+	static char prevMission[128] = "";
+	char aux[128];
+	int len;
+	
+	if (_stricmp(xwaMissionFileName, prevMission) != 0)
+	{
+		// A new mission has been loaded since the last time this function
+		// was called. Reset the bitfield and reload the .ini file
+		g_iInterdictionBitfield = 0;
+		// Update the name of the previous mission
+		len = strlen(xwaMissionFileName);
+		strncpy_s(prevMission, 128, xwaMissionFileName, len);
+		strncpy_s(aux, 128, xwaMissionFileName, len);
+		
+		// Replace the ".tie" ending with an ".ini" ending.
+		aux[len - 3] = 'i';
+		aux[len - 2] = 'n';
+		aux[len - 1] = 'i';
+		g_iInterdictionBitfield = LoadInterdictionMap(aux);
+		log_debug("[DBG] [INT] Interdictions in mission: [%s] = 0x%x",
+			aux, g_iInterdictionBitfield);
 	}
 }
 

@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 #include <stdio.h>
-#include <headers/openvr.h>
+#include <openvr.h>
 #include "common.h"
 #include "utils.h"
 #include "config.h"
@@ -13,9 +13,9 @@
 #include "Vectors.h"
 #include "Matrices.h"
 
-//extern const float PI;
-//extern const float DEG2RAD;
+const float MAX_BRIGHTNESS = 1.0f;
 extern const float RAD_TO_DEG;
+extern const float DEG_TO_RAD;
 extern const float DEFAULT_IPD; // Ignored in SteamVR mode.
 extern const float IPD_SCALE_FACTOR;
 extern Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
@@ -27,6 +27,7 @@ extern float g_fVR_FOV;
 extern float g_fIPD;
 extern float g_fHalfIPD;
 extern bool g_bInTechRoom; // Set to true in PrimarySurface Present 2D (Flip)
+extern bool g_bInBriefingRoom;
 
 extern float g_fPitchMultiplier, g_fYawMultiplier, g_fRollMultiplier;
 extern float g_fYawOffset, g_fPitchOffset;

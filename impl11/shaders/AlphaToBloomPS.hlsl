@@ -20,13 +20,14 @@ SamplerState sampler0 : register(s0);
 // Z+: Away from the camera
 // (0,0,0) is the camera center, (0,0,Z) is the center of the screen
 
+// D3DRendererHook PS input:
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
+	float2 tex	  : TEXCOORD;
+	//float4 color  : COLOR0;
 };
 
 struct PixelShaderOutput

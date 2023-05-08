@@ -22,12 +22,15 @@ cbuffer ConstantBuffer : register(b4)
 	uint num_lasers;
 	// 336 bytes
 	float4 LightPoint[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
-	// 464 bytes
-	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
+	// 16 * 16 = 256
 	// 592 bytes
+	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
+	// 16 * 16 = 256
+	// 848 bytes
+	float4 LightPointDirection[MAX_CB_POINT_LIGHTS];
+	// 16 * 16 = 256
+	// 1104 bytes
 	float ambient, headlights_angle_cos, HDR_white_point;
 	uint HDREnabled;
-	// 608 bytes
+	// 1120 bytes
 };

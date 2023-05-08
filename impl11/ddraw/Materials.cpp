@@ -1,3 +1,4 @@
+#include "common.h"
 #include "globals.h"
 #include "Materials.h"
 #include "utils.h"
@@ -13,6 +14,10 @@ namespace fs = std::filesystem;
 bool g_bReloadMaterialsEnabled = false;
 Material g_DefaultGlobalMaterial;
 GlobalGameEvent g_GameEvent, g_PrevGameEvent;
+// Maps an ObjectId-MaterialId to its InstanceEvent
+extern std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
+// Maps an ObjectId-MaterialId to its FixedInstanceData
+extern std::map<uint64_t, FixedInstanceData> g_fixedInstanceDataMap;
 // Set of flags that tell us when events fired on the current frame
 bool bEventsFired[MAX_GAME_EVT] = { 0 };
 // Rule 1: The ordering in this array MUST match the ordering in GameEventEnum
@@ -56,14 +61,34 @@ char *g_sGameEventNames[MAX_GAME_EVT] = {
 	"EVT_CANNON_8_READY",
 };
 
+// Rule 1: The ordering in this array MUST match the ordering in InstanceEventEnum
+// Rule 2: Always begin an event with the token "IEVT_" (it's used to parse it)
+char *g_sInstEventNames[MAX_INST_EVT] = {
+	"IEVT_NONE",
+	// Hull Damage Events
+	"IEVT_DAMAGE_75",
+	"IEVT_DAMAGE_50",
+	"IEVT_DAMAGE_25",
+
+	"IEVT_SHIELDS_DOWN",
+
+	"IEVT_TRACTOR_BEAM",
+	"IEVT_JAMMING_BEAM",
+};
 
 /*
  Contains all the materials for all the OPTs currently loaded
 */
 std::vector<CraftMaterials> g_Materials;
-// List of all the animated materials used in the current mission.
+// List of all the global animated materials used in the current mission.
+// Instance events still have an entry in this array, but they are "templates" used
+// to add ATCs to g_AnimatedInstMaterials below
 // This is used to update the timers on these materials.
 std::vector<AnimatedTexControl> g_AnimatedMaterials;
+// List of all the instance animated materials.
+// TODO: Add support for this map so that each instance material has its own timer
+std::vector<AnimatedTexControl> g_AnimatedInstMaterials;
+
 // List of all the OPTs seen so far
 std::vector<OPTNameType> g_OPTnames;
 
@@ -164,11 +189,13 @@ bool LoadLightColor(char* buf, Vector3* Light)
 	if (*s == 0) return false;\
 }
 
-bool ParseEvent(char *s, GameEvent *eventType) {
+bool ParseEvent(char *s, GameEvent *eventType, InstEventType *instEventType, bool *isInstanceEvt) {
 	char s_event[80];
 	int res;
 	// Default is EVT_NONE: if no event can be parsed, that's the event we'll assign
 	*eventType = EVT_NONE;
+	*instEventType = IEVT_NONE;
+	*isInstanceEvt = false;
 
 	// Parse the event
 	try {
@@ -177,10 +204,19 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 			log_debug("[DBG] [MAT] Error reading event in '%s'", s);
 		}
 		else {
-			log_debug("[DBG] [MAT] EventType: %s", s_event);
+			// Check the game event list
 			for (int i = 0; i < MAX_GAME_EVT; i++)
-				if (stristr(s_event, g_sGameEventNames[i]) != NULL) {
+				if (_stricmp(s_event, g_sGameEventNames[i]) == 0) {
 					*eventType = (GameEvent)i;
+					log_debug("[DBG] [MAT] (GameEvent) EventType: %s", s_event);
+					break;
+				}
+			// Check the instance event list
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				if (_stricmp(s_event, g_sInstEventNames[i]) == 0) {
+					*instEventType = (InstEventType)i;
+					*isInstanceEvt = true;
+					log_debug("[DBG] [INST] (InstEvent) EventType: %s", s_event);
 					break;
 				}
 		}
@@ -190,6 +226,43 @@ bool ParseEvent(char *s, GameEvent *eventType) {
 		return false;
 	}
 	return true;
+}
+
+void UpgradeOverayCtrlToLightmap(uint32_t* overlayCtrl, bool IsLightMap) {
+	if (overlayCtrl == nullptr)
+		return;
+	if (*overlayCtrl == 0 || !IsLightMap)
+		return;
+
+	if ((*overlayCtrl & OVERLAY_CTRL_MULT) != 0x0) {
+		*overlayCtrl |= OVERLAY_ILLUM_CTRL_MULT;
+		*overlayCtrl &= ~OVERLAY_CTRL_MULT;
+		return;
+	}
+
+	if ((*overlayCtrl & OVERLAY_CTRL_SCREEN) != 0x0) {
+		*overlayCtrl |= OVERLAY_ILLUM_CTRL_SCREEN;
+		*overlayCtrl &= ~OVERLAY_CTRL_SCREEN;
+		return;
+	}
+}
+
+bool ParseOverlayControl(char* buf, bool IsLightingLayer, uint32_t* OverlayCtrl) {
+	if (_stricmp(buf, "LYR_MULT") == 0) {
+		if (IsLightingLayer)
+			*OverlayCtrl |= OVERLAY_ILLUM_CTRL_MULT;
+		else
+			*OverlayCtrl |= OVERLAY_CTRL_MULT;
+		return true;
+	}
+	if (_stricmp(buf, "LYR_SCREEN") == 0) {
+		if (IsLightingLayer)
+			*OverlayCtrl |= OVERLAY_ILLUM_CTRL_SCREEN;
+		else
+			*OverlayCtrl |= OVERLAY_CTRL_SCREEN;
+		return true;
+	}
+	return false;
 }
 
 bool ParseDatFileNameAndGroup(char *buf, char *sDATFileNameOut, int sDATFileNameSize, short *GroupId) {
@@ -287,8 +360,8 @@ void InterpolateTexSequence(std::vector<TexSeqElem> &tex_sequence, TexSeqElem te
 		cur_tex_seq_elem.GroupId = tex_seq_elem0.GroupId;
 		cur_tex_seq_elem.ImageId = CurImageId;
 		cur_tex_seq_elem.ExtraTextureIndex = -1;
-		log_debug("[DBG] [MAT] Adding interpolated elem: %d-%d, sec: %0.3f, int: %0.3f",
-			cur_tex_seq_elem.GroupId, cur_tex_seq_elem.ImageId, cur_tex_seq_elem.seconds, cur_tex_seq_elem.intensity);
+		//log_debug("[DBG] [MAT] Adding interpolated elem: %d-%d, sec: %0.3f, int: %0.3f",
+		//	cur_tex_seq_elem.GroupId, cur_tex_seq_elem.ImageId, cur_tex_seq_elem.seconds, cur_tex_seq_elem.intensity);
 		tex_sequence.push_back(cur_tex_seq_elem);
 	}
 }
@@ -330,32 +403,255 @@ bool ParseOptionalTexSeqArgs(char *buf, int *alpha_mode, float4 *AuxColor)
 	return true;
 }
 
+void ParseUVArea(char* s, float2 *uvSrc0, float2 *uvSrc1)
+{
+	float x0, y0, x1, y1;
+	sscanf_s(s, "%f, %f, %f, %f,", &x0, &y0, &x1, &y1);
+	uvSrc0->x = x0;
+	uvSrc0->y = y0;
+	uvSrc1->x = x1;
+	uvSrc1->y = y1;
+}
+
+char *ParseOptionalModifiers(char* s, AnimatedTexControl *atc)
+{
+	char* t;
+	bool DoLoop = true;
+
+	while (DoLoop)
+	{
+		DoLoop = false;
+
+		// Parse the UV modifier
+		if (stristr(s, "UV_AREA") != NULL) {
+			DoLoop = true;
+
+			t = s;
+			// Skip to the next '=' char
+			while (*t != 0 && *t != '=') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Skip the '='
+			t++;
+
+			// Start a new string here
+			s = t;
+			// Skip 4 commas
+			for (int i = 0; i < 4; i++)
+			{
+				// Skip to the next ',' char
+				while (*t != 0 && *t != ',') t++;
+				// If we reached the end of the string, that's an error
+				if (*t == 0) return nullptr;
+				// Skip the comma
+				t++;
+			}
+
+			// End the string on this comma to make a new substring
+			*t = 0;
+			ParseUVArea(s, &(atc->uvSrc0), &(atc->uvSrc1));
+			// Skip the previous comma to continue parsing
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+		}
+		// Parse the FIXED_LOC modifier
+		else if (stristr(s, "FIXED_LOC") != NULL)
+		{
+			DoLoop = true;
+
+			atc->uvRandomLoc = 0; // Disable RAND_LOC
+
+			t = s;
+			// Skip to the next comma
+			while (*t != 0 && *t != ',') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Store the separator char where we stopped
+			char sep = *t;
+			// Skip the comma
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+		}
+		// Parse the RANDOM_LOC modifier
+		else if (stristr(s, "RAND_LOC") != NULL)
+		{
+			DoLoop = true;
+
+			atc->uvRandomLoc = 1; // RAND_LOC, no params
+
+			t = s;
+			// Skip to the next comma or '=' sign
+			while (*t != 0 && (*t != ',' && *t != '=')) t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Store the separator char where we stopped
+			char sep = *t;
+			// Skip the comma or equals sign
+			t++;
+
+			// Parse the next values if we found an equals sign
+			if (sep == '=')
+			{
+				// Start a new string here and continue parsing
+				s = t;
+				// Skip 4 commas
+				for (int i = 0; i < 4; i++)
+				{
+					// Skip to the next ',' char
+					while (*t != 0 && *t != ',') t++;
+					// If we reached the end of the string, that's an error
+					if (*t == 0) return nullptr;
+					// Skip the comma
+					t++;
+				}
+
+				// End the string on this comma to make a new substring
+				*t = 0;
+				float x0, y0, x1, y1;
+				sscanf_s(s, "%f, %f, %f, %f", &x0, &y0, &x1, &y1);
+				atc->uvOffsetMin.x = x0;
+				atc->uvOffsetMin.y = y0;
+				atc->uvOffsetMax.x = x1;
+				atc->uvOffsetMax.y = y1;
+				atc->uvRandomLoc = 2; // RAND_LOC with 4 params
+				// Skip the previous comma to continue parsing
+				t++;
+			}
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+			/*if (atc->uvRandomLoc == 2)
+			{
+				log_debug("[DBG] [UV] RAND_LOC: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+					atc->uvOffsetMin.x, atc->uvOffsetMin.y,
+					atc->uvOffsetMax.x, atc->uvOffsetMax.y);
+			}*/
+		}
+		// Parse the SCALE modifier
+		else if (stristr(s, "SCALE") != NULL && stristr(s, "RAND_SCALE") == NULL)
+		{
+			DoLoop = true;
+
+			t = s;
+			// Skip to the next '=' char
+			while (*t != 0 && *t != '=') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Skip the '='
+			t++;
+
+			// Start a new string here
+			s = t;
+			// Skip 1 comma
+			for (int i = 0; i < 1; i++)
+			{
+				// Skip to the next ',' char
+				while (*t != 0 && *t != ',') t++;
+				// If we reached the end of the string, that's an error
+				if (*t == 0) return nullptr;
+				// Skip the comma
+				t++;
+			}
+
+			// End the string on this comma to make a new substring
+			*t = 0;
+			float scale;
+			sscanf_s(s, "%f", &scale);
+			atc->uvScaleMin.x = atc->uvScaleMin.y = scale;
+			atc->uvScaleMax.x = atc->uvScaleMax.y = scale;
+			atc->uvRandomScale = false;
+			// Skip the previous comma to continue parsing
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+			/*log_debug("[DBG] [UV] Scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				atc->uvScaleMin.x, atc->uvScaleMin.y,
+				atc->uvScaleMax.x, atc->uvScaleMax.y);*/
+		}
+		// Parse the RANDOM_SCALE modifier
+		else if (stristr(s, "RAND_SCALE") != NULL)
+		{
+			DoLoop = true;
+
+			t = s;
+			// Skip to the next '=' char
+			while (*t != 0 && *t != '=') t++;
+			// If we reached the end of the string, that's an error
+			if (*t == 0) return nullptr;
+			// Skip the '='
+			t++;
+
+			// Start a new string here
+			s = t;
+			// Skip 2 commas
+			for (int i = 0; i < 2; i++)
+			{
+				// Skip to the next ',' char
+				while (*t != 0 && *t != ',') t++;
+				// If we reached the end of the string, that's an error
+				if (*t == 0) return nullptr;
+				// Skip the comma
+				t++;
+			}
+
+			// End the string on this comma to make a new substring
+			*t = 0;
+			float minScale, maxScale;
+			sscanf_s(s, "%f, %f", &minScale, &maxScale);
+			atc->uvScaleMin.x = atc->uvScaleMin.y = minScale;
+			atc->uvScaleMax.x = atc->uvScaleMax.y = maxScale;
+			atc->uvRandomScale = true;
+			// Skip the previous comma to continue parsing
+			t++;
+
+			// Re-start the string here and continue parsing
+			s = t;
+			SKIP_WHITESPACES(s);
+			/*log_debug("[DBG] [UV] Rand scale: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				atc->uvScaleMin.x, atc->uvScaleMin.y,
+				atc->uvScaleMax.x, atc->uvScaleMax.y);*/
+		}
+	}
+	return s;
+}
+
 /*
  Load a texture sequence line of the form:
 
  lightmap_seq|rand|anim_seq|rand = [Event], [DATFileName], <TexName1>,<seconds1>,<intensity1>, <TexName2>,<seconds2>,<intensity2>, ... 
-
 */
-bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType, int *alpha_mode,
-	float4 *AuxColor) 
+bool LoadTextureSequence(char* buf, bool IsLightMap, std::vector<TexSeqElem>& tex_sequence,
+	int* alpha_mode, AnimatedTexControl *atc)
 {
 	TexSeqElem tex_seq_elem, prev_tex_seq_elem;
 	int res = 0;
-	char temp[512];
+	constexpr int MAX_TEMP_LEN = 2048;
+	char temp[MAX_TEMP_LEN];
 	char *s = NULL, *t = NULL, texname[80], sDATZIPFileName[128], sOptionalArgs[128];
 	float seconds, intensity = 1.0f;
 	bool IsDATFile = false, IsZIPFile = false, bEllipsis = false;
-	*eventType = EVT_NONE;
+	atc->Event = EVT_NONE;
+	atc->InstEvent = IEVT_NONE;
+	atc->isInstEvent = false;
 	std::string s_temp;
 	*alpha_mode = 0;
-	AuxColor->x = 1.0f;
-	AuxColor->y = 1.0f;
-	AuxColor->z = 1.0f;
-	AuxColor->w = 1.0f;
+	atc->Tint.x = 1.0f;
+	atc->Tint.y = 1.0f;
+	atc->Tint.z = 1.0f;
+	atc->Tint.w = 1.0f;
 	
 	// Remove any parentheses from the line
 	int i = 0, j = 0;
-	while (buf[i] && j < 511) {
+	while (buf[i] && j < MAX_TEMP_LEN - 1) {
 		if (buf[i] != '(' && buf[i] != ')')
 			temp[j++] = buf[i];
 		i++;
@@ -370,7 +666,9 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	s += 1;
 
 	// Parse the event, if it exists
-	if (stristr(s, "EVT_") != NULL) {
+	if (stristr(s, "EVT_") != NULL || stristr(s, "IEVT_") != NULL) {
+		//if (stristr(s, "IEVT_") != NULL)
+		//	log_debug("[DBG] [INST] Parsing INSTANCE EVENT from: [%s]", s);
 		// Skip to the next comma
 		t = s;
 		while (*t != 0 && *t != ',') t++;
@@ -378,11 +676,31 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		if (*t == 0) return false;
 		// End this string on the comma so that we can parse a string
 		*t = 0;
-		ParseEvent(s, eventType);
+		ParseEvent(s, &(atc->Event), &(atc->InstEvent), &(atc->isInstEvent));
+		//if (*isInstEvent)
+		//	log_debug("[DBG] [INST] INSTANCE EVENT parsed, %d", *instEventType);
 		// Skip the comma
 		s = t; s += 1;
 		SKIP_WHITESPACES(s);
 	}
+
+	// Parse the overlay modifier
+	if (stristr(s, "LYR_") != NULL) {
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		ParseOverlayControl(s, IsLightMap, &(atc->OverlayCtrl));
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+
+	// Parse the optional modifiers
+	s = ParseOptionalModifiers(s, atc);
 
 	// Parse the DAT file name, if specified
 	if (stristr(s, ".dat") != NULL) {
@@ -436,7 +754,7 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 		strcpy_s(sOptionalArgs, 128, s);
 		// log_debug("[DBG] [MAT] sOptionalArgs: [%s]", sOptionalArgs);
 		// Parse the optional args...
-		ParseOptionalTexSeqArgs(sOptionalArgs, alpha_mode, AuxColor);
+		ParseOptionalTexSeqArgs(sOptionalArgs, alpha_mode, &(atc->Tint));
 		// Skip the closing braces
 		s = t; s += 1;
 		// Skip to the next comma
@@ -592,39 +910,72 @@ bool LoadTextureSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameE
 	return true;
 }
 
-bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEvent *eventType,
-	int *is_lightmap, int *alpha_mode, float4 *AuxColor, float2 *Offset, float *AspectRatio, int *Clamp) 
+bool LoadFrameSequence(char* buf, std::vector<TexSeqElem>& tex_sequence,
+	int* is_lightmap, int* alpha_mode, AnimatedTexControl *atc)
 {
+	constexpr int MAX_TEMP_LEN = 2048;
+	char temp[MAX_TEMP_LEN];
 	int res = 0, clamp, raw_alpha_mode;
-	char *s = NULL, *t = NULL, path[256];
-	float fps = 30.0f, intensity = 0.0f, r,g,b, OfsX, OfsY, ar;
-	*is_lightmap = 0; *alpha_mode = 0; *eventType = EVT_NONE;
-	AuxColor->x = 1.0f;
-	AuxColor->y = 1.0f;
-	AuxColor->z = 1.0f;
-	AuxColor->w = 1.0f;
-	Offset->x = 0.0f; Offset->y = 0.0f;
-	*AspectRatio = 1.0f; *Clamp = 0;
+	char* s = NULL, * t = NULL, path[256];
+	float fps = 30.0f, intensity = 0.0f, r, g, b, OfsX, OfsY, ar;
+	*is_lightmap = 0; *alpha_mode = 0;
+	atc->Event = EVT_NONE; atc->InstEvent = IEVT_NONE; atc->isInstEvent = false;
+	atc->Tint.x = 1.0f;
+	atc->Tint.y = 1.0f;
+	atc->Tint.z = 1.0f;
+	atc->Tint.w = 1.0f;
+	atc->Offset.x = 0.0f; atc->Offset.y = 0.0f;
+	atc->AspectRatio = 1.0f; atc->Clamp = 0;
+
+	// Remove any parentheses from the line
+	int i = 0, j = 0;
+	while (buf[i] && j < MAX_TEMP_LEN - 1) {
+		if (buf[i] != '(' && buf[i] != ')')
+			temp[j++] = buf[i];
+		i++;
+	}
+	temp[j] = 0;
 
 	//log_debug("[DBG] [MAT] Reading texture sequence");
-	s = strchr(buf, '=');
+	s = strchr(temp, '=');
 	if (s == NULL) return false;
 
 	// Skip the equals sign:
 	s += 1;
 
-	// Skip to the next comma
-	t = s;
-	while (*t != 0 && *t != ',') t++;
-	// If we reached the end of the string, that's an error
-	if (*t == 0) return false;
-	// End this string on the comma so that we can parse a string
-	*t = 0;
-	ParseEvent(s, eventType);
+	// Parse the event, if it exists
+	{
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		ParseEvent(s, &(atc->Event), &(atc->InstEvent), &(atc->isInstEvent));
 
-	// Skip the comma
-	s = t; s += 1;
-	SKIP_WHITESPACES(s);
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+
+	// Parse the overlay modifier
+	if (stristr(s, "LYR_") != NULL) {
+		// Skip to the next comma
+		t = s;
+		while (*t != 0 && *t != ',') t++;
+		// If we reached the end of the string, that's an error
+		if (*t == 0) return false;
+		// End this string on the comma so that we can parse a string
+		*t = 0;
+		ParseOverlayControl(s, false, &(atc->OverlayCtrl));
+		// Skip the comma
+		s = t; s += 1;
+		SKIP_WHITESPACES(s);
+	}
+
+	// Parse the optional modifiers
+	s = ParseOptionalModifiers(s, atc);
 
 	// Skip to the next comma
 	t = s;
@@ -649,7 +1000,7 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 
 	// Parse the remaining fields: fps, lightmap, intensity, black-to-alpha
 	try {
-		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], %f, (%f, %f), %d", 
+		res = sscanf_s(s, "%f, %d, %f, %d; [%f, %f, %f], %f, %f, %f, %d",
 			&fps, is_lightmap, &intensity, &raw_alpha_mode,
 			&r, &g, &b, &ar, &OfsX, &OfsY, &clamp);
 		if (res < 4) {
@@ -658,24 +1009,30 @@ bool LoadFrameSequence(char *buf, std::vector<TexSeqElem> &tex_sequence, GameEve
 
 		*alpha_mode = AlphaModeToSpecialControl(raw_alpha_mode);
 		if (res >= 7) {
-			AuxColor->x = r;
-			AuxColor->y = g;
-			AuxColor->z = b;
-			AuxColor->w = 1.0f;
+			atc->Tint.x = r;
+			atc->Tint.y = g;
+			atc->Tint.z = b;
+			atc->Tint.w = 1.0f;
 		}
 		if (res >= 8)
-			*AspectRatio = ar; // Aspect Ratio
+			atc->AspectRatio = ar; // Aspect Ratio
 		if (res >= 10) {
-			Offset->x = OfsX;
-			Offset->y = OfsY;
+			atc->Offset.x = OfsX;
+			atc->Offset.y = OfsY;
 		}
 		if (res >= 11)
-			*Clamp = clamp; // clamp uv
+			atc->Clamp = clamp; // clamp uv
 		
 	}
 	catch (...) {
 		log_debug("[DBG] [MAT] Could not read (fps, lightmap, intensity, black-to-alpha) from %s", s);
 		return false;
+	}
+
+	// We only know if this is a lightmap animation here, so we need to
+	// upgrade the previous OverlayCtrl now.
+	if (atc->OverlayCtrl != 0) {
+		UpgradeOverayCtrlToLightmap(&(atc->OverlayCtrl), *is_lightmap);
 	}
 
 	TexSeqElem tex_seq_elem;
@@ -892,9 +1249,37 @@ bool LoadSimpleFrames(char *buf, std::vector<TexSeqElem> &tex_sequence)
 	return true;
 }
 
-inline void AssignTextureEvent(GameEvent eventType, Material* curMaterial, int ATCType=TEXTURE_ATC_IDX)
+uint32_t GenerateUniqueMaterialId()
 {
-	curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
+	static uint32_t Id = 1;
+	Id++;
+	return Id - 1;
+}
+
+uint64_t InstEventIdFromObjectMaterialId(int objectId, uint32_t materialId) {
+	uint64_t Id = (uint64_t)objectId;
+	Id = (Id << 32) | materialId;
+	return Id;
+}
+
+void InstEventIdToObjectMatId(uint64_t instId, int *objectId, uint32_t *materialId)
+{
+	*materialId = 0xFFFFFFFF & instId;
+	*objectId = instId >> 32;
+}
+
+inline void AssignTextureEvent(GameEvent eventType, InstEventType instEventType, bool isInstEvent,
+	Material* curMaterial, int ATCType)
+{
+	// Assign a unique Id to this material
+	curMaterial->Id = GenerateUniqueMaterialId();
+	if (!isInstEvent)
+		curMaterial->TextureATCIndices[ATCType][eventType] = g_AnimatedMaterials.size() - 1;
+	else {
+		curMaterial->InstTextureATCIndices[ATCType][instEventType].push_back(g_AnimatedMaterials.size() - 1);
+		//log_debug("[DBG] [INST] Added sub-template to event %s --> g_AnimatedMaterials[%d]",
+		//	g_sInstEventNames[instEventType], g_AnimatedMaterials.size() - 1);
+	}
 }
 
 GreebleData *GetOrAddGreebleData(Material *curMaterial) {
@@ -918,9 +1303,16 @@ void PrintGreebleData(GreebleData *greeble_data) {
 }
 
 void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
-	char param[256], svalue[512];
+	constexpr int MAX_SVALUE_LEN = 2048;
+	char param[256], svalue[MAX_SVALUE_LEN];
 	float fValue = 0.0f;
-
+	bool bIsExteriorOPT(stristr(OPTname, "Exterior") != NULL);
+	bool bIsCockpitOPT(stristr(OPTname, "Cockpit") != NULL);
+	// OPTname doesn't have the extension of the file, but materials for DAT
+	// files begin with dat-GroupId
+	bool bIsDATFile(stristr(OPTname, "dat") != NULL);
+	bool bIsGlobalOPT = bIsExteriorOPT || bIsCockpitOPT || bIsDATFile;
+	
 	// Skip comments and blank lines
 	if (buf[0] == ';' || buf[0] == '#')
 		return;
@@ -928,7 +1320,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		return;
 
 	// Read the parameter
-	if (sscanf_s(buf, "%s = %s", param, 256, svalue, 512) > 0) {
+	if (sscanf_s(buf, "%s = %s", param, 256, svalue, MAX_SVALUE_LEN) > 0) {
 		fValue = (float)atof(svalue);
 	}
 
@@ -952,10 +1344,11 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	}
 	else if (_stricmp(param, "Shadeless") == 0) {
 		curMaterial->IsShadeless = (bool)fValue;
-		log_debug("[DBG] Shadeless texture loaded");
+		//log_debug("[DBG] Shadeless texture loaded");
 	}
 	else if (_stricmp(param, "Light") == 0) {
 		LoadLightColor(buf, &(curMaterial->Light));
+		curMaterial->IsLightEmitter = true;
 		//log_debug("[DBG] [MAT] Light: %0.3f, %0.3f, %0.3f",
 		//	curMaterialTexDef.material.Light.x, curMaterialTexDef.material.Light.y, curMaterialTexDef.material.Light.z);
 	}
@@ -963,6 +1356,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		LoadUVCoord(buf, &(curMaterial->LightUVCoordPos));
 		//log_debug("[DBG] [MAT] LightUVCoordPos: %0.3f, %0.3f",
 		//	curMaterial->LightUVCoordPos.x, curMaterial->LightUVCoordPos.y);
+	}
+	else if (_stricmp(param, "light_falloff") == 0) {
+		curMaterial->LightFalloff = fValue;
+	}
+	else if (_stricmp(param, "light_angle") == 0) {
+		curMaterial->LightAngle = cos(fValue * DEG_TO_RAD);
 	}
 	else if (_stricmp(param, "NoBloom") == 0) {
 		curMaterial->NoBloom = (bool)fValue;
@@ -1063,7 +1462,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Animated LightMap/Texture data for [%s]", buf);
-		if (!LoadTextureSequence(buf, atc.Sequence, &(atc.Event), &alpha_mode, &(atc.Tint)))
+		if (!LoadTextureSequence(buf, IsLightMap, atc.Sequence, &alpha_mode, &atc))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -1071,6 +1470,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			atc.ResetAnimation();
 			atc.BlackToAlpha = false;
 			atc.AlphaIsBloomMask = false;
+			//if (atc.OverlayCtrl) {
+			//	log_debug("[DBG] [INST] OverlayCtrl: 0x%x", atc.OverlayCtrl);
+			//}
+			
 			switch (alpha_mode) {
 			case SPECIAL_CONTROL_BLACK_TO_ALPHA:
 				atc.BlackToAlpha = true;
@@ -1081,7 +1484,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			}
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
-			AssignTextureEvent(atc.Event, curMaterial, IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
+			if (atc.isInstEvent) {
+				curMaterial->bInstanceMaterial = true;
+				//log_debug("[DBG] [INST] Found instance material in [%s]", OPTname);
+			}
+			AssignTextureEvent(atc.Event, atc.InstEvent, atc.isInstEvent, curMaterial,
+				IsLightMap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 
 			/*
 			log_debug("[DBG] [MAT] >>>>>> Animation Sequence Start");
@@ -1107,8 +1515,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		//       later...
 		atc.Sequence.clear();
 		log_debug("[DBG] [MAT] Loading Frame Sequence data for [%s]", buf);
-		if (!LoadFrameSequence(buf, atc.Sequence, &(atc.Event), &is_lightmap, &alpha_mode,
-			&(atc.Tint), &(atc.Offset), &(atc.AspectRatio), &(atc.Clamp)))
+		if (!LoadFrameSequence(buf, atc.Sequence, &is_lightmap, &alpha_mode, &atc))
 			log_debug("[DBG] [MAT] Error loading animated LightMap/Texture data for [%s], syntax error?", buf);
 		if (atc.Sequence.size() > 0) {
 			log_debug("[DBG] [MAT] Sequence.size() = %d for Texture [%s]", atc.Sequence.size(), buf);
@@ -1116,6 +1523,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			atc.ResetAnimation();
 			atc.BlackToAlpha = false;
 			atc.AlphaIsBloomMask = false;
+			//if (atc.OverlayCtrl) {
+			//	log_debug("[DBG] [INST] OverlayCtrl: 0x%x", atc.OverlayCtrl);
+			//}
 			switch (alpha_mode) {
 			case SPECIAL_CONTROL_BLACK_TO_ALPHA:
 				atc.BlackToAlpha = true;
@@ -1126,7 +1536,12 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 			}
 			// Add a reference to this material on the list of animated materials
 			g_AnimatedMaterials.push_back(atc);
-			AssignTextureEvent(atc.Event, curMaterial, is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
+			if (atc.isInstEvent) {
+				curMaterial->bInstanceMaterial = true;
+				//log_debug("[DBG] [INST] Found instance material in [%s]", OPTname);
+			}
+			AssignTextureEvent(atc.Event, atc.InstEvent, atc.isInstEvent, curMaterial,
+				is_lightmap ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX);
 		}
 		else {
 			log_debug("[DBG] [MAT] ERROR: No Animation Data Loaded for [%s]", buf);
@@ -1280,7 +1695,167 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		greeble_data->GreebleLightMapScale[1] = fValue;
 		PrintGreebleData(greeble_data);
 	}
+
+	else if (_stricmp(param, "NormalMap") == 0) {
+		strcpy_s(curMaterial->NormalMapName, MAX_NORMALMAP_NAME, svalue);
+		curMaterial->NormalMapLoaded = false;
+		//log_debug("[DBG] [MAT] NormalMap set to %s", svalue);
+	}
 	
+	if (_stricmp(param, "JoystickRoot") == 0) {
+		curMaterial->DiegeticMesh = DM_JOYSTICK;
+		LoadLightColor(buf, &(curMaterial->JoystickRoot));
+		// This point must be scaled to match the OPT coord sys
+		curMaterial->JoystickRoot *= METERS_TO_OPT;
+		//log_debug("[DBG] [MAT] JoystickRoot: %0.3f, %0.3f, %0.3f",
+		//	curMaterial->JoystickRoot.x, curMaterial->JoystickRoot.y, curMaterial->JoystickRoot.z);
+	}
+	else if (_stricmp(param, "JoystickMaxYaw") == 0) {
+		curMaterial->JoystickMaxYaw = fValue;
+	}
+	else if (_stricmp(param, "JoystickMaxPitch") == 0) {
+		curMaterial->JoystickMaxPitch = fValue;
+	}
+
+	if (_stricmp(param, "ThrottleRotXAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_X;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleRotYAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_Y;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleRotZAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_Z;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleMaxAngle") == 0) {
+		curMaterial->ThrottleMaxAngle = fValue;
+	}
+	else if (_stricmp(param, "`ThrottleStart") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleEnd") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleAxis0") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "ThrottleAxis1") == 0) {
+		curMaterial->DiegeticMesh = DM_THR_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
+	}
+	
+
+	if (_stricmp(param, "HyperRotXAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_X;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperRotYAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_Y;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperRotZAxis") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_Z;
+		LoadLightColor(buf, &(curMaterial->ThrottleRoot));
+		curMaterial->ThrottleRoot *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperMaxAngle") == 0) {
+		curMaterial->ThrottleMaxAngle = fValue;
+	}
+	else if (_stricmp(param, "HyperStart") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperEnd") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_TRANS;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperAxis0") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleStart));
+		curMaterial->ThrottleStart *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "HyperAxis1") == 0) {
+		curMaterial->DiegeticMesh = DM_HYPER_ROT_ANY;
+		LoadLightColor(buf, &(curMaterial->ThrottleEnd));
+		curMaterial->ThrottleEnd *= METERS_TO_OPT;
+	}
+
+	if (_stricmp(param, "TransformCenter") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		LoadLightColor(buf, &(curMaterial->meshTransform.Center));
+		curMaterial->meshTransform.Center *= METERS_TO_OPT;
+	}
+	else if (_stricmp(param, "TransformRotX") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		curMaterial->meshTransform.RotXDelta = fValue;
+	}
+	else if (_stricmp(param, "TransformRotY") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		curMaterial->meshTransform.RotYDelta = fValue;
+	}
+	else if (_stricmp(param, "TransformRotZ") == 0) {
+		curMaterial->meshTransform.bDoTransform = true;
+		curMaterial->meshTransform.RotZDelta = fValue;
+	}
+
+	else if (_stricmp(param, "SkipWhenDisabled") == 0) {
+		curMaterial->SkipWhenDisabled = (bool)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	else if (_stricmp(param, "DisplayIfSpeedGE") == 0) {
+		curMaterial->DisplayIfSpeedGE = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	else if (_stricmp(param, "DisplayIfThrottleGE") == 0) {
+		curMaterial->DisplayIfThrottleGE = fValue / 100.0f;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	else if (_stricmp(param, "DisplayIfMissionSetSpeedGE") == 0) {
+		curMaterial->DisplayIfMissionSetSpeedGE = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	else if (_stricmp(param, "DisplayIfMissionSetSpeedGE") == 0) {
+		curMaterial->DisplayIfMissionSetSpeedGE = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	else if (_stricmp(param, "IncreaseBrightnessWithMissionSetSpeed") == 0) {
+		curMaterial->IncreaseBrightnessWithMissionSetSpeed = (int)fValue;
+		// This property makes this a per-instance material
+		curMaterial->bInstanceMaterial = true;
+	}
+
+	/*
+	else if (_stricmp(param, "Raytrace") == 0) {
+		curMaterial->Raytrace = (int)fValue;
+	}
+	*/
+
 	/*
 	else if (_stricmp(param, "LavaNormalMult") == 0) {
 		LoadLightColor(buf, &(curMaterial->LavaNormalMult));
@@ -1321,7 +1896,8 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	}
 
 	if (verbose) log_debug("[DBG] [MAT] Loading Craft Material params for [%s]...", sFileName);
-	char buf[512], param[256], svalue[512]; // texname[MAX_TEXNAME];
+	constexpr int MAX_BUF_LEN = 3000;
+	char buf[MAX_BUF_LEN], param[256], svalue[MAX_BUF_LEN]; // texname[MAX_TEXNAME];
 	std::vector<TexnameType> texnameList;
 	int param_read_count = 0;
 	float fValue = 0.0f;
@@ -1382,7 +1958,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	// We always start the craft material with one material: the default material in slot 0
 	bool MaterialSaved = true;
 	texnameList.clear();
-	while (fgets(buf, 512, file) != NULL) {
+	while (fgets(buf, MAX_BUF_LEN, file) != NULL) {
 		line++;
 		// Skip comments and blank lines
 		if (buf[0] == ';' || buf[0] == '#')
@@ -1390,7 +1966,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 		if (strlen(buf) == 0)
 			continue;
 		
-		if (sscanf_s(buf, "%s = %s", param, 256, svalue, 512) > 0) {
+		if (sscanf_s(buf, "%s = %s", param, 256, svalue, MAX_BUF_LEN) > 0) {
 			fValue = (float)atof(svalue);
 
 			if (buf[0] == '[') {
@@ -1403,8 +1979,9 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 				//log_debug("[DBG] [MAT] texname: %s", texname);
 
 				if (!MaterialSaved) {
-					// There's an existing material that needs to be saved before proceeding
-					for (TexnameType texname : texnameList) {
+					// A new material section begins in this line, but there's a previous
+					// material that needs to be saved before proceeding
+					for (const TexnameType &texname : texnameList) {
 						// Copy the texture name from the list to the current material
 						strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
 						// Special case: overwrite the default material
@@ -1455,12 +2032,20 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 				if (!bIsExplosion) {
 					//strncpy_s(curMaterialTexDef.texname, texname, MAX_TEXNAME);
 					curMaterialTexDef.texname[0] = 0;
-					curMaterialTexDef.material = g_DefaultGlobalMaterial;
+					// For new materials, use the Default material defined for this ship
+					curMaterialTexDef.material = craftMat.MaterialList[0].material;
+					// If the default material has instance event data, clear it:
+					curMaterialTexDef.material.bInstanceMaterial = false;
+					curMaterialTexDef.material.bIsDefaultMaterial = false;
+					curMaterialTexDef.material.ClearATCIndices();
+					// For new materials, use the default global material;
+					//curMaterialTexDef.material = g_DefaultGlobalMaterial;
 				}
 				MaterialSaved = false;
 			}
-			else
+			else {
 				ReadMaterialLine(buf, &(curMaterialTexDef.material), OPTname);
+			}
 		}
 	}
 	fclose(file);
@@ -1471,7 +2056,7 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	}
 	else if (!MaterialSaved) {
 		// There's an existing material that needs to be saved before proceeding
-		for (TexnameType texname : texnameList) {
+		for (const TexnameType &texname : texnameList) {
 			// Copy the texture name from the list to the current material
 			strncpy_s(curMaterialTexDef.texname, texname.name, MAX_TEXNAME);
 			// Special case: overwrite the default material
@@ -1487,6 +2072,25 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	}
 	texnameList.clear();
 
+	// Mark the first material as the default material
+	craftMat.MaterialList[0].material.bIsDefaultMaterial = true;
+
+	// DEBUG
+	/*
+	if (craftMat.MaterialList[0].material.bInstanceMaterial) {
+		log_debug("[DBG] [INST] DEFAULT MATERIAL FOR [%s] HAS AN INSTANCE EVENT",
+			OPTname);
+		for (int i = 0; i < MAX_ATC_TYPES; i++)
+			for (int j = 0; j < MAX_INST_EVT; j++) {
+				int size = craftMat.MaterialList[0].material.InstTextureATCIndices[i][j].size();
+				if (size > 0)
+					log_debug("[DBG] [INST] DEFAULT MATERIAL FOR [%s] HAS INSTANCE EVENT [%s]",
+						OPTname, g_sInstEventNames[j]);
+			}
+	}
+	*/
+	// DEBUG
+
 	// Replace the craft material in g_Materials
 	if (craftIdx < 0) {
 		//log_debug("[DBG] [MAT] Adding new craft material %s", OPTname);
@@ -1496,6 +2100,11 @@ bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	else {
 		//log_debug("[DBG] [MAT] Replacing existing craft material %s", OPTname);
 		g_Materials[craftIdx] = craftMat;
+	}
+
+	// Have each material point back to its parent CraftMaterials entry in g_Materials
+	for (auto& mat : g_Materials[craftIdx].MaterialList) {
+		mat.material.craftIdx = craftIdx;
 	}
 
 	// DEBUG
@@ -1663,6 +2272,23 @@ void AnimatedTexControl::Animate() {
 	this->TimeLeft = time;
 }
 
+bool AnimatedTexControl::IsRandomizableOverlay() {
+	if (this->InstEvent == IEVT_SHIELDS_DOWN ||
+		this->InstEvent == IEVT_TRACTOR_BEAM ||
+		this->InstEvent == IEVT_JAMMING_BEAM)
+		return true;
+	return false;
+}
+
+bool AnimatedTexControl::IsHullDamageEvent()
+{
+	if (this->InstEvent == IEVT_HULL_DAMAGE_25 ||
+		this->InstEvent == IEVT_HULL_DAMAGE_50 ||
+		this->InstEvent == IEVT_HULL_DAMAGE_75)
+		return true;
+	return false;
+}
+
 void AnimateMaterials() {
 	// I can't use a shorthand loop like the following:
 	// for (AnimatedTexControl atc : g_AnimatedMaterials) 
@@ -1671,36 +2297,61 @@ void AnimateMaterials() {
 	// which doesn't work, because we need to modify the source element
 	for (uint32_t i = 0; i < g_AnimatedMaterials.size(); i++) {
 		AnimatedTexControl *atc = &(g_AnimatedMaterials[i]);
+		// Do not animate instance materials here. Any instance materials in this array
+		// are templates.
+		if (atc->isInstEvent)
+			continue;
 		// Reset this ATC if its event fired during the current frame
 		if (EventFired(atc->Event))
 			atc->ResetAnimation();
 		else
 			atc->Animate();
 	}
+
+	// Animate instance events. This allows independent timers for each instance.
+	for (uint32_t i = 0; i < g_AnimatedInstMaterials.size(); i++) {
+		AnimatedTexControl *atc = &(g_AnimatedInstMaterials[i]);
+		if (atc == nullptr || atc->objectId == -1) {
+			//log_debug("[DBG] [INST] SKIPPING animation on instance materials, objectId == -1");
+			continue;
+		}
+		uint64_t Id = InstEventIdFromObjectMaterialId(atc->objectId, atc->materialId);
+		auto& it = g_objectIdToInstanceEvent.find(Id);
+		if (it != g_objectIdToInstanceEvent.end()) {
+			if (it->second.EventFired(atc->InstEvent))
+				atc->ResetAnimation();
+			else
+				atc->Animate();
+		}
+	}
 }
 
 void ClearAnimatedMaterials() {
 	for (AnimatedTexControl atc : g_AnimatedMaterials)
 		atc.Sequence.clear();
+	for (AnimatedTexControl atc : g_AnimatedInstMaterials)
+		atc.Sequence.clear();
 	g_AnimatedMaterials.clear();
+	g_AnimatedInstMaterials.clear();
 }
 
 void CockpitInstrumentState::FromXWADamage(WORD XWADamage) {
 	CockpitDamage x;
 	x.Flags			= XWADamage;
 	CMD				= (x.CMD != 0);
-	LaserIon			= (x.LaserIon == 0x7);
+	LaserIon		= (x.LaserIon == 0x7);
 	BeamWeapon		= (x.BeamWeapon != 0);
 	Shields			= (x.Shields != 0);
-	Throttle			= (x.Throttle != 0);
+	Throttle		= (x.Throttle != 0);
 	Sensors			= (x.Sensors == 0x3);
 	LaserRecharge	= (x.LaserRecharge != 0);
 	EnginePower		= (x.EngineLevel != 0);
 	ShieldRecharge	= (x.ShieldRecharge != 0);
-	BeamRecharge		= (x.BeamRecharge != 0);
+	BeamRecharge	= (x.BeamRecharge != 0);
 }
 
 void ResetGameEvent() {
+	//////////////////// GLOBAL EVENTS ////////////////////
 	g_GameEvent.TargetEvent = EVT_NONE;
 	memset(&(g_GameEvent.CockpitInstruments), 1, sizeof(CockpitInstrumentState));
 	g_GameEvent.bCockpitInitialized = false;
@@ -1713,7 +2364,7 @@ void ResetGameEvent() {
 	for (int i = 0; i < MAX_CANNONS; i++)
 		g_GameEvent.CannonReady[i] = false;
 
-	// Add new events here
+	// Add new global events here
 	// ...
 
 	// Don't modify the code below this line if you're just adding new events
@@ -1721,8 +2372,21 @@ void ResetGameEvent() {
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		bEventsFired[i] = false;
 
-	// Always keep this line at the end of this function
+	// Always keep this line at the end of the global event section
 	g_PrevGameEvent = g_GameEvent;
+
+	//////////////////// INSTANCE EVENTS ////////////////////
+	for (auto &it : g_objectIdToInstanceEvent) {
+		InstanceEvent &instEvent = it.second;
+		instEvent.HullEvent = IEVT_NONE;
+		instEvent.ShieldBeamEvent = IEVT_NONE;
+
+		// Add new instance events here
+		// ...
+
+		instEvent.ResetEventsFired();
+		instEvent.CopyCurrentEventsToPrev();
+	}
 }
 
 // Check which events were set on the current frame and set the corresponding flags
@@ -1730,7 +2394,7 @@ void UpdateEventsFired() {
 	// Set all events to false
 	for (int i = 0; i < MAX_GAME_EVT; i++)
 		bEventsFired[i] = false;
-	
+
 	// Set the current target event to true if it changed:
 	if (g_PrevGameEvent.TargetEvent != g_GameEvent.TargetEvent)
 		bEventsFired[g_GameEvent.TargetEvent] = true;
@@ -1738,7 +2402,7 @@ void UpdateEventsFired() {
 	// Set the current hull damage event to true if it changed:
 	if (g_PrevGameEvent.HullEvent != g_GameEvent.HullEvent)
 		bEventsFired[g_GameEvent.HullEvent] = true;
-	
+
 	// Manually check and set each damage event
 	bEventsFired[CPT_EVT_BROKEN_CMD] = (g_PrevGameEvent.CockpitInstruments.CMD && !g_GameEvent.CockpitInstruments.CMD);
 	bEventsFired[CPT_EVT_BROKEN_LASER_ION] = (g_PrevGameEvent.CockpitInstruments.LaserIon && !g_GameEvent.CockpitInstruments.LaserIon);
@@ -1772,16 +2436,98 @@ void UpdateEventsFired() {
 
 	// Alternate explosions cannot be triggered as events. Instead, we need to do a frame-by-frame replacement.
 
-	// Don't modify the code below this line if you're only adding new events
+	// Don't modify this block if you're only adding new events
+	{
 #ifdef DEBUG_EVENTS
-	for (int i = 0; i < MAX_GAME_EVT; i++)
-		if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);
+		for (int i = 0; i < MAX_GAME_EVT; i++)
+			if (bEventsFired[i]) log_debug("[DBG] --> Event [%s] FIRED", g_sGameEventNames[i]);
 #endif
+		// Copy the events
+		g_PrevGameEvent = g_GameEvent;
+	}
 
-	// Copy the events
-	g_PrevGameEvent = g_GameEvent;
+	////////////////////// Update instance events //////////////////////
+	for (auto &it : g_objectIdToInstanceEvent) {
+		InstanceEvent &instEvent = it.second;
+		// Set all instance events to false
+		instEvent.ResetEventsFired();
+
+		// Update instance events
+
+		// Set the current shield damage/beam event to true if it changed:
+		if (instEvent.PrevShieldBeamEvent != instEvent.ShieldBeamEvent) {
+			instEvent.bEventsFired[instEvent.ShieldBeamEvent] = true;
+			// This random value gets re-computed each time the event gets triggered.
+			// Thus it can help us randomize the shields down effect.
+			instEvent.rand0 = (float)rand() / RAND_MAX;
+			instEvent.rand1 = (float)rand() / RAND_MAX;
+			instEvent.rand2 = (float)rand() / RAND_MAX;
+		}
+
+		// Set the current hull damage event to true if it changed:
+		if (instEvent.PrevHullEvent != instEvent.HullEvent)
+			instEvent.bEventsFired[instEvent.HullEvent] = true;
+
+		// Do not modify this block if you're only adding new instance events
+		{
+#ifdef DEBUG_EVENTS
+			for (int i = 0; i < MAX_INST_EVT; i++)
+				if (instEvent.bEventsFired[i]) {
+					int objectId;
+					uint32_t materialId;
+					InstEventIdToObjectMatId(it.first, &objectId, &materialId);
+					log_debug("[DBG] [INST] ===> InstEvent, object-matId: %d-%d, [%s] FIRED",
+						objectId, materialId, g_sInstEventNames[i]);
+				}
+#endif
+			// Copy the instance events
+			instEvent.CopyCurrentEventsToPrev();
+		}
+	}
 }
 
 bool EventFired(GameEvent Event) {
 	return bEventsFired[Event];
+}
+
+Matrix4 MeshTransform::ComputeTransform()
+{
+	Matrix4 T, R, Transform;
+
+	// Translate the center to the origin
+	T.identity(); T.translate(-Center);
+	Transform = T;
+
+	R.identity(); R.rotateX(CurRotX);
+	Transform = R * Transform;
+
+	R.identity(); R.rotateY(CurRotY);
+	Transform = R * Transform;
+
+	R.identity(); R.rotateZ(CurRotZ);
+	Transform = R * Transform;
+
+	// Return the system to its original position
+	T.identity(); T.translate(Center);
+	Transform = T * Transform;
+
+	// We need to transpose the matrix because XwaD3dVertexShader is expecting the
+	// matrix in this format
+	Transform.transpose();
+	return Transform;
+}
+
+void MeshTransform::UpdateTransform()
+{
+	CurRotX += RotXDelta;
+	CurRotY += RotYDelta;
+	CurRotZ += RotZDelta;
+
+	while (CurRotX > 360.0f) CurRotX -= 360.0f;
+	while (CurRotY > 360.0f) CurRotY -= 360.0f;
+	while (CurRotZ > 360.0f) CurRotZ -= 360.0f;
+
+	while (CurRotX < 0.0f) CurRotX += 360.0f;
+	while (CurRotY < 0.0f) CurRotY += 360.0f;
+	while (CurRotZ < 0.0f) CurRotZ += 360.0f;
 }

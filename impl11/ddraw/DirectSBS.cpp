@@ -1,10 +1,10 @@
+#include "common.h"
 #include <Windows.h>
 #include <stdio.h>
-#include "common.h"
 #include "utils.h"
 #include "commonVR.h"
 #include "DirectSBS.h"
-#include <headers/openvr.h>
+#include <openvr.h>
 #include "FreePIE.h"
 #include "effects.h"
 
