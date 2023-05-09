@@ -1,16 +1,52 @@
 // Copyright (c) 2016-2018 Reimar Döffinger
 // Licensed under the MIT license. See LICENSE.txt
 
-#include "config.h"
 #include "common.h"
+#include "config.h"
 
 #include <mmsystem.h>
 #include <xinput.h>
 
 #include "XWAObject.h"
+#include "SharedMem.h"
 #include "joystick.h"
+#include "HiResTimer.h"
+
 extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
+
+// Gimbal Lock Fix
+bool g_bEnableGimbalLockFix = false, g_bGimbalLockFixActive = false;
+bool g_bEnableRudder = true, g_bYTSeriesShip = false;
+
+// How much roll is applied when the ship is doing yaw. Set this to 0
+// to have a completely flat yaw, as in the YT-series ships.
+float g_fRollFromYawScale = -0.8f;
+
+// Acceleration and deceleration rates in degrees per second (this is the 2nd derivative)
+float g_fYawAccelRate_s   = 5.0f;
+float g_fPitchAccelRate_s = 5.0f;
+float g_fRollAccelRate_s  = 5.0f;
+
+// The maximum turn rate (in degrees per second) for each axis (1st derivative)
+float g_fMaxYawRate_s   = 70.0f;
+float g_fMaxPitchRate_s = 70.0f;
+float g_fMaxRollRate_s  = 100.0f;
+
+float g_fTurnRateScaleThr_0   = 0.3f;
+float g_fTurnRateScaleThr_100 = 0.6f;
+float g_fMaxTurnAccelRate_s   = 3.0f;
+bool g_bThrottleModulationEnabled = true;
+
+float g_fMouseRangeX = 256.0f, g_fMouseRangeY = 256.0f;
+
+float g_fMouseDeltaX = 0.0f, g_fMouseDeltaY = 0.0f;
+float g_fMouseDecelRate_s = 700.0f;
+
+constexpr int MAX_RAW_INPUT_ENTRIES = 128;
+RAWINPUT rawInputBuffer[MAX_RAW_INPUT_ENTRIES];
+
+extern bool g_bRendering3D;
 
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
@@ -18,6 +54,28 @@ extern uint32_t *g_playerIndex;
 #undef min
 #undef max
 #include <algorithm>
+
+inline float sign(float val)
+{
+	return (val >= 0.0f) ? 1.0f : -1.0f;
+}
+
+inline float clamp(float val, float min, float max)
+{
+	if (val < min) val = min;
+	if (val > max) val = max;
+	return val;
+}
+
+float SignedReduceClamp(float val, float delta, float abs_min, float abs_max)
+{
+	float s = sign(val);
+	val = fabs(val);
+	val -= delta;
+	if (val < abs_min) val = abs_min;
+	if (val > abs_max) val = abs_max;
+	return s * val;
+}
 
 // timeGetTime emulation.
 // if it is called in a tight loop it will call Sleep()
@@ -156,8 +214,73 @@ static const DWORD povmap[16] = {
 	JOY_POVCENTERED, // up and down
 };
 
+// See:
+// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputbuffer?redirectedfrom=MSDN
+// https://learn.microsoft.com/en-us/windows/win32/inputdev/using-raw-input
+// https://stackoverflow.com/questions/28879021/winapi-getrawinputbuffer
+// https://stackoverflow.com/questions/59809804/rawinput-winapi-getrawinputbuffer-and-message-handling
+// Returns 0 if no events were read
+// DISABLED: I suspect that registering for low-level events messes the main message pump
+#ifdef DISABLED
+int ReadRawMouseData(int *iDeltaX, int *iDeltaY)
+{
+	uint32_t rawInputBufferSize = sizeof(RAWINPUT) * MAX_RAW_INPUT_ENTRIES;
+
+	*iDeltaX = 0; *iDeltaY = 0;
+	//bool nonzero = false;
+	// MAGIC NUMBER WARNING:
+	// For some reason, the actual data is shifted by 8 bytes.
+	// This 8 is probably the diff between sizeof(RAWINPUT) (40) and header.dwSize (48)
+	RAWINPUT* raw = (RAWINPUT*)((uint32_t)rawInputBuffer + 8);
+
+	int res = GetRawInputBuffer(rawInputBuffer, &rawInputBufferSize, sizeof(RAWINPUTHEADER));
+	int count = res;
+	/*if (count) {
+		log_debug("[DBG] count: %d, rawInputBufferSize: %d", count, rawInputBufferSize);
+		nonzero = true;
+	}*/
+
+	while (count > 0) {
+		// The trackpad becomes RIM_TYPEMOUSE, but additional mice have a different type
+		// (probably RIM_TYPEHID). Since we're only registering mice, we can ignore the
+		// type and move on...
+		//if (raw->header.dwType == RIM_TYPEMOUSE)
+		{
+			/*log_debug("[DBG] RMD.MOUSE event, %d, %d; %d, %d, %d",
+				raw->data.mouse.lLastX, raw->data.mouse.lLastY,
+				raw->data.mouse.ulButtons, raw->data.mouse.usButtonFlags,
+				raw->data.mouse.ulExtraInformation);*/
+			*iDeltaX += raw->data.mouse.lLastX;
+			*iDeltaY += raw->data.mouse.lLastY;
+		}
+
+		raw = NEXTRAWINPUTBLOCK(raw);
+		count--;
+	}
+
+	/*if (nonzero) {
+		log_debug("[DBG] Delta: %d, %d", *iDeltaX, *iDeltaY);
+		log_debug("[DBG] ---------------------------------");
+	}*/
+	return res;
+}
+
+void ResetRawMouseInput()
+{
+	int deltaX, deltaY;
+	ReadRawMouseData(&deltaX, &deltaY);
+	g_fMouseDeltaX = g_fMouseDeltaY = 0.0f;
+}
+#endif
+
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
+	// Tell the joystick hook when to disable the joystick
+	if (g_pSharedDataJoystick != NULL) {
+		g_pSharedDataJoystick->GimbalLockFixActive = g_bGimbalLockFixActive;
+		g_pSharedDataJoystick->JoystickEmulationEnabled = (g_config.JoystickEmul != 0);
+	}
+
 	if (!g_config.JoystickEmul) {
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
@@ -170,8 +293,29 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 
 		if (g_config.InvertThrottle) pji->dwZpos = (joyZmax - pji->dwZpos) + joyZmin;
+		// dwXpos: x-axis goes from 0 (left) to 32767 (center) to 65535 (right)
+		// dwYpos: y-axis goes from 0 (up)   to 32767 (center) to 65535 (down)
+		// dwRpos: z-axis goes from 0 (left) to 32767 (center) to 65535 (right)
+		if (g_bGimbalLockFixActive && g_pSharedDataJoystick != NULL)
+		{
+			// Only run this section if the joystick hook isn't present
+			if (!(g_pSharedDataJoystick->JoystickHookPresent)) {
+				float normYaw   = 2.0f * (pji->dwXpos / 65535.0f - 0.5f);
+				float normPitch = 2.0f * (pji->dwYpos / 65535.0f - 0.5f);
+				float normRoll  = 2.0f * (pji->dwRpos / 65535.0f - 0.5f);
+				g_pSharedDataJoystick->JoystickYaw   = normYaw;
+				g_pSharedDataJoystick->JoystickPitch = normPitch;
+				g_pSharedDataJoystick->JoystickRoll  = normRoll;
+
+				// Nullify the joystick input
+				pji->dwXpos = 32767;
+				pji->dwYpos = 32767;
+				pji->dwRpos = 32767;
+			}
+		}
 		return res;
 	}
+
 	if (joy != 0) return MMSYSERR_NODRIVER;
 	if (pji->dwSize != 0x34) return MMSYSERR_INVALPARAM;
 	// XInput
@@ -238,13 +382,51 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 	pji->dwXpos = 256; // This is the center position for this axis
 	pji->dwYpos = 256;
-	pji->dwZpos = 256;
-	pji->dwRpos = 256;
+	pji->dwZpos = 256; // Throttle
+	pji->dwRpos = 256; // Rudder (roll)
 
 	// Mouse input
 	{
-		pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
-		pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
+		//if (!g_bGimbalLockFixActive)
+		{
+			// This is the original code by Reimar
+			pji->dwXpos = static_cast<DWORD>(std::min(256.0f + (pos.x - 240.0f) * g_config.MouseSensitivity, 512.0f));
+			pji->dwYpos = static_cast<DWORD>(std::min(256.0f + (pos.y - 240.0f) * g_config.MouseSensitivity, 512.0f));
+		}
+		// DISABLED: I suspect that registering for low-level events messes the main message pump
+#ifdef DISABLED
+		else // if (g_bRendering3D)
+		{
+			static float lastTime = g_HiResTimer.global_time_s;
+			const float now = g_HiResTimer.global_time_s;
+			const float elapsedTime = now - lastTime;
+
+			int iDeltaX = 0, iDeltaY = 0;
+			if (ReadRawMouseData(&iDeltaX, &iDeltaY))
+			{
+				g_fMouseDeltaX = clamp(g_fMouseDeltaX + (float)iDeltaX * g_config.MouseSensitivity,
+					-g_fMouseRangeX, g_fMouseRangeX);
+				g_fMouseDeltaY = clamp(g_fMouseDeltaY + (float)iDeltaY * g_config.MouseSensitivity,
+					-g_fMouseRangeY, g_fMouseRangeY);
+			}
+			else
+			{
+				//g_fMouseDeltaX *= 0.5f;
+				//g_fMouseDeltaY *= 0.5f;
+
+				g_fMouseDeltaX = SignedReduceClamp(g_fMouseDeltaX, elapsedTime * g_fMouseDecelRate_s, 0.0f, g_fMouseRangeX);
+				g_fMouseDeltaY = SignedReduceClamp(g_fMouseDeltaY, elapsedTime * g_fMouseDecelRate_s, 0.0f, g_fMouseRangeY);
+			}
+			const float deltaX = clamp(g_fMouseDeltaX / g_fMouseRangeX, -1.0f, 1.0f);
+			const float deltaY = clamp(g_fMouseDeltaY / g_fMouseRangeY, -1.0f, 1.0f);
+
+			pji->dwXpos = static_cast<DWORD>((deltaX + 1.0f) / 2.0f * 512.0f);
+			pji->dwYpos = static_cast<DWORD>((deltaY + 1.0f) / 2.0f * 512.0f);
+
+			lastTime = now;
+		}
+#endif
+
 		pji->dwButtons = 0;
 		pji->dwButtonNumber = 0;
 		if (GetAsyncKeyState(VK_LBUTTON)) {
@@ -292,14 +474,13 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	log_debug("[DBG] dwXpos,dwRpos: %d, %d", pji->dwZpos, pji->dwRpos);
 	*/
 	
-	// dwZpos is the throttle
 	if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
 		pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
 	}
 	if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
 		pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
 	}
-	
+
 	if (GetAsyncKeyState(VK_UP) & 0x8000) {
 		pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
 	}
@@ -307,5 +488,24 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		pji->dwYpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
 	}
 	if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;
+	// Normalize each axis to the range -1..1:
+	float normYaw   = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
+	float normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
+	if (g_pSharedDataJoystick != NULL) {
+		g_pSharedDataJoystick->JoystickYaw   = normYaw;
+		g_pSharedDataJoystick->JoystickPitch = normPitch;
+		g_pSharedDataJoystick->JoystickRoll  = 0.0f;
+	}
+
+	if (g_bGimbalLockFixActive)
+	{
+		// Nullify the joystick input, but only if we're inside the cockpit
+		// (that's what g_bGimbalLockActive does)
+		pji->dwXpos = 256;
+		pji->dwYpos = 256;
+		pji->dwZpos = 256;
+		pji->dwRpos = 256;
+	}
+
 	return JOYERR_NOERROR;
 }

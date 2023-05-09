@@ -102,6 +102,33 @@ enum FGCreationGenusCategory : __int32
 	FGCreationGenusCategory_Droid = 11,
 };
 
+// ; enum ObjectGenus, copyof_225, width 1 byte
+enum ObjectGenus : uint8_t
+{
+	Genus_Starfighter = 0,
+	Genus_Transport = 1,
+	Genus_Utility = 2,
+	Genus_Freighter = 3,
+	Genus_Starship = 4,
+	Genus_Platform = 5,
+	Genus_PlayerProjectile = 6,
+	Genus_OtherProjectile = 7,
+	Genus_Mine = 8,
+	Genus_Satellite = 9,
+	Genus_NormalDebris = 10,
+	Genus_SmallDebris = 11,
+	Genus_Backdrop = 12,
+	Genus_Explosion = 13,
+	Genus_Obstacle = 14,
+	Genus_Deathstar2 = 15,
+	Genus_People = 16,
+	Genus_Container = 17,
+	Genus_Droid = 18,
+	Genus_Armament = 19,
+	Genus_LargeDebris = 20,
+	Genus_SalvageYard = 21
+};
+
 enum KeyCode
 {
 	KeyCode_CTRLA = 0x1,

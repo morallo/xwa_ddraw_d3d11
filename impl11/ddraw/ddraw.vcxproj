@@ -14,39 +14,39 @@
     <ProjectGuid>{C03DE3A0-EF2A-4596-AFDE-66E4C4FD6E23}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ddraw</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
-    <CharacterSet>NotSet</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="PropertySheetDebug.props" />
+    <Import Project="PropertySheetDebug.props" Condition="exists('PropertySheetDebug.props')" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="PropertySheetRelease.props" />
+    <Import Project="PropertySheetRelease.props" Condition="exists('PropertySheetRelease.props')" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>$(SolutionDir)dependencies\embree\include;$(SolutionDir)dependencies\openvr\headers;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(SolutionDir)dependencies\embree\include;$(SolutionDir)dependencies\openvr\headers;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -56,9 +56,11 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;DDRAW_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/std:c++17 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -66,7 +68,9 @@
       <ModuleDefinitionFile>ddraw.def</ModuleDefinitionFile>
       <UACUIAccess>true</UACUIAccess>
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\openvr\lib;$(SolutionDir)dependencies\embree\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -78,9 +82,10 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;DDRAW_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <TreatWarningAsError>false</TreatWarningAsError>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
@@ -93,7 +98,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <ModuleDefinitionFile>ddraw.def</ModuleDefinitionFile>
       <UACUIAccess>true</UACUIAccess>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;openvr_api.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);DirectXTK.lib;Windowscodecs.lib;winmm.lib;openvr_api.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)dependencies\openvr\lib;$(SolutionDir)dependencies\embree\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
   </ItemDefinitionGroup>
@@ -103,6 +109,7 @@
       <FileType>Document</FileType>
     </None>
     <None Include="ddraw.def" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ActiveCockpit.cpp" />
@@ -120,13 +127,17 @@
     <ClCompile Include="DirectDraw.cpp" />
     <ClCompile Include="DirectDraw2.cpp" />
     <ClCompile Include="DirectSBS.cpp" />
+    <ClCompile Include="DirectSBSRenderer.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="DynamicCockpit.cpp" />
     <ClCompile Include="Effects.cpp" />
+    <ClCompile Include="EffectsRenderer.cpp" />
     <ClCompile Include="ExecuteBufferDumper.cpp" />
     <ClCompile Include="FreePIE.cpp" />
     <ClCompile Include="FrontbufferSurface.cpp" />
+    <ClCompile Include="hook_config.cpp" />
     <ClCompile Include="joystick.cpp" />
+    <ClCompile Include="LBVH.cpp" />
     <ClCompile Include="logger.cpp" />
     <ClCompile Include="Materials.cpp" />
     <ClCompile Include="Matrices.cpp" />
@@ -140,6 +151,9 @@
     <ClCompile Include="TextureSurface.cpp" />
     <ClCompile Include="utils.cpp" />
     <ClCompile Include="VRConfig.cpp" />
+    <ClCompile Include="SteamVRRenderer.cpp" />
+    <ClCompile Include="XwaConcourseHook.cpp" />
+    <ClCompile Include="XwaD3dRendererHook.cpp" />
     <ClCompile Include="XwaDrawBracketHook.cpp" />
     <ClCompile Include="XwaDrawRadarHook.cpp" />
     <ClCompile Include="XwaDrawTextHook.cpp" />
@@ -151,6 +165,7 @@
     <ClInclude Include="commonVR.h" />
     <ClInclude Include="ComPtr.h" />
     <ClInclude Include="config.h" />
+    <ClInclude Include="D3dRenderer.h" />
     <ClInclude Include="DepthSurface.h" />
     <ClInclude Include="DeviceResources.h" />
     <ClInclude Include="Direct3D.h" />
@@ -161,14 +176,29 @@
     <ClInclude Include="DirectDraw.h" />
     <ClInclude Include="DirectDraw2.h" />
     <ClInclude Include="DirectSBS.h" />
+    <ClInclude Include="DirectSBSRenderer.h" />
     <ClInclude Include="DynamicCockpit.h" />
     <ClInclude Include="Effects.h" />
     <ClInclude Include="EffectsCommon.h" />
+    <ClInclude Include="EffectsRenderer.h" />
+    <ClInclude Include="embree\include\rtcore.h" />
+    <ClInclude Include="embree\include\rtcore_buffer.h" />
+    <ClInclude Include="embree\include\rtcore_builder.h" />
+    <ClInclude Include="embree\include\rtcore_common.h" />
+    <ClInclude Include="embree\include\rtcore_config.h" />
+    <ClInclude Include="embree\include\rtcore_device.h" />
+    <ClInclude Include="embree\include\rtcore_geometry.h" />
+    <ClInclude Include="embree\include\rtcore_quaternion.h" />
+    <ClInclude Include="embree\include\rtcore_ray.h" />
+    <ClInclude Include="embree\include\rtcore_scene.h" />
     <ClInclude Include="ExecuteBufferDumper.h" />
     <ClInclude Include="FreePIE.h" />
     <ClInclude Include="FrontbufferSurface.h" />
     <ClInclude Include="globals.h" />
+    <ClInclude Include="HiResTimer.h" />
+    <ClInclude Include="hook_config.h" />
     <ClInclude Include="joystick.h" />
+    <ClInclude Include="LBVH.h" />
     <ClInclude Include="logger.h" />
     <ClInclude Include="Materials.h" />
     <ClInclude Include="Matrices.h" />
@@ -179,12 +209,17 @@
     <ClInclude Include="Reticle.h" />
     <ClInclude Include="ShadowMapping.h" />
     <ClInclude Include="SharedMem.h" />
+    <ClInclude Include="SharedMemTemplate.h" />
     <ClInclude Include="SteamVR.h" />
+    <ClInclude Include="SteamVRRenderer.h" />
+    <ClInclude Include="SurfaceDC.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TextureSurface.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="Vectors.h" />
     <ClInclude Include="VRConfig.h" />
+    <ClInclude Include="XwaConcourseHook.h" />
+    <ClInclude Include="XwaD3dRendererHook.h" />
     <ClInclude Include="XWAEnums.h" />
     <ClInclude Include="XWAFramework.h" />
     <ClInclude Include="XWAObject.h" />
@@ -192,11 +227,21 @@
     <ClInclude Include="XwaDrawBracketHook.h" />
     <ClInclude Include="XwaDrawRadarHook.h" />
     <ClInclude Include="XwaDrawTextHook.h" />
+    <ClInclude Include="xwa_structures.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ddraw.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\packages\Microsoft.XAudio2.Redist.1.2.9\build\native\Microsoft.XAudio2.Redist.targets" Condition="Exists('..\packages\Microsoft.XAudio2.Redist.1.2.9\build\native\Microsoft.XAudio2.Redist.targets')" />
+    <Import Project="..\packages\directxtk_desktop_2019.2022.7.30.1\build\native\directxtk_desktop_2019.targets" Condition="Exists('..\packages\directxtk_desktop_2019.2022.7.30.1\build\native\directxtk_desktop_2019.targets')" />
   </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Microsoft.XAudio2.Redist.1.2.9\build\native\Microsoft.XAudio2.Redist.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.XAudio2.Redist.1.2.9\build\native\Microsoft.XAudio2.Redist.targets'))" />
+    <Error Condition="!Exists('..\packages\directxtk_desktop_2019.2022.7.30.1\build\native\directxtk_desktop_2019.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\directxtk_desktop_2019.2022.7.30.1\build\native\directxtk_desktop_2019.targets'))" />
+  </Target>
 </Project>

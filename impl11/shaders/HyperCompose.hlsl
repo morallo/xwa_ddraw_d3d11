@@ -18,6 +18,8 @@ SamplerState bgSampler : register(s1);
 Texture2D    effectTex     : register(t2);
 SamplerState effectSampler : register(s2);
 
+#define interdict_mix twirl
+
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
@@ -36,15 +38,16 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
-	float4 bloom	: SV_TARGET1;
+	float4 color : SV_TARGET0;
+	float4 bloom	 : SV_TARGET1;
 };
 
 // The HyperZoom effect probably can't be applied in this shader because it works
 // on the full screen. Instead the HyperZoom must be applied SBS or using independent
 // buffers
 
-static const float3 bloom_col = float3(0.5, 0.5, 1);
+static const float3 blue_col = float3(0.50, 0.50, 1.00);
+static const float3 red_col  = float3(0.90, 0.15, 0.15);
 //#define bloom_strength 2.0
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -71,7 +74,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	*/
 
 	float3 color;
-	float fg_alpha = fgColor.a;
+	// The following is a bit of a hack. The foreground texture (the cockpit) gets an
+	// alpha value between 0.8 and 0.9 when the hologram is enabled; but I'll be damned
+	// if I can fix the stupid blend operation to yield alpha=1 from PixelShaderDCHolo.
+	// So, instead, let's multiply the alpha for the foreground by 10 so that we can
+	// work around this stupid stupid stupid (stupid) problem.
+	float fg_alpha = saturate(10.0 * fgColor.a);
 	float lightness = dot(0.333, effectColor.rgb);
 	// Combine the background with the hyperspace effect
 	if (hyperspace_phase == 2) {
@@ -93,7 +101,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	else {
 		bloom = 0.65 * smoothstep(0.55, 1.0, lightness);
 	}
+
+	// Render red streaks during an interdiction
+	// TODO: Lerp the color, but only when entering the hypertunnel
+	float3 bloom_col = lerp(blue_col, red_col, interdict_mix);
 	output.bloom = float4(bloom_strength * bloom_col * bloom, bloom);
+
 	output.bloom *= 1.0 - fg_alpha; // Hide the bloom mask wherever the foreground is solid
 	return output;
 }

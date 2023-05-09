@@ -10,6 +10,8 @@ extern const char* COVER_TEX_NAME_DCPARAM;
 extern const char* COVER_TEX_SIZE_DCPARAM;
 extern const char* ERASE_REGION_DCPARAM;
 
+extern const float POVOffsetIncr;
+
 // This is the current resolution of the screen:
 extern float g_fLensK1;
 extern float g_fLensK2;
@@ -40,7 +42,6 @@ extern bool g_bFixedGUI ;
 //extern float g_fXWAScale ; // This is the scale value as computed during Execute()
 
 extern float g_fSSAOAlphaOfs;
-extern bool g_bDisableDiffuse;
 extern bool g_bProceduralLava;
 
 extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1];
@@ -51,7 +52,7 @@ extern bool g_bDynCockpitEnabled;
 
 extern float g_fHangarAmbient, g_fGlobalAmbient;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
-extern bool g_bApplyXWALightsIntensity;
+extern bool g_bApplyXWALightsIntensity, g_bNormalizeLights;
 extern float g_fHDRLightsMultiplier, g_fHDRWhitePoint;
 extern bool g_bHDREnabled;
 extern bool g_bEdgeDetectorEnabled;
@@ -59,8 +60,6 @@ extern bool g_bEdgeDetectorEnabled;
 extern bool g_bEnableVR;
 extern bool g_bCockpitPZHackEnabled;
 extern bool g_bOverrideAspectRatio;
-
-
 
 // User-facing functions
 void ResetVRParams(); // Restores default values for the view params
@@ -82,6 +81,8 @@ bool LoadSSAOParams();
 bool LoadHyperParams();
 bool Load3DVisionParams();
 bool LoadDefaultGlobalMaterial();
+bool LoadMultiplayerConfig();
+bool LoadGimbaLockFixConfig();
 void ReloadMaterials();
 
 #ifdef DBG_VR

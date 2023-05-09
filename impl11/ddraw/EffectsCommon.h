@@ -90,9 +90,9 @@ typedef struct SSAOPixelShaderCBStruct {
 	float moire_offset, amplifyFactor;
 	int fn_enable;
 	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
+	float fn_max_xymult, ssao_unused0, fn_sharpness, ssao_unused1;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ssao_unused0, amplifyFactor2;
+	float far_sample_radius, ssao_unused2, ssao_unused3, amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
@@ -102,12 +102,13 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 144 bytes
 	float vpScale[4];
 	// 160 bytes
-	int shadow_enable;
+	int ssao_unused;
 	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
 typedef struct ShadertoyCBStruct {
+	// twirl: renamed to ExplosionScale in ExplosionShader.hlsl
 	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float iResolution[2];
@@ -122,8 +123,14 @@ typedef struct ShadertoyCBStruct {
 	Matrix4 viewMat; // The view rotation matrix
 	// 4*4 = 16 elements, 16 * 4 = 64 bytes
 	// 48 + 64 = 112 bytes
-	int bDisneyStyle; // Enables the flare when jumping into hyperspace and other details
+	// Style: Enables the flare when jumping into hyperspace and other details
+	// 0: Standard (no flare)
+	// 1: Flare (Disney style)
+	// 2: Interdiction
+	// Renamed to ExplosionBlendMode in ExplosionShader
+	int Style;
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
+	// tunnel_speed: renamed to ExplosionTime in ExplosionShader.hlsl
 	float tunnel_speed, FOVscale;
 	// 128 bytes
 	int SunFlareCount;
@@ -136,6 +143,11 @@ typedef struct ShadertoyCBStruct {
 	float4 SunColor[MAX_SUN_FLARES];
 	// 272 bytes
 } ShadertoyCBuffer;
+
+typedef struct OPTMeshTransformCBufferStruct {
+	Matrix4 MeshTransform;
+	// 64 bytes
+} OPTMeshTransformCBuffer;
 
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
 // so that we can reuse the same CB slot -- after all, we can't manipulate
@@ -164,20 +176,28 @@ typedef struct LaserPointerCBStruct {
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
 	// 16 bytes
+	float s_V0x08B94CC;
+	float s_V0x05B46B4;
+	float s_V0x05B46B4_Offset;
+	float unused1;
+	// 32 bytes
+	float4 ProjectionParameters;
+	// 48 bytes
 	float aspect_ratio;
 	uint32_t apply_uv_comp;
 	float z_override, sz_override;
-	// 32 bytes
-	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
-	// 48 bytes
-	//float vsunused0, vsunused1, vsunused2, vsunused3;
 	// 64 bytes
+	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
+	// 80 bytes
 } VertexShaderCBuffer;
 
 typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 projEye;
 	Matrix4 viewMat;
 	Matrix4 fullViewMat;
+	// 192 bytes
+	float Znear, Zfar, DeltaX, DeltaY;
+	// 208 bytes
 } VertexShaderMatrixCB;
 
 typedef struct PSShadingSystemCBStruct {
@@ -199,15 +219,35 @@ typedef struct PSShadingSystemCBStruct {
 	uint32_t num_lasers;
 	// 336 bytes
 	float4 LightPoint[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
-	// 464 bytes
-	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
+	// 16 * 16 = 256
 	// 592 bytes
+	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
+	// 16 * 16 = 256
+	// 848 bytes
+	float4 LightPointDirection[MAX_CB_POINT_LIGHTS];
+	// 16 * 16 = 256
+	// 1104 bytes
 	float ambient, headlights_angle_cos, HDR_white_point;
 	uint32_t HDREnabled;
-	// 608 bytes
+	// 1120 bytes
 } PSShadingSystemCB;
+
+typedef struct RTConstantsBufferStruct {
+	uint32_t bRTEnable;
+	uint32_t bRTAllowShadowMapping;
+	uint32_t RTUnused0;
+	uint32_t RTGetBestIntersection;
+	// 16 bytes
+	uint32_t RTEnableSoftShadows;
+	uint32_t RTShadowMaskSizeFactor;
+	float    RTShadowMaskPixelSizeX;
+	float    RTShadowMaskPixelSizeY;
+	// 32 bytes
+	float    RTSoftShadowThreshold;
+	float    RTGaussFactor;
+	float    RTUnused1[2];
+	// 48 bytes
+} RTConstantsBuffer;
 
 typedef struct {
 	/* Exclusive Flags. Only one flag can be set at the same time */
@@ -226,7 +266,7 @@ typedef struct PixelShaderCBStruct {
 	// 16 bytes
 
 	uint32_t bIsLaser;
-	uint32_t bIsLightTexture;
+	float fOverlayBloomPower;
 	uint32_t bIsEngineGlow;
 	uint32_t GreebleControl;
 	// 32 bytes
@@ -259,6 +299,28 @@ typedef struct PixelShaderCBStruct {
 	float GreebleMix1, GreebleMix2;
 	float2 UVDispMapResolution;
 	// 144 bytes
+
+	float4 AuxColorLight;
+	// 160 bytes
+	special_control_bitfield special_control_light;
+	uint32_t bDoNormalMapping;
+	uint32_t bDoRaytracing;
+	uint32_t OverlayCtrl;
+	// 176 bytes
+
+	float rand0;
+	float rand1;
+	float rand2;
+	float PS_unused0;
+	// 192 bytes
+
+	float2 uvSrc0;
+	float2 uvSrc1;
+	// 208 bytes
+
+	float2 uvOffset;
+	float2 uvScale;
+	// 224 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
@@ -283,7 +345,7 @@ typedef struct DCPixelShaderCBStruct {
 
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
-	float scale, aspectRatio, parallax, brightness;
+	float scale, aspect_ratio, parallax, brightness;
 	float use_3D, inv_scale, unused1, unused2;
 } MainShadersCBuffer;
 
@@ -297,6 +359,9 @@ class VectorColor {
 public:
 	Vector3 P;
 	Vector3 col;
+	Vector3 dir;
+	float falloff;
+	float angle;
 };
 
 class SmallestK {
@@ -314,7 +379,8 @@ public:
 		_size = 0;
 	}
 
-	void insert(Vector3 P, Vector3 col);
+	void insert(Vector3 P, Vector3 col, Vector3 dir={}, float falloff=0.0f, float angle=0.0f);
+	void remove_duplicates();
 };
 
 typedef enum {

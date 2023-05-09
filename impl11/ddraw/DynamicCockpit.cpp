@@ -1,6 +1,5 @@
-#include "DynamicCockpit.h"
-
 #include "common.h"
+#include "DynamicCockpit.h"
 #include "globals.h"
 #include "VRConfig.h"
 
@@ -25,6 +24,9 @@ bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
 float4 g_DCTargetingColor, g_DCWireframeLuminance;
 float4 g_DCTargetingIFFColors[6];
+float4 g_DCTargetingFriend;
+float4 g_DCTargetingFoe;
+bool g_bGreenAndRedForIFFColorsOnly = false;
 float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 bool g_bRenderLaserIonEnergyLevels = false, g_bRenderThrottle = false;
@@ -33,6 +35,8 @@ extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-C
 // HOLOGRAMS
 float g_fDCHologramFadeIn = 0.0f, g_fDCHologramFadeInIncr = 0.04f, g_fDCHologramTime = 0.0f;
 bool g_bDCHologramsVisible = true, g_bDCHologramsVisiblePrev = true;
+// DIEGETIC JOYSTICK
+bool g_bDiegeticCockpitEnabled = true;
 
 Vector2 g_TriangleCentroid;
 

@@ -1,9 +1,9 @@
 // Copyright (c) 2020, 2021 Leo Reyes
 // Licensed under the MIT license. See LICENSE.txt
-// Simplified version of PixelShaderTexture. This shader is used to render animated
-// textures and textures with alpha that we don't want to render as glass.
-// as glass materials. if fBloomStrength is not zero, then bloom will be applied and
-// modulated by the alpha of the texture.
+// Simplified version of PixelShaderTexture. This shader is used to render
+// textures with alpha that we don't want to render as glass.
+// if fBloomStrength is not zero, then bloom will be applied and modulated by the alpha
+// of the texture.
 // Light Textures are not handled in this shader. This shader should not be used with
 // illumination textures.
 #include "shader_common.h"
@@ -11,7 +11,8 @@
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
 
-Texture2D    texture0 : register(t0);
+Texture2D texture0 : register(t0); // This is the regular color texture
+Texture2D texture1 : register(t1); // If present, this is the light texture
 SamplerState sampler0 : register(s0);
 
 // pos3D/Depth buffer has the following coords:
@@ -23,10 +24,10 @@ SamplerState sampler0 : register(s0);
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
+	float2 tex	  : TEXCOORD;
+	//float4 color  : COLOR0;
 };
 
 struct PixelShaderOutput
@@ -39,6 +40,7 @@ struct PixelShaderOutput
 	float4 ssMask   : SV_TARGET5;
 };
 
+// TODO: This shader probably doesn't need to pay attention to special_control, or use AuxColor anymore.
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -55,7 +57,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alpha = HSV.z;
 
-	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask.
@@ -64,26 +65,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 	
-
-	// hook_normals code:
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	output.normal = float4(N, SSAOAlpha);
 
-	// ssaoMask.r: Material
-	// ssaoMask.g: Glossiness
-	// ssaoMask.b: Specular Intensity
+	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
-
-	
 	
 	// bloom
 	if (HSV.z >= 0.8) {
 		float bloom_alpha = saturate(fBloomStrength);
-		diffuse = 1.0;
 		output.bloom = float4(fBloomStrength * texelColor.rgb, alpha);
 		//output.ssaoMask.r = SHADELESS_MAT;
 		output.ssMask.b = bloom_alpha;
@@ -92,6 +86,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//output.ssaoMask.b = 0.15; // Low spec intensity
 		output.ssaoMask.b = 0.15 * bloom_alpha; // Low spec intensity
 	}
-	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
+	output.color = float4(brightness * texelColor.xyz, texelColor.w);
 	return output;
 }

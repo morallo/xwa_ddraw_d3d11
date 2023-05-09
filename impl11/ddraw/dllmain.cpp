@@ -8,12 +8,20 @@
 #define STRICT
 #include <Windows.h>
 #include <objbase.h>
+#include <hidusage.h>
 
 #include <stdio.h>
 #include <vector>
+
 #include "Vectors.h"
 #include "Matrices.h"
 #include "config.h"
+#include "XwaDrawTextHook.h"
+#include "XwaDrawRadarHook.h"
+#include "XwaDrawBracketHook.h"
+#include "XwaD3dRendererHook.h"
+#include "XwaConcourseHook.h"
+
 #include "utils.h"
 #include "effects.h"
 #include "VRConfig.h"
@@ -21,10 +29,7 @@
 #include "commonVR.h"
 #include "XWAFramework.h"
 #include "SharedMem.h"
-
-extern SharedDataProxy *g_pSharedData;
-// ddraw is loaded after the hooks, so here we open an existing shared memory handle:
-SharedMem g_SharedMem(false);
+#include "LBVH.h"
 
 extern HiResTimer g_HiResTimer;
 extern PlayerDataEntry* PlayerDataTable;
@@ -38,6 +43,9 @@ extern int g_KeySet;
 //extern float g_fMetricMult, 
 extern float g_fAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
+extern bool g_bEnableAnimations;
+extern bool g_bFadeLights;
+extern bool g_bEnableQBVHwSAH;
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -84,10 +92,16 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
+void IncreaseD3DExecuteCounterSkipHi(int Delta);
+void IncreaseD3DExecuteCounterSkipLo(int Delta);
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
 void IncreaseLensK2(float Delta);
+
+// CSM
+void ToggleCSM();
+void SetHDRState(bool state);
 
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;
@@ -187,7 +201,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL)	& 0x8000) == 0x8000;
 	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)		& 0x8000) == 0x8000;
-	bool UpKey	  = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
+	bool UpKey    = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
 	bool DownKey  = (GetAsyncKeyState(VK_DOWN)		& 0x8000) == 0x8000;
 	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
 	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
@@ -274,6 +288,13 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fBlastMarkOfsX += 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
 					break;
+				case 15:
+					//g_fRTSoftShadowThresholdMult += 0.05f;
+					//log_debug("[DBG] g_fRTSoftShadowThreshold: %0.6f", g_fRTSoftShadowThresholdMult);
+
+					g_fRTGaussFactor += 0.1f;
+					log_debug("[DBG] g_fRTGaussFactor: %0.6f", g_fRTGaussFactor);
+					break;
 				}
 
 				/*
@@ -341,6 +362,19 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fBlastMarkOfsX -= 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
 					break;
+				case 15:
+					//g_fRTSoftShadowThresholdMult -= 0.05f;
+					//if (g_fRTSoftShadowThresholdMult < 0.01f) g_fRTSoftShadowThresholdMult = 0.01f;
+					//log_debug("[DBG] g_fRTSoftShadowThresholdMult: %0.6f", g_fRTSoftShadowThresholdMult);
+
+					//g_fRTShadowSharpness -= 0.1f;
+					//if (g_fRTShadowSharpness < 0.1f) g_fRTShadowSharpness = 0.1f;
+					//log_debug("[DBG] g_fRTShadowSharpness: %0.6f", g_fRTShadowSharpness);
+
+					g_fRTGaussFactor -= 0.1f;
+					if (g_fRTGaussFactor < 0.1f) g_fRTGaussFactor = 0.01f;
+					log_debug("[DBG] g_fRTGaussFactor: %0.6f", g_fRTGaussFactor);
+					break;
 				}
 
 				/*
@@ -394,6 +428,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fBlastMarkOfsY -= 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
 					break;
+				case 14:
+					g_fGlowMarkZOfs += 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
+					break;
 				}
 
 				return 0;
@@ -435,6 +473,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 13:
 					g_fBlastMarkOfsY += 0.01f;
 					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+					break;
+				case 14:
+					g_fGlowMarkZOfs -= 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
 					break;
 				}
 
@@ -491,7 +533,15 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bShowSSAODebug = !g_bShowSSAODebug;
+				g_bDumpOptNodes = !g_bDumpOptNodes;
+				log_debug("[DBG] g_bDumpOptNodes: %d", g_bDumpOptNodes);
+
+				//g_bFadeLights = !g_bFadeLights;
+				//log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
+
+				//g_bDisplayGlowMarks = !g_bDisplayGlowMarks;
+				//log_debug("[DBG] g_bDisplayGlowMarks: %d", g_bDisplayGlowMarks);
+				//g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
 			// Toggle FXAA
@@ -511,13 +561,17 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//	return 0;
 			case 'G':
 				//g_bDumpLaserPointerDebugInfo = true;
+				/*
+				g_bEnableGimbalLockFix = !g_bEnableGimbalLockFix;
+				DisplayTimedMessage(3, 0, g_bEnableGimbalLockFix ? "Gimbal Lock Fix ON" : "Regular Joystick Controls");
+				log_debug(g_bEnableGimbalLockFix ? "[DBG] Gimbal Lock Fix ON" : "[DBG] Regular Joystick Controls");
+				*/
+
 				g_bAutoGreeblesEnabled = !g_bAutoGreeblesEnabled;
-				if (g_bAutoGreeblesEnabled)
-					DisplayTimedMessage(3, 0, "Greebles Enabled");
-				else
-					DisplayTimedMessage(3, 0, "Greebles Disabled");
+				DisplayTimedMessage(3, 0, g_bAutoGreeblesEnabled ? "Greebles Enabled" : "Greebles Disabled");
 				return 0;
 				// DEBUG
+			// Ctrl + Alt + P
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;
 				if (g_bEnableIndirectSSDO)
@@ -525,12 +579,20 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else
 					DisplayTimedMessage(3, 0, "Indirect SSDO Disabled");
 				return 0;
-			case 'I':
-				g_bShadowEnable = !g_bShadowEnable;
-				log_debug("[DBG] Shadows Enabled: %d", g_bShadowEnable);
-				return 0;
+			// Ctrl+Alt+A: Toggle Bloom
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
+				if (g_bBloomEnabled)
+					DisplayTimedMessage(3, 0, "Bloom Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Bloom Disabled");
+				/*
+				g_bEnableAnimations = !g_bEnableAnimations;
+				if (g_bEnableAnimations)
+					DisplayTimedMessage(3, 0, "Animations Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Animations Disabled");
+				*/
 				return 0;
 			// Ctrl+Alt+O
 			case 'O':
@@ -569,7 +631,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bEnableVR = !g_bEnableVR;
 				}
 				return 0;
-
+			// Ctrl+Alt+S
 			case 'S':
 				SaveVRParams();
 				DisplayTimedMessage(3, 0, "VRParams.cfg Saved");
@@ -583,8 +645,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				LoadVRParams();
 				return 0;
 			
+			// Ctrl+Alt+W
 			case 'W':
-				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
+				//ToggleCSM();
+
+				g_iDelayedDumpDebugBuffers = 30;
+				log_debug("[DBG] Delayed debug dump set");
+
+				//g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
 				/*
 				if (g_fSpecIntensity > 0.5f) {
 					g_fSpecIntensity = 0.0f;
@@ -651,6 +719,12 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Ctrl
 		if (CtrlKey && !AltKey && !ShiftKey) {
 			switch (wParam) {
+			case 0xbb:
+				IncreaseD3DExecuteCounterSkipLo(1);
+				return 0;
+			case 0xbd:
+				IncreaseD3DExecuteCounterSkipLo(-1);
+				return 0;
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
@@ -698,13 +772,44 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+K --> Toggle Mouse Look
 			case 'K': {
 				*mouseLook = !*mouseLook;
+				DisplayTimedMessage(3, 0, *mouseLook ? "Mouse Look ON" : "Mouse Look OFF");
+				log_debug("[DBG] mouseLook: %d", *mouseLook);
 				return 0;
 			}
 
+			// Ctrl+R
 			case 'R': {
 				//g_bResetDC = true;
 				//g_bProceduralSuns = !g_bProceduralSuns;
-				g_bShadowMapDebug = !g_bShadowMapDebug;
+				//g_bShadowMapDebug = !g_bShadowMapDebug;
+				//g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
+				//log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
+
+#undef DEBUG_RT
+#ifdef DEBUG_RT
+				if (g_bInTechRoom) {
+					g_bEnableQBVHwSAH = !g_bEnableQBVHwSAH;
+					log_debug("[DBG] [BVH] g_bEnableQBVHwSAH: %d", g_bEnableQBVHwSAH);
+				}
+#endif
+
+				g_bRTEnabled = !g_bRTEnabled;
+				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
+				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
+				if (!g_bRTEnabled)
+				{
+					g_bShadowMapEnable = true;
+					g_bRTEnabledInCockpit = false;
+				}
+				else
+				{
+					g_bShadowMapEnable = false;
+					g_bRTEnabledInCockpit = true;
+				}
+				//SetHDRState(g_bRTEnabled);
+				// Force the Deferred rendering mode when RT is enabled
+				//if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
+
 				return 0;
 			}
 			// There's a hook by Justagai that uses Ctrl+T to toggle the CMD, so let's use another key
@@ -713,8 +818,22 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bDCHologramsVisible = !g_bDCHologramsVisible;
 				//return 0;
 			//}
+			// Ctrl+S
 			case 'S': {
+#define BENCHMARK_MODE 0
+#if BENCHMARK_MODE
+				g_BVHBuilderType = (BVHBuilderType)(((int)g_BVHBuilderType + 1) % BVHBuilderType_MAX);
+				log_debug("[DBG] [BVH] Builder type set to: %s", g_sBVHBuilderTypeNames[g_BVHBuilderType]);
+#else
+				g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
+				log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
+#endif
+				/*g_bRTEnabled = !g_bRTEnabled;
+				log_debug("[DBG] [BVH] g_bRTEnabled: %s", g_bRTEnabled ? "Enabled" : "Disabled");
+				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");*/
+
 				g_bShadowMapEnable = !g_bShadowMapEnable;
+				DisplayTimedMessage(3, 0, g_bShadowMapEnable ? "Shadow Mapping Enabled" : "Shadow Mapping Disabled");
 				return 0;
 			}
 			//case 'E': {
@@ -727,17 +846,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				CycleFOVSetting();
 				return 0;
 			}
+			// Ctrl+W
 			case 'W': {
-				// DEBUG: Toggle keyboard joystick emulation
-				if (g_config.KbdSensitivity > 0.0f) {
-					g_config.KbdSensitivity = 0.0f;
-					DisplayTimedMessage(3, 0, "Joystick Emul Paused");
-				}
-				else {
-					g_config.KbdSensitivity = 1.0f;
-					DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
-				}
-				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
+				g_config.OnlyGrayscaleInTechRoom = !g_config.OnlyGrayscaleInTechRoom;
 				return 0;
 			}
 			case 'V':
@@ -749,11 +860,16 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			// Ctrl+L is the landing gear
 
-			// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
-			case 'P':
-				g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
-				log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
+			// Ctrl+P Toggle PBR Shading
+			//case 'P':
+				//g_bEnablePBRShading = !g_bEnablePBRShading;
+				//DisplayTimedMessage(3, 0, g_bEnablePBRShading ? "PBR Shading Enabled" : "Regular Shading");
+				//log_debug("[DBG] PBR Shading %s", g_bEnablePBRShading ? "Enabled" : "Disabled");
+				//g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
+				//log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
+
 				/*
+				// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
 				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
 					static int scrCounter = 0;
 					char prevFileName[80], scrFileName[80];
@@ -772,7 +888,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] !g_bUseSteamVR || g_pVRScreenshots is NULL");
 				}
 				*/
-				break;
+				//break;
 
 #if DBR_VR
 			case 'X':
@@ -794,6 +910,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					//IncreaseScreenScale(0.1f);
 					//SaveVRParams();
+
+					//IncreaseAspectRatio(0.05f);
+					IncreaseReticleScale(0.1f);
+					SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z += 0.1f;
@@ -829,6 +949,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					//IncreaseScreenScale(-0.1f);
 					//SaveVRParams();
+
+					//IncreaseAspectRatio(-0.05f);
+					IncreaseReticleScale(-0.1f);
+					SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z -= 0.1f;
@@ -860,9 +984,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_LEFT:
 				switch (g_KeySet) {
 				case 2:
-					//IncreaseAspectRatio(-0.05f);
-					IncreaseReticleScale(-0.1f);
-					SaveVRParams();
 					break;
 				case 11:
 					g_contOriginWorldSpace.x -= 0.02f;
@@ -874,9 +995,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_RIGHT:
 				switch (g_KeySet) {
 				case 2:
-					//IncreaseAspectRatio(0.05f);
-					IncreaseReticleScale(0.1f);
-					SaveVRParams();
 					break;
 				case 11:
 					g_contOriginWorldSpace.x += 0.02f;
@@ -889,29 +1007,53 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		}
 
 		// Ctrl + Shift
-		if (CtrlKey && !AltKey && ShiftKey) {
-			switch (wParam) {
-#if DBG_VR
-				/*
-				case 0xbb:
-					//IncreaseNoExecIndices(0, 1);
-					return 0;
-				case 0xbd:
-					//IncreaseNoExecIndices(0, -1);
-					return 0;
-				*/
-#endif
-			// Ctrl+Shift+C: Reset the cockpit damage
+		if (CtrlKey && !AltKey && ShiftKey)
+		{
+			switch (wParam)
+			{
+			case 0xbb:
+				//IncreaseNoExecIndices(0, 1);
+				IncreaseD3DExecuteCounterSkipHi(1);
+				return 0;
+			case 0xbd:
+				//IncreaseNoExecIndices(0, -1);
+				IncreaseD3DExecuteCounterSkipHi(-1);
+				return 0;
+				// Ctrl+Shift+C: Reset the cockpit damage
 			case 'C':
 				g_bResetCockpitDamage = true;
 				return 0;
-			/*
-			case 'T': {
-				g_bDCHologramsVisible = !g_bDCHologramsVisible;
+				/*
+				case 'T': {
+					g_bDCHologramsVisible = !g_bDCHologramsVisible;
+					return 0;
+				}
+				*/
+			// Ctrl+Shift+R: Toggle Raytraced Cockpit Shadows
+			case 'R':
+				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
+				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
+				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
+					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
 				return 0;
-			}
-			*/
-
+			case 'S':
+				g_bRTEnableSoftShadows = !g_bRTEnableSoftShadows;
+				log_debug("[DBG] g_bRTEnableSoftShadows: %d", g_bRTEnableSoftShadows);
+				DisplayTimedMessage(3, 0, g_bRTEnableSoftShadows ?
+					"Raytraced Soft Shadows" : "Raytraced Hard Shadows");
+				return 0;
+			// Ctrl+Shift+W: Toggle keyboard joystick emulation
+			case 'W':
+				if (g_config.KbdSensitivity > 0.0f) {
+					g_config.KbdSensitivity = 0.0f;
+					DisplayTimedMessage(3, 0, "Joystick Emul Paused");
+				}
+				else {
+					g_config.KbdSensitivity = 1.0f;
+					DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
+				}
+				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
+				return 0;
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);
 				return 0;
@@ -930,42 +1072,44 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Shift
 		if (ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
+			// Shift + Arrow Keys
 			case VK_LEFT:
 				//IncreaseHUDParallax(-0.1f);
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetZ -= POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetZ -= POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_RIGHT:
 				//IncreaseHUDParallax(0.1f);
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetZ += POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetZ += POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_UP:
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetY += POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetY += POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_DOWN:
 				// Adjust the POV in VR (through cockpit shake), see CockpitLook
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetY -= POVOffsetIncr;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetY -= POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
+
 			case VK_OEM_PERIOD:
 				log_debug("[DBG] Resetting POVOffset for %s", g_sCurrentCockpit);
-				if (g_pSharedData != NULL && g_pSharedData->bDataReady) {
-					g_pSharedData->pSharedData->POVOffsetX = 0.0f;
-					g_pSharedData->pSharedData->POVOffsetY = 0.0f;
-					g_pSharedData->pSharedData->POVOffsetZ = 0.0f;
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_pSharedDataCockpitLook->POVOffsetX = 0.0f;
+					g_pSharedDataCockpitLook->POVOffsetY = 0.0f;
+					g_pSharedDataCockpitLook->POVOffsetZ = 0.0f;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
@@ -1061,7 +1205,32 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 		}
 		*/
+		return 0;
 	}
+
+	/*
+	case WM_INPUT:
+	{
+		UINT dwSize = sizeof(RAWINPUT);
+		static BYTE lpb[sizeof(RAWINPUT)];
+
+		// GetRawInputBuffer() can't be read inside the main message loop
+		GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
+
+		RAWINPUT* raw = (RAWINPUT*)lpb;
+
+		if (raw->header.dwType == RIM_TYPEMOUSE)
+		{
+			g_iMouseDeltaX += raw->data.mouse.lLastX;
+			g_iMouseDeltaY += raw->data.mouse.lLastY;
+			//log_debug("[DBG] raw delta: %d, %d", raw->data.mouse.lLastX, raw->data.mouse.lLastY);
+			//g_bMouseDeltaReady = true;
+			//InsertMouseDelta(g_iMouseDeltaX, g_iMouseDeltaY);
+		}
+		break;
+	}
+	*/
+
 	}
 	
 	// Call the previous WindowProc handler
@@ -1071,6 +1240,19 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 bool ReplaceWindowProc(HWND hwnd)
 {
 	RECT rect;
+
+	// Register the mouse for raw input. This will allow us to receive low-level mouse deltas
+	// DISABLED: I suspect that registering for low-level events messes the main message pump
+#ifdef DISABLED
+	RAWINPUTDEVICE Rid[1];
+	Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
+	Rid[0].dwFlags = RIDEV_INPUTSINK;
+	Rid[0].hwndTarget = hwnd;
+	if (!RegisterRawInputDevices(Rid, 1, sizeof(Rid[0])))
+		log_debug("[DBG] Failed to register raw input device");
+#endif
+
 	g_ThisWindow = hwnd;
 	OldWindowProc = (WNDPROC )SetWindowLong(g_ThisWindow, GWL_WNDPROC, (LONG )MyWindowProc);
 	if (OldWindowProc != NULL) {
@@ -1084,10 +1266,6 @@ bool ReplaceWindowProc(HWND hwnd)
 	
 	return false;
 }
-
-#include "XwaDrawTextHook.h"
-#include "XwaDrawRadarHook.h"
-#include "XwaDrawBracketHook.h"
 
 bool IsXwaExe()
 {
@@ -1204,12 +1382,6 @@ out:
 	log_debug("[DBG] [POV] %d POV entries modified", entries_applied);
 }
 
-void InitSharedMem() {
-	g_pSharedData = (SharedDataProxy *)g_SharedMem.GetMemoryPtr();
-	if (g_pSharedData == NULL)
-		log_debug("[DBG] Could not load shared data ptr");
-}
-
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -1238,7 +1410,21 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 		log_debug("[DBG] [FOV] Default FOV Dist: %0.3f", g_fDefaultFOVDist);
 
 		InitSharedMem();
-		
+
+		// Embree appears to cause random lockups in the Briefing Room and the
+		// Tech Room. Not sure why, as I can't break into the process to see what's
+		// going on, and since it's not a crash, there isn't a crash dump either.
+		// So let's disable this altogether while I think about what to do next
+		//if (g_bRTEnableEmbree)
+		//{
+		//	LoadEmbree();
+		//}
+		{
+			g_bRTEnableEmbree = false;
+			g_BVHBuilderType = BVHBuilderType_FastQBVH;
+			log_debug("[DBG] [BVH] [EMB] Embree was not loaded. Using FastLQBVH instead");
+		}
+
 		if (IsXwaExe())
 		{
 			if (g_config.Text2DRendererEnabled) 
@@ -1273,6 +1459,60 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				// DrawBracketMapHook
 				*(unsigned char*)(0x00503CFE + 0x00) = 0xE8;
 				*(int*)(0x00503CFE + 0x01) = (int)DrawBracketMapHook - (0x00503CFE + 0x05);
+			}
+
+			if (g_config.D3dRendererHookEnabled)
+			{
+				// D3dRenderLasersHook - call 0042BBA0
+				*(unsigned char*)(0x004F0B7E + 0x00) = 0xE8;
+				*(int*)(0x004F0B7E + 0x01) = (int)D3dRenderLasersHook - (0x004F0B7E + 0x05);
+
+				// D3dRenderMiniatureHook - call 00478490
+				*(unsigned char*)(0x00478412 + 0x00) = 0xE8;
+				*(int*)(0x00478412 + 0x01) = (int)D3dRenderMiniatureHook - (0x00478412 + 0x05);
+				*(unsigned char*)(0x00478483 + 0x00) = 0xE8;
+				*(int*)(0x00478483 + 0x01) = (int)D3dRenderMiniatureHook - (0x00478483 + 0x05);
+
+				// D3dRenderHyperspaceLinesHook - call 00480A80
+				*(unsigned char*)(0x0047DCB6 + 0x00) = 0xE8;
+				*(int*)(0x0047DCB6 + 0x01) = (int)D3dRenderHyperspaceLinesHook - (0x0047DCB6 + 0x05);
+
+				// D3dRendererHook - call 00480370
+				*(unsigned char*)(0x004829C5 + 0x00) = 0xE8;
+				*(int*)(0x004829C5 + 0x01) = (int)D3dRendererMainHook - (0x004829C5 + 0x05);
+				*(unsigned char*)(0x004829DF + 0x00) = 0xE8;
+				*(int*)(0x004829DF + 0x01) = (int)D3dRendererMainHook - (0x004829DF + 0x05);
+
+				// D3dRendererShadowHook - call 0044FD10
+				*(unsigned char*)(0x004847DE + 0x00) = 0xE8;
+				*(int*)(0x004847DE + 0x01) = (int)D3dRendererShadowHook - (0x004847DE + 0x05);
+				*(unsigned char*)(0x004847F3 + 0x00) = 0xE8;
+				*(int*)(0x004847F3 + 0x01) = (int)D3dRendererShadowHook - (0x004847F3 + 0x05);
+
+				// D3dRendererOptLoadHook - call 0050E3B0
+				*(int*)(0x004CC965 + 0x01) = (int)D3dRendererOptLoadHook - (0x004CC965 + 0x05);
+
+				// D3dRendererOptNodeHook - call 00482000
+				*(unsigned char*)(0x004815BF + 0x03) = 0x10; // esp+10
+				*(int*)(0x004815CA + 0x01) = (int)D3dRendererOptNodeHook - (0x004815CA + 0x05);
+				*(unsigned char*)(0x00481F9E + 0x00) = 0x57; // push edi
+				*(int*)(0x00481FA5 + 0x01) = (int)D3dRendererOptNodeHook - (0x00481FA5 + 0x05);
+				*(unsigned char*)(0x00481FC7 + 0x00) = 0x57; // push edi
+				*(int*)(0x00481FC9 + 0x01) = (int)D3dRendererOptNodeHook - (0x00481FC9 + 0x05);
+			}
+
+			if (g_config.HDConcourseEnabled)
+			{
+				// ConcourseTakeScreenshot - call 0053FA70 - XwaTakeFrontScreenShot
+				*(unsigned char*)(0x0053E479 + 0x00) = 0x90;
+				*(int*)(0x0053E479 + 0x01) = 0x90909090;
+
+				// Draw Cursor
+				*(int*)(0x0053E94C + 0x01) = (int)DrawCursor - (0x0053E94C + 0x05);
+				*(int*)(0x0053FF75 + 0x01) = (int)DrawCursor - (0x0053FF75 + 0x05);
+
+				// Play Video Clear
+				*(int*)(0x0055BE94 + 0x01) = (int)PlayVideoClear - (0x0055BE94 + 0x05);
 			}
 
 			// Remove the text next to the triangle pointer
@@ -1458,6 +1698,12 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	case DLL_THREAD_DETACH:
 		break;
 	case DLL_PROCESS_DETACH:
+		// Release Embree objects
+		if (g_bRTEnableEmbree)
+		{
+			UnloadEmbree();
+		}
+
 		CloseDATReader(); // Idempotent: does nothing if the DATReader wasn't loaded.
 		CloseZIPReader(); // Idempotent: does nothing if the ZIPReader wasn't loaded.
 		if (g_bUseSteamVR)

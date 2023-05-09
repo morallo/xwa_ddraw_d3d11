@@ -5,8 +5,9 @@
 #include "Vectors.h"
 #include "Matrices.h"
 #include "config.h"
-#include <headers/openvr.h>
+#include <openvr.h>
 
+constexpr float DEFAULT_STEAMVR_OVERLAY_WIDTH = 5.0f;
 
 extern vr::IVRSystem* g_pHMD;
 extern vr::IVRChaperone* g_pChaperone;
@@ -33,8 +34,6 @@ extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
 extern void* g_pSurface;
 extern bool g_bTogglePostPresentHandoff;
 extern bool g_bSteamVRMirrorWindowLeftEye;
-
-extern vr::TrackedDevicePose_t g_lastPredictedHmdPose; // HMD pose predicted in last frame used by CockpitLook.
 
 /*
  *	SteamVR specific functions declarations

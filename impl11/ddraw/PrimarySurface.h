@@ -17,6 +17,31 @@ void ACRunAction(WORD* action);
 
 class PrimarySurface : public IDirectDrawSurface
 {
+	// These variables are used with SaveContext() and RestoreContext()
+	VertexShaderCBuffer _oldVSCBuffer;
+	PixelShaderCBuffer _oldPSCBuffer;
+	DCPixelShaderCBuffer _oldDCPSCBuffer;
+	ComPtr<ID3D11Buffer> _oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> _oldVSSRV[3];
+	ComPtr<ID3D11ShaderResourceView> _oldPSSRV[13];
+	ComPtr<ID3D11VertexShader> _oldVertexShader;
+	ComPtr<ID3D11PixelShader> _oldPixelShader;
+	ComPtr<ID3D11SamplerState> _oldPSSamplers[2];
+	ComPtr<ID3D11RenderTargetView> _oldRTVs[8];
+	ComPtr<ID3D11DepthStencilView> _oldDSV;
+	ComPtr<ID3D11DepthStencilState> _oldDepthStencilState;
+	ComPtr<ID3D11BlendState> _oldBlendState;
+	ComPtr<ID3D11InputLayout> _oldInputLayout;
+	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
+	UINT _oldStencilRef, _oldSampleMask;
+	FLOAT _oldBlendFactor[4];
+	UINT _oldStride, _oldOffset, _oldIOffset;
+	DXGI_FORMAT _oldFormat;
+	D3D11_VIEWPORT _oldViewports[2];
+	UINT _oldNumViewports = 2;
+
 public:
 	PrimarySurface(DeviceResources* deviceResources, bool hasBackbufferAttached);
 
@@ -48,6 +73,10 @@ public:
 
 	STDMETHOD(EnumOverlayZOrders)(THIS_ DWORD, LPVOID, LPDDENUMSURFACESCALLBACK);
 
+	void SetScissoRectFullScreen();
+	void SaveContext();
+	void RestoreContext();
+
 	void barrelEffect2D(int iteration);
 
 	void resizeForSteamVR(int iteration, bool is_2D);
@@ -67,10 +96,6 @@ public:
 	int ClearHUDRegions();
 
 	void DrawHUDVertices();
-
-	void ComputeNormalsPass(float fZoomFactor);
-
-	//void SmoothNormalsPass(float fZoomFactor);
 
 	void SetLights(float fSSDOEnabled);
 	
@@ -102,6 +127,8 @@ public:
 
 	void RenderFXAA();
 
+	void RenderLevels();
+
 	void RenderStarDebug();
 
 	void RenderExternalHUD();
@@ -114,13 +141,13 @@ public:
 
 	void RenderAdditionalGeometry();
 
-	Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
+	//Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
-	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
+	void OldTagXWALights();
 
 	void TagXWALights();
 
-	void RenderShadowMapOBJ();
+	void TagAndFadeXWALights();
 
 	void RenderSpeedEffect();
 
@@ -128,11 +155,17 @@ public:
 
 	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);
 
+	void FixViewport();
+
 	void RenderSunFlare();
 
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
 
 	void Add3DVisionSignature();
+
+	void RenderRTShadowMask();
+
+	void RenderEdgeDetector();
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 

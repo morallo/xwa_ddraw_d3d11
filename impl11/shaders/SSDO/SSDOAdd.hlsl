@@ -12,8 +12,15 @@
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
 #include "..\shadow_mapping_common.h"
+//#include "..\PBRShading.h"
+#include "..\RT\RTCommon.h"
 
- // The color buffer
+#undef PBR_DYN_LIGHTS
+#undef RT_SIDE_LIGHTS
+
+//#define PBR_DYN_LIGHTS
+
+// The color buffer
 Texture2D texColor : register(t0);
 SamplerState sampColor : register(s0);
 
@@ -48,6 +55,9 @@ SamplerState samplerSSMask : register(s7);
 // The Shadow Map buffer
 Texture2DArray<float> texShadowMap : register(t8);
 SamplerComparisonState cmpSampler : register(s8);
+
+// The RT Shadow Mask
+Texture2D rtShadowMask : register(t17);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -141,58 +151,6 @@ inline float3 getPosition(in float2 uv, in float level) {
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
 	return texPos.SampleLevel(sampPos, uv, level).xyz;
-}
-
-/*
- * From Pascal Gilcher's SSR shader.
- * https://github.com/martymcmodding/qUINT/blob/master/Shaders/qUINT_ssr.fx
- * (Used with permission from the author)
- */
-float3 get_normal_from_color(in float2 uv, in float2 offset, in float nm_intensity /*, out float diff */)
-{
-	float3 offset_swiz = float3(offset.xy, 0);
-	float nm_scale = fn_scale * nm_intensity;
-	// Luminosity samples
-	float hpx = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.xz), 0).xyz, 0.333) * nm_scale;
-	float hmx = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.xz), 0).xyz, 0.333) * nm_scale;
-	float hpy = dot(texColor.SampleLevel(sampColor, float2(uv + offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
-	float hmy = dot(texColor.SampleLevel(sampColor, float2(uv - offset_swiz.zy), 0).xyz, 0.333) * nm_scale;
-
-	// Depth samples
-	float dpx = getPosition(uv + offset_swiz.xz, 0).z;
-	float dmx = getPosition(uv - offset_swiz.xz, 0).z;
-	float dpy = getPosition(uv + offset_swiz.zy, 0).z;
-	float dmy = getPosition(uv - offset_swiz.zy, 0).z;
-
-	// Depth differences in the x and y axes
-	float2 xymult = float2(abs(dmx - dpx), abs(dmy - dpy)) * fn_sharpness;
-	//xymult = saturate(1.0 - xymult);
-	xymult = saturate(fn_max_xymult - xymult);
-
-	float3 normal;
-	normal.xy = float2(hmx - hpx, hmy - hpy) * xymult / offset.xy * 0.5;
-	normal.z = 1.0;
-	//diff = clamp(1.0 - (abs(normal.x) + abs(normal.y)), 0.0, 1.0);
-	////diff *= diff;
-
-	return normalize(normal);
-}
-
-// n1: base normal
-// n2: detail normal
-float3 blend_normals(float3 n1, float3 n2)
-{
-	// I got this from Pascal Gilcher; but there's more details here:
-	// https://blog.selfshadow.com/publications/blending-in-detail/
-	//return normalize(float3(n1.xy*n2.z + n2.xy*n1.z, n1.z*n2.z));
-
-	// UDN:
-	//return normalize(float3(n1.xy + n2.xy, n1.z));
-
-	n1.z += 1.0;
-	n2.xy = -n2.xy;
-	return normalize(n1 * dot(n1, n2) - n1.z * n2);
-	//return n1 * dot(n1, n2) - n1.z * n2;
 }
 
 #ifdef DISABLED
@@ -432,7 +390,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
 	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
 	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D		  = texPos.Sample(sampPos, input.uv).xyz;
+	float3 pos3D	      = texPos.Sample(sampPos, input.uv).xyz;
 	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
 	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
@@ -483,7 +441,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
 	// If I remove the following, then the bloom mask is messed up!
-	if (Normal.w < 0.001) { // The skybox gets this alpha value
+	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
+	if (Normal.w < 0.475) {
 		output.color = float4(color, 1);
 		return output;
 	}
@@ -500,75 +459,159 @@ PixelShaderOutput main(PixelShaderInput input)
 	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
 	color = color * color; // Gamma correction (approx pow 2.2)
-	float3 N = normalize(Normal.xyz);
+	//float3 N = normalize(Normal.xyz);
+	float3 N = Normal.xyz;
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
-	// Compute shadows through shadow mapping
-	float total_shadow_factor = 1.0;
-	//float idx = 1.0;
-	if (sm_enabled)
+	// Raytraced shadows. The output of this section is written to rt_shadow_factor
+	float rt_shadow_factor = 1.0f;
+	if (bRTEnabled)
+	{
+		if (RTEnableSoftShadows)
+		{
+			// Hard shadows:
+			/*{
+				float4 rtVal = rtShadowMask.Sample(sampColor, input.uv);
+				rt_shadow_factor = rtVal.x;
+			}*/
+			{
+				int i, j;
+				float2 uv;
+				float rtVal = 0;
+				const int range = 2;
+				const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+				//const float wsize = (2 * range + 1) * (2 * range + 1);
+				const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor,
+											   RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor);
+				const float2 uv_delta_d = /* 0.75 * */ uv_delta; // Dilation filter delta
+				const float2 uv_delta_r = range * uv_delta; // Soft shadow delta
+
+				// Apply a quick-and-dirty dilation filter to prevent haloes
+				const float2 uv0_d = input.uv - uv_delta_d;
+				float rtMin = rtCenter;
+				//if (RTApplyDilateFilter)
+				{
+					uv = uv0_d;
+					[unroll]
+					for (i = -1; i <= 1; i++)
+					{
+						uv.x = uv0_d.x;
+						[unroll]
+						for (j = -1; j <= 1; j++)
+						{
+							rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
+							uv.x += uv_delta_d.x;
+						}
+						uv.y += uv_delta_d.y;
+					}
+				}
+
+				float Gsum = 0;
+				const float2 uv0_r = input.uv - range * uv_delta_r;
+				uv = uv0_r;
+				//float gaussFactor = clamp(1.5 - rtCenter.y * 0.1, 0.01, 1.5);
+				[unroll]
+				for (i = -range; i <= range; i++)
+				{
+					uv.x = uv0_r.x;
+					[unroll]
+					for (j = -range; j <= range; j++)
+					{
+						const float z = texPos.Sample(sampPos, uv).z;
+						const float delta_z = abs(P.z - z);
+						const float delta_ij = -RTGaussFactor * (i*i + j*j);
+						//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
+						const float G = exp(delta_ij);
+						// Objects far away should have bigger thresholds too
+						if (delta_z < RTSoftShadowThresholdMult * P.z)
+							rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
+						else
+							rtVal += G * rtMin;
+						Gsum += G;
+						uv.x += uv_delta_r.x;
+					}
+					uv.y += uv_delta_r.y;
+				}
+				rt_shadow_factor = rtVal / Gsum;
+			}
+		}
+		else
+		{
+			// Do ray-tracing right here, no RTShadowMask
+
+			// #define RT_SIDE_LIGHTS to disable light tagging and use the first light only.
+			// This helps get interesting shadows in skirmish missions.
+#ifdef RT_SIDE_LIGHTS
+			uint i = 0;
+#else
+			for (uint i = 0; i < LightCount; i++)
+#endif
+			{
+				float black_level, dummyMinZ, dummyMaxZ;
+				get_black_level_and_minmaxZ(i, black_level, dummyMinZ, dummyMaxZ);
+#ifdef RT_SIDE_LIGHTS
+				black_level = 0.1;
+#endif
+				// Skip lights that won't project black-enough shadows
+				if (black_level > 0.95)
+					continue;
+
+				const float3 L = LightVector[i].xyz;
+				const float dotLFlatN = dot(L, N); // The "flat" normal is needed here (without Normal Mapping)
+				// "hover" prevents noise by displacing the origin of the ray away from the surface
+				// The displacement is directly proportional to the depth of the surface
+				// The position buffer's Z increases with depth
+				// The normal buffer's Z+ points towards the camera
+				// We have to invert N.z:
+				const float3 hover = 0.01 * P.z * float3(N.x, N.y, -N.z);
+				// Don't do raytracing on surfaces that face away from the light source
+				if (dotLFlatN > 0.01)
+				{
+					Ray ray;
+					ray.origin = P + hover; // Metric, Y+ is up, Z+ is forward.
+					ray.dir = float3(L.x, -L.y, -L.z);
+					ray.max_dist = RT_MAX_DIST;
+
+					Intersection inters = TLASTraceRaySimpleHit(ray);
+					if (inters.TriID > -1)
+						rt_shadow_factor *= black_level;
+				}
+				else
+				{
+					rt_shadow_factor *= black_level;
+				}
+			}
+		}
+	}
+
+	// Shadow Mapping.
+	// This block modifies total_shadow_factor.
+	// In other words, the shadow casting contribution for both RT and SM ends up in
+	// total_shadow_factor.
+	float total_shadow_factor = rt_shadow_factor;
+	// Don't compute shadow mapping if Raytraced shadows are enabled in the cockpit... it's redundant.
+	if (sm_enabled && bRTAllowShadowMapping)
 	{
 		//float3 P_bias = P + sm_bias * N;
 		[loop]
-		for (uint i = 0; i < LightCount; i++) 
+		for (uint i = 0; i < LightCount; i++)
 		{
 			float shadow_factor = 1.0;
-			float black_level = get_black_level(i);
-			// Skip lights that won't project black-enough shadows:
-			if (black_level > 0.95)
+			float black_level, minZ, maxZ;
+			get_black_level_and_minmaxZ(i, black_level, minZ, maxZ);
+			// Skip lights that won't project black-enough shadows or that are
+			// out-of-range for ShadowMapping
+			if (black_level > 0.95 || P.z < minZ || P.z > maxZ)
 				continue;
-			//float black_level = sm_black_level;
-			// Apply the same transform we applied to the geometry when computing the shadow map:
-			//float3 Q_bias = mul(lightWorldMatrix[i], float4(P_bias, 1.0)).xyz;
+			// Apply the same transform we applied to P in ShadowMapVS.hlsl
 			float3 Q = mul(lightWorldMatrix[i], float4(P, 1.0)).xyz;
-			//Q.z = Q_bias.z;
-
+			// Distant objects require more bias, here we're using maxZ as a proxy to tell us
+			// how distant is the shadow map and we use that to compensate the bias
+			float bias = sm_bias - 1.0 * step(50.0f, maxZ);
 			// shadow_factor: 1 -- No shadow
 			// shadow_factor: 0 -- Full shadow
-			/*
-			if (sm_PCSS_enabled == 1) {
-				// PCSS
-				shadow_factor = PCSS(i, Q);
-			}
-			else {
-				if (sm_debug) {
-					// Convert to texture coords: this maps -1..1 to 0..1:
-					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-					// Sample the shadow map and compare
-					float sm_Z = texShadowMap.SampleLevel(sampPos, // samplerShadowMap, 
-						float3(sm_pos, i), 0).x;
-					// Early exit: red color for points "at infinity"
-					if (sm_Z > 0.98) {
-						output.color = float4(1, 0, 0, 1);
-						return output;
-					}
-					// Now convert the depth-stencil coord (0..1) to metric Z:
-					//sm_Z = (sm_Z - 0.5) * OBJrange;
-					sm_Z = DepthToMetricZ(i, sm_Z);
-					// sm_Z is now in metric space, we can compare it with P.z
-					//shadow_factor = sm_Z > Q.z + sm_bias ? 1.0 : 0.0;
-					shadow_factor = sm_Z > Q.z ? 1.0 : 0.0;
-				}
-				else {
-					// PCF
-					if (sm_hardware_pcf)
-						shadow_factor = ShadowMapPCF_HW(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_pcss_samples, sm_pcss_radius);
-					else
-					*/
-						shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + sm_bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
-
-					//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, float3(Q.xy, i), MetricZToDepth(i, Q.z + sm_bias));
-					//shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, Q.xy, MetricZToDepth(1, Q.z + sm_bias));
-					/*
-					float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-					shadow_factor = texShadowMap.SampleCmpLevelZero(cmpSampler, float3(sm_pos, i), MetricZToDepth(i, Q.z + sm_bias));
-					shadow_factor = saturate(shadow_factor);
-					*/
-					//output.color = float4(shadow_factor, shadow_factor, shadow_factor, 1.0);
-					//return output;
-				/*}
-			}*/
+			shadow_factor = ShadowMapPCF(i, float3(Q.xy, MetricZToDepth(i, Q.z + bias)), sm_resolution, sm_pcss_samples, sm_pcss_radius);
 			// Limit how black the shadows can be to a minimum of black_level
 			shadow_factor = max(shadow_factor, black_level);
 
@@ -587,30 +630,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	// Compute ray-traced shadows
-	//float3 SSAO_Normal = float3(N.xy, -N.z);
-	// SSAO version:
-	//float m_offset = moire_offset * (-pos3D.z * moire_scale);
-	//float3 shadow_pos3D = P + SSAO_Normal * m_offset;
-	//float shadow = 1;
-	//if (shadow_enable) shadow = shadow_factor(shadow_pos3D, max_dist * max_dist).x;
-
 	//ssdo = ambient + ssdo; // * shadow; // Add the ambient component 
 	//ssdo = lerp(ssdo, 1, mask);
 	//ssdoInd = lerp(ssdoInd, 0, mask);
 
-	// Compute normal mapping
-	float2 offset = float2(1.0 / screenSizeX, 1.0 / screenSizeY);
-	float3 FakeNormal = 0;
-	// Glass, Shadeless and Emission should not have normal mapping:
-	//nm_int_mask = lerp(nm_int_mask, 0.0, shadeless);
-	if (fn_enable && mask < GLASS_LO) {
-		FakeNormal = get_normal_from_color(input.uv, offset, nm_int_mask /*, diffuse_difference */);
-		// After the normals have blended, we should restore the length of the bent normal:
-		// it should be weighed by AO, which is now in ssdo.y
-		//bentN = ssdo.y * blend_normals(bentN, FakeNormal);
-		N = blend_normals(N, FakeNormal);
-	}
 	//output.bent = float4(N * 0.5 + 0.5, 1); // DEBUG PURPOSES ONLY
 	
 	// ************************************************************************************************
@@ -689,7 +712,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		/*
 		if (ssao_debug == 11)
 			diffuse = max(dot(bentN, L), 0.0);
-		else 
+		else
 			diffuse = max(dot(N, L), 0.0);
 		*/
 		diffuse = max(dot(N, L), 0.0);
@@ -724,7 +747,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		//const float3 H = normalize(L + eye_vec);
 		//spec = max(dot(N, H), 0.0);
-		
+
 		// TODO REMOVE CONTACT SHADOWS FROM SSDO DIRECT (Probably done already)
 		float spec_bloom = contactShadow * spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		debug_spec = LightIntensity * spec_int_mask * pow(spec, exponent);
@@ -734,7 +757,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
 		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
-		
+
 		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
 		// intact
 		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
@@ -745,14 +768,12 @@ PixelShaderOutput main(PixelShaderInput input)
 			color * diffuse +
 			global_spec_intensity * spec_col * spec +
 			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
-			//emissionMask);
 		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
-		
 	}
 	output.bloom = tmp_bloom;
 
-	// Add the laser lights
+	// Add the laser/dynamic lights
 #define L_FADEOUT_A_0 30.0
 #define L_FADEOUT_A_1 50.0
 #define L_FADEOUT_B_0 50.0
@@ -768,21 +789,62 @@ PixelShaderOutput main(PixelShaderInput input)
 		// because both points have -z:
 		float3 L = LightPoint[i].xyz - pos3D;
 		const float Z = -LightPoint[i].z; // Z is positive depth
+		const float falloff = LightPoint[i].w;
+		const float3 LDir = LightPointDirection[i].xyz;
+		const float angle_falloff_cos = LightPointDirection[i].w;
 		
+		float attenuation, depth_attenuation, angle_attenuation = 1.0f;
 		const float distance_sqr = dot(L, L);
 		L *= rsqrt(distance_sqr); // Normalize L
-		// calculate the attenuation
-		const float depth_attenuation_A = smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
-		const float depth_attenuation_B = 0.1 * smoothstep(L_FADEOUT_B_1, L_FADEOUT_B_0, Z); // Fade the distant flash slowly
-		const float depth_attenuation = max(depth_attenuation_A, depth_attenuation_B);
-		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 0.0, 1.0 - depth_attenuation);
-		//const float sqr_attenuation_faded = lerp(sqr_attenuation, 1.0, saturate((Z - L_SQR_FADE_0) / L_SQR_FADE_1));
-		const float attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
+		// calculate the attenuation for laser lights
+		if (falloff == 0.0f) {
+			const float depth_attenuation_A = 0.15 * smoothstep(L_FADEOUT_A_1, L_FADEOUT_A_0, Z); // Fade the cockpit flash quickly
+			const float depth_attenuation_B = 0.1 * smoothstep(L_FADEOUT_B_1, L_FADEOUT_B_0, Z); // Fade the distant flash slowly
+			depth_attenuation = max(depth_attenuation_A, depth_attenuation_B);
+			//const float sqr_attenuation_faded = lerp(sqr_attenuation, 0.0, 1.0 - depth_attenuation);
+			//const float sqr_attenuation_faded = lerp(sqr_attenuation, 1.0, saturate((Z - L_SQR_FADE_0) / L_SQR_FADE_1));
+			attenuation = 1.0 / (1.0 + sqr_attenuation * distance_sqr);
+		}
+		// calculate the attenuation for other lights (explosions, etc)
+		else {
+			depth_attenuation = 1.0;
+			attenuation = falloff / distance_sqr;
+		}
+		// calculate the attenuation for directional lights
+		if (angle_falloff_cos != 0.0f) {
+			// compute the angle between the light's direction and the
+			// vector from the current point to the light's center
+			const float angle = max(dot(L, LDir), 0.0);
+			angle_attenuation = smoothstep(angle_falloff_cos, 1.0, angle);
+		}
 		// compute the diffuse contribution
 		const float diff_val = max(dot(N, L), 0.0); // Compute the diffuse component
 		//laser_light_alpha += diff_val;
+
 		// add everything up
-		laser_light_sum += depth_attenuation * attenuation * diff_val * LightPointColor[i].rgb;
+#ifndef PBR_DYN_LIGHTS
+		laser_light_sum += depth_attenuation * attenuation * angle_attenuation * diff_val * LightPointColor[i].rgb;
+#else
+		// add everything up, PBR version
+		const float metallicity	= 0.25;
+		const float glossiness	= 0.75;
+		const float reflectance	= 0.40;
+		//const float ambient = 0.05;
+		float3 eye_vec = normalize(-P);
+		float3 L_PBR = L;
+		float3 N_PBR = N;
+		N_PBR.xy = -N_PBR.xy;
+		L_PBR.xy = -L_PBR.xy;
+		float3 col = addPBR(P, N_PBR, N_PBR, -eye_vec,
+			color.rgb, L_PBR, float4(LightPointColor[i].rgb, 1),
+			metallicity,
+			glossiness, // Glossiness: 0 matte, 1 glossy/glass
+			reflectance,
+			ambient,
+			1.0 // shadow factor
+		);
+		laser_light_sum += depth_attenuation * attenuation * angle_attenuation * col;
+#endif
 	}
 	//laser_light_sum = laser_light_sum / (laser_light_intensity + laser_light_sum);
 	tmp_color += laser_light_intensity * laser_light_sum;
@@ -796,7 +858,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//float I = dot(tmp_color, 0.333);
 		//tmp_color = lerp(tmp_color, I, I / (I + HDR_white_point)); // whiteout
 		//tmp_color = ff_filmic_gamma3(tmp_color);
-		
+
 		//tmp_color = ACESFilm(HDR_white_point * tmp_color);
 		//tmp_color = ACES_approx(tmp_color);
 
