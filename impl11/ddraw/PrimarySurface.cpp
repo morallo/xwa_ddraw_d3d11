@@ -1369,7 +1369,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
   */
 void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomBasicPass");
+	//this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomBasicPass");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -1562,7 +1562,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	//this->_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 /*
@@ -1580,6 +1580,8 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	auto &context = resources->_d3dDeviceContext;
 	float fPixelScale = g_fBloomSpread[PyramidLevel];
 	float fFirstPassZoomFactor = fZoomFactor / 2.0f;
+
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"HorizontalBloomPass");
 
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
 	// size will be twice as big in the next pass due to the downsample, so we have to compensate
@@ -1604,6 +1606,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 	// This pass will downsample the image according to fViewportDivider:
 	BloomBasicPass(0, fZoomFactor);
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1612,6 +1615,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	}*/
 	// DEBUG
 
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"VerticalBloomPass");
 	// Second Vertical Gaussian Blur: adjust the pixel size since this image was downsampled in
 	// the previous pass:
 	g_BloomPSCBuffer.pixelSizeX		= fPixelScale * g_fCurScreenWidthRcp / fZoomFactor;
@@ -1621,6 +1625,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
 	BloomBasicPass(1, fZoomFactor);
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1630,6 +1635,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// DEBUG
 
 	for (int i = 0; i < AdditionalPasses; i++) {
+		this->_deviceResources->_d3dAnnotation->BeginEvent(L"AdditionalBloomPass");
 		// Alternating between 2.0 and 1.5 avoids banding artifacts
 		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
 		//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
@@ -1639,6 +1645,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		BloomBasicPass(2, fZoomFactor);
 		// Vertical Gaussian Blur. input: bloom1, output: bloom2
 		BloomBasicPass(1, fZoomFactor);
+		this->_deviceResources->_d3dAnnotation->EndEvent();
 	}
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
@@ -1656,7 +1663,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-	
+	this->_deviceResources->_d3dAnnotation->BeginEvent(L"MergeBloomPass");
 	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: offscreenBuffer/bloom1
 	//BloomBasicPass(3, fZoomFactor);
 
@@ -1667,7 +1674,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
-
+	this->_deviceResources->_d3dAnnotation->EndEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -9599,6 +9606,7 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 			{
 			}
+				// Temporarily disable RenderBracket, it causes a crash with instanced stereo
 				//this->RenderBracket();				
 
 			// Draw the reticle on top of everything else

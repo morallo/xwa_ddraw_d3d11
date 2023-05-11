@@ -28,7 +28,7 @@ struct PixelShaderInput
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv = input.uv * amplifyFactor;
-	float3 color = texture0.Sample(sampler0, float3(input.uv, input.viewId)).xyz * weight[0];
+	float3 color = texture0.Sample(sampler0, float3(input_uv, input.viewId)).xyz * weight[0];
 	float3 s1, s2;
 	float2 dx = uvStepSize * float2(pixelSizeX, 0);
 	float2 uv1 = input_uv + dx;
