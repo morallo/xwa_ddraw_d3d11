@@ -9279,6 +9279,21 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 
+			// Since both eyes are rendered now in a single pass, copy the right eye into the old separate buffer
+			// for the following rendering and post-processing to work unmodified.
+			D3D11_TEXTURE2D_DESC desc;
+			resources->_offscreenBuffer->GetDesc(&desc);
+			context->CopySubresourceRegion(
+				resources->_offscreenBufferR, // Destination buffer
+				D3D11CalcSubresource(0, 0, desc.MipLevels), // Only the first slice of the right eye buffer array is used.
+				0,	//X
+				0,	//Y
+				0,	//Z
+				resources->_offscreenBuffer, // Source buffer
+				D3D11CalcSubresource(0, 1, desc.MipLevels), // Subresource index for the right eye slice of the array.
+				NULL	//Copy the full subresource
+			);
+
 			// If there's a targeted object, we probably already rendered all the deferred lasers draw calls.
 			// However, if the GUI is hidden, there may be some outstanding draw calls. Here we render those
 			// calls in that case. If there's nothing to draw, no harm done!
@@ -10295,6 +10310,22 @@ HRESULT PrimarySurface::Flip(
 				vr::EVRCompositorError error = vr::VRCompositorError_None;
 				vr::Texture_t leftEyeTexture;
 				vr::Texture_t rightEyeTexture;
+
+				// Copy the right eye in _offScreenBufferR[0] into _offScreenBufferR[1] because being an array, Submit(vr::Eye_Right)
+				// always takes the second slice.
+
+				D3D11_TEXTURE2D_DESC desc;
+				resources->_offscreenBuffer->GetDesc(&desc);
+				context->CopySubresourceRegion(
+					resources->_offscreenBufferR, // Destination buffer
+					D3D11CalcSubresource(0, 1, desc.MipLevels),
+					0,	//X
+					0,	//Y
+					0,	//Z
+					resources->_offscreenBufferR, // Source buffer
+					D3D11CalcSubresource(0, 0, desc.MipLevels),
+					NULL	//Copy the full subresource
+				);
 
 				leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 				rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
