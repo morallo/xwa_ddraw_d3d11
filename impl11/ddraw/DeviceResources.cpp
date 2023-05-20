@@ -5432,7 +5432,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			goto out;
 		}
 
-		// Let's do SBS rendering here. That'll make it compatible with the Tech Library where
+		// Let's do VR stereo rendering here. That'll make it compatible with the Tech Library where
 		// both 2D and 3D are mixed.
 		// Left viewport
 		viewport.TopLeftX = 0;
@@ -5471,44 +5471,37 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		// When the map is active, all the lines are rendered here
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
 		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
-		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
-		this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
-
-		// Right viewport
-		if (g_bUseSteamVR) {
-			viewport.TopLeftX = 0;
-			viewport.Width = screen_res_x;
-		} else {
-			viewport.TopLeftX = screen_res_x / 2.0f;
-			viewport.Width = screen_res_x / 2.0f;
-		}
-		viewport.TopLeftY = 0;
-		viewport.Height = screen_res_y;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		this->InitViewport(&viewport);
-		if (bDirectSBS) {
-			this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
-				g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
-				1.0f); // Use 3D projection matrices
-		}
-		else {
-			this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
-				1, 1, 1, g_fBrightness,
-				0.0f); // Do not use 3D projection matrices
-		}
-		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
-		g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		// In SteamVR mode, we need to clear fullViewMat or the ships in the Tech Room
 		// will float all over the place.
 		if (!bDirectSBS)
 			g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+		//this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
+		this->_d3dDeviceContext->DrawIndexedInstanced(6, g_bUseSteamVR? 2:1, 0, 0, 0);
+
+		// Right viewport
 		if (g_bUseSteamVR)
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewR.GetAddressOf(), _depthStencilViewR.Get());
-		else
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+			goto out; // The right eye was already rendered in DrawIndexedInstanced above
+
+		// DirectSBS case
+		viewport.TopLeftX = screen_res_x / 2.0f;
+		viewport.Width = screen_res_x / 2.0f;
+		viewport.TopLeftY = 0;
+		viewport.Height = screen_res_y;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		this->InitViewport(&viewport);
+
+		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
+			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
+			1.0f); // Use 3D projection matrices
+
+		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
+		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 		this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 	out:
 		// Increase the 2D DrawCounter -- this is used in the Tech Library to increase the parallax when the second 2D
