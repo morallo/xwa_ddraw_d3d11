@@ -14,17 +14,21 @@ extern char g_curOPTLoaded[MAX_OPT_NAME];
 extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_QBVH;
-BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
+//BVHBuilderType g_BVHBuilderType = BVHBuilderType_FastQBVH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_Embree;
+BVHBuilderType g_BVHBuilderType = DEFAULT_BVH_BUILDER;
+
+bool g_bUseCentroids = true;
 
 RTCDevice g_rtcDevice = nullptr;
 RTCScene g_rtcScene = nullptr;
 
 char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX] = {
-	"    BVH2",
-	"    QBVH",
-	"FastQBVH",
-	"  Embree",
+	"      BVH2",
+	"      QBVH",
+	"  FastQBVH",
+	"    Embree",
+	"DirectBVH2",
 };
 
 bool g_bRTEnabledInTechRoom = true;
@@ -769,7 +773,7 @@ void BuildTLAS()
 	for (uint32_t i = 0; i < numLeaves; i++)
 	{
 		auto& leaf = tlasLeaves[i];
-		XwaVector3 centroid = TLASGetCentroid(leaf);
+		Vector3 centroid = TLASGetCentroid(leaf);
 		Normalize(centroid, g_GlobalAABB, g_GlobalRange);
 		TLASGetMortonCode(leaf) = GetMortonCode(centroid);
 	}
@@ -1542,6 +1546,9 @@ LBVH* EffectsRenderer::BuildBVH(const std::vector<XwaVector3>& vertices, const s
 
 	case BVHBuilderType_Embree:
 		return LBVH::BuildEmbree(vertices.data(), vertices.size(), indices.data(), indices.size());
+
+	case BVHBuilderType_DirectBVH2:
+		return LBVH::BuildDirectBVH2(vertices.data(), vertices.size(), indices.data(), indices.size());
 	}
 	return nullptr;
 }
@@ -3716,12 +3723,21 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 		const Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
 		// Fetch the AABB for this mesh
 		auto aabb_it = _AABBs.find(meshKey);
+		auto center_it = _centers.find(meshKey);
 		if (aabb_it != _AABBs.end()) {
-			AABB obb = aabb_it->second;					// The AABB in object space
-			obb.UpdateLimits();							// Generate all the vertices (8) so that we can transform them.
-			obb.TransformLimits(W);						// Now it's an OBB in WorldView space...
-			AABB aabb = obb.GetAABBFromCurrentLimits(); // so we get the AABB from this OBB...
-			XwaVector3 centroid = aabb.GetCentroid();   // and its centroid.
+			AABB obb = aabb_it->second;                   // The AABB in object space
+			obb.UpdateLimits();                           // Generate all the vertices (8) so that we can transform them.
+			obb.TransformLimits(W);                       // Now it's an OBB in WorldView space...
+			AABB aabb = obb.GetAABBFromCurrentLimits();   // so we get the AABB from this OBB...
+			Vector3 centroid = aabb.GetCentroidVector3(); // and its centroid.
+			// Repeat the process for the mesh's center of mass
+			if (g_bUseCentroids)
+			{
+				XwaVector3 xwacenter = center_it->second;
+				Vector3 center(xwacenter.x, xwacenter.y, xwacenter.z);
+				center = W * center; // Now the center is in WorldView space
+				centroid = center;   // And we override the centroid with the center of mass now
+			}
 
 			IDCentroid_t IDCentroidKey = IDCentroid_t(blasID, centroid.x, centroid.y, centroid.z);
 			auto it = g_TLASMap.find(IDCentroidKey);
@@ -3743,7 +3759,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 				// Add a new entry to tlasLeaves and update the global centroid
 				//AddAABBToTLAS(W, meshKey, obb, centroid, matrixSlot);
 				g_GlobalAABB.Expand(aabb);
-				tlasLeaves.push_back(TLASLeafItem(0, aabb, blasID, centroid, matrixSlot, obb));
+				tlasLeaves.push_back({ 0, centroid, aabb, blasID, matrixSlot, obb });
 			}
 			else
 			{

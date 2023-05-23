@@ -5,30 +5,12 @@
 #include "EffectsCommon.h"
 #include "xwa_structures.h"
 
-constexpr int ENCODED_TREE_NODE2_SIZE = 48; // BVH2 node size
 constexpr int ENCODED_TREE_NODE4_SIZE = 64; // BVH4 node size
 
 struct Vector3;
 struct Vector4;
 
 #pragma pack(push, 1)
-
-// BVH2 node format, deprecated since the BVH4 is more better
-#ifdef DISABLED
-struct BVHNode {
-	int ref; // -1 for internal nodes, Triangle index for leaves
-	int left; // Offset for the left child
-	int right; // Offset for the right child
-	int padding;
-	// 16 bytes
-	float min[4];
-	// 32 bytes
-	float max[4];
-	// 48 bytes
-};
-
-static_assert(sizeof(BVHNode) == ENCODED_TREE_NODE2_SIZE, "BVHNodes (2) must be ENCODED_TREE_SIZE bytes");
-#endif
 
 // QBVH inner node
 struct BVHNode {
@@ -121,6 +103,16 @@ public:
 	}
 
 	inline void Expand(const Vector4 &v) {
+		if (v.x < min.x) min.x = v.x;
+		if (v.y < min.y) min.y = v.y;
+		if (v.z < min.z) min.z = v.z;
+
+		if (v.x > max.x) max.x = v.x;
+		if (v.y > max.y) max.y = v.y;
+		if (v.z > max.z) max.z = v.z;
+	}
+
+	inline void Expand(const Vector3& v) {
 		if (v.x < min.x) min.x = v.x;
 		if (v.y < min.y) min.y = v.y;
 		if (v.z < min.z) min.z = v.z;
@@ -263,25 +255,34 @@ using MortonCode_t = uint32_t;
 using MortonCode_t = uint64_t;
 #endif
 // 0: Morton Code, 1: Bounding Box, 2: TriID
-using LeafItem = std::tuple<MortonCode_t, AABB, int>;
+//using LeafItem = std::tuple<MortonCode_t, AABB, int>;
 // 0: Morton Code, 1: aabbFromOBB, 2: BlasID, 3: Centroid, 4: MatrixSlot, 5: Oriented Bounding Box
-using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB>;
+//using TLASLeafItem = std::tuple<MortonCode_t, AABB, int, XwaVector3, int, AABB>;
+// Used in the DirectBVH algorithms
+struct LeafItem
+{
+	MortonCode_t code;
+	Vector3 centroid;
+	AABB aabb;
+	int PrimID;
+};
+// Used in the DirectBVH algorithms
+struct TLASLeafItem : LeafItem
+{
+	int matrixSlot;
+	AABB obb;
+};
 
-inline MortonCode_t &GetMortonCode(LeafItem& X) { return std::get<0>(X); }
-inline MortonCode_t &GetMortonCode(TLASLeafItem& X) { return std::get<0>(X); }
+inline MortonCode_t &GetMortonCode(LeafItem& X) { return X.code; }
+inline AABB &GetAABB(LeafItem& X) { return X.aabb; }
+inline int& GetID(LeafItem& X) { return X.PrimID; }
 
-inline AABB &GetAABB(LeafItem& X) { return std::get<1>(X); }
-inline AABB &GetAABB(TLASLeafItem& X) { return std::get<1>(X); }
-
-inline int& GetID(LeafItem& X) { return std::get<2>(X); }
-inline int& GetID(TLASLeafItem& X) { return std::get<2>(X); }
-
-inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X) { return std::get<0>(X); }
-inline AABB& TLASGetAABBFromOBB(TLASLeafItem& X) { return std::get<1>(X); }
-inline int& TLASGetID(TLASLeafItem& X) { return std::get<2>(X); }
-inline XwaVector3& TLASGetCentroid(TLASLeafItem& X) { return std::get<3>(X); }
-inline int& TLASGetMatrixSlot(TLASLeafItem& X) { return std::get<4>(X); }
-inline AABB& TLASGetOBB(TLASLeafItem& X) { return std::get<5>(X); }
+inline MortonCode_t& TLASGetMortonCode(TLASLeafItem& X) { return X.code; }
+inline AABB& TLASGetAABBFromOBB(TLASLeafItem& X) { return X.aabb; }
+inline int& TLASGetID(TLASLeafItem& X) { return X.PrimID; }
+inline Vector3& TLASGetCentroid(TLASLeafItem& X) { return X.centroid; }
+inline int& TLASGetMatrixSlot(TLASLeafItem& X) { return X.matrixSlot; }
+inline AABB& TLASGetOBB(TLASLeafItem& X) { return X.obb; }
 
 struct InnerNode
 {
@@ -748,6 +749,8 @@ public:
 	static LBVH *BuildFastQBVH(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 	// Build & Encode using Embree
 	static LBVH* BuildEmbree(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
+	// Build & Encode using the DirectBVH2 approach (no Morton codes).
+	static LBVH* BuildDirectBVH2(const XwaVector3* vertices, const int numVertices, const int* indices, const int numIndices);
 
 	void PrintTree(std::string level, int curnode);
 	void DumpToOBJ(char *sFileName, bool isTLAS=false, bool useMetricScale=true);
@@ -757,9 +760,9 @@ using NodeChildKey = std::tuple<uint32_t, int>;
 
 int CalcNumInnerQBVHNodes(int numPrimitives);
 
-void Normalize(XwaVector3& A, const AABB& sceneBox, const XwaVector3& range);
+void Normalize(Vector3& A, const AABB& sceneBox, const XwaVector3& range);
 
-MortonCode_t GetMortonCode(const XwaVector3& V);
+MortonCode_t GetMortonCode(const Vector3& V);
 
 // Red-Black balanced insertion
 TreeNode* InsertRB(TreeNode* T, int TriID, MortonCode_t code, const AABB& box, const Matrix4& m);

@@ -233,8 +233,10 @@ enum BVHBuilderType
 	BVHBuilderType_QBVH,
 	BVHBuilderType_FastQBVH,
 	BVHBuilderType_Embree,
+	BVHBuilderType_DirectBVH2,
 	BVHBuilderType_MAX,
 };
+constexpr BVHBuilderType DEFAULT_BVH_BUILDER = BVHBuilderType_FastQBVH;
 extern BVHBuilderType g_BVHBuilderType;
 extern char* g_sBVHBuilderTypeNames[BVHBuilderType_MAX];
 
