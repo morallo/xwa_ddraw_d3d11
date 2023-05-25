@@ -1161,7 +1161,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	if (iteration > 0)
 		return;
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"resizeForSteamVR");
+	this->_deviceResources->BeginAnnotatedEvent(L"resizeForSteamVR");
 
 	D3D11_VIEWPORT viewport{};
 	auto& resources = this->_deviceResources;
@@ -1200,8 +1200,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			0, BACKBUFFER_FORMAT);
 	}
 	else {
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer,
-			1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	}
 
 #ifdef DBG_VR
@@ -1353,7 +1354,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
  /*
@@ -1370,7 +1371,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
   */
 void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 
-	//this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomBasicPass");
+	//this->_deviceResources->BeginAnnotatedEvent(L"BloomBasicPass");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -1495,7 +1496,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 
-	//this->_deviceResources->_d3dAnnotation->EndEvent();
+	//this->_deviceResources->EndAnnotatedEvent();
 }
 
 /*
@@ -1507,14 +1508,14 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
  *		_offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR (blurred and downsampled from this pass)
  */
 void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug=false) {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomPyramidLevelPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"BloomPyramidLevelPass");
 
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	float fPixelScale = g_fBloomSpread[PyramidLevel];
 	float fFirstPassZoomFactor = fZoomFactor / 2.0f;
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"HorizontalBloomPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"HorizontalBloomPass");
 
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
 	// size will be twice as big in the next pass due to the downsample, so we have to compensate
@@ -1539,7 +1540,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 	// This pass will downsample the image according to fViewportDivider:
 	BloomBasicPass(0, fZoomFactor);
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1548,7 +1549,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	}*/
 	// DEBUG
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"VerticalBloomPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"VerticalBloomPass");
 	// Second Vertical Gaussian Blur: adjust the pixel size since this image was downsampled in
 	// the previous pass:
 	g_BloomPSCBuffer.pixelSizeX		= fPixelScale * g_fCurScreenWidthRcp / fZoomFactor;
@@ -1558,7 +1559,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
 	BloomBasicPass(1, fZoomFactor);
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1568,7 +1569,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// DEBUG
 
 	for (int i = 0; i < AdditionalPasses; i++) {
-		this->_deviceResources->_d3dAnnotation->BeginEvent(L"AdditionalBloomPass");
+		this->_deviceResources->BeginAnnotatedEvent(L"AdditionalBloomPass");
 		// Alternating between 2.0 and 1.5 avoids banding artifacts
 		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
 		//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
@@ -1578,7 +1579,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		BloomBasicPass(2, fZoomFactor);
 		// Vertical Gaussian Blur. input: bloom1, output: bloom2
 		BloomBasicPass(1, fZoomFactor);
-		this->_deviceResources->_d3dAnnotation->EndEvent();
+		this->_deviceResources->EndAnnotatedEvent();
 	}
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
@@ -1596,7 +1597,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"MergeBloomPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"MergeBloomPass");
 	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: offscreenBuffer/bloom1
 	//BloomBasicPass(3, fZoomFactor);
 
@@ -1607,7 +1608,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1622,7 +1623,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);*/
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR clearColor) {
@@ -1707,7 +1708,7 @@ int PrimarySurface::ClearHUDRegions() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"ClearHUDRegions");
+	this->_deviceResources->BeginAnnotatedEvent(L"ClearHUDRegions");
 
 	int size = g_iNumDCElements;
 	for (int i = 0; i < size; i++) {
@@ -1738,7 +1739,7 @@ int PrimarySurface::ClearHUDRegions() {
 		}
 	}
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 	return num_regions_erased;
 }
 
@@ -1747,7 +1748,7 @@ int PrimarySurface::ClearHUDRegions() {
  * commands if DC is enabled
  */
 void PrimarySurface::DrawHUDVertices() {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"DrawHUDVertices");
+	this->_deviceResources->BeginAnnotatedEvent(L"DrawHUDVertices");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -1926,7 +1927,7 @@ out:
 	//UINT offset = 0;
 	//resources->InitVertexBuffer(_vertexBuffer.GetAddressOf(), &stride, &offset);
 	*/
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 
 }
 
@@ -2266,7 +2267,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 
 void PrimarySurface::SSAOPass(float fZoomFactor) {
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"SSAOPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"SSAOPass");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -2335,8 +2336,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer,
-				1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass1[3] = {
 			resources->_depthBufSRV.Get(),
 			resources->_normBufSRV.Get(),
@@ -2430,8 +2432,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer,
-				1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_ssaoBufSRV.Get(),							// SSAO component
@@ -2473,12 +2476,12 @@ out:
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"SSDOPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"SSDOPass");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -2586,8 +2589,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer,
-				1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass1[5] = {
 			resources->_depthBufSRV.Get(),
 			resources->_normBufSRV.Get(),
@@ -2749,8 +2753,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer,
-				1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs[3] = {
 			resources->_depthBufSRV.Get(),  // FG Depth Buffer
 			resources->_normBufSRV.Get(),   // Normal Buffer
@@ -2870,8 +2875,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer,
-				1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
@@ -2895,7 +2901,6 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	 START PROCESS FOR THE RIGHT EYE, STEAMVR MODE
 	 *******************************************************************************/
 out1:
-out2:
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
 	viewport.Width  = screen_res_x;
@@ -2905,13 +2910,13 @@ out2:
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 /* Regular deferred shading with fake HDR, no SSAO */
 void PrimarySurface::DeferredPass()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"DeferredLightingPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"DeferredLightingPass");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -2985,7 +2990,7 @@ void PrimarySurface::DeferredPass()
 
 	// Set the PCF sampler state
 	if (g_ShadowMapping.bEnabled)
-		context->PSSetSamplers(8, 1, resources->_shadowPCFSamplerState.GetAddressOf());
+		context->PSSetSamplers(7, 1, resources->_shadowPCFSamplerState.GetAddressOf());
 
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Deferred pass, Left Image
@@ -3013,23 +3018,22 @@ void PrimarySurface::DeferredPass()
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer,
-				1, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[9] = {
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			NULL,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
+			NULL,													// SSDO Direct Component (LDR)
 			NULL, //resources->_ssaoBufSRV_R.Get(),					// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
-			NULL,													// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System buffer
-
 			g_ShadowMapping.bEnabled ?								// The shadow map
 				resources->_shadowMapArraySRV.Get() : NULL,
 		};
-		context->PSSetShaderResources(0, 9, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 
 		if (g_bRTEnabled)
 		{
@@ -3057,7 +3061,7 @@ void PrimarySurface::DeferredPass()
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 
@@ -4031,7 +4035,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				max time: 236, 231
 	*/
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderHyperspaceEffect");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderHyperspaceEffect");
 
 	// Constants for the post-hyper-exit effect:
 	const float T2 = 2.0f; // Time in seconds for the trails
@@ -4318,7 +4322,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
 		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_shadertoyAuxBuf, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 
 
@@ -4503,7 +4509,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// to _offscreenBufferAsInput to re-use in the next step:
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		if (!g_bReshadeEnabled) {
@@ -4574,12 +4582,12 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderFXAA()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderFXAA");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderFXAA");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -4635,7 +4643,9 @@ void PrimarySurface::RenderFXAA()
 	// Do we need to resolve the offscreen buffer?
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 	ID3D11RenderTargetView *rtvs[1] = {
@@ -4656,12 +4666,12 @@ void PrimarySurface::RenderFXAA()
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderLevels()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLevels");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderLevels");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -4712,7 +4722,9 @@ void PrimarySurface::RenderLevels()
 	// Do we need to resolve the offscreen buffer?
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 	ID3D11RenderTargetView *rtvs[1] = {
@@ -4731,7 +4743,7 @@ void PrimarySurface::RenderLevels()
 
 	// Restore the previous context
 	RestoreContext();
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderStarDebug()
@@ -4785,7 +4797,9 @@ void PrimarySurface::RenderStarDebug()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1), 
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	// Render the star centroid
 	{
@@ -4907,7 +4921,9 @@ void PrimarySurface::RenderStarDebug()
 			// to _shadertoyBuf to use it now:
 			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 			if (g_bUseSteamVR)
-				context->ResolveSubresource(resources->_shadertoyBuf, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+				context->ResolveSubresource(
+					resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+					resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 			ID3D11RenderTargetView *rtvs[1] = {
@@ -4957,7 +4973,7 @@ void PrimarySurface::RenderExternalHUD()
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderExternalHUD");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderExternalHUD");
 
 	// DEBUG
 	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
@@ -5058,7 +5074,9 @@ void PrimarySurface::RenderExternalHUD()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1), 
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	// Resolve the Reticle buffer
 	if (g_bEnableVR) {
 		context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA, 0, BACKBUFFER_FORMAT);
@@ -5194,7 +5212,9 @@ void PrimarySurface::RenderExternalHUD()
 			// to _shadertoyBuf to use it now:
 			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 			if (g_bUseSteamVR)
-				context->ResolveSubresource(resources->_shadertoyBuf, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+				context->ResolveSubresource(
+					resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+					resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 			ID3D11RenderTargetView *rtvs[1] = {
@@ -5218,7 +5238,7 @@ out:
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles, int idx)
@@ -5391,7 +5411,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 
 void PrimarySurface::RenderSpeedEffect()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSpeedEffect");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderSpeedEffect");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -5453,7 +5473,9 @@ void PrimarySurface::RenderSpeedEffect()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
 	{
@@ -5685,7 +5707,9 @@ void PrimarySurface::RenderSpeedEffect()
 		// to _shadertoyBuf to use it now:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_shadertoyBuf, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		ID3D11RenderTargetView *rtvs[1] = {
@@ -5709,7 +5733,7 @@ void PrimarySurface::RenderSpeedEffect()
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 inline D3DCOLOR PrimarySurface::EncodeNormal(Vector3 N)
@@ -5888,7 +5912,7 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 
 void PrimarySurface::RenderAdditionalGeometry()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderAdditionalGeometry");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderAdditionalGeometry");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -5916,7 +5940,9 @@ void PrimarySurface::RenderAdditionalGeometry()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
 	/*
@@ -6127,7 +6153,9 @@ void PrimarySurface::RenderAdditionalGeometry()
 		// to _shadertoyBuf to use it now:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_shadertoyBuf, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		ID3D11RenderTargetView *rtvs[1] = {
@@ -6151,7 +6179,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 /*
@@ -6630,7 +6658,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 
 void PrimarySurface::RenderSunFlare()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSunFlare");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderSunFlare");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -6718,7 +6746,9 @@ void PrimarySurface::RenderSunFlare()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 #ifdef GENMIPMAPS_DEBUG
 	// DEBUG
@@ -6820,25 +6850,14 @@ void PrimarySurface::RenderSunFlare()
 			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR) {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
-					resources->_depthBufSRV_R.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			else {
-				// DirectSBS case
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceView.Get(),
-					resources->_depthBufSRV.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
+			// DirectSBS case
+			context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[2] = {
+				resources->_offscreenAsInputShaderResourceView.Get(),
+				resources->_depthBufSRV.Get(),
+			};
+			context->PSSetShaderResources(0, 2, srvs);
 			context->Draw(6, 0);
 		}
 	}
@@ -6893,10 +6912,12 @@ void PrimarySurface::RenderSunFlare()
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _shaderToyBuf to re-use in the next step:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		if (g_bUseSteamVR) {
-			context->ResolveSubresource(resources->_shadertoyBuf, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		}
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
@@ -6909,7 +6930,7 @@ void PrimarySurface::RenderSunFlare()
 			resources->_depthBufSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 3, srvs);
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
 
 		// Post-process the right image
 		if (g_bUseSteamVR) {
@@ -6940,7 +6961,7 @@ void PrimarySurface::RenderSunFlare()
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 /*
@@ -6951,7 +6972,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLaserPointer");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderLaserPointer");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -6966,7 +6987,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	resources->InitPixelShader(resources->_laserPointerPS);
 
@@ -7270,7 +7293,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 out:
 */
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
@@ -7526,7 +7549,7 @@ void PrimarySurface::Add3DVisionSignature()
 
 void PrimarySurface::RenderEdgeDetector()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderEdgeDetector");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderEdgeDetector");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -7599,7 +7622,7 @@ void PrimarySurface::RenderEdgeDetector()
 	}
 	else
 	{
-		this->_deviceResources->_d3dAnnotation->EndEvent();
+		this->_deviceResources->EndAnnotatedEvent();
 		return;
 	}
 
@@ -7788,7 +7811,9 @@ nochange:
 	if (g_config.MultisamplingAntialiasingEnabled)
 		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 1, resources->_offscreenBufferPost, 1, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenAsInputDynCockpit, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		
 	else
 		context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
@@ -7807,12 +7832,12 @@ nochange:
 	// we just need to prevent applying this effect multiple times.
 	g_bEdgeEffectApplied = true;
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderRTShadowMask()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRTShadowMask");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderRTShadowMask");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -7902,7 +7927,7 @@ void PrimarySurface::RenderRTShadowMask()
 
 	// Restore the previous context
 	RestoreContext();
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 HRESULT PrimarySurface::Flip(
@@ -7910,7 +7935,7 @@ HRESULT PrimarySurface::Flip(
 	DWORD dwFlags
 	)
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"PrimarySurfaceFlip");
+	this->_deviceResources->BeginAnnotatedEvent(L"PrimarySurfaceFlip");
 
 	static uint64_t frame, lastFrame = 0;
 	static float seconds;
@@ -8029,11 +8054,11 @@ HRESULT PrimarySurface::Flip(
 
 			if (FAILED(hr = this->_deviceResources->_backbufferSurface->BltFast(0, 0, this->_deviceResources->_frontbufferSurface, nullptr, 0)))
 			{
-				this->_deviceResources->_d3dAnnotation->EndEvent();
+				this->_deviceResources->EndAnnotatedEvent();
 				return hr;
 			}
 
-			this->_deviceResources->_d3dAnnotation->EndEvent();
+			this->_deviceResources->EndAnnotatedEvent();
 			return this->Flip(this->_deviceResources->_backbufferSurface, 0);
 		}
 
@@ -8138,7 +8163,7 @@ HRESULT PrimarySurface::Flip(
 			{
 				if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
 				{
-					this->_deviceResources->_d3dAnnotation->EndEvent();
+					this->_deviceResources->EndAnnotatedEvent();
 					return DDERR_GENERIC;
 				}
 			}
@@ -8206,7 +8231,7 @@ HRESULT PrimarySurface::Flip(
 
 				if (FAILED(hr))
 				{
-					this->_deviceResources->_d3dAnnotation->EndEvent();
+					this->_deviceResources->EndAnnotatedEvent();
 					return DDERR_GENERIC;
 				}
 			}
@@ -8431,7 +8456,7 @@ HRESULT PrimarySurface::Flip(
 				}
 			}
 
-			this->_deviceResources->_d3dAnnotation->EndEvent();
+			this->_deviceResources->EndAnnotatedEvent();
 			return hr;
 		}
 	}
@@ -8539,7 +8564,9 @@ HRESULT PrimarySurface::Flip(
 
 					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 					if (g_bUseSteamVR)
-						context->ResolveSubresource(resources->_shadertoyAuxBuf, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+						context->ResolveSubresource(
+							resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
+							resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 				}
 			}
 
@@ -8902,7 +8929,9 @@ HRESULT PrimarySurface::Flip(
 
 				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_offscreenBufferAsInput, 1, resources->_offscreenBuffer, 1, BACKBUFFER_FORMAT);
+					context->ResolveSubresource(
+						resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+						resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 				RenderSpeedEffect();
 			}
 
@@ -9574,7 +9603,7 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 		}
-		this->_deviceResources->_d3dAnnotation->EndEvent();
+		this->_deviceResources->EndAnnotatedEvent();
 		return hr;
 	}
 
@@ -9583,7 +9612,7 @@ HRESULT PrimarySurface::Flip(
 	LogText(str.str());
 #endif
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 	return DDERR_UNSUPPORTED;
 }
 
@@ -10264,7 +10293,7 @@ void PrimarySurface::RenderText()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderText");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderText");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10600,7 +10629,7 @@ out:
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderRadar()
@@ -10624,7 +10653,7 @@ void PrimarySurface::RenderRadar()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRadar");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderRadar");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10726,7 +10755,7 @@ void PrimarySurface::RenderRadar()
 	g_xwa_radar_selected_positionX = -1;
 	g_xwa_radar_selected_positionY = -1;
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderBracket()
@@ -10754,7 +10783,7 @@ void PrimarySurface::RenderBracket()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderBracket");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderBracket");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -10882,7 +10911,7 @@ void PrimarySurface::RenderBracket()
 	s_brush = nullptr;
 	g_xwa_bracket.clear();
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 
 }
 
@@ -10914,7 +10943,7 @@ void PrimarySurface::RenderSynthDCElems()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSynthDCElems");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderSynthDCElems");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -11049,5 +11078,5 @@ out:
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
 	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }

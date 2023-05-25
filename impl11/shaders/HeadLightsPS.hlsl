@@ -41,8 +41,8 @@ SamplerState samplerNormal : register(s5);
 //SamplerState samplerBent : register(s6);
 
 // The Shading System Mask buffer
-Texture2DArray texSSMask : register(t7);
-SamplerState samplerSSMask : register(s7);
+Texture2DArray texSSMask : register(t6);
+SamplerState samplerSSMask : register(s6);
 
 // The Emission Mask buffer
 //Texture2D texEmissionMask : register(t8);

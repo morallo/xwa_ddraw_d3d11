@@ -2902,7 +2902,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
-			shaderResourceViewDesc.ViewDimension = g_bUseSteamVR ? D3D11_SRV_DIMENSION_TEXTURE2DARRAY : D3D11_SRV_DIMENSION_TEXTURE2D;
+			shaderResourceViewDesc.ViewDimension = curDimension;
 
 			if (g_bUseSteamVR) {
 				// Create the shader resource view for offscreenBufferAsInputR
@@ -3231,7 +3231,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
-			shaderResourceViewDesc.ViewDimension = g_bUseSteamVR ? D3D11_SRV_DIMENSION_TEXTURE2DARRAY : D3D11_SRV_DIMENSION_TEXTURE2D;
+			shaderResourceViewDesc.ViewDimension = curDimension;
 		}
 	}
 
@@ -4997,7 +4997,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	ID3D11Texture2D* tex = nullptr;
 	ID3D11ShaderResourceView* texView = nullptr;
 
-	this->_d3dAnnotation->BeginEvent(L"RenderMain");
+	BeginAnnotatedEvent(L"RenderMain");
 
 	/*
 	if (g_bUseSteamVR) {
@@ -5526,7 +5526,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		messageShown = true;
 	}
 
-	this->_d3dAnnotation->EndEvent();
+	this->EndAnnotatedEvent();
 
 	return hr;
 }
