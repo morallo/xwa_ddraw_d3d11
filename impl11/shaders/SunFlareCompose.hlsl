@@ -7,11 +7,11 @@
 #include "ShadertoyCBuffer.h"
 
 // The color texture
-Texture2D    colorTex     : register(t0);
+Texture2DArray    colorTex	: register(t0);
 SamplerState colorSampler : register(s0);
 
 // The flare texture
-Texture2D    flareTex     : register(t1);
+Texture2DArray    flareTex     : register(t1);
 SamplerState flareSampler : register(s1);
 
 // The depth texture (shadertoyAuxBuf)
@@ -24,6 +24,7 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -42,8 +43,8 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 
-	float4 color = colorTex.Sample(colorSampler, input.uv);
-	float4 flare = flareTex.Sample(flareSampler, input.uv);
+    float4 color = colorTex.Sample(colorSampler, float3(input.uv, input.viewId));
+    float4 flare = flareTex.Sample(flareSampler, float3(input.uv, input.viewId));
 	float2 sunPos;
 	float3 sunPos3D;
 	//float2 debug_uv;
