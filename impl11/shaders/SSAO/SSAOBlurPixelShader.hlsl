@@ -5,15 +5,15 @@
  */
 
  // The SSAO Buffer
-Texture2D SSAOTex : register(t0);
+Texture2DArray SSAOTex : register(t0);
 SamplerState SSAOSampler : register(s0);
 
 // The Depth/Position Buffer
-Texture2D DepthTex : register(t1);
+Texture2DArray DepthTex : register(t1);
 SamplerState DepthSampler : register(s1);
 
 // The Normal Buffer
-Texture2D NormalTex : register(t2);
+Texture2DArray NormalTex : register(t2);
 SamplerState NormalSampler : register(s2);
 
 struct BlurData {
@@ -39,6 +39,7 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -70,13 +71,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float  blurweight = 0, tap_weight;
 	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
 	BlurData center, tap;
-	center.pos = DepthTex.Sample(DepthSampler, input.uv).xyz;
+    center.pos = DepthTex.Sample(DepthSampler, float3(input.uv, input.viewId)).xyz;
 
 	PixelShaderOutput output;
 	output.ssao = float4(0, 0, 0, 1);
 
-	ssao_sum = SSAOTex.Sample(SSAOSampler, input_uv_scaled).xyz;
-	center.normal = NormalTex.Sample(NormalSampler, input.uv).xyz;
+    ssao_sum = SSAOTex.Sample(SSAOSampler, float3(input_uv_scaled, input.viewId)).xyz;
+    center.normal = NormalTex.Sample(NormalSampler, float3(input.uv, input.viewId)).xyz;
 	blurweight = 1;
 	ssao_sum_noweight = ssao_sum;
 
@@ -85,9 +86,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	{
 		cur_offset = pixelSize * offsets[i];
 		cur_offset_scaled = amplifyFactor * cur_offset;
-		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		tap.pos    = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
-		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
+        tap_ssao = SSAOTex.Sample(SSAOSampler, float3(input_uv_scaled + cur_offset_scaled, input.viewId)).xyz;
+        tap.pos = DepthTex.Sample(DepthSampler, float3(input.uv + cur_offset, input.viewId)).xyz;
+        tap.normal = NormalTex.Sample(NormalSampler, float3(input.uv + cur_offset, input.viewId)).xyz;
 		tap_weight = compute_spatial_tap_weight(center, tap);
 
 		blurweight += tap_weight;

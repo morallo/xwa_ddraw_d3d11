@@ -57,7 +57,7 @@ Texture2DArray<float> texShadowMap : register(t7);
 SamplerComparisonState cmpSampler : register(s7);
 
 // The RT Shadow Mask
-Texture2D rtShadowMask : register(t17);
+Texture2DArray rtShadowMask : register(t17);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -481,7 +481,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				float2 uv;
 				float rtVal = 0;
 				const int range = 2;
-				const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+                const float rtCenter = rtShadowMask.Sample(sampColor, float3(input.uv, input.viewId)).x;
 				//const float wsize = (2 * range + 1) * (2 * range + 1);
 				const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor,
 											   RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor);
@@ -501,7 +501,7 @@ PixelShaderOutput main(PixelShaderInput input)
 						[unroll]
 						for (j = -1; j <= 1; j++)
 						{
-							rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
+                            rtMin = min(rtMin, rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x);
 							uv.x += uv_delta_d.x;
 						}
 						uv.y += uv_delta_d.y;
@@ -526,7 +526,7 @@ PixelShaderOutput main(PixelShaderInput input)
 						const float G = exp(delta_ij);
 						// Objects far away should have bigger thresholds too
 						if (delta_z < RTSoftShadowThresholdMult * P.z)
-							rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
+                            rtVal += G * rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x;
 						else
 							rtVal += G * rtMin;
 						Gsum += G;

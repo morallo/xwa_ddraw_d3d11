@@ -2360,7 +2360,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			};
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 4, srvs_pass1);
+			context->PSSetShaderResources(0, 3, srvs_pass1);
 			context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
 			goto out;
 		}
@@ -7787,7 +7787,7 @@ nochange:
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Instead of clearing the RTV, we copy the DC FG buffer to the offscreenBufferPost, that way the
 		// viewport only overwrites the section we're going to process.
-		context->CopyResource(resources->_offscreenBufferPost, resources->_offscreenBufferDynCockpit);
+		context->CopySubresourceRegion(resources->_offscreenBufferPost, 0, 0, 0, 0, resources->_offscreenBufferDynCockpit,0,NULL);
 		// Set the RTV:
 		ID3D11RenderTargetView* rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
@@ -7796,7 +7796,7 @@ nochange:
 		// Set the SRVs:
 		resources->InitPSShaderResourceView(resources->_offscreenAsInputDynCockpitSRV);
 		context->PSSetShaderResources(1, 1, resources->_mainDisplayTextureView.GetAddressOf());
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		context->Draw(6, 0);
 
 		if (g_bDumpSSAOBuffers) {
 			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
@@ -7807,13 +7807,9 @@ nochange:
 	// Copy or resolve the result
 	if (g_config.MultisamplingAntialiasingEnabled)
 		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
-			context->ResolveSubresource(
-				resources->_offscreenAsInputDynCockpit, D3D11CalcSubresource(0, 1, 1),
-				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		
 	else
-		context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
+		context->CopySubresourceRegion(resources->_offscreenAsInputDynCockpit, 0, 0, 0, 0, resources->_offscreenBufferPost, 0, NULL);
 
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
 	// after applying this effect.
@@ -7867,6 +7863,7 @@ void PrimarySurface::RenderRTShadowMask()
 
 	resources->InitVertexShader(resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_rtShadowMaskPS);
+
 	// Clear all the render target views
 	ID3D11RenderTargetView* rtvs_null[5] = {
 		NULL, // Main RTV
@@ -7878,10 +7875,6 @@ void PrimarySurface::RenderRTShadowMask()
 	context->OMSetRenderTargets(5, rtvs_null, NULL);
 	context->ClearRenderTargetView(resources->_rtShadowMaskRTV, bgColor);
 
-	ID3D11RenderTargetView* rtvs[1] = {
-		resources->_rtShadowMaskRTV.Get(),
-	};
-	context->OMSetRenderTargets(1, rtvs, NULL);
 	// Set the SRVs:
 	ID3D11ShaderResourceView* srvs[2] = {
 		resources->_normBufSRV.Get(),
@@ -7894,28 +7887,34 @@ void PrimarySurface::RenderRTShadowMask()
 		resources->_RTBvhSRV.Get(),          // 14
 		resources->_RTMatricesSRV.Get(),     // 15
 		resources->_RTTLASBvhSRV.Get(),      // 16
+		NULL,                                // 17 Unbind the rtShadowMask set during lighting pass to avoid a D3D warning below
 	};
-	// Slots 14-16 are used for Raytracing buffers (BLASes, Matrices, TLAS)
-	context->PSSetShaderResources(14, 3, srvs2);
+	// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS)
+	context->PSSetShaderResources(14, 4, srvs2);
 
-	context->Draw(6, 0);
+	ID3D11RenderTargetView* rtvs[1] = {
+		resources->_rtShadowMaskRTV.Get(),
+	};
+	context->OMSetRenderTargets(1, rtvs, NULL);
+
+	context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 
 	// Post-process the right image
-	if (g_bUseSteamVR) {
-		context->ClearRenderTargetView(resources->_rtShadowMaskRTV_R, bgColor);
-		ID3D11RenderTargetView* rtvs[1] = {
-			resources->_rtShadowMaskRTV_R.Get(),
-		};
-		context->OMSetRenderTargets(1, rtvs, NULL);
+	//if (g_bUseSteamVR) {
+	//	context->ClearRenderTargetView(resources->_rtShadowMaskRTV_R, bgColor);
+	//	ID3D11RenderTargetView* rtvs[1] = {
+	//		resources->_rtShadowMaskRTV_R.Get(),
+	//	};
+	//	context->OMSetRenderTargets(1, rtvs, NULL);
 
-		// Set the SRVs:
-		ID3D11ShaderResourceView* srvs[2] = {
-			resources->_normBufSRV_R.Get(),
-			resources->_depthBufSRV_R.Get(),
-		};
-		context->PSSetShaderResources(0, 2, srvs);
-		context->Draw(6, 0);
-	}
+	//	// Set the SRVs:
+	//	ID3D11ShaderResourceView* srvs[2] = {
+	//		resources->_normBufSRV_R.Get(),
+	//		resources->_depthBufSRV_R.Get(),
+	//	};
+	//	context->PSSetShaderResources(0, 2, srvs);
+	//	context->Draw(6, 0);
+	//}
 
 	if (g_bDumpSSAOBuffers)
 	{

@@ -3,17 +3,18 @@
 #include "../shadow_mapping_common.h"
 
 // The (Smooth) Normals buffer
-Texture2D texNormal : register(t0);
+Texture2DArray texNormal : register(t0);
 SamplerState samplerNormal : register(s0);
 
 // The position/depth buffer
-Texture2D texPos : register(t1);
+Texture2DArray texPos : register(t1);
 SamplerState sampPos : register(s1);
 
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -30,8 +31,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	const float3 P      = texPos.Sample(sampPos, input.uv).xyz;
-	const float4 Normal = texNormal.Sample(samplerNormal, input.uv);
+    const float3 P      = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
+    const float4 Normal = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
 	const float3 N      = Normal.xyz;
 
 	float rt_shadow_factor = 1.0f;
