@@ -3107,7 +3107,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
 				shaderResourceViewDesc.Format = RT_SHADOW_FORMAT;
 				shaderResourceViewDesc.Texture2D.MipLevels = 1;
-				shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+				shaderResourceViewDesc.ViewDimension = curDimension;
 				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 
 				step = "_rtShadowMaskSRV";
