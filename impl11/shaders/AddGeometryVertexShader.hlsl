@@ -69,7 +69,7 @@ PixelShaderInput main(VertexShaderInput input)
 
 		// Project:
 		P.z = -P.z;
-		output.pos = mul(projEyeMatrix[0], float4(P.xyz, 1.0));
+		output.pos = mul(projEyeMatrix[input.instId], float4(P.xyz, 1.0));
 		
 		/*
 		VR PATH
