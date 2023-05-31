@@ -3059,7 +3059,9 @@ void PrimarySurface::DeferredPass()
 		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
-
+	// Clear RT SRVs slots that are only used for the shadows to avoid DirectX errors
+	ID3D11ShaderResourceView* srvs[] = { NULL, NULL, NULL, NULL };
+	context->PSSetShaderResources(14, 4, srvs);
 
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
