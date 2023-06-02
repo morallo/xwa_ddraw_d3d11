@@ -56,8 +56,6 @@ void DirectSBSRenderer::RenderScene()
 		// resources->InitVertexShader(_shadowVertexShaderVR);
 		return;
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderScene");
-
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
@@ -134,7 +132,7 @@ void DirectSBSRenderer::RenderScene()
 		context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 
 		// Set the left projection matrix
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
 		// The viewMatrix is set at the beginning of the frame
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -168,7 +166,7 @@ void DirectSBSRenderer::RenderScene()
 		context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 
 		// Set the right projection matrix
-		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 		// The viewMatrix is set at the beginning of the frame
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -179,5 +177,4 @@ void DirectSBSRenderer::RenderScene()
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
 
-	_deviceResources->_d3dAnnotation->EndEvent();
 }

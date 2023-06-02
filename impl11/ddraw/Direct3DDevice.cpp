@@ -2735,7 +2735,8 @@ HRESULT Direct3DDevice::Execute(
 	DWORD dwFlags
 )
 {
-	_deviceResources->_d3dAnnotation->BeginEvent(L"Execute");
+	bool bStateD3dAnnotationOpen = false; // To keep track of the d3dannotation event state so that we close it at the end of Execute()
+	_deviceResources->BeginAnnotatedEvent(L"Execute");
 
 #if LOGGER
 	std::ostringstream str;
@@ -3259,7 +3260,7 @@ HRESULT Direct3DDevice::Execute(
 				/*********************************************************************
 					 State management begins here
 				 *********************************************************************
-
+				 
 				   Unfortunately, we need to maintain a number of flags to tell what the
 				   engine is about to render. If we had access to the engine, we could do
 				   away with all these flags.
@@ -3677,11 +3678,9 @@ HRESULT Direct3DDevice::Execute(
 				}
 				//if (g_bHyperspaceFirstFrame)
 				//	goto out;
-
 				/*************************************************************************
 					State management ends here, special state management starts
 				 *************************************************************************/
-
 				// Resolve the depth buffers. Capture the current screen to shadertoyAuxBuf
 				if (!g_bPrevStartedGUI && g_bStartedGUI) {
 					g_bSwitchedToGUI = true;
@@ -3695,12 +3694,13 @@ HRESULT Direct3DDevice::Execute(
 					RenderDeferredDrawCalls();
 
 					// Resolve the Depth Buffers
+					_deviceResources->BeginAnnotatedEvent(L"ResolveDepthBuffers");
 					if (g_bAOEnabled) {
 						g_bDepthBufferResolved = true;
 						context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_depthBufAsInputR, 0,
-								resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+							context->ResolveSubresource(resources->_depthBufAsInput, D3D11CalcSubresource(0, 1, 1),
+								resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 
 						// DEBUG
 						//if (g_iPresentCounter == 100) {
@@ -3713,9 +3713,11 @@ HRESULT Direct3DDevice::Execute(
 						//}
 						// DEBUG
 					}
+					_deviceResources->EndAnnotatedEvent();
 
 					// Capture the current-frame-so-far (cockpit+background) for the new hyperspace effect; but only if we're
 					// not travelling through hyperspace:
+					_deviceResources->BeginAnnotatedEvent(L"CaptureFrameForHyperspace");
 					{
 						if (g_bHyperDebugMode || g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST)
 						{
@@ -3727,12 +3729,14 @@ HRESULT Direct3DDevice::Execute(
 
 							context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 							if (g_bUseSteamVR) {
-								context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+								context->ResolveSubresource(
+									resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
+									resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 							}
 						}
 					}
+					_deviceResources->EndAnnotatedEvent();
 				}
-
 				/*************************************************************************
 					Special state management ends here
 				 *************************************************************************/
@@ -4503,7 +4507,6 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 				}
-				
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
 					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest && !bIsHologram))
@@ -4727,6 +4730,10 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bIsDS2CoreExplosion) {
+					if (!bStateD3dAnnotationOpen) {
+						_deviceResources->BeginAnnotatedEvent(L"DrawDS2CoreExplosion");
+						bStateD3dAnnotationOpen = true;
+					}
 					g_iReactorExplosionCount++;
 					// The reactor's core explosion is rendered 4 times per frame. We only need one now:
 					if (g_iReactorExplosionCount > 1)
@@ -5141,6 +5148,10 @@ HRESULT Direct3DDevice::Execute(
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
 				{	
+					if (!bStateD3dAnnotationOpen) {
+						_deviceResources->BeginAnnotatedEvent(L"RenderHUD");
+						bStateD3dAnnotationOpen = true;
+					}
 					// Restore the non-VR dimensions:
 					g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
 					g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
@@ -5157,7 +5168,8 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else if (bRenderToDynCockpitBGBuffer) {
 						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
-							resources->_depthStencilViewL.Get());
+							//resources->_depthStencilViewL.Get());
+							NULL);
 					}
 					else {
 						//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
@@ -5165,7 +5177,8 @@ HRESULT Direct3DDevice::Execute(
 
 						if (g_config.Text2DRendererEnabled)
 							context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-								resources->_depthStencilViewL.Get());
+								//resources->_depthStencilViewL.Get());
+								NULL);
 						else 
 						{
 							// The new Text Renderer is not enabled; but we can still render the text to its own
@@ -5173,10 +5186,12 @@ HRESULT Direct3DDevice::Execute(
 							// from the targeted object
 							if (bIsText)
 								context->OMSetRenderTargets(1, resources->_DCTextRTV.GetAddressOf(),
-									resources->_depthStencilViewL.Get());
+									//resources->_depthStencilViewL.Get());
+									NULL);
 							else
 								context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-									resources->_depthStencilViewL.Get());
+									//resources->_depthStencilViewL.Get());
+									NULL);
 						}
 					}
 					// Enable Z-Buffer if we're drawing the targeted craft
@@ -5251,17 +5266,29 @@ HRESULT Direct3DDevice::Execute(
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
 						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
+						if (!bStateD3dAnnotationOpen) {
+							_deviceResources->BeginAnnotatedEvent(L"EngineGlow");
+							bStateD3dAnnotationOpen = true;
+						}
 					}
 					else if (lastTextureSelected->is_Electricity || bIsExplosion)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fExplosionsStrength;
 						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceExplosions ? 2 : 1;
+						if (!bStateD3dAnnotationOpen) {
+							_deviceResources->BeginAnnotatedEvent(L"ElectricityOrExplosion");
+							bStateD3dAnnotationOpen = true;
+						}
 					}
 					else if (lastTextureSelected->is_LensFlare) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fLensFlareStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
+						if (!bStateD3dAnnotationOpen) {
+							_deviceResources->BeginAnnotatedEvent(L"LensFlare");
+							bStateD3dAnnotationOpen = true;
+						}
 					}
 					else if (bIsSun) {
 						bModifiedShaders = true;
@@ -5589,11 +5616,12 @@ HRESULT Direct3DDevice::Execute(
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the left projection matrix
-					g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+					g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+					g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-					// Draw the Left Image
-					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+					// Draw the Left Image (and the right one if were using instanced stereo)
+					context->DrawIndexedInstanced(3 * instruction->wCount, g_bUseSteamVR ? 2 : 1, currentIndexLocation, 0, 0);
 				}
 
 				// ****************************************************************************
@@ -5605,25 +5633,26 @@ HRESULT Direct3DDevice::Execute(
 					//context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 					//	resources->_depthStencilViewR.Get());
 					if (g_bUseSteamVR) {
-						if (!g_bReshadeEnabled) {
-							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
-							};
-							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewR.Get());
-						} else {
-							// SteamVR, Reshade is enabled, render to multiple output targets
-							ID3D11RenderTargetView *rtvs[6] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
-								resources->_renderTargetViewBloomMaskR.Get(),
-								resources->_renderTargetViewDepthBufR.Get(),
-								// The normals hook should not be allowed to write normals for light textures
-								bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
-								// Blast Marks are confused with glass because they are not shadeless; but they have transparency
-								bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
-								bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
-							};
-							context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
-						}
+						goto out;
+						//if (!g_bReshadeEnabled) {
+						//	ID3D11RenderTargetView *rtvs[1] = {
+						//		SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
+						//	};
+						//	context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewR.Get());
+						//} else {
+						//	// SteamVR, Reshade is enabled, render to multiple output targets
+						//	ID3D11RenderTargetView *rtvs[6] = {
+						//		SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
+						//		resources->_renderTargetViewBloomMaskR.Get(),
+						//		resources->_renderTargetViewDepthBufR.Get(),
+						//		// The normals hook should not be allowed to write normals for light textures
+						//		bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
+						//		// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+						//		bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
+						//		bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
+						//	};
+						//	context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
+						//}
 					} else {
 						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
@@ -5648,20 +5677,15 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// VIEWPORT-RIGHT
-					if (g_bUseSteamVR) {
-						viewport.Width = (float)resources->_backbufferWidth;
-						viewport.TopLeftX = 0.0f;
-					} else {
-						viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-						viewport.TopLeftX = viewport.Width;
-					}
+					viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+					viewport.TopLeftX = viewport.Width;
 					viewport.Height = (float)resources->_backbufferHeight;
 					viewport.TopLeftY = 0.0f;
 					viewport.MinDepth = D3D11_MIN_DEPTH;
 					viewport.MaxDepth = D3D11_MAX_DEPTH;
 					resources->InitViewport(&viewport);
 					// Set the right projection matrix
-					g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+					g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Right Image
 					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
@@ -5785,7 +5809,11 @@ HRESULT Direct3DDevice::Execute(
 	g_iDumpOBJIdx = 1; g_iDumpLaserOBJIdx = 1;
 	// DEBUG
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	if (bStateD3dAnnotationOpen) {
+		_deviceResources->EndAnnotatedEvent(); //We need to close the special state annotation event
+		bStateD3dAnnotationOpen = false;
+	}
+	_deviceResources->EndAnnotatedEvent();
 
 	if (FAILED(hr))
 	{
@@ -6086,7 +6114,7 @@ HRESULT Direct3DDevice::DeleteMatrix(
 HRESULT Direct3DDevice::BeginScene()
 {
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"Direct3DDeviceScene");
+	_deviceResources->BeginAnnotatedEvent(L"Direct3DDeviceScene");
 
 #if LOGGER
 	std::ostringstream str;
@@ -6480,7 +6508,7 @@ HRESULT Direct3DDevice::EndScene()
 	// Animate all materials
 	AnimateMaterials();
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 
 	return D3D_OK;
 }

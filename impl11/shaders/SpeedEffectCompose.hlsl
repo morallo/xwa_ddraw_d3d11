@@ -7,21 +7,22 @@
 #include "ShadertoyCBuffer.h"
 
 // The offscreenBuffer up to this point
-Texture2D    colorTex     : register(t0);
+Texture2DArray    colorTex     : register(t0);
 SamplerState colorSampler : register(s0);
 
 // The effects (trails) buffer up to this point
-Texture2D    effectTex     : register(t1);
+Texture2DArray    effectTex     : register(t1);
 SamplerState effectSampler : register(s1);
 
 // The pos3D buffer
-Texture2D    posTex     : register(t2);
+Texture2DArray    posTex     : register(t2);
 SamplerState posSampler : register(s2);
 
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -33,9 +34,9 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 
-	float4 texColor = colorTex.Sample(colorSampler, input.uv);
-	float4 effectColor = effectTex.Sample(effectSampler, input.uv);
-	float3 pos3D = posTex.Sample(posSampler, input.uv).xyz;
+    float4 texColor = colorTex.Sample(colorSampler, float3(input.uv, input.viewId));
+    float4 effectColor = effectTex.Sample(effectSampler, float3(input.uv, input.viewId));
+    float3 pos3D = posTex.Sample(posSampler, float3(input.uv, input.viewId)).xyz;
 
 	// Initialize the result:
 	output.color = texColor;

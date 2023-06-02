@@ -5,20 +5,20 @@
  */
 
  // The SSAO Buffer
-Texture2D SSAOTex : register(t0);
+Texture2DArray SSAOTex : register(t0);
 SamplerState SSAOSampler : register(s0);
 
 // The FG Depth Buffer
-Texture2D DepthTex : register(t1);
+Texture2DArray DepthTex : register(t1);
 SamplerState DepthSampler : register(s1);
 
 // The Normal Buffer
-Texture2D NormalTex : register(t2);
+Texture2DArray NormalTex : register(t2);
 SamplerState NormalSampler : register(s2);
 
 // The Bent Normals
-Texture2D BentTex : register(t3);
-SamplerState BentSampler : register(s3);
+//Texture2DArray BentTex : register(t3);
+//SamplerState BentSampler : register(s3);
 
 // The Emission Mask
 //Texture2D EmissionTex : register(t4);
@@ -49,12 +49,13 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+	uint viewId: SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
 {
 	float4 ssao     : SV_TARGET0;
-	float4 bent     : SV_TARGET1;
+	//float4 bent     : SV_TARGET1;
 	//float4 emission : SV_TARGET2;
 };
 
@@ -84,24 +85,24 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float2 input_uv_scaled = input.uv * amplifyFactor;
 	float  blurweight = 0, tap_weight;
 	float3 tap_ssao, ssao_sum, ssao_sum_noweight;
-	float3 tap_bent, bent_sum, bent_sum_noweight;
+	//float3 tap_bent, bent_sum, bent_sum_noweight;
 	//float3 tap_em, em_sum, em_sum_noweight;
-	float3 P = DepthTex.Sample(DepthSampler, input.uv).xyz;
+	float3 P = DepthTex.Sample(DepthSampler, float3(input.uv,input.viewId)).xyz;
 	BlurData center, tap;
 	center.pos = P;
 
 	PixelShaderOutput output;
 	output.ssao     = float4(0, 0, 0, 1);
-	output.bent     = float4(0, 0, 0, 1);
+	//output.bent     = float4(0, 0, 0, 1);
 	//output.emission = float4(0, 0, 0, 1);
 
-	ssao_sum = SSAOTex.Sample(SSAOSampler, input_uv_scaled).xyz;
-	bent_sum = BentTex.Sample(BentSampler, input_uv_scaled).xyz;
+	ssao_sum = SSAOTex.Sample(SSAOSampler, float3(input_uv_scaled,input.viewId)).xyz;
+	//bent_sum = BentTex.Sample(BentSampler, input_uv_scaled).xyz;
 	//em_sum   = EmissionTex.Sample(EmissionSampler, input_uv_scaled).xyz;
-	center.normal = NormalTex.Sample(NormalSampler, input.uv).xyz;
+	center.normal = NormalTex.Sample(NormalSampler, float3(input.uv, input.viewId)).xyz;
 	blurweight = 1;
 	ssao_sum_noweight = ssao_sum;
-	bent_sum_noweight = bent_sum;
+	//bent_sum_noweight = bent_sum;
 	//em_sum_noweight   = em_sum;
 
 	[unroll]
@@ -109,37 +110,37 @@ PixelShaderOutput main(PixelShaderInput input) {
 	{
 		cur_offset = pixelSize * offsets[i];
 		cur_offset_scaled = amplifyFactor * cur_offset;
-		tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
+		tap_ssao   = SSAOTex.Sample(SSAOSampler, float3(input_uv_scaled + cur_offset_scaled,input.viewId)).xyz;
+		//tap_bent   = BentTex.Sample(BentSampler, input_uv_scaled + cur_offset_scaled).xyz;
 		//tap_em     = EmissionTex.Sample(EmissionSampler, input_uv_scaled + cur_offset_scaled).xyz;
-		tap.pos    = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
-		tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
+		tap.pos    = DepthTex.Sample(DepthSampler, float3(input.uv + cur_offset,input.viewId)).xyz;
+		tap.normal = NormalTex.Sample(NormalSampler, float3(input.uv + cur_offset,input.viewId)).xyz;
 
 		tap_weight = compute_spatial_tap_weight(center, tap);
 		blurweight += tap_weight;
 
 		ssao_sum += tap_ssao * tap_weight;
-		bent_sum += tap_bent * tap_weight;
+		//bent_sum += tap_bent * tap_weight;
 		//em_sum   += tap_em   * tap_weight;
 		ssao_sum_noweight += tap_ssao;
-		bent_sum_noweight += tap_bent;
+		//bent_sum_noweight += tap_bent;
 		//em_sum_noweight   += tap_em;
 	}
 
 	ssao_sum /= blurweight;
-	bent_sum /= blurweight;
+	//bent_sum /= blurweight;
 	//em_sum   /= blurweight;
 	ssao_sum_noweight /= BLUR_SAMPLES;
-	bent_sum_noweight /= BLUR_SAMPLES;
+	//bent_sum_noweight /= BLUR_SAMPLES;
 	//em_sum_noweight   /= BLUR_SAMPLES;
 
 	output.ssao = float4(lerp(ssao_sum, ssao_sum_noweight, blurweight < 2), 1);
-	output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
+	//output.bent = float4(lerp(bent_sum, bent_sum_noweight, blurweight < 2), 1);
 	//output.emission = float4(lerp(em_sum, em_sum_noweight, blurweight < 2), 1);
 	// Bent normals are actually the difference: Normal - BentNormal, so let's reconstruct the original
 	// bent normal here:
 	//output.bent.xyz = normalize(center.normal - output.bent.xyz);
-	output.bent.xyz = center.normal - output.bent.xyz;
+	//output.bent.xyz = center.normal - output.bent.xyz;
 
 	if (0 < debug && debug < 10) {
 		output.ssao.xyz = output.ssao.xxx; // This is used to display the SSDO direct buffer in grayscale

@@ -19,43 +19,43 @@
 //#define PBR_DYN_LIGHTS
 
 // The color buffer
-Texture2D texColor : register(t0);
+Texture2DArray texColor : register(t0);
 SamplerState sampColor : register(s0);
 
 // The SSDO Direct buffer
-Texture2D texSSDO : register(t1);
+Texture2DArray texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
 
 // The SSDO Indirect buffer
-Texture2D texSSDOInd : register(t2);
+Texture2DArray texSSDOInd : register(t2);
 SamplerState samplerSSDOInd : register(s2);
 
 // The SSAO mask
-Texture2D texSSAOMask : register(t3);
+Texture2DArray texSSAOMask : register(t3);
 SamplerState samplerSSAOMask : register(s3);
 
 // The position/depth buffer
-Texture2D texPos : register(t4);
+Texture2DArray texPos : register(t4);
 SamplerState sampPos : register(s4);
 
 // The (Smooth) Normals buffer
-Texture2D texNormal : register(t5);
+Texture2DArray texNormal : register(t5);
 SamplerState samplerNormal : register(s5);
 
 // The Bent Normals buffer
-Texture2D texBent : register(t6);
-SamplerState samplerBent : register(s6);
+// Texture2DArray texBent : register(t6);
+// SamplerState samplerBent : register(s6);
 
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t7);
-SamplerState samplerSSMask : register(s7);
+Texture2DArray texSSMask : register(t6);
+SamplerState samplerSSMask : register(s6);
 
 // The Shadow Map buffer
-Texture2DArray<float> texShadowMap : register(t8);
-SamplerComparisonState cmpSampler : register(s8);
+Texture2DArray<float> texShadowMap : register(t7);
+SamplerComparisonState cmpSampler : register(s7);
 
 // The RT Shadow Mask
-Texture2D rtShadowMask : register(t17);
+Texture2DArray rtShadowMask : register(t17);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -77,6 +77,7 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -144,11 +145,11 @@ inline float3 reinhard_extended(float3 v, float max_white)
 	return numerator / (1.0f + v);
 }
 
-inline float3 getPosition(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in float level, uint viewId) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+    return texPos.SampleLevel(sampPos, float3(uv, viewId), level).xyz;
 }
 
 // From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
@@ -199,13 +200,13 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float2 input_uv_sub   = input.uv * amplifyFactor;
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
-	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D          = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
-	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+    float3 color = texColor.Sample(sampColor, float3(input.uv, input.viewId)).xyz;
+	float4 Normal         = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
+	float3 pos3D          = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
+    float3 ssdo = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
+    float3 ssdoInd = texSSDOInd.Sample(samplerSSDOInd, float3(input_uv_sub2, input.viewId)).rgb;
+    float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
+    float3 ssMask = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
 	float  mask           = ssaoMask.x;
 	float  gloss_mask     = ssaoMask.y;
 	float  spec_int_mask  = ssaoMask.z;
@@ -280,7 +281,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			float2 uv;
 			float rtVal = 0;
 			const int range = 2;
-			const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+            const float rtCenter = rtShadowMask.Sample(sampColor, float3(input.uv, input.viewId)).x;
 			// When RTShadowMaskSizeFactor is 1, we won't get soft shadows because the uv_delta
 			// is too small. So we need to set a lower bound to have a good delta.
 			const float rtSizeFactor = max(2.0, RTShadowMaskSizeFactor);
@@ -302,7 +303,7 @@ PixelShaderOutput main(PixelShaderInput input)
 					[unroll]
 					for (j = -1; j <= 1; j++)
 					{
-						rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
+                        rtMin = min(rtMin, rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x);
 						uv.x += uv_delta_d.x;
 					}
 					uv.y += uv_delta_d.y;
@@ -320,14 +321,14 @@ PixelShaderOutput main(PixelShaderInput input)
 				[unroll]
 				for (j = -range; j <= range; j++)
 				{
-					const float z = texPos.Sample(sampPos, uv).z;
+                    const float z = texPos.Sample(sampPos, float3(uv, input.viewId)).z;
 					const float delta_z = abs(P.z - z);
 					const float delta_ij = -RTGaussFactor * (i * i + j * j);
 					//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
 					const float G = exp(delta_ij);
 					// Objects far away should have bigger thresholds too
 					if (delta_z < RTSoftShadowThresholdMult * P.z)
-						rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
+                        rtVal += G * rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x;
 					else
 						rtVal += G * rtMin;
 					Gsum += G;

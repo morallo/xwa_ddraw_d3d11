@@ -990,7 +990,7 @@ void PrimarySurface::barrelEffect3D() {
 		wchar_t filename[120];
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer, filename);
+		capture(0, this->_deviceresources->_offscreenBuffer, filename);
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf2-%d.jpg", frame);
 		capture(0, this->_deviceResources->_offscreenBuffer2, filename);
@@ -1026,6 +1026,7 @@ void PrimarySurface::barrelEffect3D() {
  * Input: _offscreenBuffer and _offscreenBufferR
  * Output: _offscreenBufferPost and _offscreenBufferPostR
  */
+// TODO: Remove, it is not necessary anymore as barrel distortion is done by SteamVR
 void PrimarySurface::barrelEffectSteamVR() {
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -1077,7 +1078,7 @@ void PrimarySurface::barrelEffectSteamVR() {
 
 		log_debug("[DBG] Capturing buffers");
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer, filename);
+		capture(0, this->_deviceresources->_offscreenBuffer, filename);
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBufAsInput-%d.jpg", frame);
 		capture(0, this->_deviceResources->_offscreenBufferAsInput, filename);
@@ -1160,7 +1161,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	if (iteration > 0)
 		return;
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"resizeForSteamVR");
+	this->_deviceResources->BeginAnnotatedEvent(L"resizeForSteamVR");
 
 	D3D11_VIEWPORT viewport{};
 	auto& resources = this->_deviceResources;
@@ -1199,8 +1200,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			0, BACKBUFFER_FORMAT);
 	}
 	else {
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-			0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	}
 
 #ifdef DBG_VR
@@ -1274,8 +1276,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
-	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
-		resources->_depthStencilViewL.Get());
+	/*context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
+		resources->_depthStencilViewL.Get());*/
+	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),nullptr);
 	if (g_bSteamVRMirrorWindowLeftEye) {
 		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	}
@@ -1298,8 +1301,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewSteamVROverlayResize, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
-				resources->_depthStencilViewL.Get());
+			/*context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
+				resources->_depthStencilViewL.Get());*/
+			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),nullptr);
 			context->DrawIndexed(6, 0, 0);
 		}
 	}
@@ -1318,8 +1322,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewSteamVROverlayResize, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
-				resources->_depthStencilViewL.Get());
+			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),	NULL);
 			context->DrawIndexed(6, 0, 0);
 		}
 	}
@@ -1329,7 +1332,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		static int frame = 0;
 		wchar_t filename[120];
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBuf-%d.jpg", frame);
-		capture(0, this->_deviceResources->_offscreenBuffer, filename);
+		capture(0, this->_deviceresources->_offscreenBuffer, filename);
 
 		swprintf_s(filename, 120, L"c:\\temp\\offscreenBufAsInput-%d.jpg", frame);
 		capture(0, this->_deviceResources->_offscreenBufferAsInput, filename);
@@ -1350,7 +1353,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
  /*
@@ -1367,7 +1370,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
   */
 void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomBasicPass");
+	//this->_deviceResources->BeginAnnotatedEvent(L"BloomBasicPass");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -1450,6 +1453,11 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR) {
+				context->ResolveSubresource(
+					resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+					resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			}
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
@@ -1469,6 +1477,11 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			resources->InitPixelShader(resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR) {
+				context->ResolveSubresource(
+					resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+					resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			}
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
 			/*
@@ -1481,75 +1494,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 	}
-	context->Draw(6, 0);
-
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
-		switch (pass) {
-		case 0: 	// Prepass
-			// Input: _offscreenAsInputReshadeSRV_R
-			// Output _bloomOutput1R
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV_R.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
-			break;
-		case 1: // Vertical Gaussian Blur
-			// Input:  _bloomOutput1R
-			// Output: _bloomOutput2R
-			resources->InitPixelShader(resources->_bloomVGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV_R.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom2R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2R.GetAddressOf(), NULL);
-			break;
-		case 2: // Horizontal Gaussian Blur
-			// Input:  _bloomOutput2R
-			// Output: _bloomOutput1R
-			resources->InitPixelShader(resources->_bloomHGaussPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
-			break;
-		case 3: // Final pass to combine the bloom texture with the backbuffer
-			// Input:  _bloomOutput2R, _offscreenBufferAsInputR
-			// Output: _offscreenBufferR
-			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
-			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
-			break;
-		case 4:
-			// Input: _bloomOutput2R, _bloomSumR
-			// Output: _bloomOutput1R
-			resources->InitPixelShader(resources->_bloomBufferAddPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV_R.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV_R.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom1R, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1R.GetAddressOf(), NULL);
-			break;
-		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
-			// Input:  _bloomSumR, _offscreenBufferAsInputR
-			// Output: _offscreenBufferR
-			resources->InitPixelShader(resources->_bloomCombinePS);
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV_R.GetAddressOf());
-			/*
-			ID3D11RenderTargetView *rtvs[2] = {
-				resources->_renderTargetViewR.Get(),
-				resources->_renderTargetViewBloom1R.Get()
-			};
-			context->OMSetRenderTargets(2, rtvs, NULL);
-			*/
-			context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
-			break;
-		}
-
-		context->Draw(6, 0);
-	}
+	context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
 
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
@@ -1560,7 +1505,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	//this->_deviceResources->EndAnnotatedEvent();
 }
 
 /*
@@ -1572,12 +1517,14 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
  *		_offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR (blurred and downsampled from this pass)
  */
 void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug=false) {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"BloomPyramidLevelPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"BloomPyramidLevelPass");
 
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	float fPixelScale = g_fBloomSpread[PyramidLevel];
 	float fFirstPassZoomFactor = fZoomFactor / 2.0f;
+
+	this->_deviceResources->BeginAnnotatedEvent(L"HorizontalBloomPass");
 
 	// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
 	// size will be twice as big in the next pass due to the downsample, so we have to compensate
@@ -1602,6 +1549,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 	// This pass will downsample the image according to fViewportDivider:
 	BloomBasicPass(0, fZoomFactor);
+	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1610,6 +1558,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	}*/
 	// DEBUG
 
+	this->_deviceResources->BeginAnnotatedEvent(L"VerticalBloomPass");
 	// Second Vertical Gaussian Blur: adjust the pixel size since this image was downsampled in
 	// the previous pass:
 	g_BloomPSCBuffer.pixelSizeX		= fPixelScale * g_fCurScreenWidthRcp / fZoomFactor;
@@ -1619,6 +1568,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
 	BloomBasicPass(1, fZoomFactor);
+	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1628,6 +1578,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// DEBUG
 
 	for (int i = 0; i < AdditionalPasses; i++) {
+		this->_deviceResources->BeginAnnotatedEvent(L"AdditionalBloomPass");
 		// Alternating between 2.0 and 1.5 avoids banding artifacts
 		//g_BloomPSCBuffer.uvStepSize = (i % 2 == 0) ? 2.0f : 1.5f;
 		//g_BloomPSCBuffer.uvStepSize = 1.5f + (i % 3) * 0.7f;
@@ -1637,6 +1588,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		BloomBasicPass(2, fZoomFactor);
 		// Vertical Gaussian Blur. input: bloom1, output: bloom2
 		BloomBasicPass(1, fZoomFactor);
+		this->_deviceResources->EndAnnotatedEvent();
 	}
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
@@ -1654,7 +1606,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-	
+	this->_deviceResources->BeginAnnotatedEvent(L"MergeBloomPass");
 	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: offscreenBuffer/bloom1
 	//BloomBasicPass(3, fZoomFactor);
 
@@ -1665,7 +1617,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
-
+	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
@@ -1680,7 +1632,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	if (g_bUseSteamVR)
 		context->CopyResource(resources->_offscreenBufferR, resources->_bloomOutput1R);*/
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::ClearBox(uvfloat4 box, D3D11_VIEWPORT *viewport, D3DCOLOR clearColor) {
@@ -1765,7 +1717,7 @@ int PrimarySurface::ClearHUDRegions() {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"ClearHUDRegions");
+	this->_deviceResources->BeginAnnotatedEvent(L"ClearHUDRegions");
 
 	int size = g_iNumDCElements;
 	for (int i = 0; i < size; i++) {
@@ -1796,7 +1748,7 @@ int PrimarySurface::ClearHUDRegions() {
 		}
 	}
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 	return num_regions_erased;
 }
 
@@ -1805,7 +1757,7 @@ int PrimarySurface::ClearHUDRegions() {
  * commands if DC is enabled
  */
 void PrimarySurface::DrawHUDVertices() {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"DrawHUDVertices");
+	this->_deviceResources->BeginAnnotatedEvent(L"DrawHUDVertices");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -1930,7 +1882,8 @@ void PrimarySurface::DrawHUDVertices() {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	// Set the left projection matrix
-	g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+	g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+	g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 	// The viewMatrix is set at the beginning of the frame
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Set the HUD foreground, background and Text textures:
@@ -1942,44 +1895,33 @@ void PrimarySurface::DrawHUDVertices() {
 	context->PSSetShaderResources(0, 3, srvs);
 	// Draw the Left Image
 	//if (RenderHUD)
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
 
-	if (!g_bEnableVR) // Shortcut for the non-VR path
+	if (!g_bEnableVR || g_bUseSteamVR) // Shortcut for the SteamVR and non-VR path
 	{
-		//goto out;
-		this->_deviceResources->_d3dAnnotation->EndEvent();
-		return;
+		goto out;
 	}
 
-	// Render the right image
-	if (g_bUseSteamVR)
-		context->OMSetRenderTargets(1, resources->_renderTargetViewR.GetAddressOf(), NULL);
-	else
-		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+	// Render the right image in SBS mode
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 
 	// VIEWPORT-RIGHT
-	if (g_bUseSteamVR) {
-		viewport.Width = (float)resources->_backbufferWidth;
-		viewport.TopLeftX = 0.0f;
-	}
-	else {
-		viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-		viewport.TopLeftX = 0.0f + viewport.Width;
-	}
+	viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+	viewport.TopLeftX = 0.0f + viewport.Width;
 	viewport.Height = (float)resources->_backbufferHeight;
 	viewport.TopLeftY = 0.0f;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
 	// Set the right projection matrix
-	g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+	g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 	// Draw the Right Image
 	//if (RenderHUD)
 		context->Draw(6, 0);
 
-	/*
 out:
+	/*
 	// Restore the state
 	ID3D11ShaderResourceView *null_srvs[3] = { NULL, NULL, NULL };
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), resources->_depthStencilViewL.Get());
@@ -1994,7 +1936,7 @@ out:
 	//UINT offset = 0;
 	//resources->InitVertexBuffer(_vertexBuffer.GetAddressOf(), &stride, &offset);
 	*/
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 
 }
 
@@ -2334,7 +2276,7 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 
 void PrimarySurface::SSAOPass(float fZoomFactor) {
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"SSAOPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"SSAOPass");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -2402,6 +2344,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass1[3] = {
 			resources->_depthBufSRV.Get(),
 			resources->_normBufSRV.Get(),
@@ -2414,9 +2360,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			};
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 4, srvs_pass1);
-			context->Draw(6, 0);
-			goto out1;
+			context->PSSetShaderResources(0, 3, srvs_pass1);
+			context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
+			goto out;
 		}
 		else {
 			ID3D11RenderTargetView *rtvs[1] = {
@@ -2425,7 +2371,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 3, srvs_pass1);
-			context->Draw(6, 0);
+			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 		}
 	}
 
@@ -2461,7 +2407,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		context->PSSetShaderResources(0, 3, srvs);
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
 	// Final combine, Left Image
@@ -2494,6 +2440,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass2[9] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_ssaoBufSRV.Get(),							// SSAO component
@@ -2522,153 +2472,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
 			context->PSSetShaderResources(14, 4, srvs);
 		}
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
-out1:
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.Width = screen_res_x / fZoomFactor;
-		viewport.Height = screen_res_y / fZoomFactor;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		resources->InitViewport(&viewport);
-
-		// SSAO Computation, right eye
-		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
-		// Input: _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
-		// Output _ssaoBuf, _bentBuf
-		{
-			// Resolve offscreenBuf
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass1[3] = {
-				resources->_depthBufSRV_R.Get(),
-				resources->_normBufSRV_R.Get(),
-				resources->_offscreenAsInputShaderResourceViewR
-			};
-			resources->InitPixelShader(resources->_ssaoPS);
-			if (!g_bBlurSSAO && g_bShowSSAODebug) {
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewR.Get(),
-				};
-				context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
-				context->OMSetRenderTargets(1, rtvs, NULL);
-				context->PSSetShaderResources(0, 3, srvs_pass1);
-				context->Draw(6, 0);
-				goto out2;
-			}
-			else {
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewSSAO_R.Get(),
-				};
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, bgColor);
-				context->OMSetRenderTargets(1, rtvs, NULL);
-				context->PSSetShaderResources(0, 3, srvs_pass1);
-				context->Draw(6, 0);
-			}
-		}
-
-		// Setup the constant buffers to upscale the buffers
-		// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
-		// size will be twice as big in the next pass due to the downsample, so we have to compensate
-		// with a zoom factor:
-		float fPixelScale = fZoomFactor;
-		g_BloomPSCBuffer.pixelSizeX		= fPixelScale * g_fCurScreenWidthRcp;
-		g_BloomPSCBuffer.pixelSizeY		= fPixelScale * g_fCurScreenHeightRcp;
-		g_BloomPSCBuffer.amplifyFactor	= 1.0f / fZoomFactor;
-		g_BloomPSCBuffer.uvStepSize		= 1.0f;
-		g_BloomPSCBuffer.depth_weight	= g_SSAO_PSCBuffer.max_dist;
-		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-
-		// SSAO Blur, Right Image
-		// input: _bloomOutput1SRV (with a copy of the ssaoBufR), depthBufR, normBufR
-		// output: ssaoBufR
-		if (g_bBlurSSAO)
-		{
-			resources->InitPixelShader(resources->_ssaoBlurPS);
-			// Copy the SSAO buffer to bloom1(HDR) -- we'll use it as temp buffer
-			// to blur the SSAO buffer
-			context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), bgColor);
-			ID3D11ShaderResourceView *srvs[3] = {
-					resources->_bloomOutput1SRV.Get(),
-					resources->_depthBufSRV_R.Get(),
-					resources->_normBufSRV_R.Get(),
-			};
-			
-			ID3D11RenderTargetView *rtvs[1] = {
-				resources->_renderTargetViewSSAO_R.Get(),
-			};
-			context->OMSetRenderTargets(1, rtvs, NULL);
-			context->PSSetShaderResources(0, 3, srvs);
-			context->Draw(6, 0);
-		}
-
-		// Final compositing, Right Image
-		{
-			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
-			// output: offscreenBufR
-			// Reset the viewport for the final SSAO combine
-			viewport.TopLeftX = 0.0f;
-			viewport.TopLeftY = 0.0f;
-			viewport.Width = screen_res_x;
-			viewport.Height = screen_res_y;
-			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			viewport.MinDepth = D3D11_MIN_DEPTH;
-			resources->InitViewport(&viewport);
-	
-			ID3D11ShaderResourceView *null_srvs4[4] = { NULL, NULL, NULL, NULL };
-			context->PSSetShaderResources(0, 4, null_srvs4);
-			// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
-			// so that it can be used as an SRV
-			ID3D11RenderTargetView *rtvs[5] = {
-				resources->_renderTargetViewR.Get(),
-				resources->_renderTargetViewBloomMaskR.Get(),
-				NULL, NULL, NULL,
-			};
-			context->OMSetRenderTargets(5, rtvs, NULL);
-			if (!g_bEnableHeadLights)
-				resources->InitPixelShader(resources->_ssaoAddPS);
-			else
-				resources->InitPixelShader(resources->_headLightsSSAOPS);
-			// Resolve offscreenBuf
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[9] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
-				resources->_ssaoBufSRV_R.Get(),							// SSAO component
-				NULL,													// SSDO Indirect
-				resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
-
-				resources->_depthBufSRV_R.Get(),						// Depth buffer
-				resources->_normBufSRV_R.Get(),							// Normals
-				NULL,													// Bent Normals
-				resources->_ssMaskSRV_R.Get(),							// Shading System Mask
-
-				g_ShadowMapping.bEnabled ?
-					resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
-			};
-			context->PSSetShaderResources(0, 9, srvs_pass2);
-
-			if (g_bRTEnabled)
-			{
-				ID3D11ShaderResourceView* srvs[] = {
-					resources->_RTBvhSRV.Get(),          // 14
-					resources->_RTMatricesSRV.Get(),     // 15
-					resources->_RTTLASBvhSRV.Get(),      // 16
-					resources->_rtShadowMaskSRV_R.Get(), // 17
-				};
-				// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
-				context->PSSetShaderResources(14, 4, srvs);
-			}
-			context->Draw(6, 0);
-		}
-	}
-
-out2:
+out:
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
 	viewport.Width = screen_res_x;
@@ -2678,12 +2485,12 @@ out2:
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"SSDOPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"SSDOPass");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -2790,6 +2597,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs_pass1[5] = {
 			resources->_depthBufSRV.Get(),
 			resources->_normBufSRV.Get(),
@@ -2806,29 +2617,29 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewEmissionMask.Get(), black);
 		if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
-			ID3D11RenderTargetView *rtvs[2] = {
+			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetView.Get(),
-				resources->_renderTargetViewBentBuf.Get(),
+				//resources->_renderTargetViewBentBuf.Get(),
 				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetView, black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
-			context->OMSetRenderTargets(2, rtvs, NULL);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
-			context->Draw(6, 0);
+			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 			goto out1;
 		}
 		else {
-			ID3D11RenderTargetView *rtvs[2] = {
+			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetViewSSAO.Get(),
-				resources->_renderTargetViewBentBuf.Get(),
+				//resources->_renderTargetViewBentBuf.Get(),
 				//resources->_renderTargetViewEmissionMask.Get(),
 			};
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
-			context->OMSetRenderTargets(2, rtvs, NULL);
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
+			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
-			context->Draw(6, 0);
+			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 		}
 	}
 	
@@ -2873,16 +2684,17 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssEmissionMask);
 			// Here I'm reusing bentBufR as a temporary buffer for bentBuf, in the SteamVR path I'll do
 			// the opposite. This is just to avoid having to make a temporary buffer to blur the bent normals.
-			context->CopyResource(resources->_bentBufR, resources->_bentBuf);
-			// Clear the destination buffers: the blur will re-populate them
+			//context->CopyResource(resources->_bentBufR, resources->_bentBuf);
+
+			//Clear the destination buffers: the blur will re-populate them
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
-			context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
-			ID3D11ShaderResourceView *srvs[4] = {
+			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf.Get(), black);
+			ID3D11ShaderResourceView *srvs[3] = {
 					//resources->_offscreenAsInputShaderResourceView.Get(), // LDR
 					resources->_bloomOutput1SRV.Get(), // HDR
 					resources->_depthBufSRV.Get(),
 					resources->_normBufSRV.Get(),
-					resources->_bentBufSRV_R.Get(),
+					//resources->_bentBufSRV_R.Get(),
 					//resources->_offscreenAsInputShaderResourceView.Get(), // emission mask
 			};
 			if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO && 	g_SSAO_Type != SSO_BENT_NORMALS) {
@@ -2891,30 +2703,30 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				// If both are set and MSAA is active, nothing gets rendered -- even with a NULL depth stencil.
 				// The solution here is to avoid setting the renderTargetViewBentBuf if MSAA is active
 				// Alternatively, we could change renderTargetViewBentBuf to be MSAA too, just like I did for ssMaskMSAA, etc; but... eh...
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetView.Get(), // resources->_renderTargetViewSSAO.Get(),
-					resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
+					//resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBuf.Get(),
 					//resources->_useMultisampling ? NULL : resources->_renderTargetViewEmissionMask.Get(),
 				};
-				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs);
+				context->OMSetRenderTargets(1, rtvs, NULL);
+				context->PSSetShaderResources(0, 3, srvs);
 				// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
 				//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
 				// DEBUG
-				context->Draw(6, 0);
+				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 				goto out1;
 			}
 			else {
-				ID3D11RenderTargetView *rtvs[2] = {
+				ID3D11RenderTargetView *rtvs[1] = {
 					resources->_renderTargetViewSSAO.Get(),
-					resources->_renderTargetViewBentBuf.Get(),
+					//resources->_renderTargetViewBentBuf.Get(),
 					//resources->_renderTargetViewEmissionMask.Get(),
 				};
-				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 4, srvs);
-				context->Draw(6, 0);
+				context->OMSetRenderTargets(1, rtvs, NULL);
+				context->PSSetShaderResources(0, 3, srvs);
+				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 			}
 		}
 
@@ -2949,6 +2761,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// in the previous steps
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		ID3D11ShaderResourceView *srvs[3] = {
 			resources->_depthBufSRV.Get(),  // FG Depth Buffer
 			resources->_normBufSRV.Get(),   // Normal Buffer
@@ -2974,7 +2790,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			context->OMSetRenderTargets(1, rtvs, NULL);
 		}
 		context->PSSetShaderResources(0, 3, srvs);
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
 	// Blur the Indirect SSDO buffer
@@ -3010,7 +2826,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
 				//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
-				context->Draw(6, 0);
+				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 				goto out1;
 			}
 			else {
@@ -3021,7 +2837,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 3, srvs);
-				context->Draw(6, 0);
+				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 			}
 		}
 	}
@@ -3057,18 +2873,22 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		resources->InitViewport(&viewport);
 		// ssaoBuf was bound as an RTV, so let's bind the RTV first to unbind ssaoBuf
 		// so that it can be used as an SRV
-		ID3D11RenderTargetView *rtvs[5] = {
+		ID3D11RenderTargetView *rtvs[2] = {
 			resources->_renderTargetView.Get(),			 // MSAA
 			resources->_renderTargetViewBloomMask.Get(), // MSAA
-			NULL, //resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! Non-MSAA
-			NULL, NULL,
+			//NULL, //resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! Non-MSAA
+			//NULL, NULL,
 		};
-		context->OMSetRenderTargets(5, rtvs, NULL);
+		context->OMSetRenderTargets(2, rtvs, NULL);
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
-		ID3D11ShaderResourceView *srvs_pass2[9] = {
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
 			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
@@ -3076,307 +2896,20 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
-			resources->_bentBufSRV.Get(),							// Bent Normals
+			//resources->_bentBufSRV.Get(),							// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
 
 			g_ShadowMapping.bEnabled ? 
 				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 		};
-		context->PSSetShaderResources(0, 9, srvs_pass2);
-		context->Draw(6, 0);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
 	/*******************************************************************************
 	 START PROCESS FOR THE RIGHT EYE, STEAMVR MODE
 	 *******************************************************************************/
 out1:
-	// Draw the right image when SteamVR is enabled
-	if (g_bUseSteamVR) {
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.Width    = screen_res_x / fZoomFactor;
-		viewport.Height   = screen_res_y / fZoomFactor;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		resources->InitViewport(&viewport);
-
-		// SSDO Direct Lighting, right eye
-		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
-		// Input: _randBuf, _depthBuf, _depthBuf2, _normBuf, _offscreenBuf (resolved here)
-		// Output _ssaoBuf, _bentBuf
-		{
-			// Resolve offscreenBuf
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass1[5] = {
-				resources->_depthBufSRV_R.Get(),
-				resources->_normBufSRV_R.Get(),
-				resources->_offscreenAsInputShaderResourceViewR.Get(),
-				resources->_ssaoMaskSRV_R.Get(),
-				resources->_offscreenAsInputBloomMaskSRV_R.Get(),
-			};
-			
-			resources->InitPixelShader(resources->_ssdoDirectPS);
-			if (g_bShowSSAODebug && !g_bBlurSSAO && !g_bEnableIndirectSSDO) {
-				ID3D11RenderTargetView *rtvs[2] = {
-					resources->_renderTargetViewR.Get(),
-					resources->_renderTargetViewBentBufR.Get(),
-				};
-				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
-				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs_pass1);
-				context->Draw(6, 0);
-				goto out2;
-			}
-			else {
-				ID3D11RenderTargetView *rtvs[2] = {
-					resources->_renderTargetViewSSAO_R.Get(),
-					resources->_renderTargetViewBentBufR.Get()
-				};
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R, black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR, black);
-				context->OMSetRenderTargets(2, rtvs, NULL);
-				context->PSSetShaderResources(0, 5, srvs_pass1);
-				context->Draw(6, 0);
-			}
-		}
-
-		// Setup the constant buffers to upscale the buffers
-		// The textures are always going to be g_fCurScreenWidth x g_fCurScreenHeight; but the step
-		// size will be twice as big in the next pass due to the downsample, so we have to compensate
-		// with a zoom factor:
-		float fPixelScale = fZoomFactor;
-		g_BloomPSCBuffer.pixelSizeX			= fPixelScale * g_fCurScreenWidthRcp;
-		g_BloomPSCBuffer.pixelSizeY			= fPixelScale * g_fCurScreenHeightRcp;
-		g_BloomPSCBuffer.amplifyFactor		= 1.0f / fZoomFactor;
-		g_BloomPSCBuffer.uvStepSize			= 1.0f;
-		g_BloomPSCBuffer.depth_weight		= g_SSAO_PSCBuffer.max_dist;
-		// The SSDO component currently encodes the AO component in the Y channel. If
-		// the SSDO buffer is displayed directly, it's hard to understand. So, instead, we
-		// have to code the following logic:
-		// If SSDO Indirect is disabled, then enable debug mode in the blur shader. This mode
-		// returns ssao.xxx so that the SSDO direct component can be visualized properly
-		// If SSDO Indirect is enabled, then we can't return ssao.xxx, because that'll wipe
-		// out the AO component needed for SSDO Indirect. In that case we just pass along the
-		// debug flag directly -- but the SSDO Direct buffer will be unreadable
-		if (g_bShowSSAODebug) {
-			if (!g_bEnableIndirectSSDO)
-				g_BloomPSCBuffer.debug = 1;
-			else
-				g_BloomPSCBuffer.debug = g_SSAO_PSCBuffer.debug;
-		}
-		else
-			g_BloomPSCBuffer.debug = 0;
-		resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
-
-		// SSDO Direct Blur, Right Image
-		// input: bloomOutput1 (with a copy of the ssaoBufR), depthBufR, bentBuf (with a copy of bentBufR), normBufR
-		// output: ssaoBufR, bentBufR
-		if (g_bBlurSSAO)
-			for (int i = 0; i < g_iSSAOBlurPasses; i++) {
-				resources->InitPixelShader(resources->_ssdoBlurPS);
-				// Copy the SSAO buffer to offscreenBufferAsInput/_bloomOutput1(HDR) -- we'll use it as temp buffer
-				// to blur the SSAO buffer
-				context->CopyResource(resources->_bloomOutput1, resources->_ssaoBufR);
-				// Here I'm reusing bentBuf as a temporary buffer for bentBufR
-				// This is just to avoid having to make a temporary buffer to blur the bent normals.
-				context->CopyResource(resources->_bentBuf, resources->_bentBufR);
-				// Clear the destination buffers: the blur will re-populate them
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAO_R.Get(), black);
-				context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), black);
-				ID3D11ShaderResourceView *srvs[4] = {
-						//resources->_offscreenAsInputShaderResourceViewR.Get(), // LDR
-						resources->_bloomOutput1SRV.Get(), // HDR
-						resources->_depthBufSRV_R.Get(),
-						resources->_normBufSRV_R.Get(),
-						resources->_bentBufSRV.Get(),
-				};
-				if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1 && !g_bEnableIndirectSSDO) {
-					context->ClearRenderTargetView(resources->_renderTargetViewR, black);
-					// Don't mix MSAA and non-MSAA RTVs:
-					ID3D11RenderTargetView *rtvs[2] = {
-						resources->_renderTargetViewR.Get(), // resources->_renderTargetViewSSAO_R.Get(),
-						resources->_useMultisampling ? NULL : resources->_renderTargetViewBentBufR.Get(),
-					};
-					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 4, srvs);
-					// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
-					//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
-					// DEBUG: Enable the following line to display the normals
-					//context->PSSetShaderResources(0, 1, resources->_normBufSRV_R.GetAddressOf());
-					context->Draw(6, 0);
-					goto out2;
-				}
-				else {
-					ID3D11RenderTargetView *rtvs[2] = {
-						resources->_renderTargetViewSSAO_R.Get(),
-						resources->_renderTargetViewBentBufR.Get()
-					};
-					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 4, srvs);
-					context->Draw(6, 0);
-				}
-			}
-	
-		// SSDO Indirect Lighting, Right Image
-
-		// Clear the Indirect SSDO buffer -- we have to do this regardless of whether the indirect
-		// illumination is computed or not. For the right image, the indirect illumination buffer
-		// is ssaoBufR:
-		context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
-
-		// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
-		// Input: _depthBuf, _depthBuf2, _normBuf, offscreenAsInput (with a copy of _ssaoBuf -- not anymore! Should I fix this?)
-		// Output _ssaoBufR
-		if (g_bEnableIndirectSSDO)
-		{
-			resources->InitPixelShader(resources->_ssdoIndirectPS);
-			// Set the SSDO pixel shader constant buffer
-			//g_SSAO_PSCBuffer.screenSizeX = g_fCurScreenWidth  / fZoomFactor; // Not used in the shader
-			//g_SSAO_PSCBuffer.screenSizeY = g_fCurScreenHeight / fZoomFactor; // Not used in the shader
-			g_SSAO_PSCBuffer.amplifyFactor  = 1.0f / fZoomFactor;
-			g_SSAO_PSCBuffer.amplifyFactor2 = 1.0f / fZoomFactor2;
-			g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetInd;
-			g_SSAO_PSCBuffer.fn_enable		= g_bFNEnable;
-			resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
-
-			// Copy the SSAO buffer to offscreenBufferAsInput -- this is the accumulated
-			// color + SSDO buffer
-			// Not anymore! The accumulation of color + SSDO is now done in the Add shader.
-			// What happens if I just send the regular color buffer instead?
-			//context->CopyResource(resources->_offscreenBufferAsInput/_bloomOutput1, resources->_ssaoBuf);
-
-			// Resolve offscreenBuf, we need the original color buffer and it may have been overwritten
-			// in the previous steps
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs[3] = {
-				resources->_depthBufSRV_R.Get(),  // FG Depth Buffer
-				resources->_normBufSRV_R.Get(),   // Normal Buffer
-				resources->_offscreenAsInputShaderResourceViewR.Get(), // Color Buffer
-				//resources->_ssaoBufSRV_R.Get(),   // Direct SSDO from previous pass
-			};
-
-			// DEBUG
-			if (g_bShowSSAODebug && !g_bBlurSSAO && g_bEnableIndirectSSDO) {
-				context->ClearRenderTargetView(resources->_renderTargetViewR, black);
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewR.Get(),
-				};
-				context->OMSetRenderTargets(1, rtvs, NULL);
-			}
-			// DEBUG
-			else {
-				// _renderTargetViewSSAO is used for the RIGHT eye (and viceversa). THIS IS NOT A BUG
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAO, black);
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewSSAO.Get(),
-				};
-				context->OMSetRenderTargets(1, rtvs, NULL);
-			}
-			context->PSSetShaderResources(0, 3, srvs);
-			context->Draw(6, 0);
-		}
-
-		// Blur the Indirect SSDO buffer
-		if (g_bEnableIndirectSSDO && g_bBlurSSAO) {
-			resources->InitPixelShader(resources->_ssdoBlurPS);
-			for (int i = 0; i < g_iSSAOBlurPasses; i++) {
-				// Copy the SSDO Indirect Buffer (ssaoBuf) to offscreenBufferAsInputR/_bloomOutput1 -- we'll use it as temp buffer
-				// to blur the SSAO buffer
-				context->CopyResource(resources->_bloomOutput1, resources->_ssaoBuf);
-				// Here I'm reusing bentBuf as a temporary buffer for bentBufR, This is just to avoid 
-				// having to make a temporary buffer to blur the bent normals.
-				//context->CopyResource(resources->_bentBuf, resources->_bentBufR);
-				// Clear the destination buffers: the blur will re-populate them
-				context->ClearRenderTargetView(resources->_renderTargetViewSSAO.Get(), black);
-				//context->ClearRenderTargetView(resources->_renderTargetViewBentBufR.Get(), bgColor);
-				ID3D11ShaderResourceView *srvs[3] = {
-						//resources->_offscreenAsInputShaderResourceViewR.Get(), // ssaoBuf, direct lighting
-						resources->_bloomOutput1SRV.Get(), // ssaoBuf, direct lighting HDR
-						resources->_depthBufSRV_R.Get(),
-						resources->_normBufSRV_R.Get(),
-						//resources->_bentBufSRV.Get(), // with a copy of bentBufR
-				};
-				if (g_bShowSSAODebug && i == g_iSSAOBlurPasses - 1) {
-					context->ClearRenderTargetView(resources->_renderTargetViewR, black);
-					//context->OMSetRenderTargets(1, resources->_renderTargetViewSSAO.GetAddressOf(), NULL);
-					ID3D11RenderTargetView *rtvs[2] = {
-						//resources->_renderTargetViewSSAO.Get(),
-						resources->_renderTargetViewR.Get(), // resources->_renderTargetViewBentBufR.Get(),
-						NULL,
-					};
-					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 3, srvs);
-					// DEBUG: Enable the following line to display the bent normals (it will also blur the bent normals buffer
-					//context->PSSetShaderResources(0, 1, resources->_bentBufSRV_R.GetAddressOf());
-					// DEBUG: Enable the following line to display the normals
-					//context->PSSetShaderResources(0, 1, resources->_normBufSRV_R.GetAddressOf());
-					context->Draw(6, 0);
-					goto out1;
-				}
-				else {
-					ID3D11RenderTargetView *rtvs[2] = {
-						resources->_renderTargetViewSSAO.Get(), // ssaoBuf is now the indirect lighting
-						NULL, // bentBufR output
-					};
-					context->OMSetRenderTargets(2, rtvs, NULL);
-					context->PSSetShaderResources(0, 3, srvs);
-					context->Draw(6, 0);
-				}
-			}
-		}
-
-		// Final combine, Right Image
-		{
-			// input: offscreenAsInputR (resolved here), bloomMaskR, ssaoBufR
-			// output: offscreenBufR
-
-			if (!g_bEnableHeadLights)
-				resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS);
-			else
-				resources->InitPixelShader(resources->_headLightsPS);
-			// Reset the viewport for the final SSAO combine
-			viewport.TopLeftX	= 0.0f;
-			viewport.TopLeftY	= 0.0f;
-			viewport.Width		= screen_res_x;
-			viewport.Height		= screen_res_y;
-			viewport.MaxDepth	= D3D11_MAX_DEPTH;
-			viewport.MinDepth	= D3D11_MIN_DEPTH;
-			resources->InitViewport(&viewport);
-			// ssaoBufR was bound as an RTV, so let's bind the RTV first to unbind ssaoBufR
-			// so that it can be used as an SRV
-			ID3D11RenderTargetView *rtvs[5] = {
-				resources->_renderTargetViewR.Get(),			  // MSAA
-				resources->_renderTargetViewBloomMaskR.Get(), // MSAA
-				NULL, //resources->_renderTargetViewBentBufR.Get(), // DEBUG REMOVE THIS LATER Non-MSAA
-				NULL, NULL
-			};
-			context->OMSetRenderTargets(5, rtvs, NULL);
-			// Resolve offscreenBuf
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-				0, BACKBUFFER_FORMAT);
-			ID3D11ShaderResourceView *srvs_pass2[9] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
-				resources->_ssaoBufSRV_R.Get(),							// SSDO Direct Component
-				resources->_ssaoBufSRV.Get(),							// SSDO Indirect Component
-				resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
-
-				resources->_depthBufSRV_R.Get(),						// Depth buffer
-				resources->_normBufSRV_R.Get(),							// Normals buffer
-				resources->_bentBufSRV_R.Get(),							// Bent Normals
-				resources->_ssMaskSRV_R.Get(),							// Shading System Mask buffer
-
-				g_ShadowMapping.bEnabled ?
-					resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
-			};
-			context->PSSetShaderResources(0, 9, srvs_pass2);
-			context->Draw(6, 0);
-		}
-	}
-
-out2:
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
 	viewport.Width  = screen_res_x;
@@ -3386,13 +2919,13 @@ out2:
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 		resources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 /* Regular deferred shading with fake HDR, no SSAO */
 void PrimarySurface::DeferredPass()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"DeferredLightingPass");
+	this->_deviceResources->BeginAnnotatedEvent(L"DeferredLightingPass");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -3466,7 +2999,7 @@ void PrimarySurface::DeferredPass()
 
 	// Set the PCF sampler state
 	if (g_ShadowMapping.bEnabled)
-		context->PSSetSamplers(8, 1, resources->_shadowPCFSamplerState.GetAddressOf());
+		context->PSSetSamplers(7, 1, resources->_shadowPCFSamplerState.GetAddressOf());
 
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Deferred pass, Left Image
@@ -3493,21 +3026,23 @@ void PrimarySurface::DeferredPass()
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[9] = {
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			NULL,													// Bent Normals (HDR) or SSDO Direct Component (LDR)
+			NULL,													// SSDO Direct Component (LDR)
 			NULL, //resources->_ssaoBufSRV_R.Get(),					// SSDO Indirect
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 
 			resources->_depthBufSRV.Get(),							// Depth buffer
 			resources->_normBufSRV.Get(),							// Normals buffer
-			NULL,													// Bent Normals
 			resources->_ssMaskSRV.Get(),							// Shading System buffer
-
 			g_ShadowMapping.bEnabled ?								// The shadow map
 				resources->_shadowMapArraySRV.Get() : NULL,
 		};
-		context->PSSetShaderResources(0, 9, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 
 		if (g_bRTEnabled)
 		{
@@ -3521,61 +3056,12 @@ void PrimarySurface::DeferredPass()
 			context->PSSetShaderResources(14, 4, srvs);
 		}
 
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
-	// Deferred pass, Right image
-	if (g_bUseSteamVR)
-	{
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.Width    = screen_res_x;
-		viewport.Height   = screen_res_y;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		resources->InitViewport(&viewport);
-
-		// ssaoBufR was bound as an RTV, so let's bind the RTV first to unbind ssaoBufR
-		// so that it can be used as an SRV
-		ID3D11RenderTargetView *rtvs[5] = {
-			resources->_renderTargetViewR.Get(),
-			resources->_renderTargetViewBloomMaskR.Get(),
-			NULL, NULL, NULL
-		};
-		context->OMSetRenderTargets(5, rtvs, NULL);
-		// Resolve offscreenBuf
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR,
-			0, BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[9] = {
-			resources->_offscreenAsInputShaderResourceViewR.Get(),	// Color buffer
-			NULL,													// SSDO Direct Component
-			NULL,													// SSDO Indirect Component
-			resources->_ssaoMaskSRV_R.Get(),						// SSAO Mask
-
-			resources->_depthBufSRV_R.Get(),						// Depth buffer
-			resources->_normBufSRV_R.Get(),							// Normals buffer
-			NULL,													// Bent Normals
-			resources->_ssMaskSRV_R.Get(),							// Shading System buffer
-
-			g_ShadowMapping.bEnabled ?
-				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
-		};
-		context->PSSetShaderResources(0, 9, srvs_pass2);
-
-		if (g_bRTEnabled)
-		{
-			ID3D11ShaderResourceView* srvs[] = {
-				resources->_RTBvhSRV.Get(),          // 14
-				resources->_RTMatricesSRV.Get(),     // 15
-				resources->_RTTLASBvhSRV.Get(),      // 16
-				resources->_rtShadowMaskSRV_R.Get(), // 17
-			};
-			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
-			context->PSSetShaderResources(14, 4, srvs);
-		}
-
-		context->Draw(6, 0);
-	}
+	// Clear RT SRVs slots that are only used for the shadows to avoid DirectX errors
+	ID3D11ShaderResourceView* srvs[] = { NULL, NULL, NULL, NULL };
+	context->PSSetShaderResources(14, 4, srvs);
 
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
@@ -3586,7 +3072,7 @@ void PrimarySurface::DeferredPass()
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 
@@ -4560,7 +4046,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				max time: 236, 231
 	*/
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderHyperspaceEffect");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderHyperspaceEffect");
 
 	// Constants for the post-hyper-exit effect:
 	const float T2 = 2.0f; // Time in seconds for the trails
@@ -4823,7 +4309,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
@@ -4843,31 +4330,12 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 		// Set the SRV:
 		context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
 		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-
-		// Render the right image
 		if (g_bUseSteamVR)
-		{
-			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-			// VIEWPORT-RIGHT
-			viewport.TopLeftX = 0.0f;
-			viewport.TopLeftY = 0.0f;
-			viewport.Width = (float)resources->_backbufferWidth;
-			viewport.Height = (float)resources->_backbufferHeight;
-			viewport.MinDepth = D3D11_MIN_DEPTH;
-			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			resources->InitViewport(&viewport);
-			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
-			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-
-			context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-			// Set the SRV:
-			context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV_R.GetAddressOf());
-			context->Draw(6, 0);
-			context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
-		}
+			context->ResolveSubresource(
+				resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		// Activate the hyperExitPS
 		resources->InitPixelShader(resources->_hyperExitPS);
@@ -4926,7 +4394,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.scale_override	= 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		//resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
@@ -4947,27 +4416,20 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 
 		// Render the right image
-		if (g_bEnableVR) {
+		if (g_bEnableVR && !g_bUseSteamVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-			}
+			viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+			viewport.TopLeftX = (float)viewport.Width;
 			viewport.Height = (float)resources->_backbufferHeight;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR)
@@ -5056,7 +4518,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// to _offscreenBufferAsInput to re-use in the next step:
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		if (!g_bReshadeEnabled) {
@@ -5088,37 +4552,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		};
 		context->PSSetShaderResources(0, 3, srvs);
 		// TODO: Handle SteamVR cases
-		context->Draw(6, 0);
-
-		// Post-process the right image
-		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-			if (!g_bReshadeEnabled) {
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewPostR.Get(),
-				};
-				context->OMSetRenderTargets(1, rtvs, NULL);
-			}
-			else {
-				ID3D11RenderTargetView *rtvs[5] = {
-					resources->_renderTargetViewPostR.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-					resources->_renderTargetViewBloomMaskR.Get(),
-					NULL, // Depth
-					NULL, // Norm Buf
-					NULL, // SSAO Mask
-				};
-				context->OMSetRenderTargets(5, rtvs, NULL);
-			}
-			// Set the SRVs:
-			ID3D11ShaderResourceView *srvs[3] = {
-				resources->_shadertoySRV_R.Get(),		// Foreground (cockpit)
-				resources->_shadertoyAuxSRV_R.Get(),  // Background
-				resources->_offscreenAsInputShaderResourceViewR.Get(), // Previous effect (trails or tunnel)
-			};
-			context->PSSetShaderResources(0, 3, srvs);
-			// TODO: Handle SteamVR cases
-			context->Draw(6, 0);
-		}
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
 	
@@ -5133,8 +4567,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 //out:
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
 	resources->InitViewport(lastViewport);
@@ -5159,12 +4591,12 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderFXAA()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderFXAA");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderFXAA");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -5220,7 +4652,9 @@ void PrimarySurface::RenderFXAA()
 	// Do we need to resolve the offscreen buffer?
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 	ID3D11RenderTargetView *rtvs[1] = {
@@ -5233,39 +4667,20 @@ void PrimarySurface::RenderFXAA()
 	};
 	context->PSSetShaderResources(0, 1, srvs);
 	// TODO: Handle SteamVR cases
-	context->Draw(6, 0);
-
-	// Post-process the right image
-	if (g_bUseSteamVR) {
-		context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-		ID3D11RenderTargetView *rtvs[1] = {
-			resources->_renderTargetViewPostR.Get(),
-		};
-		context->OMSetRenderTargets(1, rtvs, NULL);
-
-		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[1] = {
-			resources->_offscreenAsInputShaderResourceViewR.Get(),
-		};
-		context->PSSetShaderResources(0, 1, srvs);
-		// TODO: Handle SteamVR cases
-		context->Draw(6, 0);
-	}
+	context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderLevels()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLevels");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderLevels");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -5316,7 +4731,9 @@ void PrimarySurface::RenderLevels()
 	// Do we need to resolve the offscreen buffer?
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 
 	ID3D11RenderTargetView *rtvs[1] = {
@@ -5328,32 +4745,14 @@ void PrimarySurface::RenderLevels()
 		resources->_offscreenAsInputShaderResourceView.Get(),
 	};
 	context->PSSetShaderResources(0, 1, srvs);
-	context->Draw(6, 0);
-
-	// Post-process the right image
-	if (g_bUseSteamVR) {
-		context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-		ID3D11RenderTargetView *rtvs[1] = {
-			resources->_renderTargetViewPostR.Get(),
-		};
-		context->OMSetRenderTargets(1, rtvs, NULL);
-
-		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[1] = {
-			resources->_offscreenAsInputShaderResourceViewR.Get(),
-		};
-		context->PSSetShaderResources(0, 1, srvs);
-		context->Draw(6, 0);
-	}
+	context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore the previous context
 	RestoreContext();
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderStarDebug()
@@ -5407,7 +4806,9 @@ void PrimarySurface::RenderStarDebug()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1), 
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	// Render the star centroid
 	{
@@ -5459,7 +4860,8 @@ void PrimarySurface::RenderStarDebug()
 			g_VSCBuffer.bPreventTransform = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -5486,49 +4888,7 @@ void PrimarySurface::RenderStarDebug()
 			resources->_ReticleSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		context->Draw(6, 0);
-
-		// Render the right image
-		if (g_bEnableVR) {
-			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-			}
-			viewport.Height = (float)resources->_backbufferHeight;
-			viewport.TopLeftY = 0.0f;
-			viewport.MinDepth = D3D11_MIN_DEPTH;
-			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			resources->InitViewport(&viewport);
-			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
-			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-
-			if (g_bUseSteamVR) {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
-					resources->_ReticleSRV.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			else {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceView.Get(),
-					resources->_ReticleSRV.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			context->Draw(6, 0);
-		}
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 
 		if (!g_bEnableVR)
 			goto out;
@@ -5570,7 +4930,9 @@ void PrimarySurface::RenderStarDebug()
 			// to _shadertoyBuf to use it now:
 			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 			if (g_bUseSteamVR)
-				context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+				context->ResolveSubresource(
+					resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+					resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 			ID3D11RenderTargetView *rtvs[1] = {
@@ -5583,31 +4945,13 @@ void PrimarySurface::RenderStarDebug()
 				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
 			};
 			context->PSSetShaderResources(0, 2, srvs);
-			context->Draw(6, 0);
-
-			// TODO: Post-process the right image in SteamVR
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewPostR.Get(),
-				};
-				context->OMSetRenderTargets(1, rtvs, NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
-					resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-				context->Draw(6, 0);
-			}
+			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 		}
 	}
 
 out:
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
@@ -5638,7 +4982,7 @@ void PrimarySurface::RenderExternalHUD()
 	if (bReticleInvisible && bTriangleInvisible)
 		return;
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderExternalHUD");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderExternalHUD");
 
 	// DEBUG
 	//g_MetricRecCBuffer.mr_debug_value = g_fDebugFOVscale;
@@ -5739,7 +5083,9 @@ void PrimarySurface::RenderExternalHUD()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1), 
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	// Resolve the Reticle buffer
 	if (g_bEnableVR) {
 		context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA, 0, BACKBUFFER_FORMAT);
@@ -5799,7 +5145,8 @@ void PrimarySurface::RenderExternalHUD()
 			g_VSCBuffer.bPreventTransform = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -5827,49 +5174,7 @@ void PrimarySurface::RenderExternalHUD()
 			resources->_ReticleSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		context->Draw(6, 0);
-
-		// Render the right image
-		if (g_bEnableVR) {
-			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-			}
-			viewport.Height = (float)resources->_backbufferHeight;
-			viewport.TopLeftY = 0.0f;
-			viewport.MinDepth = D3D11_MIN_DEPTH;
-			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			resources->InitViewport(&viewport);
-			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
-			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-
-			if (g_bUseSteamVR) {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
-					resources->_ReticleSRV.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			else {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceView.Get(),
-					resources->_ReticleSRV.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			context->Draw(6, 0);
-		}
+		context->DrawInstanced(6, g_bSteamVREnabled? 2:1, 0, 0);
 
 		if (!g_bEnableVR)
 			goto out;
@@ -5916,7 +5221,9 @@ void PrimarySurface::RenderExternalHUD()
 			// to _shadertoyBuf to use it now:
 			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 			if (g_bUseSteamVR)
-				context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+				context->ResolveSubresource(
+					resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+					resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 			ID3D11RenderTargetView *rtvs[1] = {
@@ -5929,36 +5236,18 @@ void PrimarySurface::RenderExternalHUD()
 				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
 			};
 			context->PSSetShaderResources(0, 2, srvs);
-			context->Draw(6, 0);
-
-			// TODO: Post-process the right image in SteamVR
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				ID3D11RenderTargetView *rtvs[1] = {
-					resources->_renderTargetViewPostR.Get(),
-				};
-				context->OMSetRenderTargets(1, rtvs, NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
-					resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-				context->Draw(6, 0);
-			}
+			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 		}
 	}
 
 out:
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles, int idx)
@@ -6131,7 +5420,7 @@ inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX
 
 void PrimarySurface::RenderSpeedEffect()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSpeedEffect");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderSpeedEffect");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -6193,7 +5482,9 @@ void PrimarySurface::RenderSpeedEffect()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
 	{
@@ -6321,7 +5612,8 @@ void PrimarySurface::RenderSpeedEffect()
 		}
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -6331,32 +5623,22 @@ void PrimarySurface::RenderSpeedEffect()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->Draw(NumParticleVertices, 0);
+		context->DrawInstanced(NumParticleVertices, g_bUseSteamVR? 2:1, 0, 0);
 
-		if (g_bEnableVR) {
+		if (g_bEnableVR && !g_bUseSteamVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-			}
+			viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+			viewport.TopLeftX = (float)viewport.Width;
 			viewport.Height = (float)resources->_backbufferHeight;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR)
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-			else
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 			context->Draw(NumParticleVertices, 0);
 		}
 	}
@@ -6424,7 +5706,9 @@ void PrimarySurface::RenderSpeedEffect()
 		// to _shadertoyBuf to use it now:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		ID3D11RenderTargetView *rtvs[1] = {
@@ -6439,36 +5723,16 @@ void PrimarySurface::RenderSpeedEffect()
 		};
 		context->PSSetShaderResources(0, 3, srvs);
 		// TODO: Handle SteamVR cases
-		context->Draw(6, 0);
-
-		// TODO: Post-process the right image in SteamVR
-		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-			ID3D11RenderTargetView *rtvs[1] = {
-				resources->_renderTargetViewPostR.Get(),
-			};
-			context->OMSetRenderTargets(1, rtvs, NULL);
-			// Set the SRVs:
-			ID3D11ShaderResourceView *srvs[3] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
-				resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
-				resources->_depthBufSRV_R.Get(),   // The depth buffer
-			};
-			context->PSSetShaderResources(0, 3, srvs);
-			// TODO: Handle SteamVR cases
-			context->Draw(6, 0);
-		}
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 inline D3DCOLOR PrimarySurface::EncodeNormal(Vector3 N)
@@ -6647,7 +5911,7 @@ Matrix4 PrimarySurface::ComputeAddGeomViewMatrix(Matrix4 *HeadingMatrix, Matrix4
 
 void PrimarySurface::RenderAdditionalGeometry()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderAdditionalGeometry");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderAdditionalGeometry");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -6675,7 +5939,9 @@ void PrimarySurface::RenderAdditionalGeometry()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
 	/*
@@ -6781,7 +6047,8 @@ void PrimarySurface::RenderAdditionalGeometry()
 		}
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -6791,27 +6058,20 @@ void PrimarySurface::RenderAdditionalGeometry()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0); // Draw OBJ
+		context->DrawIndexedInstanced(g_ShadowMapping.NumIndices, g_bUseSteamVR? 2:1, 0, 0, 0); // Draw OBJ
 
 		// Render the additional geometry on the right eye
-		if (g_bEnableVR) {
+		if (g_bEnableVR && !g_bUseSteamVR) {
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-			}
+			viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+			viewport.TopLeftX = (float)viewport.Width;
 			viewport.Height = (float)resources->_backbufferHeight;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 			if (g_bUseSteamVR)
@@ -6892,7 +6152,9 @@ void PrimarySurface::RenderAdditionalGeometry()
 		// to _shadertoyBuf to use it now:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		ID3D11RenderTargetView *rtvs[1] = {
@@ -6907,36 +6169,16 @@ void PrimarySurface::RenderAdditionalGeometry()
 		};
 		context->PSSetShaderResources(0, 2, srvs);
 		// TODO: Handle SteamVR cases
-		context->Draw(6, 0);
-
-		// TODO: Post-process the right image in SteamVR
-		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-			ID3D11RenderTargetView *rtvs[1] = {
-				resources->_renderTargetViewPostR.Get(),
-			};
-			context->OMSetRenderTargets(1, rtvs, NULL);
-			// Set the SRVs:
-			ID3D11ShaderResourceView *srvs[2] = {
-				resources->_offscreenAsInputShaderResourceViewR.Get(), // The current render
-				resources->_shadertoySRV_R.Get(),  // The effect rendered in the previous pass
-				//resources->_depthBufSRV_R.Get(),   // The depth buffer
-			};
-			context->PSSetShaderResources(0, 2, srvs);
-			// TODO: Handle SteamVR cases
-			context->Draw(6, 0);
-		}
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 	}
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 /*
@@ -7415,7 +6657,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 
 void PrimarySurface::RenderSunFlare()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSunFlare");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderSunFlare");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -7503,7 +6745,9 @@ void PrimarySurface::RenderSunFlare()
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 #ifdef GENMIPMAPS_DEBUG
 	// DEBUG
@@ -7562,7 +6806,8 @@ void PrimarySurface::RenderSunFlare()
 		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -7587,49 +6832,31 @@ void PrimarySurface::RenderSunFlare()
 			resources->_depthBufSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 
 		// Render the right image
-		if (g_bEnableVR)
+		if (g_bEnableVR && !g_bUseSteamVR)
 		{
 			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-			}
+			viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+			viewport.TopLeftX = (float)viewport.Width;
 			viewport.Height = (float)resources->_backbufferHeight;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
 			resources->InitViewport(&viewport);
 			// Set the right projection matrix
-			g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+			g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 			resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-			if (g_bUseSteamVR) {
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
-					resources->_depthBufSRV_R.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			else {
-				// DirectSBS case
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				// Set the SRVs:
-				ID3D11ShaderResourceView *srvs[2] = {
-					resources->_offscreenAsInputShaderResourceView.Get(),
-					resources->_depthBufSRV.Get(),
-				};
-				context->PSSetShaderResources(0, 2, srvs);
-			}
+			// DirectSBS case
+			context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
+			// Set the SRVs:
+			ID3D11ShaderResourceView *srvs[2] = {
+				resources->_offscreenAsInputShaderResourceView.Get(),
+				resources->_depthBufSRV.Get(),
+			};
+			context->PSSetShaderResources(0, 2, srvs);
 			context->Draw(6, 0);
 		}
 	}
@@ -7684,11 +6911,12 @@ void PrimarySurface::RenderSunFlare()
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _shaderToyBuf to re-use in the next step:
 		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		if (g_bUseSteamVR) {
-			context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
-			context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
+			context->ResolveSubresource(
+				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		}
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
@@ -7701,7 +6929,7 @@ void PrimarySurface::RenderSunFlare()
 			resources->_depthBufSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 3, srvs);
-		context->Draw(6, 0);
+		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
 
 		// Post-process the right image
 		if (g_bUseSteamVR) {
@@ -7728,13 +6956,11 @@ void PrimarySurface::RenderSunFlare()
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 /*
@@ -7745,7 +6971,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLaserPointer");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderLaserPointer");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -7760,7 +6986,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
-		context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	resources->InitPixelShader(resources->_laserPointerPS);
 
@@ -8030,8 +7258,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferR, resources->_offscreenBufferPostR);
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout);
@@ -8066,7 +7292,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 out:
 */
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
@@ -8322,7 +7548,7 @@ void PrimarySurface::Add3DVisionSignature()
 
 void PrimarySurface::RenderEdgeDetector()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderEdgeDetector");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderEdgeDetector");
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -8395,7 +7621,7 @@ void PrimarySurface::RenderEdgeDetector()
 	}
 	else
 	{
-		this->_deviceResources->_d3dAnnotation->EndEvent();
+		this->_deviceResources->EndAnnotatedEvent();
 		return;
 	}
 
@@ -8547,7 +7773,8 @@ nochange:
 		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
@@ -8562,7 +7789,7 @@ nochange:
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Instead of clearing the RTV, we copy the DC FG buffer to the offscreenBufferPost, that way the
 		// viewport only overwrites the section we're going to process.
-		context->CopyResource(resources->_offscreenBufferPost, resources->_offscreenBufferDynCockpit);
+		context->CopySubresourceRegion(resources->_offscreenBufferPost, 0, 0, 0, 0, resources->_offscreenBufferDynCockpit,0,NULL);
 		// Set the RTV:
 		ID3D11RenderTargetView* rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
@@ -8582,8 +7809,9 @@ nochange:
 	// Copy or resolve the result
 	if (g_config.MultisamplingAntialiasingEnabled)
 		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		
 	else
-		context->CopyResource(resources->_offscreenAsInputDynCockpit, resources->_offscreenBufferPost);
+		context->CopySubresourceRegion(resources->_offscreenAsInputDynCockpit, 0, 0, 0, 0, resources->_offscreenBufferPost, 0, NULL);
 
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
 	// after applying this effect.
@@ -8599,12 +7827,12 @@ nochange:
 	// we just need to prevent applying this effect multiple times.
 	g_bEdgeEffectApplied = true;
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderRTShadowMask()
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRTShadowMask");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderRTShadowMask");
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -8637,6 +7865,7 @@ void PrimarySurface::RenderRTShadowMask()
 
 	resources->InitVertexShader(resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_rtShadowMaskPS);
+
 	// Clear all the render target views
 	ID3D11RenderTargetView* rtvs_null[5] = {
 		NULL, // Main RTV
@@ -8648,10 +7877,6 @@ void PrimarySurface::RenderRTShadowMask()
 	context->OMSetRenderTargets(5, rtvs_null, NULL);
 	context->ClearRenderTargetView(resources->_rtShadowMaskRTV, bgColor);
 
-	ID3D11RenderTargetView* rtvs[1] = {
-		resources->_rtShadowMaskRTV.Get(),
-	};
-	context->OMSetRenderTargets(1, rtvs, NULL);
 	// Set the SRVs:
 	ID3D11ShaderResourceView* srvs[2] = {
 		resources->_normBufSRV.Get(),
@@ -8664,28 +7889,34 @@ void PrimarySurface::RenderRTShadowMask()
 		resources->_RTBvhSRV.Get(),          // 14
 		resources->_RTMatricesSRV.Get(),     // 15
 		resources->_RTTLASBvhSRV.Get(),      // 16
+		NULL,                                // 17 Unbind the rtShadowMask set during lighting pass to avoid a D3D warning below
 	};
-	// Slots 14-16 are used for Raytracing buffers (BLASes, Matrices, TLAS)
-	context->PSSetShaderResources(14, 3, srvs2);
+	// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS)
+	context->PSSetShaderResources(14, 4, srvs2);
 
-	context->Draw(6, 0);
+	ID3D11RenderTargetView* rtvs[1] = {
+		resources->_rtShadowMaskRTV.Get(),
+	};
+	context->OMSetRenderTargets(1, rtvs, NULL);
+
+	context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
 
 	// Post-process the right image
-	if (g_bUseSteamVR) {
-		context->ClearRenderTargetView(resources->_rtShadowMaskRTV_R, bgColor);
-		ID3D11RenderTargetView* rtvs[1] = {
-			resources->_rtShadowMaskRTV_R.Get(),
-		};
-		context->OMSetRenderTargets(1, rtvs, NULL);
+	//if (g_bUseSteamVR) {
+	//	context->ClearRenderTargetView(resources->_rtShadowMaskRTV_R, bgColor);
+	//	ID3D11RenderTargetView* rtvs[1] = {
+	//		resources->_rtShadowMaskRTV_R.Get(),
+	//	};
+	//	context->OMSetRenderTargets(1, rtvs, NULL);
 
-		// Set the SRVs:
-		ID3D11ShaderResourceView* srvs[2] = {
-			resources->_normBufSRV_R.Get(),
-			resources->_depthBufSRV_R.Get(),
-		};
-		context->PSSetShaderResources(0, 2, srvs);
-		context->Draw(6, 0);
-	}
+	//	// Set the SRVs:
+	//	ID3D11ShaderResourceView* srvs[2] = {
+	//		resources->_normBufSRV_R.Get(),
+	//		resources->_depthBufSRV_R.Get(),
+	//	};
+	//	context->PSSetShaderResources(0, 2, srvs);
+	//	context->Draw(6, 0);
+	//}
 
 	if (g_bDumpSSAOBuffers)
 	{
@@ -8694,7 +7925,7 @@ void PrimarySurface::RenderRTShadowMask()
 
 	// Restore the previous context
 	RestoreContext();
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 HRESULT PrimarySurface::Flip(
@@ -8702,7 +7933,7 @@ HRESULT PrimarySurface::Flip(
 	DWORD dwFlags
 	)
 {
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"PrimarySurfaceFlip");
+	this->_deviceResources->BeginAnnotatedEvent(L"PrimarySurfaceFlip");
 
 	static uint64_t frame, lastFrame = 0;
 	static float seconds;
@@ -8821,11 +8052,11 @@ HRESULT PrimarySurface::Flip(
 
 			if (FAILED(hr = this->_deviceResources->_backbufferSurface->BltFast(0, 0, this->_deviceResources->_frontbufferSurface, nullptr, 0)))
 			{
-				this->_deviceResources->_d3dAnnotation->EndEvent();
+				this->_deviceResources->EndAnnotatedEvent();
 				return hr;
 			}
 
-			this->_deviceResources->_d3dAnnotation->EndEvent();
+			this->_deviceResources->EndAnnotatedEvent();
 			return this->Flip(this->_deviceResources->_backbufferSurface, 0);
 		}
 
@@ -8930,7 +8161,7 @@ HRESULT PrimarySurface::Flip(
 			{
 				if (FAILED(this->_deviceResources->RenderMain(this->_deviceResources->_backbufferSurface->_buffer, this->_deviceResources->_displayWidth, this->_deviceResources->_displayHeight, this->_deviceResources->_displayBpp)))
 				{
-					this->_deviceResources->_d3dAnnotation->EndEvent();
+					this->_deviceResources->EndAnnotatedEvent();
 					return DDERR_GENERIC;
 				}
 			}
@@ -8998,7 +8229,7 @@ HRESULT PrimarySurface::Flip(
 
 				if (FAILED(hr))
 				{
-					this->_deviceResources->_d3dAnnotation->EndEvent();
+					this->_deviceResources->EndAnnotatedEvent();
 					return DDERR_GENERIC;
 				}
 			}
@@ -9034,7 +8265,7 @@ HRESULT PrimarySurface::Flip(
 				for (UINT i = 0; i < interval; i++)
 				{
 					// In the original code the offscreenBuffer is simply resolved into the backBuffer.
-					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+					// this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceresources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 					if (!g_bDisableBarrelEffect && g_bEnableVR && !g_bUseSteamVR) {
 						// Barrel effect enabled for DirectSBS mode.
@@ -9223,7 +8454,7 @@ HRESULT PrimarySurface::Flip(
 				}
 			}
 
-			this->_deviceResources->_d3dAnnotation->EndEvent();
+			this->_deviceResources->EndAnnotatedEvent();
 			return hr;
 		}
 	}
@@ -9331,7 +8562,9 @@ HRESULT PrimarySurface::Flip(
 
 					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 					if (g_bUseSteamVR)
-						context->ResolveSubresource(resources->_shadertoyAuxBufR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+						context->ResolveSubresource(
+							resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
+							resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 				}
 			}
 
@@ -9357,7 +8590,9 @@ HRESULT PrimarySurface::Flip(
 				if (resources->_useMultisampling) {
 					context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_shadertoyBufMSAA, 0, BACKBUFFER_FORMAT);
 					if (g_bUseSteamVR)
-						context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
+						//context->ResolveSubresource(resources->_shadertoyBufR, 0, resources->_shadertoyBufMSAA_R, 0, BACKBUFFER_FORMAT);
+						context->ResolveSubresource(resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+							resources->_shadertoyBufMSAA, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 				}
 
 				if (g_bDumpSSAOBuffers) {
@@ -9381,8 +8616,8 @@ HRESULT PrimarySurface::Flip(
 				context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 					resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
 				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-						resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+					context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, D3D11CalcSubresource(0, 1, 1),
+						resources->_offscreenBufferBloomMask, D3D11CalcSubresource(0, 1, 1), BLOOM_BUFFER_FORMAT);
 
 				// Resolve the normals, ssaoMask and ssMask buffers if necessary
 				// Notice how we don't care about the g_bDepthBufferResolved flag here, we just resolve and move on
@@ -9391,9 +8626,12 @@ HRESULT PrimarySurface::Flip(
 					context->ResolveSubresource(resources->_ssaoMask, 0, resources->_ssaoMaskMSAA, 0, AO_MASK_FORMAT);
 					context->ResolveSubresource(resources->_ssMask, 0, resources->_ssMaskMSAA, 0, AO_MASK_FORMAT);
 					if (g_bUseSteamVR) {
-						context->ResolveSubresource(resources->_normBufR, 0, resources->_normBufMSAA_R, 0, AO_DEPTH_BUFFER_FORMAT);
-						context->ResolveSubresource(resources->_ssaoMaskR, 0, resources->_ssaoMaskMSAA_R, 0, AO_MASK_FORMAT);
-						context->ResolveSubresource(resources->_ssMaskR, 0, resources->_ssMaskMSAA_R, 0, AO_MASK_FORMAT);
+						context->ResolveSubresource(resources->_normBuf, D3D11CalcSubresource(0, 1, 1),
+							resources->_normBufMSAA, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+						context->ResolveSubresource(resources->_ssaoMask, D3D11CalcSubresource(0, 1, 1), 
+							resources->_ssaoMaskMSAA, D3D11CalcSubresource(0, 1, 1), AO_MASK_FORMAT);
+						context->ResolveSubresource(resources->_ssMask, D3D11CalcSubresource(0, 1, 1),
+							resources->_ssMaskMSAA, D3D11CalcSubresource(0, 1, 1), AO_MASK_FORMAT);
 					}
 				} 
 				// if MSAA is not enabled, then the RTVs already populated normBuf, ssaoMask and ssMask, 
@@ -9407,8 +8645,8 @@ HRESULT PrimarySurface::Flip(
 				// external camera is active.
 				context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_depthBufAsInputR, 0,
-						resources->_depthBufR, 0, AO_DEPTH_BUFFER_FORMAT);
+					context->ResolveSubresource(resources->_depthBufAsInput, D3D11CalcSubresource(0, 1, 1),
+						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
 			// Render the Raytraced shadow mask
@@ -9479,8 +8717,8 @@ HRESULT PrimarySurface::Flip(
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
 						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, D3D11CalcSubresource(0, 1, 1),
+								resources->_offscreenBufferBloomMask, D3D11CalcSubresource(0, 1, 1), BLOOM_BUFFER_FORMAT);
 						break;
 					case SSO_DIRECTIONAL:
 					case SSO_BENT_NORMALS:
@@ -9489,8 +8727,8 @@ HRESULT PrimarySurface::Flip(
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
 						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, D3D11CalcSubresource(0, 1, 1),
+								resources->_offscreenBufferBloomMask, D3D11CalcSubresource(0, 1, 1), BLOOM_BUFFER_FORMAT);
 						break;
 					case SSO_DEFERRED:
 					case SSO_PBR:
@@ -9499,8 +8737,8 @@ HRESULT PrimarySurface::Flip(
 						context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
 							resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
 						if (g_bUseSteamVR)
-							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMaskR, 0,
-								resources->_offscreenBufferBloomMaskR, 0, BLOOM_BUFFER_FORMAT);
+							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, D3D11CalcSubresource(0, 1, 1),
+								resources->_offscreenBufferBloomMask, D3D11CalcSubresource(0, 1, 1), BLOOM_BUFFER_FORMAT);
 						break;
 				}
 
@@ -9508,7 +8746,7 @@ HRESULT PrimarySurface::Flip(
 					//DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
 					//DirectX::SaveDDSTextureToFile(context, resources->_bentBuf, L"C:\\Temp\\_bentBuf.dds");
-					DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
+					//DirectX::SaveWICTextureToFile(context, resources->_bentBuf, GUID_ContainerFormatJpeg, L"C:\\Temp\\_bentBuf.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBuf, L"C:\\Temp\\_ssaoBuf.dds");
 					//DirectX::SaveWICTextureToFile(context, resources->_ssaoBufR, GUID_ContainerFormatJpeg, L"C:\\Temp\\_ssaoBufR.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_ssaoBufR, L"C:\\Temp\\_ssaoBufR.dds");
@@ -9593,7 +8831,10 @@ HRESULT PrimarySurface::Flip(
 
 			// Render the enhanced bracket after all the shading has been applied.
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
-				this->RenderBracket();
+			{
+			}
+				// Temporarily disable RenderBracket, it causes a crash with instanced stereo
+				//this->RenderBracket();				
 
 			// Draw the reticle on top of everything else
 			if (g_bExternalHUDEnabled || g_bEnableVR)
@@ -9691,7 +8932,9 @@ HRESULT PrimarySurface::Flip(
 
 				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 				if (g_bUseSteamVR)
-					context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferR, 0, BACKBUFFER_FORMAT);
+					context->ResolveSubresource(
+						resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+						resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 				RenderSpeedEffect();
 			}
 
@@ -9886,7 +9129,7 @@ HRESULT PrimarySurface::Flip(
 				g_bDumpLaserPointerDebugInfo = false;
 
 			// In the original code, the offscreenBuffer is resolved to the backBuffer
-			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceResources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
+			//this->_deviceResources->_d3dDeviceContext->ResolveSubresource(this->_deviceResources->_backBuffer, 0, this->_deviceresources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 
 			if (g_bDumpSSAOBuffers && !g_bAOEnabled) {
 				log_debug("[DBG] SSAO Disabled. Dumping buffers");
@@ -10091,7 +9334,9 @@ HRESULT PrimarySurface::Flip(
 					context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 					context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 					if (g_bUseSteamVR)
-						context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
+						// Copy right eye subresource onto right eye just for clearing
+						context->CopySubresourceRegion(resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
+							0, 0, 0, resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 0, 1),NULL);
 				}
 				g_bHyperspaceFirstFrame = false;
 				g_bHyperHeadSnapped = false;
@@ -10283,7 +9528,7 @@ HRESULT PrimarySurface::Flip(
 				vr::Texture_t rightEyeTexture;
 
 				leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
-				rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
+				rightEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 
 				//log_debug("[DBG] Submit 3D");
 				error = g_pVRCompositor->Submit(vr::Eye_Left, &leftEyeTexture);
@@ -10363,7 +9608,7 @@ HRESULT PrimarySurface::Flip(
 		{
 			hr = DD_OK;
 		}
-		this->_deviceResources->_d3dAnnotation->EndEvent();
+		this->_deviceResources->EndAnnotatedEvent();
 		return hr;
 	}
 
@@ -10372,7 +9617,7 @@ HRESULT PrimarySurface::Flip(
 	LogText(str.str());
 #endif
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 	return DDERR_UNSUPPORTED;
 }
 
@@ -11053,7 +10298,7 @@ void PrimarySurface::RenderText()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderText");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderText");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -11389,7 +10634,7 @@ out:
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderRadar()
@@ -11413,7 +10658,7 @@ void PrimarySurface::RenderRadar()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderRadar");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderRadar");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -11515,7 +10760,7 @@ void PrimarySurface::RenderRadar()
 	g_xwa_radar_selected_positionX = -1;
 	g_xwa_radar_selected_positionY = -1;
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }
 
 void PrimarySurface::RenderBracket()
@@ -11543,7 +10788,7 @@ void PrimarySurface::RenderBracket()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderBracket");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderBracket");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -11671,7 +10916,7 @@ void PrimarySurface::RenderBracket()
 	s_brush = nullptr;
 	g_xwa_bracket.clear();
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 
 }
 
@@ -11703,7 +10948,7 @@ void PrimarySurface::RenderSynthDCElems()
 		return;
 	}
 
-	this->_deviceResources->_d3dAnnotation->BeginEvent(L"RenderSynthDCElems");
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderSynthDCElems");
 
 	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget || this->_deviceResources->_displayWidth != s_displayWidth || this->_deviceResources->_displayHeight != s_displayHeight)
 	{
@@ -11838,5 +11083,5 @@ out:
 	this->_deviceResources->_d2d1RenderTarget->EndDraw();
 	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
-	this->_deviceResources->_d3dAnnotation->EndEvent();
+	this->_deviceResources->EndAnnotatedEvent();
 }

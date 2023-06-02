@@ -18,7 +18,7 @@
 #include "metric_common.h"
 
  // The background texture
-Texture2D    bgTex     : register(t0);
+Texture2DArray    bgTex     : register(t0);
 
 #ifdef GENMIPMAPS_DEBUG
 // DEBUG section. This will enable mip maps in this shader
@@ -61,7 +61,9 @@ struct PixelShaderInput
 	float4 pos    : SV_POSITION;
 	float4 color  : COLOR0;
 	float2 uv     : TEXCOORD0;
-	float4 pos3D  : COLOR1;
+    float4 pos3D  : COLOR1;
+    uint viewId   : SV_RenderTargetArrayIndex;
+
 };
 
 struct PixelShaderOutput
@@ -312,7 +314,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		// DEBUG section. This will enable mip maps in this shader
 		output.color = bgTex.SampleLevel(bgSampler, input.uv, 5.0);
 #else
-		output.color = bgTex.Sample(bgSampler, input.uv);
+        output.color = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
 #endif
 
 	// Early exit: avoid rendering outside the original viewport edges

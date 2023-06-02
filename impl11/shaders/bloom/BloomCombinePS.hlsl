@@ -5,11 +5,11 @@
 // https://learnopengl.com/Advanced-Lighting/Bloom
 
 // This texture slot should be the original backbuffer SRV
-Texture2D texture0 : register(t0);
+Texture2DArray texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
 // This texture slot should be the bloom texture
-Texture2D bloomTex: register(t1);
+Texture2DArray bloomTex: register(t1);
 SamplerState bloomSampler : register(s1);
 
 cbuffer ConstantBuffer : register(b2)
@@ -24,6 +24,7 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv : TEXCOORD;
+	uint viewId: SV_RenderTargetArrayIndex;
 };
 
 // From http://www.chilliant.com/rgb2hsv.html
@@ -121,8 +122,8 @@ struct PixelShaderOutput
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
-	float4 color = texture0.Sample(sampler0, input.uv);
-	float3 bloom = bloomTex.Sample(bloomSampler, input.uv).rgb;
+	float4 color = texture0.Sample(sampler0, float3(input.uv, input.viewId));
+	float3 bloom = bloomTex.Sample(bloomSampler, float3(input.uv, input.viewId)).rgb;
 	color.w = 1.0f;
 
 	//float3 HSV = RGBtoHSV(output.bloom.xyz);

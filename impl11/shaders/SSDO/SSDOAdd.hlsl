@@ -20,44 +20,44 @@
 
 //#define PBR_DYN_LIGHTS
 
-// The color buffer
-Texture2D texColor : register(t0);
+ // The color buffer
+Texture2DArray texColor : register(t0);
 SamplerState sampColor : register(s0);
 
 // The SSDO Direct buffer
-Texture2D texSSDO : register(t1);
+Texture2DArray texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
 
 // The SSDO Indirect buffer
-Texture2D texSSDOInd : register(t2);
+Texture2DArray texSSDOInd : register(t2);
 SamplerState samplerSSDOInd : register(s2);
 
 // The SSAO mask
-Texture2D texSSAOMask : register(t3);
+Texture2DArray texSSAOMask : register(t3);
 SamplerState samplerSSAOMask : register(s3);
 
 // The position/depth buffer
-Texture2D texPos : register(t4);
+Texture2DArray texPos : register(t4);
 SamplerState sampPos : register(s4);
 
 // The (Smooth) Normals buffer
-Texture2D texNormal : register(t5);
+Texture2DArray texNormal : register(t5);
 SamplerState samplerNormal : register(s5);
 
 // The Bent Normals buffer
-Texture2D texBent : register(t6);
-SamplerState samplerBent : register(s6);
+//Texture2DArray texBent : register(t6);
+//SamplerState samplerBent : register(s6);
 
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t7);
-SamplerState samplerSSMask : register(s7);
+Texture2DArray texSSMask : register(t6);
+SamplerState samplerSSMask : register(s6);
 
 // The Shadow Map buffer
-Texture2DArray<float> texShadowMap : register(t8);
-SamplerComparisonState cmpSampler : register(s8);
+Texture2DArray<float> texShadowMap : register(t7);
+SamplerComparisonState cmpSampler : register(s7);
 
 // The RT Shadow Mask
-Texture2D rtShadowMask : register(t17);
+Texture2DArray rtShadowMask : register(t17);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -79,13 +79,14 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+	uint viewId: SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 	float4 bloom : SV_TARGET1;
-	float4 bent  : SV_TARGET2;
+	//float4 bent  : SV_TARGET2;
 };
 
 // From: https://www.shadertoy.com/view/MdfXWr
@@ -146,11 +147,11 @@ inline float3 reinhard_extended(float3 v, float max_white)
 	return numerator / (1.0f + v);
 }
 
-inline float3 getPosition(in float2 uv, in float level) {
+inline float3 getPosition(in float2 uv, in uint viewId, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+	return texPos.SampleLevel(sampPos, float3(uv,viewId), level).xyz;
 }
 
 #ifdef DISABLED
@@ -383,21 +384,21 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
-	output.bent  = 0;
+	//output.bent  = 0;
 
 	float2 input_uv_sub   = input.uv * amplifyFactor;
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
-	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
-	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D	      = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float3 color          = texColor.Sample(sampColor, float3(input.uv,input.viewId)).xyz;
+	float4 Normal         = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
+	float3 pos3D	      = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
+	float3 ssdo           = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
+	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, float3(input_uv_sub2, input.viewId)).rgb;
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
+	float3 ssMask         = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
 	//float3 emissionMask  = texEmissionMask.Sample(samplerEmissionMask, input_uv_sub).xyz;
 	float  mask           = ssaoMask.x;
 	float  gloss_mask     = ssaoMask.y;
@@ -480,7 +481,7 @@ PixelShaderOutput main(PixelShaderInput input)
 				float2 uv;
 				float rtVal = 0;
 				const int range = 2;
-				const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+                const float rtCenter = rtShadowMask.Sample(sampColor, float3(input.uv, input.viewId)).x;
 				//const float wsize = (2 * range + 1) * (2 * range + 1);
 				const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor,
 											   RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor);
@@ -500,7 +501,7 @@ PixelShaderOutput main(PixelShaderInput input)
 						[unroll]
 						for (j = -1; j <= 1; j++)
 						{
-							rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
+                            rtMin = min(rtMin, rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x);
 							uv.x += uv_delta_d.x;
 						}
 						uv.y += uv_delta_d.y;
@@ -518,14 +519,14 @@ PixelShaderOutput main(PixelShaderInput input)
 					[unroll]
 					for (j = -range; j <= range; j++)
 					{
-						const float z = texPos.Sample(sampPos, uv).z;
+						const float z = texPos.Sample(sampPos, float3(input.uv, input.viewId)).z;
 						const float delta_z = abs(P.z - z);
 						const float delta_ij = -RTGaussFactor * (i*i + j*j);
 						//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
 						const float G = exp(delta_ij);
 						// Objects far away should have bigger thresholds too
 						if (delta_z < RTSoftShadowThresholdMult * P.z)
-							rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
+                            rtVal += G * rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x;
 						else
 							rtVal += G * rtMin;
 						Gsum += G;
@@ -869,14 +870,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
 
 #ifdef DISABLED
-	if (ssao_debug == 8)
-		output.color.xyz = bentN.xyz * 0.5 + 0.5;
+	//if (ssao_debug == 8)
+		//output.color.xyz = bentN.xyz * 0.5 + 0.5;
 	if (ssao_debug == 9 || ssao_debug >= 14)
 		output.color.xyz = contactShadow;
-	if (ssao_debug == 10)
-		output.color.xyz = bentDiff;
-	if (ssao_debug == 12)
-		output.color.xyz = color * (diff_int * bentDiff + ambient);
+	//if (ssao_debug == 10)
+		//output.color.xyz = bentDiff;
+	//if (ssao_debug == 12)
+		//output.color.xyz = color * (diff_int * bentDiff + ambient);
 	if (ssao_debug == 13)
 		output.color.xyz = N.xyz * 0.5 + 0.5;
 	if (ssao_debug == 18)

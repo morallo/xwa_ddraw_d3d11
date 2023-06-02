@@ -18,12 +18,14 @@ struct VertexShaderInput
 {
 	float2 pos : POSITION;
 	float2 tex : TEXCOORD;
+	uint instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 tex : TEXCOORD;
+	uint viewId : SV_RenderTargetArrayIndex;
 };
 
 /* This shader is used to render the concourse, menu and other 2D elements. */
@@ -42,12 +44,13 @@ PixelShaderInput main(VertexShaderInput input)
 		// Apply the current view matrix
 		P = mul(fullViewMatrix, P);
 		// Project to 2D
-		output.pos = mul(projEyeMatrix, P);
+		output.pos = mul(projEyeMatrix[input.instId], P);
 	} else { // Use this for the original 2D version of the game:
 		output.pos = float4((input.pos.x) * scale * aspect_ratio, input.pos.y * scale, parallax, 1.0f);
 	}
 	output.tex = input.tex;
-
+	// Pass forward the instance ID to choose the right RTV for each eye
+	output.viewId = input.instId;
 	return output;
 }
 

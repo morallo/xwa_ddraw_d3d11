@@ -7,7 +7,7 @@
 // Kernel calculator:
 // http://dev.theomader.com/gaussian-kernel-calculator/
 
-Texture2D texture0 : register(t0);
+Texture2DArray texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
 cbuffer ConstantBuffer : register(b2)
@@ -22,12 +22,13 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv : TEXCOORD;
+	uint viewId: SV_RenderTargetArrayIndex;
 };
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv = input.uv * amplifyFactor;
-	float3 color = texture0.Sample(sampler0, input_uv).xyz * weight[0];
+	float3 color = texture0.Sample(sampler0, float3(input_uv, input.viewId)).xyz * weight[0];
 	float3 s1, s2;
 	float2 dy = uvStepSize * float2(0, pixelSizeY);
 	float2 uv1 = input_uv + dy;
@@ -35,8 +36,8 @@ float4 main(PixelShaderInput input) : SV_TARGET
 
 	[unroll]
 	for (int i = 1; i < 3; i++) {
-		s1 = texture0.Sample(sampler0, uv1).xyz * weight[i];
-		s2 = texture0.Sample(sampler0, uv2).xyz * weight[i];
+		s1 = texture0.Sample(sampler0, float3(uv1, input.viewId)).xyz * weight[i];
+		s2 = texture0.Sample(sampler0, float3(uv2, input.viewId)).xyz * weight[i];
 		color += s1 + s2;
 		uv1 += dy;
 		uv2 -= dy;

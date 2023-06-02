@@ -4425,11 +4425,12 @@ out:
 
 	// Decrease the refcount of all the objects we queried at the prologue. (Is this
 	// really necessary? They live on the stack, so maybe they are auto-released?)
+	/*
 	oldVSConstantBuffer.Release();
 	oldPSConstantBuffer.Release();
 	for (int i = 0; i < 3; i++)
 		oldVSSRV[i].Release();
-
+	*/
 	/*
 	if (bModifiedBlendState) {
 		RestoreBlendState();
@@ -4502,7 +4503,8 @@ void EffectsRenderer::DCCaptureMiniature()
 	_deviceResources->InitPixelShader(_pixelShader);
 	// Select the proper RTV
 	context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-		resources->_depthStencilViewL.Get());
+		//resources->_depthStencilViewL.Get());
+		NULL);
 
 	// Enable Z-Buffer since we're drawing the targeted craft
 	QuickSetZWriteEnabled(TRUE);
@@ -4514,7 +4516,8 @@ void EffectsRenderer::DCCaptureMiniature()
 	// Restore the regular texture, RTV, shaders, etc:
 	context->PSSetShaderResources(0, 1, _lastTextureSelected->_textureView.GetAddressOf());
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-		resources->_depthStencilViewL.Get());
+		//resources->_depthStencilViewL.Get());
+		NULL);
 	/*
 	if (g_bEnableVR) {
 		resources->InitVertexShader(resources->_sbsVertexShader);
@@ -4679,8 +4682,6 @@ void EffectsRenderer::RenderScene()
 	if (g_rendererType == RendererType_Shadow && !g_config.HangarShadowsEnabled)
 		return;
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderScene");
-
 	auto &context = _deviceResources->_d3dDeviceContext;
 
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
@@ -4729,14 +4730,13 @@ void EffectsRenderer::RenderScene()
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
 
-	_deviceResources->_d3dAnnotation->EndEvent();
 }
 
 void EffectsRenderer::RenderLasers()
 {
 	if (_LaserDrawCommands.size() == 0)
 		return;
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderLasers");
+	_deviceResources->BeginAnnotatedEvent(L"RenderLasers");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	//log_debug("[DBG] Rendering %d deferred draw calls", _LaserDrawCommands.size());
@@ -4821,7 +4821,7 @@ void EffectsRenderer::RenderLasers()
 	// Clear the command list and restore the previous state
 	_LaserDrawCommands.clear();
 	RestoreContext();
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 }
 
 void EffectsRenderer::RenderTransparency()
@@ -4829,7 +4829,7 @@ void EffectsRenderer::RenderTransparency()
 	if (_TransparentDrawCommands.size() == 0)
 		return;
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderTransparency");
+	_deviceResources->BeginAnnotatedEvent(L"RenderTransparencyAndDC");
 
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
@@ -4907,7 +4907,7 @@ void EffectsRenderer::RenderTransparency()
 	_TransparentDrawCommands.clear();
 	RestoreContext();
 
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 }
 
 /*
@@ -5076,7 +5076,7 @@ Matrix4 EffectsRenderer::GetShadowMapLimits(const AABB &aabb, float *range, floa
 
 void EffectsRenderer::RenderCockpitShadowMap()
 {
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderCockpitShadowMap");
+	_deviceResources->BeginAnnotatedEvent(L"RenderCockpitShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	D3D11_DEPTH_STENCIL_DESC desc;
@@ -5207,12 +5207,12 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	_bShadowsRenderedInCurrentFrame = true;
 
 out:
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 }
 
 void EffectsRenderer::RenderHangarShadowMap()
 {
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderHangarShadowMap");
+	_deviceResources->BeginAnnotatedEvent(L"RenderHangarShadowMap");
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	D3D11_DEPTH_STENCIL_DESC desc;
@@ -5353,7 +5353,7 @@ void EffectsRenderer::RenderHangarShadowMap()
 	_ShadowMapDrawCommands.clear();
 
 out:
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 }
 
 void EffectsRenderer::StartCascadedShadowMap()
@@ -5598,12 +5598,12 @@ void EffectsRenderer::HangarShadowSceneHook(const SceneCompData* scene)
  */
 void EffectsRenderer::RenderDeferredDrawCalls()
 {
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderDeferredDrawCalls");
+	_deviceResources->BeginAnnotatedEvent(L"RenderDeferredDrawCalls");
 	// All the calls below should be rendered with RendererType_Main
 	g_rendererType = RendererType_Main;
 	RenderCockpitShadowMap();
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
-	_deviceResources->_d3dAnnotation->EndEvent();
+	_deviceResources->EndAnnotatedEvent();
 }

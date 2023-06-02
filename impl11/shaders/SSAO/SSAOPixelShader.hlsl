@@ -7,21 +7,22 @@
 #include "..\SSAOPSConstantBuffer.h"
 
 // The 3D position buffer (linear X,Y,Z)
-Texture2D    texPos   : register(t0);
+Texture2DArray    texPos   : register(t0);
 SamplerState sampPos  : register(s0);
 
 // The normal buffer
-Texture2D    texNorm   : register(t1);
+Texture2DArray    texNorm   : register(t1);
 SamplerState sampNorm  : register(s1);
 
 // The color buffer
-Texture2D    texColor  : register(t2);
+Texture2DArray    texColor  : register(t2);
 SamplerState sampColor : register(s2);
 
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -34,18 +35,18 @@ struct BlurData {
 	float3 normal;
 };
 
-inline float3 getPosition(in float2 uv, in float level) {
+inline float3 getPosition(in float3 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+    return texPos.SampleLevel(sampPos, uv, level).xyz;
 }
 
-inline float3 getNormal(in float2 uv, in float level) {
-	return texNorm.Sample(sampNorm, uv, level).xyz;
+inline float3 getNormal(in float3 uv, in float level) {
+    return texNorm.Sample(sampNorm, uv, level).xyz;
 }
 
-inline float3 doAmbientOcclusion(in float2 sample_uv, in float3 P, in float3 Normal, in float level)
+inline float3 doAmbientOcclusion(in float3 sample_uv, in float3 P, in float3 Normal, in float level)
 {
 	float3 occluder = getPosition(sample_uv, level);
 	// diff: Vector from current pos (p) to sampled neighbor
@@ -67,8 +68,8 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.ssao = 1;
-	float3 p = getPosition(input.uv, 0);
-	float3 n  = getNormal(input.uv, 0);
+    float3 p = getPosition(float3(input.uv, input.viewId), 0);
+    float3 n = getNormal(float3(input.uv, input.viewId), 0);
 	float3 FakeNormal = 0;
 	float3 ao = 0;
 	float radius = near_sample_radius;
@@ -91,7 +92,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (z_division) 	radius /= p.z;
 	
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
-	float2 sample_uv, sample_direction;
+    float3 sample_uv;
+	float2 sample_direction;
 	const float2x2 rotMatrix = float2x2(0.76465, -0.64444, 0.64444, 0.76465); //cos/sin 2.3999632 * 16 
 	sincos(2.3999632 * 16 * sample_jitter, sample_direction.x, sample_direction.y); // 2.3999632 * 16
 	sample_direction *= radius;
@@ -105,7 +107,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		//cur_radius = radius * (j + sample_jitter);
 		//miplevel = cur_radius / max_radius * 4; // Is this miplevel better than using L?
-		sample_uv = input.uv + sample_direction.xy * (j + sample_jitter);
+        sample_uv = float3(input.uv + sample_direction.xy * (j + sample_jitter), input.viewId);
 		sample_direction.xy = mul(sample_direction.xy, rotMatrix);
 		ao += doAmbientOcclusion(sample_uv, p, n, miplevel);
 	}

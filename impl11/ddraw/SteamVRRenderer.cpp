@@ -65,8 +65,6 @@ void SteamVRRenderer::RenderScene()
 		// resources->InitVertexShader(_shadowVertexShaderVR);
 		return;
 
-	_deviceResources->_d3dAnnotation->BeginEvent(L"RenderScene");
-
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
@@ -95,10 +93,6 @@ void SteamVRRenderer::RenderScene()
 	*/
 
 	//_deviceResources->InitScissorRect(&scissor);
-
-	// TODO: Implement instanced rendering so that we issue only one draw call to
-	// render both eyes.
-	// https://github.com/Prof-Butts/xwa_ddraw_d3d11/issues/48
 	
 	// Regular VR path
 	resources->InitVertexShader(_vertexShaderVR);
@@ -140,42 +134,42 @@ void SteamVRRenderer::RenderScene()
 		};
 		context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
 
-		// Set the left projection matrix
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		// Set the left projection matrix		
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 		// The viewMatrix is set at the beginning of the frame
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-		context->DrawIndexed(_trianglesCount * 3, 0, 0);
+		//context->DrawIndexed(_trianglesCount * 3, 0, 0);
+		context->DrawIndexedInstanced(_trianglesCount * 3, 2, 0, 0, 1);
 	}
 
 	// ****************************************************************************
 	// Render the right image
 	// ****************************************************************************
-	{
-		ID3D11RenderTargetView *rtvs[6] = {
-			SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || bIsReticle */, true),
-			resources->_renderTargetViewBloomMaskR.Get(),
-			resources->_renderTargetViewDepthBufR.Get(),
-			// The normals hook should not be allowed to write normals for light textures. This is now implemented
-			// in XwaD3dPixelShader
-			_deviceResources->_renderTargetViewNormBufR.Get(),
-			// Blast Marks are confused with glass because they are not shadeless; but they have transparency
-			_bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
-			_bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
-		};
-		context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
+	//{
+	//	ID3D11RenderTargetView *rtvs[6] = {
+	//		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || bIsReticle */, true),
+	//		resources->_renderTargetViewBloomMaskR.Get(),
+	//		resources->_renderTargetViewDepthBufR.Get(),
+	//		// The normals hook should not be allowed to write normals for light textures. This is now implemented
+	//		// in XwaD3dPixelShader
+	//		_deviceResources->_renderTargetViewNormBufR.Get(),
+	//		// Blast Marks are confused with glass because they are not shadeless; but they have transparency
+	//		_bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
+	//		_bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
+	//	};
+	//	context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
 
-		// Set the right projection matrix
-		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
-		// The viewMatrix is set at the beginning of the frame
-		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+	//	// Set the right projection matrix
+	//	g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
+	//	// The viewMatrix is set at the beginning of the frame
+	//	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-		context->DrawIndexed(_trianglesCount * 3, 0, 0);
-	}
+	//	context->DrawIndexed(_trianglesCount * 3, 0, 0);
+	//}
 
 //out:
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
-
-	_deviceResources->_d3dAnnotation->EndEvent();
 }

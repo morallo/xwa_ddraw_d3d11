@@ -13,7 +13,7 @@ cbuffer ConstantBuffer : register(b8) {
 
 struct VertexShaderInput
 {
-	int4 index : POSITION;
+	uint4 index : POSITION;
 };
 
 
