@@ -8832,9 +8832,8 @@ HRESULT PrimarySurface::Flip(
 			// Render the enhanced bracket after all the shading has been applied.
 			if (g_config.Radar2DRendererEnabled && !g_bEnableVR)
 			{
+				this->RenderBracket();
 			}
-				// Temporarily disable RenderBracket, it causes a crash with instanced stereo
-				//this->RenderBracket();				
 
 			// Draw the reticle on top of everything else
 			if (g_bExternalHUDEnabled || g_bEnableVR)
