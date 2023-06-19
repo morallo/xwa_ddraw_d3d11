@@ -6,7 +6,7 @@ and http://www.geeks3d.com/20110405/fxaa-fast-approximate-anti-aliasing-demo-gls
 #include "ShadertoyCBuffer.h"
 
 // The texture to apply AA to
-Texture2D    colorTex  : register(t0);
+Texture2DArray    colorTex  : register(t0);
 SamplerState colorSamp : register(s0);
 
 #define FXAA_SPAN_MAX 8.0
@@ -18,6 +18,7 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 struct PixelShaderOutput
@@ -38,11 +39,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.color.b += 0.1;
 	//return output;
 	// DEBUG
-	vec3 rgbNW = colorTex.Sample(colorSamp, uv2, 0.0).xyz;
-	vec3 rgbNE = colorTex.Sample(colorSamp, uv2 + vec2(1, 0)*rcpFrame.xy, 0.0).xyz;
-	vec3 rgbSW = colorTex.Sample(colorSamp, uv2 + vec2(0, 1)*rcpFrame.xy, 0.0).xyz;
-	vec3 rgbSE = colorTex.Sample(colorSamp, uv2 + vec2(1, 1)*rcpFrame.xy, 0.0).xyz;
-	vec3 rgbM  = colorTex.Sample(colorSamp, input.uv, 0.0).xyz;
+	vec3 rgbNW = colorTex.Sample(colorSamp, float3(uv2, input.viewId), 0.0).xyz;
+	vec3 rgbNE = colorTex.Sample(colorSamp, float3(uv2 + vec2(1, 0) * rcpFrame.xy, input.viewId), 0.0).xyz;
+	vec3 rgbSW = colorTex.Sample(colorSamp, float3(uv2 + vec2(0, 1) * rcpFrame.xy, input.viewId), 0.0).xyz;
+	vec3 rgbSE = colorTex.Sample(colorSamp, float3(uv2 + vec2(1, 1) * rcpFrame.xy, input.viewId), 0.0).xyz;
+	vec3 rgbM = colorTex.Sample(colorSamp, float3(input.uv, input.viewId), 0.0).xyz;
 
 	vec3 luma    = vec3(0.299, 0.587, 0.114);
 	float lumaNW = dot(rgbNW, luma);
@@ -69,11 +70,12 @@ PixelShaderOutput main(PixelShaderInput input)
 			 ) * rcpFrame.xy;
 
 	vec3 rgbA = (1.0 / 2.0) * (
-		colorTex.Sample(colorSamp, input.uv + dir * (1.0 / 3.0 - 0.5), 0.0).xyz +
-		colorTex.Sample(colorSamp, input.uv + dir * (2.0 / 3.0 - 0.5), 0.0).xyz);
+		colorTex.Sample(colorSamp, float3(input.uv + dir * (1.0 / 3.0 - 0.5), input.viewId), 0.0).xyz +
+		colorTex.Sample(colorSamp, float3(input.uv + dir * (2.0 / 3.0 - 0.5), input.viewId), 0.0).xyz);
 	vec3 rgbB = rgbA * (1.0 / 2.0) + (1.0 / 4.0) * (
-		colorTex.Sample(colorSamp, input.uv + dir * (0.0 / 3.0 - 0.5), 0.0).xyz +
-		colorTex.Sample(colorSamp, input.uv + dir * (3.0 / 3.0 - 0.5), 0.0).xyz);
+		colorTex.Sample(colorSamp, float3(input.uv + dir * (0.0 / 3.0 - 0.5), input.viewId), 0.0).
+    xyz +
+		colorTex.Sample(colorSamp, float3(input.uv + dir * (3.0 / 3.0 - 0.5), input.viewId), 0.0).xyz);
 
 	float lumaB = dot(rgbB, luma);
 

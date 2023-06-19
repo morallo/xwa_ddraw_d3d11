@@ -7,15 +7,15 @@
 #include "ShadertoyCBuffer.h"
 
 // The foreground texture (shadertoyBuf)
-Texture2D    fgTex     : register(t0);
+Texture2DArray    fgTex     : register(t0);
 SamplerState fgSampler : register(s0);
 
 // The background texture (shadertoyAuxBuf)
-Texture2D    bgTex     : register(t1);
+Texture2DArray    bgTex     : register(t1);
 SamplerState bgSampler : register(s1);
 
 // The hyperspace effect texture (offscreenAsInput)
-Texture2D    effectTex     : register(t2);
+Texture2DArray    effectTex     : register(t2);
 SamplerState effectSampler : register(s2);
 
 #define interdict_mix twirl
@@ -24,6 +24,7 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv  : TEXCOORD;
+    uint viewId : SV_RenderTargetArrayIndex;
 };
 
 /*
@@ -56,9 +57,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = 0.0;
 	float bloom = 0.0;
 
-	float4 fgColor = fgTex.Sample(fgSampler, input.uv);
-	float4 bgColor = bgTex.Sample(bgSampler, input.uv);
-	float4 effectColor = effectTex.Sample(effectSampler, input.uv);
+    float4 fgColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
+    float4 bgColor = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
+    float4 effectColor = effectTex.Sample(effectSampler, float3(input.uv, input.viewId));
 
 	/*
 	// HyperZoom
