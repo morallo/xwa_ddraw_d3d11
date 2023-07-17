@@ -1630,7 +1630,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ResetObjectIndexMap();
 	ReloadInterdictionMap();
 	//ResetRawMouseInput();
-	if (IsZIPReaderLoaded())
+	if (IsZIPReaderLoaded() && g_bCleanupZIPDirs)
 		DeleteAllTempZIPDirectories();
 	this->ResetExtraTextures();
 	this->_depthStencilViewL.Release();
