@@ -4607,23 +4607,20 @@ void EffectsRenderer::DCCaptureMiniature()
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	_deviceResources->InitVertexShader(_vertexShader);
 	_deviceResources->InitPixelShader(_pixelShader);
+	ID3D11DepthStencilView* ds = g_bUseSteamVR ? NULL : resources->_depthStencilViewL.Get();
 	// Select the proper RTV
-	context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-		//resources->_depthStencilViewL.Get());
-		NULL);
+	context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(), ds);
 
 	// Enable Z-Buffer since we're drawing the targeted craft
 	QuickSetZWriteEnabled(TRUE);
 
 	// Render
-	context->DrawIndexed(_trianglesCount * 3, 0, 0);
+	context->DrawIndexedInstanced(_trianglesCount * 3, 1, 0, 0, 0);
 	g_iHUDOffscreenCommandsRendered++;
 
 	// Restore the regular texture, RTV, shaders, etc:
 	context->PSSetShaderResources(0, 1, _lastTextureSelected->_textureView.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
-		//resources->_depthStencilViewL.Get());
-		NULL);
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), ds);
 	/*
 	if (g_bEnableVR) {
 		resources->InitVertexShader(resources->_sbsVertexShader);

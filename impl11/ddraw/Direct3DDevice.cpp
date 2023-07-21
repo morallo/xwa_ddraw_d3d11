@@ -5148,6 +5148,8 @@ HRESULT Direct3DDevice::Execute(
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
 				{	
+					ID3D11DepthStencilView *ds = g_bUseSteamVR ? NULL : resources->_depthStencilViewL.Get();
+
 					if (!bStateD3dAnnotationOpen) {
 						_deviceResources->BeginAnnotatedEvent(L"RenderHUD");
 						bStateD3dAnnotationOpen = true;
@@ -5167,18 +5169,14 @@ HRESULT Direct3DDevice::Execute(
 						context->OMSetRenderTargets(1, resources->_ReticleRTV.GetAddressOf(), NULL);
 					}
 					else if (bRenderToDynCockpitBGBuffer) {
-						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(),
-							//resources->_depthStencilViewL.Get());
-							NULL);
+						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpitBG.GetAddressOf(), ds);
 					}
 					else {
 						//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
 						//	resources->_depthStencilViewL.Get());
 
 						if (g_config.Text2DRendererEnabled)
-							context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-								//resources->_depthStencilViewL.Get());
-								NULL);
+							context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(), ds);
 						else 
 						{
 							// The new Text Renderer is not enabled; but we can still render the text to its own
@@ -5186,12 +5184,9 @@ HRESULT Direct3DDevice::Execute(
 							// from the targeted object
 							if (bIsText)
 								context->OMSetRenderTargets(1, resources->_DCTextRTV.GetAddressOf(),
-									//resources->_depthStencilViewL.Get());
-									NULL);
+									resources->_depthStencilViewL.Get());
 							else
-								context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(),
-									//resources->_depthStencilViewL.Get());
-									NULL);
+								context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(), ds);
 						}
 					}
 					// Enable Z-Buffer if we're drawing the targeted craft
@@ -5203,7 +5198,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Render
-					context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
+					context->DrawIndexedInstanced(3 * instruction->wCount, 1, currentIndexLocation, 0, 0);
 					g_iHUDOffscreenCommandsRendered++;
 
 					// Restore the regular texture, RTV, shaders, etc:
