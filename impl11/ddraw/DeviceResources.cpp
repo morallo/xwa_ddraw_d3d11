@@ -3558,7 +3558,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		depthStencilDesc.Width = this->_backbufferWidth;
 		depthStencilDesc.Height = this->_backbufferHeight;
 		depthStencilDesc.MipLevels = 1;
-		depthStencilDesc.ArraySize = g_bUseSteamVR? 2 : 1;
+		depthStencilDesc.ArraySize = g_bUseSteamVR ? 2 : 1;
 		depthStencilDesc.Format = DEPTH_BUFFER_FORMAT;
 		depthStencilDesc.SampleDesc.Count = this->_sampleDesc.Count;
 		depthStencilDesc.SampleDesc.Quality = this->_sampleDesc.Quality;
@@ -3569,29 +3569,33 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_depthStencilL);
 
+		// In VR mode, we can keep _depthStencilViewR as it was before: a non-array single texture. We
+		// can then use it for things that only render once even in VR, like the CMD miniature.
+		depthStencilDesc.ArraySize = 1;
+		hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_depthStencilR);
+
 		// This lambda function will return the right SrvDesc according to the requested parameters.	
 		auto GetSrvDesc = [](
 			bool useMultisampling,
-			bool instancedStereoRendering,
-			DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN
+			bool instancedStereoRendering
 			)
 		{
 			CD3D11_DEPTH_STENCIL_VIEW_DESC srvDesc;
 			if (useMultisampling) {
 				if (instancedStereoRendering) {
-					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY, format);
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY);
 					srvDesc.Texture2DMSArray.ArraySize = 2;
 				}
 				else
-					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DMS, format);
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DMS);
 			}
 			else {
 				if (instancedStereoRendering) {
-					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DARRAY, format);
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DARRAY);
 					srvDesc.Texture2DArray.ArraySize = 2;
 				}
 				else
-					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2D, format);
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2D);
 			}
 			return srvDesc;
 		};
@@ -3604,11 +3608,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr)) goto out;
 		}
 
-		hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_depthStencilR);
 		if (SUCCEEDED(hr))
 		{
 			step = "DepthStencilViewR";			
-			hr = this->_d3dDevice->CreateDepthStencilView(this->_depthStencilR, &GetSrvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_depthStencilViewR);
+			hr = this->_d3dDevice->CreateDepthStencilView(this->_depthStencilR, &GetSrvDesc(this->_useMultisampling, false), &this->_depthStencilViewR);
 			if (FAILED(hr)) goto out;
 		}
 

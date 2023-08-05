@@ -4608,7 +4608,8 @@ void EffectsRenderer::DCCaptureMiniature()
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	_deviceResources->InitVertexShader(_vertexShader);
 	_deviceResources->InitPixelShader(_pixelShader);
-	ID3D11DepthStencilView* ds = g_bUseSteamVR ? NULL : resources->_depthStencilViewL.Get();
+	//ID3D11DepthStencilView* ds = g_bUseSteamVR ? NULL : resources->_depthStencilViewL.Get();
+	ID3D11DepthStencilView* ds = g_bUseSteamVR ? resources->_depthStencilViewR.Get() : resources->_depthStencilViewL.Get();
 	// Select the proper RTV
 	context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(), ds);
 
@@ -4621,7 +4622,7 @@ void EffectsRenderer::DCCaptureMiniature()
 
 	// Restore the regular texture, RTV, shaders, etc:
 	context->PSSetShaderResources(0, 1, _lastTextureSelected->_textureView.GetAddressOf());
-	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), ds);
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), resources->_depthStencilViewL.Get());
 	/*
 	if (g_bEnableVR) {
 		resources->InitVertexShader(resources->_sbsVertexShader);
