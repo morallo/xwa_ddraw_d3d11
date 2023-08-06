@@ -409,6 +409,7 @@ public:
 	ComPtr<ID2D1DrawingStateBlock> _d2d1DrawingStateBlock;
 
 	ComPtr<ID3D11VertexShader> _mainVertexShader;
+	ComPtr<ID3D11VertexShader> _mainVertexShaderVR;
 	ComPtr<ID3D11InputLayout> _mainInputLayout;
 	ComPtr<ID3D11PixelShader> _mainPixelShader;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;

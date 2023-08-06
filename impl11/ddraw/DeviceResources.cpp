@@ -15,6 +15,7 @@
 
 #ifdef _DEBUG
 #include "../Debug/MainVertexShader.h"
+#include "../Debug/MainVertexShaderVR.h"
 #include "../Debug/MainPixelShader.h"
 #include "../Debug/MainPixelShaderBpp2ColorKey20.h"
 #include "../Debug/MainPixelShaderBpp2ColorKey00.h"
@@ -83,6 +84,7 @@
 #include "../Debug/PBRAdd.h"
 #else
 #include "../Release/MainVertexShader.h"
+#include "../Release/MainVertexShaderVR.h"
 #include "../Release/MainPixelShader.h"
 #include "../Release/MainPixelShaderBpp2ColorKey20.h"
 #include "../Release/MainPixelShaderBpp2ColorKey00.h"
@@ -3855,6 +3857,8 @@ HRESULT DeviceResources::LoadMainResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShader, sizeof(g_MainVertexShader), nullptr, &_mainVertexShader)))
 		return hr;
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShaderVR, sizeof(g_MainVertexShaderVR), nullptr, &_mainVertexShaderVR)))
+		return hr;
 
 	const D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
 	{
@@ -5268,7 +5272,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	this->InitInputLayout(this->_mainInputLayout);
 	this->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	this->InitVertexShader(this->_mainVertexShader);
+	this->InitVertexShader(g_bUseSteamVR ? this->_mainVertexShaderVR : this->_mainVertexShader);
 
 	if (bpp == 2)
 	{
@@ -5496,8 +5500,10 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
-		//this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
-		this->_d3dDeviceContext->DrawIndexedInstanced(6, g_bUseSteamVR? 2:1, 0, 0, 0);
+		if (g_bUseSteamVR)
+			this->_d3dDeviceContext->DrawIndexedInstanced(6, 2, 0, 0, 0); // if (g_bUseSteamVR)
+		else
+			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 
 		// Right viewport
 		if (g_bUseSteamVR)

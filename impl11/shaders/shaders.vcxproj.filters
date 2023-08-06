@@ -89,6 +89,7 @@
     <FxCompile Include="XwaD3dCSMVertexShader.hlsl" />
     <FxCompile Include="RT\RTShadowMaskPS.hlsl" />
     <FxCompile Include="PBRAdd.hlsl" />
+    <FxCompile Include="MainVertexShaderVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -142,6 +143,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="PBRShading.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="MainVertexShaderCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

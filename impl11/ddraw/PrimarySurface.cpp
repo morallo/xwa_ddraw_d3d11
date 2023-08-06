@@ -831,7 +831,7 @@ void PrimarySurface::barrelEffect2D(int iteration) {
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(resources->_mainVertexShaderVR);
 	if (!g_b3DVisionEnabled)
 		resources->InitPixelShader(resources->_barrelPixelShader);
 	else
@@ -940,7 +940,7 @@ void PrimarySurface::barrelEffect3D() {
 		0, BACKBUFFER_FORMAT);
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(resources->_mainVertexShaderVR);
 	if (!g_b3DVisionEnabled)
 		resources->InitPixelShader(resources->_barrelPixelShader);
 	else
@@ -1090,7 +1090,7 @@ void PrimarySurface::barrelEffectSteamVR() {
 #endif
 
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(resources->_mainVertexShaderVR);
 	resources->InitPixelShader(resources->_singleBarrelPixelShader);
 
 	// Set the lens distortion constants for the barrel shader
@@ -1272,7 +1272,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? g_fSteamVRMirrorWindow3DScale : 1.0f);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(resources->_mainVertexShaderVR);
 	resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 	context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
@@ -1418,12 +1418,12 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 	context->IASetInputLayout(resources->_mainInputLayout);
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 	// The input texture must be resolved already to
 	// _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
 	switch (pass) {
-		case 0: 	// Horizontal Gaussian Blur
+		case 0: // Horizontal Gaussian Blur
 			// Input: _offscreenAsInputReshadeSRV
 			// Output _bloomOutput1
 			resources->InitPixelShader(resources->_bloomHGaussPS);
@@ -1494,8 +1494,11 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 	}
-	context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
-
+	if (g_bUseSteamVR)
+		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->Draw(6, 0);
+\
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
 	viewport.Width  = screen_res_x;
@@ -1895,7 +1898,10 @@ void PrimarySurface::DrawHUDVertices() {
 	context->PSSetShaderResources(0, 3, srvs);
 	// Draw the Left Image
 	//if (RenderHUD)
-		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
+	if (g_bUseSteamVR)
+		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->Draw(6, 0);
 
 	if (!g_bEnableVR || g_bUseSteamVR) // Shortcut for the SteamVR and non-VR path
 	{
@@ -2329,7 +2335,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 
 	// Set the layout
 	context->IASetInputLayout(resources->_mainInputLayout);
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 	// Set the lights and set the Shading System Constant Buffer
 	g_ShadingSys_PSBuffer.spec_intensity       = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
@@ -2361,7 +2367,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 3, srvs_pass1);
-			context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
+			if (g_bUseSteamVR)
+				context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+			else
+				context->Draw(6, 0);
 			goto out;
 		}
 		else {
@@ -2371,7 +2380,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAO, bgColor);
 			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 3, srvs_pass1);
-			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+			if (g_bUseSteamVR)
+				context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+			else
+				context->Draw(6, 0);
 		}
 	}
 
@@ -2407,7 +2419,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		context->PSSetShaderResources(0, 3, srvs);
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 	// Final combine, Left Image
@@ -2472,7 +2487,10 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
 			context->PSSetShaderResources(14, 4, srvs);
 		}
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 out:
@@ -2587,7 +2605,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 	// Set the layout
 	context->IASetInputLayout(resources->_mainInputLayout);
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 	
 	// SSDO Direct Lighting, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
@@ -2626,7 +2644,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
-			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+			if (g_bUseSteamVR)
+				context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+			else
+				context->Draw(6, 0);
 			goto out1;
 		}
 		else {
@@ -2639,7 +2660,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//context->ClearRenderTargetView(resources->_renderTargetViewBentBuf, black);
 			context->OMSetRenderTargets(1, rtvs, NULL);
 			context->PSSetShaderResources(0, 5, srvs_pass1);
-			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+			if (g_bUseSteamVR)
+				context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+			else
+				context->Draw(6, 0);
 		}
 	}
 	
@@ -2715,7 +2739,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				// DEBUG: Enable the following line to display the normals
 				//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
 				// DEBUG
-				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+				if (g_bUseSteamVR)
+					context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+				else
+					context->Draw(6, 0);
 				goto out1;
 			}
 			else {
@@ -2726,7 +2753,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				};
 				context->OMSetRenderTargets(1, rtvs, NULL);
 				context->PSSetShaderResources(0, 3, srvs);
-				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+				if (g_bUseSteamVR)
+					context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+				else
+					context->Draw(6, 0);
 			}
 		}
 
@@ -2790,7 +2820,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			context->OMSetRenderTargets(1, rtvs, NULL);
 		}
 		context->PSSetShaderResources(0, 3, srvs);
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 	// Blur the Indirect SSDO buffer
@@ -2826,7 +2859,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				//context->PSSetShaderResources(0, 1, resources->_bentBufSRV.GetAddressOf());
 				// DEBUG: Enable the following line to display the normals
 				//context->PSSetShaderResources(0, 1, resources->_normBufSRV.GetAddressOf());
-				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+				if (g_bUseSteamVR)
+					context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+				else
+					context->Draw(6, 0);
 				goto out1;
 			}
 			else {
@@ -2837,7 +2873,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				};
 				context->OMSetRenderTargets(2, rtvs, NULL);
 				context->PSSetShaderResources(0, 3, srvs);
-				context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+				if (g_bUseSteamVR)
+					context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+				else
+					context->Draw(6, 0);
 			}
 		}
 	}
@@ -2903,7 +2942,10 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
 		};
 		context->PSSetShaderResources(0, 8, srvs_pass2);
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 	/*******************************************************************************
@@ -2990,7 +3032,7 @@ void PrimarySurface::DeferredPass()
 
 	// Set the layout
 	context->IASetInputLayout(resources->_mainInputLayout);
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 	if (!g_bEnableHeadLights)
 		resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS);
@@ -3056,7 +3098,10 @@ void PrimarySurface::DeferredPass()
 			context->PSSetShaderResources(14, 4, srvs);
 		}
 
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 	// Clear RT SRVs slots that are only used for the shadows to avoid DirectX errors
@@ -4330,7 +4375,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 		// Set the SRV:
 		context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
-		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
 			context->ResolveSubresource(
@@ -4416,7 +4464,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 
 		// Render the right image
 		if (g_bEnableVR && !g_bUseSteamVR) {
@@ -4468,7 +4519,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		UINT stride = sizeof(MainVertex), offset = 0;
 		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_mainInputLayout);
-		resources->InitVertexShader(resources->_mainVertexShader);
+		resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 		// Reset the UV limits for this shader
 		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -4552,7 +4603,10 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		};
 		context->PSSetShaderResources(0, 3, srvs);
 		// TODO: Handle SteamVR cases
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 	
@@ -4637,7 +4691,7 @@ void PrimarySurface::RenderFXAA()
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitInputLayout(resources->_mainInputLayout);
 
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_fxaaPS);
 	// Clear all the render target views
 	ID3D11RenderTargetView *rtvs_null[5] = {
@@ -4666,8 +4720,10 @@ void PrimarySurface::RenderFXAA()
 		resources->_offscreenAsInputShaderResourceView.Get(),
 	};
 	context->PSSetShaderResources(0, 1, srvs);
-	// TODO: Handle SteamVR cases
-	context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+	if (g_bUseSteamVR)
+		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->Draw(6, 0);
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
@@ -4716,7 +4772,7 @@ void PrimarySurface::RenderLevels()
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitInputLayout(resources->_mainInputLayout);
 
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_levelsPS);
 	// Clear all the render target views
 	ID3D11RenderTargetView *rtvs_null[5] = {
@@ -4745,7 +4801,10 @@ void PrimarySurface::RenderLevels()
 		resources->_offscreenAsInputShaderResourceView.Get(),
 	};
 	context->PSSetShaderResources(0, 1, srvs);
-	context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+	if (g_bUseSteamVR)
+		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->Draw(6, 0);
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
@@ -4888,7 +4947,10 @@ void PrimarySurface::RenderStarDebug()
 			resources->_ReticleSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 
 		if (!g_bEnableVR)
 			goto out;
@@ -4913,7 +4975,7 @@ void PrimarySurface::RenderStarDebug()
 			UINT stride = sizeof(MainVertex), offset = 0;
 			resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 			resources->InitInputLayout(resources->_mainInputLayout);
-			resources->InitVertexShader(resources->_mainVertexShader);
+			resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 			// Reset the UV limits for this shader
 			GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -4945,7 +5007,10 @@ void PrimarySurface::RenderStarDebug()
 				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
 			};
 			context->PSSetShaderResources(0, 2, srvs);
-			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+			if (g_bUseSteamVR)
+				context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+			else
+				context->Draw(6, 0);
 		}
 	}
 
@@ -5174,7 +5239,10 @@ void PrimarySurface::RenderExternalHUD()
 			resources->_ReticleSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		context->DrawInstanced(6, g_bSteamVREnabled? 2:1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 
 		if (!g_bEnableVR)
 			goto out;
@@ -5204,7 +5272,7 @@ void PrimarySurface::RenderExternalHUD()
 			UINT stride = sizeof(MainVertex), offset = 0;
 			resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 			resources->InitInputLayout(resources->_mainInputLayout);
-			resources->InitVertexShader(resources->_mainVertexShader);
+			resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 			// Reset the UV limits for this shader
 			GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -5236,7 +5304,10 @@ void PrimarySurface::RenderExternalHUD()
 				resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
 			};
 			context->PSSetShaderResources(0, 2, srvs);
-			context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+			if (g_bUseSteamVR)
+				context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+			else
+				context->Draw(6, 0);
 		}
 	}
 
@@ -5623,7 +5694,10 @@ void PrimarySurface::RenderSpeedEffect()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->DrawInstanced(NumParticleVertices, g_bUseSteamVR? 2:1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(NumParticleVertices, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(NumParticleVertices, 0);
 
 		if (g_bEnableVR && !g_bUseSteamVR) {
 			// VIEWPORT-RIGHT
@@ -5663,7 +5737,7 @@ void PrimarySurface::RenderSpeedEffect()
 		UINT stride = sizeof(MainVertex), offset = 0;
 		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_mainInputLayout);
-		resources->InitVertexShader(resources->_mainVertexShader);
+		resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 		// Reset the UV limits for this shader
 		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -5722,8 +5796,10 @@ void PrimarySurface::RenderSpeedEffect()
 			resources->_depthBufSRV.Get(),   // The depth buffer
 		};
 		context->PSSetShaderResources(0, 3, srvs);
-		// TODO: Handle SteamVR cases
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
@@ -6109,7 +6185,7 @@ void PrimarySurface::RenderAdditionalGeometry()
 		UINT stride = sizeof(MainVertex), offset = 0;
 		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_mainInputLayout);
-		resources->InitVertexShader(resources->_mainVertexShader);
+		resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 		// Reset the UV limits for this shader
 		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -6168,8 +6244,10 @@ void PrimarySurface::RenderAdditionalGeometry()
 			//resources->_depthBufSRV.Get(),   // The depth buffer
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		// TODO: Handle SteamVR cases
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 	}
 
 	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
@@ -6832,7 +6910,10 @@ void PrimarySurface::RenderSunFlare()
 			resources->_depthBufSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 
 		// Render the right image
 		if (g_bEnableVR && !g_bUseSteamVR)
@@ -6888,7 +6969,7 @@ void PrimarySurface::RenderSunFlare()
 		UINT stride = sizeof(MainVertex), offset = 0;
 		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_mainInputLayout);
-		resources->InitVertexShader(resources->_mainVertexShader);
+		resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 		// Reset the UV limits for this shader
 		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -6929,7 +7010,10 @@ void PrimarySurface::RenderSunFlare()
 			resources->_depthBufSRV.Get(),
 		};
 		context->PSSetShaderResources(0, 3, srvs);
-		context->DrawInstanced(6, g_bUseSteamVR? 2:1, 0, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 
 		// Post-process the right image
 		if (g_bUseSteamVR) {
@@ -7191,7 +7275,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		
 		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
 		resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
-		resources->InitVertexShader(resources->_mainVertexShader);
+		resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the RTV:
@@ -7863,7 +7947,7 @@ void PrimarySurface::RenderRTShadowMask()
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	resources->InitInputLayout(resources->_mainInputLayout);
 
-	resources->InitVertexShader(resources->_mainVertexShader);
+	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
 	resources->InitPixelShader(resources->_rtShadowMaskPS);
 
 	// Clear all the render target views
@@ -7899,7 +7983,10 @@ void PrimarySurface::RenderRTShadowMask()
 	};
 	context->OMSetRenderTargets(1, rtvs, NULL);
 
-	context->DrawInstanced(6, g_bUseSteamVR ? 2 : 1, 0, 0);
+	if (g_bUseSteamVR)
+		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->Draw(6, 0);
 
 	// Post-process the right image
 	//if (g_bUseSteamVR) {
