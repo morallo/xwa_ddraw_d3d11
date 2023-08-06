@@ -141,7 +141,7 @@ void SteamVRRenderer::RenderScene()
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 		//context->DrawIndexed(_trianglesCount * 3, 0, 0);
-		context->DrawIndexedInstanced(_trianglesCount * 3, 2, 0, 0, 1);
+		context->DrawIndexedInstanced(_trianglesCount * 3, 2, 0, 0, 1); // Already in the SteamVR path
 	}
 
 	// ****************************************************************************

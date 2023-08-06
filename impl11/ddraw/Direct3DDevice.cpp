@@ -5198,7 +5198,10 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Render
-					context->DrawIndexedInstanced(3 * instruction->wCount, 1, currentIndexLocation, 0, 0);
+					if (g_bUseSteamVR)
+						context->DrawIndexedInstanced(3 * instruction->wCount, 1, currentIndexLocation, 0, 0); // if (g_bUseSteamVR)
+					else
+						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					g_iHUDOffscreenCommandsRendered++;
 
 					// Restore the regular texture, RTV, shaders, etc:
@@ -5616,7 +5619,10 @@ HRESULT Direct3DDevice::Execute(
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Left Image (and the right one if were using instanced stereo)
-					context->DrawIndexedInstanced(3 * instruction->wCount, g_bUseSteamVR ? 2 : 1, currentIndexLocation, 0, 0);
+					if (g_bUseSteamVR)
+						context->DrawIndexedInstanced(3 * instruction->wCount, 2, currentIndexLocation, 0, 0); // if (g_bUseSteamVR)
+					else
+						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
 				// ****************************************************************************

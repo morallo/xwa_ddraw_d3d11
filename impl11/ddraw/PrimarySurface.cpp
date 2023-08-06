@@ -6134,7 +6134,10 @@ void PrimarySurface::RenderAdditionalGeometry()
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		context->DrawIndexedInstanced(g_ShadowMapping.NumIndices, g_bUseSteamVR? 2:1, 0, 0, 0); // Draw OBJ
+		if (g_bUseSteamVR)
+			context->DrawIndexedInstanced(g_ShadowMapping.NumIndices, 2, 0, 0, 0); // Draw OBJ // if (g_bUseSteamVR)
+		else
+			context->DrawIndexed(g_ShadowMapping.NumIndices, 0, 0);
 
 		// Render the additional geometry on the right eye
 		if (g_bEnableVR && !g_bUseSteamVR) {

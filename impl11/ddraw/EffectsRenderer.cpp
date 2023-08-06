@@ -4617,7 +4617,10 @@ void EffectsRenderer::DCCaptureMiniature()
 	QuickSetZWriteEnabled(TRUE);
 
 	// Render
-	context->DrawIndexedInstanced(_trianglesCount * 3, 1, 0, 0, 0);
+	if (g_bUseSteamVR)
+		context->DrawIndexedInstanced(_trianglesCount * 3, 1, 0, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->DrawIndexed(_trianglesCount * 3, 0, 0);
 	g_iHUDOffscreenCommandsRendered++;
 
 	// Restore the regular texture, RTV, shaders, etc:
