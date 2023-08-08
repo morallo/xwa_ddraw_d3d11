@@ -3859,8 +3859,6 @@ HRESULT DeviceResources::LoadMainResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShader, sizeof(g_MainVertexShader), nullptr, &_mainVertexShader)))
 		return hr;
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShaderVR, sizeof(g_MainVertexShaderVR), nullptr, &_mainVertexShaderVR)))
-		return hr;
 
 	const D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
 	{
@@ -3927,6 +3925,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 	if (g_bUseSteamVR || g_bEnableVR)
 	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShaderVR, sizeof(g_MainVertexShaderVR), nullptr, &_mainVertexShaderVR)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
 			return hr;
 
