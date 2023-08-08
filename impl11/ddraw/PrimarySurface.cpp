@@ -5633,7 +5633,7 @@ void PrimarySurface::RenderSpeedEffect()
 		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
 		resources->InitVertexBuffer(resources->_speedParticlesVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
-		resources->InitVertexShader(resources->_speedEffectVS);
+		resources->InitVertexShader(g_bUseSteamVR ? resources->_speedEffectVS_VR : resources->_speedEffectVS);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	}
 

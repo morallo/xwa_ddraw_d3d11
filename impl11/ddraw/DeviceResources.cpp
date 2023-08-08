@@ -61,6 +61,7 @@
 #include "../Debug/SpeedEffectPixelShader.h"
 #include "../Debug/SpeedEffectCompose.h"
 #include "../Debug/SpeedEffectVertexShader.h"
+#include "../Debug/SpeedEffectVertexShaderVR.h"
 #include "../Debug/AddGeometryVertexShader.h"
 #include "../Debug/AddGeometryPixelShader.h"
 #include "../Debug/AddGeometryComposePixelShader.h"
@@ -130,6 +131,7 @@
 #include "../Release/SpeedEffectPixelShader.h"
 #include "../Release/SpeedEffectCompose.h"
 #include "../Release/SpeedEffectVertexShader.h"
+#include "../Release/SpeedEffectVertexShaderVR.h"
 #include "../Release/AddGeometryVertexShader.h"
 #include "../Release/AddGeometryPixelShader.h"
 #include "../Release/AddGeometryComposePixelShader.h"
@@ -3304,7 +3306,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (FAILED(hr)) goto out;
 
 		step = "_renderTargetViewPost";
-		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_renderTargetViewPost);
+		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BACKBUFFER_FORMAT), &this->_renderTargetViewPost);
 		if (FAILED(hr)) goto out;
 
 		if (g_b3DVisionEnabled) {
@@ -3923,11 +3925,19 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
-		return hr;
+	if (g_bUseSteamVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
+			return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
-		return hr;
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
+			return hr;
+	}
+	else
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
 		return hr;
@@ -4171,8 +4181,11 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &_vertexShader)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
-		return hr;
+	if (g_bEnableVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), nullptr, &_datVertexShaderVR)))
 		return hr;
@@ -4199,12 +4212,6 @@ HRESULT DeviceResources::LoadResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(shadowVertexLayoutDesc, ARRAYSIZE(shadowVertexLayoutDesc), g_ShadowMapVS, sizeof(g_ShadowMapVS), &_shadowMapInputLayout)))
 		return hr;
-
-//	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_SBSVertexShader, sizeof(g_SBSVertexShader), &_inputLayout)))
-//		return hr;
-
-//	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), &_inputLayout)))
-//		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
@@ -4296,11 +4303,19 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
-		return hr;
+	if (g_bUseSteamVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
+			return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
-		return hr;
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
+			return hr;
+	}
+	else
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
 		return hr;

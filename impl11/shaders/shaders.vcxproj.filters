@@ -90,6 +90,7 @@
     <FxCompile Include="RT\RTShadowMaskPS.hlsl" />
     <FxCompile Include="PBRAdd.hlsl" />
     <FxCompile Include="MainVertexShaderVR.hlsl" />
+    <FxCompile Include="SpeedEffectVertexShaderVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -146,6 +147,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="MainVertexShaderCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SpeedEffectVertexShaderCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

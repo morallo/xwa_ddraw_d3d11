@@ -485,6 +485,7 @@ public:
 	ComPtr<ID3D11VertexShader> _datVertexShaderVR;
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
+	ComPtr<ID3D11VertexShader> _speedEffectVS_VR;
 	ComPtr<ID3D11VertexShader> _addGeomVS;
 	ComPtr<ID3D11VertexShader> _shadowMapVS;
 	ComPtr<ID3D11VertexShader> _hangarShadowMapVS;
