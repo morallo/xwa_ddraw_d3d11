@@ -38,8 +38,11 @@ void SteamVRRenderer::CreateShaders()
 
 	EffectsRenderer::CreateShaders();
 
-	device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
-	device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
+	if (g_bUseSteamVR)
+	{
+		device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
+		device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
+	}
 }
 
 void SteamVRRenderer::SceneBegin(DeviceResources* deviceResources)
