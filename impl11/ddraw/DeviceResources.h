@@ -440,6 +440,7 @@ public:
 	ComPtr<ID3D11PixelShader> _hyperComposePS;
 	ComPtr<ID3D11PixelShader> _laserPointerPS;
 	ComPtr<ID3D11PixelShader> _fxaaPS;
+	ComPtr<ID3D11PixelShader> _fxaaPS_VR;
 	ComPtr<ID3D11PixelShader> _externalHUDPS;
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;

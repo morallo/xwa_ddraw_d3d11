@@ -54,6 +54,7 @@
 #include "../Debug/HyperZoom.h"
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
+#include "../Debug/FXAA_VR.h"
 #include "../Debug/ExternalHUDShader.h"
 #include "../Debug/SunFlareShader.h"
 #include "../Debug/SunShader.h"
@@ -124,6 +125,7 @@
 #include "../Release/HyperZoom.h"
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
+#include "../Release/FXAA_VR.h"
 #include "../Release/ExternalHUDShader.h"
 #include "../Release/SunFlareShader.h"
 #include "../Release/SunShader.h"
@@ -3902,9 +3904,6 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
 		return hr;
 
@@ -3933,10 +3932,16 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
+			return hr;
 	}
 	else
 	{
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
 			return hr;
 	}
 
@@ -4273,9 +4278,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
 		return hr;
 
@@ -4310,17 +4312,23 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
+			return hr;
 	}
 	else
 	{
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+			return hr;
 	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))

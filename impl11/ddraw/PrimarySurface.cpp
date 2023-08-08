@@ -4692,7 +4692,7 @@ void PrimarySurface::RenderFXAA()
 	resources->InitInputLayout(resources->_mainInputLayout);
 
 	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_fxaaPS);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_fxaaPS_VR : resources->_fxaaPS);
 	// Clear all the render target views
 	ID3D11RenderTargetView *rtvs_null[5] = {
 		NULL, // Main RTV
