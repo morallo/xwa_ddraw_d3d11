@@ -1846,7 +1846,7 @@ void PrimarySurface::DrawHUDVertices() {
 	resources->InitVertexBuffer(resources->_HUDVertexBuffer.GetAddressOf(), &stride, &offset);
 	resources->InitInputLayout(resources->_inputLayout);
 	if (g_bEnableVR)
-		resources->InitVertexShader(resources->_sbsVertexShader);
+		resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 	else
 		// The original code used _vertexShader:
 		resources->InitVertexShader(resources->_vertexShader);
@@ -4364,7 +4364,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bUseSteamVR)
-			resources->InitVertexShader(resources->_sbsVertexShader);
+			resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 		else
 			// The original (non-VR) code used _vertexShader:
 			resources->InitVertexShader(resources->_vertexShader);
@@ -4452,7 +4452,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bEnableVR)
-			resources->InitVertexShader(resources->_sbsVertexShader);
+			resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 		else
 			// The original (non-VR) code used _vertexShader:
 			resources->InitVertexShader(resources->_vertexShader);
@@ -4634,7 +4634,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}
 	resources->InitInputLayout(resources->_inputLayout);
 	if (g_bEnableVR)
-		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 	else
 		this->_deviceResources->InitVertexShader(resources->_vertexShader);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -4929,7 +4929,7 @@ void PrimarySurface::RenderStarDebug()
 		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bEnableVR)
-			resources->InitVertexShader(resources->_sbsVertexShader);
+			resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 		else
 			resources->InitVertexShader(resources->_vertexShader);
 
@@ -5221,7 +5221,7 @@ void PrimarySurface::RenderExternalHUD()
 		//resources->InitVertexBuffer(resources->_reticleVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bEnableVR)
-			resources->InitVertexShader(resources->_sbsVertexShader);
+			resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 		else
 			resources->InitVertexShader(resources->_vertexShader);
 
@@ -6896,7 +6896,7 @@ void PrimarySurface::RenderSunFlare()
 		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
 		resources->InitInputLayout(resources->_inputLayout);
 		if (g_bEnableVR)
-			resources->InitVertexShader(resources->_sbsVertexShader);
+			resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 		else
 			resources->InitVertexShader(resources->_vertexShader);
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -7366,7 +7366,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 	resources->InitInputLayout(resources->_inputLayout);
 	if (g_bEnableVR)
-		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 	else
 		this->_deviceResources->InitVertexShader(resources->_vertexShader);
 	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
