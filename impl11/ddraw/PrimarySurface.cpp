@@ -4538,7 +4538,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			g_ShadertoyBuffer.twirl = 0.0f;
 		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-		resources->InitPixelShader(resources->_hyperComposePS);
+		resources->InitPixelShader(g_bUseSteamVR ? resources->_hyperComposePS_VR : resources->_hyperComposePS);
 		// Clear all the render target views
 		ID3D11RenderTargetView *rtvs_null[5] = {
 			NULL, // Main RTV

@@ -51,6 +51,7 @@
 #include "../Debug/HyperExit.h"
 #include "../Debug/HyperTunnel.h"
 #include "../Debug/HyperCompose.h"
+#include "../Debug/HyperComposeVR.h"
 #include "../Debug/HyperZoom.h"
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
@@ -122,6 +123,7 @@
 #include "../Release/HyperExit.h"
 #include "../Release/HyperTunnel.h"
 #include "../Release/HyperCompose.h"
+#include "../Release/HyperComposeVR.h"
 #include "../Release/HyperZoom.h"
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
@@ -3895,9 +3897,6 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
@@ -3927,6 +3926,9 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShaderVR, sizeof(g_MainVertexShaderVR), nullptr, &_mainVertexShaderVR)))
 			return hr;
 
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperComposeVR, sizeof(g_HyperComposeVR), nullptr, &_hyperComposePS_VR)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
 			return hr;
 
@@ -3938,6 +3940,9 @@ HRESULT DeviceResources::LoadMainResources()
 	}
 	else
 	{
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
 			return hr;
 
@@ -4269,9 +4274,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
@@ -4307,6 +4309,9 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), nullptr, &_datVertexShaderVR)))
 			return hr;
 
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperComposeVR, sizeof(g_HyperComposeVR), nullptr, &_hyperComposePS_VR)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
 			return hr;
 
@@ -4321,6 +4326,9 @@ HRESULT DeviceResources::LoadResources()
 	}
 	else
 	{
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+			return hr;
+
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
 			return hr;
 
