@@ -1426,7 +1426,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 0: // Horizontal Gaussian Blur
 			// Input: _offscreenAsInputReshadeSRV
 			// Output _bloomOutput1
-			resources->InitPixelShader(resources->_bloomHGaussPS);
+			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomHGaussPS_VR : resources->_bloomHGaussPS);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
@@ -1442,7 +1442,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 2: // Horizontal Gaussian Blur
 			// Input:  _bloomOutput2
 			// Output: _bloomOutput1
-			resources->InitPixelShader(resources->_bloomHGaussPS);
+			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomHGaussPS_VR : resources->_bloomHGaussPS);
 			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
