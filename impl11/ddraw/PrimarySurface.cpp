@@ -1465,7 +1465,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 4:
 			// Input: _bloomOutput2, _bloomSum
 			// Output: _bloomOutput1
-			resources->InitPixelShader(resources->_bloomBufferAddPS);
+			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomBufferAddPS_VR : resources->_bloomBufferAddPS);
 			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
