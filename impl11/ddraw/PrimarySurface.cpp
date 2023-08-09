@@ -2359,7 +2359,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			resources->_normBufSRV.Get(),
 			resources->_offscreenAsInputShaderResourceView
 		};
-		resources->InitPixelShader(resources->_ssaoPS);
+		resources->InitPixelShader(g_bUseSteamVR ? resources->_ssaoPS_VR : resources->_ssaoPS);
 		if (!g_bBlurSSAO && g_bShowSSAODebug) {
 			ID3D11RenderTargetView *rtvs[1] = {
 				resources->_renderTargetView.Get(),

@@ -44,6 +44,7 @@
 #include "../Debug/BloomBufferAddPS.h"
 #include "../Debug/BloomBufferAddPS_VR.h"
 #include "../Debug/SSAOPixelShader.h"
+#include "../Debug/SSAOPixelShaderVR.h"
 #include "../Debug/SSAOBlurPixelShader.h"
 #include "../Debug/SSAOBlurPixelShaderVR.h"
 #include "../Debug/SSAOAddPixelShader.h"
@@ -122,6 +123,7 @@
 #include "../Release/BloomBufferAddPS.h"
 #include "../Release/BloomBufferAddPS_VR.h"
 #include "../Release/SSAOPixelShader.h"
+#include "../Release/SSAOPixelShaderVR.h"
 #include "../Release/SSAOBlurPixelShader.h"
 #include "../Release/SSAOBlurPixelShaderVR.h"
 #include "../Release/SSAOAddPixelShader.h"
@@ -4044,15 +4046,18 @@ HRESULT DeviceResources::LoadMainResources()
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
+				return hr;
 		}
 		else
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
 				return hr;
-		}
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+		}
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
 			return hr;
@@ -4452,15 +4457,18 @@ HRESULT DeviceResources::LoadResources()
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
+				return hr;
 		}
 		else
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
 				return hr;
-		}
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+		}
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
 			return hr;
