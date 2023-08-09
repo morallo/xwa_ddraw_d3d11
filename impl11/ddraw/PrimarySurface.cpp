@@ -1450,7 +1450,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 3: // Final pass to combine the bloom texture with the offscreenBuffer
 			// Input:  _bloomOutput2, _offscreenBufferAsInput
 			// Output: _offscreenBuffer (_bloomOutput1?)
-			resources->InitPixelShader(resources->_bloomCombinePS);
+			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomCombinePS_VR : resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, BACKBUFFER_FORMAT);
 			if (g_bUseSteamVR) {
@@ -1474,7 +1474,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
 			// Input:  _bloomSum, _offscreenBufferAsInput
 			// Output: _offscreenBuffer
-			resources->InitPixelShader(resources->_bloomCombinePS);
+			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomCombinePS_VR : resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, BACKBUFFER_FORMAT);
 			if (g_bUseSteamVR) {

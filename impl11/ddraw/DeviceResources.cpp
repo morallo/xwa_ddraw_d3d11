@@ -40,6 +40,7 @@
 #include "../Debug/BloomVGaussPS.h"
 #include "../Debug/BloomVGaussPS_VR.h"
 #include "../Debug/BloomCombinePS.h"
+#include "../Debug/BloomCombinePS_VR.h"
 #include "../Debug/BloomBufferAddPS.h"
 #include "../Debug/BloomBufferAddPS_VR.h"
 #include "../Debug/SSAOPixelShader.h"
@@ -116,6 +117,7 @@
 #include "../Release/BloomVGaussPS.h"
 #include "../Release/BloomVGaussPS_VR.h"
 #include "../Release/BloomCombinePS.h"
+#include "../Release/BloomCombinePS_VR.h"
 #include "../Release/BloomBufferAddPS.h"
 #include "../Release/BloomBufferAddPS_VR.h"
 #include "../Release/SSAOPixelShader.h"
@@ -4014,6 +4016,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS_VR, sizeof(g_BloomBufferAddPS_VR), nullptr, &_bloomBufferAddPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS_VR, sizeof(g_BloomCombinePS_VR), nullptr, &_bloomCombinePS_VR)))
+				return hr;
 		}
 		else
 		{
@@ -4025,10 +4030,10 @@ HRESULT DeviceResources::LoadMainResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
 				return hr;
-		}
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+				return hr;
+		}
 	}
 
 	if (g_bAOEnabled) {
@@ -4411,6 +4416,9 @@ HRESULT DeviceResources::LoadResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS_VR, sizeof(g_BloomBufferAddPS_VR), nullptr, &_bloomBufferAddPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS_VR, sizeof(g_BloomCombinePS_VR), nullptr, &_bloomCombinePS_VR)))
+				return hr;
 		}
 		else
 		{
@@ -4422,10 +4430,10 @@ HRESULT DeviceResources::LoadResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
 				return hr;
-		}
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+				return hr;
+		}
 	}
 
 	if (g_bAOEnabled) {

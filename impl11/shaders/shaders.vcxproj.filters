@@ -97,6 +97,7 @@
     <FxCompile Include="bloom\BloomVGaussPS_VR.hlsl" />
     <FxCompile Include="bloom\BloomBufferAddPS_VR.hlsl" />
     <FxCompile Include="bloom\BloomBufferAddPS.hlsl" />
+    <FxCompile Include="bloom\BloomCombinePS_VR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -174,6 +175,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="bloom\BloomBufferAddPSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="bloom\BloomCombinePSCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>
