@@ -462,6 +462,7 @@ public:
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
+	ComPtr<ID3D11PixelShader> _speedEffectComposePS_VR;
 	ComPtr<ID3D11PixelShader> _addGeomPS;
 	ComPtr<ID3D11PixelShader> _addGeomComposePS;
 

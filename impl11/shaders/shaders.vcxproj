@@ -200,6 +200,11 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4.0</ShaderModel>
     </FxCompile>
+    <FxCompile Include="SpeedEffectComposeVR.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+    </FxCompile>
     <FxCompile Include="SpeedEffectVertexShaderVR.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
@@ -568,6 +573,7 @@
     <ClInclude Include="shader_common.h" />
     <ClInclude Include="shading_system.h" />
     <ClInclude Include="shadow_mapping_common.h" />
+    <ClInclude Include="SpeedEffectComposeCommon.h" />
     <ClInclude Include="SpeedEffectVertexShaderCommon.h" />
     <ClInclude Include="SSAOPSConstantBuffer.h" />
     <ClInclude Include="VertexShaderCBuffer.h" />

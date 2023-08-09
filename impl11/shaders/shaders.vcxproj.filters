@@ -93,6 +93,7 @@
     <FxCompile Include="SpeedEffectVertexShaderVR.hlsl" />
     <FxCompile Include="FXAA_VR.hlsl" />
     <FxCompile Include="HyperComposeVR.hlsl" />
+    <FxCompile Include="SpeedEffectComposeVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -158,6 +159,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="HyperComposeCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SpeedEffectComposeCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

@@ -5749,7 +5749,7 @@ void PrimarySurface::RenderSpeedEffect()
 		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
-		resources->InitPixelShader(resources->_speedEffectComposePS);
+		resources->InitPixelShader(g_bUseSteamVR ? resources->_speedEffectComposePS_VR : resources->_speedEffectComposePS);
 		// Clear all the render target views
 		ID3D11RenderTargetView *rtvs_null[5] = {
 			NULL, // Main RTV
