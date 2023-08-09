@@ -113,6 +113,11 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
     </FxCompile>
+    <FxCompile Include="bloom\BloomVGaussPS_VR.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+    </FxCompile>
     <FxCompile Include="DATVertexShaderVR.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
@@ -563,6 +568,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="bloom\BloomHGaussPSCommon.h" />
+    <ClInclude Include="bloom\BloomVGaussPSCommon.h" />
     <ClInclude Include="DC_common.h" />
     <ClInclude Include="FXAACommon.h" />
     <ClInclude Include="HSV.h" />

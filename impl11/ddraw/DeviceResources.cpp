@@ -38,6 +38,7 @@
 #include "../Debug/BloomHGaussPS.h"
 #include "../Debug/BloomHGaussPS_VR.h"
 #include "../Debug/BloomVGaussPS.h"
+#include "../Debug/BloomVGaussPS_VR.h"
 #include "../Debug/BloomCombinePS.h"
 #include "../Debug/BloomBufferAddPS.h"
 #include "../Debug/SSAOPixelShader.h"
@@ -112,6 +113,7 @@
 #include "../Release/BloomHGaussPS.h"
 #include "../Release/BloomHGaussPS_VR.h"
 #include "../Release/BloomVGaussPS.h"
+#include "../Release/BloomVGaussPS_VR.h"
 #include "../Release/BloomCombinePS.h"
 #include "../Release/BloomBufferAddPS.h"
 #include "../Release/SSAOPixelShader.h"
@@ -4004,15 +4006,18 @@ HRESULT DeviceResources::LoadMainResources()
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS_VR, sizeof(g_BloomVGaussPS_VR), nullptr, &_bloomVGaussPS_VR)))
+				return hr;
 		}
 		else
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
+				return hr;
 		}
-		
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
-			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
 			return hr;
@@ -4395,15 +4400,18 @@ HRESULT DeviceResources::LoadResources()
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS_VR, sizeof(g_BloomVGaussPS_VR), nullptr, &_bloomVGaussPS_VR)))
+				return hr;
 		}
 		else
 		{
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 				return hr;
-		}
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
+				return hr;
+		}
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
 			return hr;

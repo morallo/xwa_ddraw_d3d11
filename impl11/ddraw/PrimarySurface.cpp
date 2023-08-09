@@ -1434,7 +1434,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 1: // Vertical Gaussian Blur
 			// Input:  _bloomOutput1
 			// Output: _bloomOutput2
-			resources->InitPixelShader(resources->_bloomVGaussPS);
+			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomVGaussPS_VR : resources->_bloomVGaussPS);
 			context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);

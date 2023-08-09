@@ -421,6 +421,7 @@ public:
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS_VR;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
+	ComPtr<ID3D11PixelShader> _bloomVGaussPS_VR;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
 	ComPtr<ID3D11PixelShader> _ssaoPS;
