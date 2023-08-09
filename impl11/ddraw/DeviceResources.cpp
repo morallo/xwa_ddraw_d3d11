@@ -66,6 +66,7 @@
 #include "../Debug/SunFlareShader.h"
 #include "../Debug/SunShader.h"
 #include "../Debug/SunFlareCompose.h"
+#include "../Debug/SunFlareComposeVR.h"
 #include "../Debug/SpeedEffectPixelShader.h"
 #include "../Debug/SpeedEffectCompose.h"
 #include "../Debug/SpeedEffectComposeVR.h"
@@ -145,6 +146,7 @@
 #include "../Release/SunFlareShader.h"
 #include "../Release/SunShader.h"
 #include "../Release/SunFlareCompose.h"
+#include "../Release/SunFlareComposeVR.h"
 #include "../Release/SpeedEffectPixelShader.h"
 #include "../Release/SpeedEffectCompose.h"
 #include "../Release/SpeedEffectComposeVR.h"
@@ -3926,9 +3928,6 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
@@ -3951,6 +3950,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareComposeVR, sizeof(g_SunFlareComposeVR), nullptr, &_sunFlareComposeShaderPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -3964,6 +3966,9 @@ HRESULT DeviceResources::LoadMainResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 			return hr;
 	}
 
@@ -4332,9 +4337,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
@@ -4366,6 +4368,9 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareComposeVR, sizeof(g_SunFlareComposeVR), nullptr, &_sunFlareComposeShaderPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -4379,6 +4384,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 			return hr;
 	}
 

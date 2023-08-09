@@ -6990,7 +6990,7 @@ void PrimarySurface::RenderSunFlare()
 			g_ShadertoyBuffer.SunCoords[i].y = QL[i].y;
 		}
 		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-		resources->InitPixelShader(resources->_sunFlareComposeShaderPS);
+		resources->InitPixelShader(g_bUseSteamVR ? resources->_sunFlareComposeShaderPS_VR : resources->_sunFlareComposeShaderPS);
 
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _shaderToyBuf to re-use in the next step:
