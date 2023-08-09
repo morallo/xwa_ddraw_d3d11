@@ -235,6 +235,11 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
     </FxCompile>
+    <FxCompile Include="SSAO\SSAOBlurPixelShaderVR.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+    </FxCompile>
     <FxCompile Include="StarDebug.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
@@ -599,6 +604,7 @@
     <ClInclude Include="SpeedEffectComposeCommon.h" />
     <ClInclude Include="SpeedEffectVertexShaderCommon.h" />
     <ClInclude Include="SSAOPSConstantBuffer.h" />
+    <ClInclude Include="SSAO\SSAOBlurPixelShaderCommon.h" />
     <ClInclude Include="VertexShaderCBuffer.h" />
     <ClInclude Include="VertexShaderMatrixCB.h" />
   </ItemGroup>

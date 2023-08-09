@@ -98,6 +98,7 @@
     <FxCompile Include="bloom\BloomBufferAddPS_VR.hlsl" />
     <FxCompile Include="bloom\BloomBufferAddPS.hlsl" />
     <FxCompile Include="bloom\BloomCombinePS_VR.hlsl" />
+    <FxCompile Include="SSAO\SSAOBlurPixelShaderVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -178,6 +179,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="bloom\BloomCombinePSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSAO\SSAOBlurPixelShaderCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

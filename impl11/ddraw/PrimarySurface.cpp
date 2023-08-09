@@ -2403,7 +2403,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// input: _bloomOutput1SRV (with a copy of the ssaoBuf), depthBuf, normBuf
 	// output: ssaoBuf
 	if (g_bBlurSSAO) {
-		resources->InitPixelShader(resources->_ssaoBlurPS);
+		resources->InitPixelShader(g_bUseSteamVR ? resources->_ssaoBlurPS_VR : resources->_ssaoBlurPS);
 		// Copy the SSAO buffer to bloom1(HDR) -- we'll use it as temp buffer
 		// to blur the SSAO buffer
 		context->CopyResource(resources->_bloomOutput1, resources->_ssaoBuf);
