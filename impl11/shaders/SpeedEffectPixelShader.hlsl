@@ -31,14 +31,11 @@ struct PixelShaderInput
 	float4 pos    : SV_POSITION;
 	float4 color  : COLOR0;
 	float2 uv     : TEXCOORD0;
-	//float4 pos3D  : COLOR1; //not used anymore and causing a DEVICE_SHADER_LINKAGE_SEMANTICNAME_NOT_FOUND
-    uint viewId : SV_RenderTargetArrayIndex;
-	
 };
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
+	float4 color : SV_TARGET0;
 };
 
 /*
