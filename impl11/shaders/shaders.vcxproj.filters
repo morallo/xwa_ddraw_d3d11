@@ -101,6 +101,7 @@
     <FxCompile Include="SSAO\SSAOBlurPixelShaderVR.hlsl" />
     <FxCompile Include="SSAO\SSAOPixelShaderVR.hlsl" />
     <FxCompile Include="SunFlareComposeVR.hlsl" />
+    <FxCompile Include="ExternalHUDShaderVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -190,6 +191,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="SunFlareComposeCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="ExternalHUDShaderCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

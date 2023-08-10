@@ -145,6 +145,11 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4.0</ShaderModel>
     </FxCompile>
+    <FxCompile Include="ExternalHUDShaderVR.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+    </FxCompile>
     <FxCompile Include="FXAA_VR.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
@@ -596,6 +601,7 @@
     <ClInclude Include="bloom\BloomHGaussPSCommon.h" />
     <ClInclude Include="bloom\BloomVGaussPSCommon.h" />
     <ClInclude Include="DC_common.h" />
+    <ClInclude Include="ExternalHUDShaderCommon.h" />
     <ClInclude Include="FXAACommon.h" />
     <ClInclude Include="HSV.h" />
     <ClInclude Include="HyperComposeCommon.h" />

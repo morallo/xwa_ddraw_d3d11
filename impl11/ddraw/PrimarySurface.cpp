@@ -5142,7 +5142,7 @@ void PrimarySurface::RenderExternalHUD()
 	*/
 	
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-	resources->InitPixelShader(resources->_externalHUDPS);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_externalHUDPS_VR : resources->_externalHUDPS);
 	// We need this to ensure backface culling is disabled
 	resources->InitRasterizerState(resources->_rasterizerState);
 
