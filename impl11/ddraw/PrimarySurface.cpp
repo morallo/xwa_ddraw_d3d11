@@ -2630,7 +2630,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			//resources->InitPixelShader(resources->_ssdoDirectBentNormalsPS);
 			//resources->InitPixelShader(resources->_deathStarPS);
 		//else
-		resources->InitPixelShader(resources->_ssdoDirectPS);
+		resources->InitPixelShader(g_bUseSteamVR ? resources->_ssdoDirectPS_VR : resources->_ssdoDirectPS);
 		//resources->InitPixelShader(resources->_ssaoPS); // Should be _ssdoDirectPS; but this will also work here
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewEmissionMask.Get(), black);

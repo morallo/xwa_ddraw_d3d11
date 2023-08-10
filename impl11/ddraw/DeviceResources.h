@@ -432,6 +432,7 @@ public:
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS_VR;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
+	ComPtr<ID3D11PixelShader> _ssdoDirectPS_VR;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS_VR;

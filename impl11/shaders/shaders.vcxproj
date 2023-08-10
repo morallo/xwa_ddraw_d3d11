@@ -277,6 +277,11 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
     </FxCompile>
+    <FxCompile Include="SSDO\SSDODirectVR.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+    </FxCompile>
     <FxCompile Include="StarDebug.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
@@ -654,6 +659,7 @@
     <ClInclude Include="SSAO\SSAOPixelShaderCommon.h" />
     <ClInclude Include="SSDO\SSDOAddCommon.h" />
     <ClInclude Include="SSDO\SSDOBlurCommon.h" />
+    <ClInclude Include="SSDO\SSDODirectCommon.h" />
     <ClInclude Include="SunFlareComposeCommon.h" />
     <ClInclude Include="VertexShaderCBuffer.h" />
     <ClInclude Include="VertexShaderMatrixCB.h" />
