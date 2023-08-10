@@ -77,6 +77,7 @@
 #include "../Debug/AddGeometryPixelShader.h"
 #include "../Debug/AddGeometryComposePixelShader.h"
 #include "../Debug/HeadLightsPS.h"
+#include "../Debug/HeadLightsPS_VR.h"
 #include "../Debug/HeadLightsSSAOPS.h"
 #include "../Debug/ShadowMapPS.h"
 #include "../Debug/ShadowMapVS.h"
@@ -158,6 +159,7 @@
 #include "../Release/AddGeometryPixelShader.h"
 #include "../Release/AddGeometryComposePixelShader.h"
 #include "../Release/HeadLightsPS.h"
+#include "../Release/HeadLightsPS_VR.h"
 #include "../Release/HeadLightsSSAOPS.h"
 #include "../Release/ShadowMapPS.h"
 #include "../Release/ShadowMapVS.h"
@@ -3955,6 +3957,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShaderVR, sizeof(g_ExternalHUDShaderVR), nullptr, &_externalHUDPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -3975,15 +3980,15 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
 	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
@@ -4376,6 +4381,9 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShaderVR, sizeof(g_ExternalHUDShaderVR), nullptr, &_externalHUDPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -4396,12 +4404,12 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
 	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
