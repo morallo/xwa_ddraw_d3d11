@@ -439,6 +439,7 @@ public:
 	ComPtr<ID3D11PixelShader> _headLightsPS_VR;
 	ComPtr<ID3D11PixelShader> _headLightsSSAOPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
+	ComPtr<ID3D11PixelShader> _ssdoBlurPS_VR;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;
 	ComPtr<ID3D11PixelShader> _hyperExitPS;

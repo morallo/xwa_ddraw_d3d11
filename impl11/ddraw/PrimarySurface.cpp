@@ -2700,7 +2700,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	// output: ssaoBuf, bentBuf
 	if (g_bBlurSSAO) 
 		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
-			resources->InitPixelShader(resources->_ssdoBlurPS);
+			resources->InitPixelShader(g_bUseSteamVR ? resources->_ssdoBlurPS_VR : resources->_ssdoBlurPS);
 			// Copy the SSAO buffer to offscreenBufferAsInput/bloomOutput1(HDR) -- we'll use it as temp buffer
 			// to blur the SSAO buffer
 			//context->CopyResource(resources->_offscreenBufferAsInput, resources->_ssaoBuf);
@@ -2828,7 +2828,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 
 	// Blur the Indirect SSDO buffer
 	if (g_bEnableIndirectSSDO && g_bBlurSSAO) {
-		resources->InitPixelShader(resources->_ssdoBlurPS);
+		resources->InitPixelShader(g_bUseSteamVR ? resources->_ssdoBlurPS_VR : resources->_ssdoBlurPS);
 		for (int i = 0; i < g_iSSAOBlurPasses; i++) {
 			// Copy the SSDO Indirect Buffer (ssaoBufR) to offscreenBufferAsInput -- we'll use it as temp buffer
 			// to blur the SSAO buffer

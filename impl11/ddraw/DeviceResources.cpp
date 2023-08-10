@@ -52,6 +52,7 @@
 #include "../Debug/SSDOIndirect.h"
 #include "../Debug/SSDOAdd.h"
 #include "../Debug/SSDOBlur.h"
+#include "../Debug/SSDOBlurVR.h"
 #include "../Debug/DeathStarShader.h"
 #include "../Debug/HyperEntry.h"
 #include "../Debug/HyperExit.h"
@@ -134,6 +135,7 @@
 #include "../Release/SSDOIndirect.h"
 #include "../Release/SSDOAdd.h"
 #include "../Release/SSDOBlur.h"
+#include "../Release/SSDOBlurVR.h"
 #include "../Release/DeathStarShader.h"
 #include "../Release/HyperEntry.h"
 #include "../Release/HyperExit.h"
@@ -4064,6 +4066,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlurVR, sizeof(g_SSDOBlurVR), nullptr, &_ssdoBlurPS_VR)))
+				return hr;
 		}
 		else
 		{
@@ -4071,6 +4076,9 @@ HRESULT DeviceResources::LoadMainResources()
 				return hr;
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 				return hr;
 		}
 
@@ -4097,9 +4105,6 @@ HRESULT DeviceResources::LoadMainResources()
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
 			return hr;
@@ -4484,6 +4489,9 @@ HRESULT DeviceResources::LoadResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlurVR, sizeof(g_SSDOBlurVR), nullptr, &_ssdoBlurPS_VR)))
+				return hr;
 		}
 		else
 		{
@@ -4491,6 +4499,9 @@ HRESULT DeviceResources::LoadResources()
 				return hr;
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
 				return hr;
 		}
 
@@ -4517,9 +4528,6 @@ HRESULT DeviceResources::LoadResources()
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
 			return hr;
