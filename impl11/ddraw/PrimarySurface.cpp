@@ -7965,7 +7965,7 @@ void PrimarySurface::RenderRTShadowMask()
 	resources->InitInputLayout(resources->_mainInputLayout);
 
 	resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
-	resources->InitPixelShader(resources->_rtShadowMaskPS);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_rtShadowMaskPS_VR : resources->_rtShadowMaskPS);
 
 	// Clear all the render target views
 	ID3D11RenderTargetView* rtvs_null[5] = {

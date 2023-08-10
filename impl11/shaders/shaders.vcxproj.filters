@@ -106,6 +106,7 @@
     <FxCompile Include="SSDO\SSDOBlurVR.hlsl" />
     <FxCompile Include="SSDO\SSDOAddVR.hlsl" />
     <FxCompile Include="PBRAddVR.hlsl" />
+    <FxCompile Include="RT\RTShadowMaskPS_VR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -210,6 +211,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="PBRAddCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="RT\RTShadowMaskPSCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

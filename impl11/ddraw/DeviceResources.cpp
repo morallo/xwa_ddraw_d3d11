@@ -96,6 +96,7 @@
 #include "../Debug/XwaD3dCSMVertexShader.h"
 #include "../Debug/LevelsPS.h"
 #include "../Debug/RTShadowMaskPS.h"
+#include "../Debug/RTShadowMaskPS_VR.h"
 #include "../Debug/PBRAdd.h"
 #include "../Debug/PBRAddVR.h"
 #else
@@ -181,6 +182,7 @@
 #include "../Release/XwaD3dCSMVertexShader.h"
 #include "../Release/LevelsPS.h"
 #include "../Release/RTShadowMaskPS.h"
+#include "../Release/RTShadowMaskPS_VR.h"
 #include "../Release/PBRAdd.h"
 #include "../Release/PBRAddVR.h"
 #endif
@@ -4303,9 +4305,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LevelsPS, sizeof(g_LevelsPS), nullptr, &_levelsPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
-		return hr;
-
 	if (g_bDynCockpitEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
 			return hr;
@@ -4399,6 +4398,9 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS_VR, sizeof(g_RTShadowMaskPS_VR), nullptr, &_rtShadowMaskPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -4421,6 +4423,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
 			return hr;
 	}
 

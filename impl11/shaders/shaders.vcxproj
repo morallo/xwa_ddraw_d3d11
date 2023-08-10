@@ -235,6 +235,11 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
     </FxCompile>
+    <FxCompile Include="RT\RTShadowMaskPS_VR.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+    </FxCompile>
     <FxCompile Include="SimpleResizePS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
@@ -636,6 +641,7 @@
     <ClInclude Include="PBRShading.h" />
     <ClInclude Include="PixelShaderTextureCommon.h" />
     <ClInclude Include="RT\RTCommon.h" />
+    <ClInclude Include="RT\RTShadowMaskPSCommon.h" />
     <ClInclude Include="ShadertoyCBuffer.h" />
     <ClInclude Include="ShaderToyDefs.h" />
     <ClInclude Include="shader_common.h" />
