@@ -104,6 +104,7 @@
     <FxCompile Include="ExternalHUDShaderVR.hlsl" />
     <FxCompile Include="HeadLightsPS_VR.hlsl" />
     <FxCompile Include="SSDO\SSDOBlurVR.hlsl" />
+    <FxCompile Include="SSDO\SSDOAddVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -202,6 +203,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="SSDO\SSDOBlurCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSDO\SSDOAddCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

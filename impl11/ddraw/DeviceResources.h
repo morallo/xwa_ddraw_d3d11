@@ -434,6 +434,7 @@ public:
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
+	ComPtr<ID3D11PixelShader> _ssdoAddPS_VR;
 	ComPtr<ID3D11PixelShader> _pbrAddPS;
 	ComPtr<ID3D11PixelShader> _headLightsPS;
 	ComPtr<ID3D11PixelShader> _headLightsPS_VR;
