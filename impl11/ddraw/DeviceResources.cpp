@@ -97,6 +97,7 @@
 #include "../Debug/LevelsPS.h"
 #include "../Debug/RTShadowMaskPS.h"
 #include "../Debug/PBRAdd.h"
+#include "../Debug/PBRAddVR.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainVertexShaderVR.h"
@@ -181,6 +182,7 @@
 #include "../Release/LevelsPS.h"
 #include "../Release/RTShadowMaskPS.h"
 #include "../Release/PBRAdd.h"
+#include "../Release/PBRAddVR.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -4074,6 +4076,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddVR, sizeof(g_SSDOAddVR), nullptr, &_ssdoAddPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAddVR, sizeof(g_PBRAddVR), nullptr, &_pbrAddPS_VR)))
+				return hr;
 		}
 		else
 		{
@@ -4087,6 +4092,9 @@ HRESULT DeviceResources::LoadMainResources()
 				return hr;
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
 				return hr;
 		}
 
@@ -4110,9 +4118,6 @@ HRESULT DeviceResources::LoadMainResources()
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
-			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -4500,6 +4505,9 @@ HRESULT DeviceResources::LoadResources()
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddVR, sizeof(g_SSDOAddVR), nullptr, &_ssdoAddPS_VR)))
 				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAddVR, sizeof(g_PBRAddVR), nullptr, &_pbrAddPS_VR)))
+				return hr;
 		}
 		else
 		{
@@ -4513,6 +4521,9 @@ HRESULT DeviceResources::LoadResources()
 				return hr;
 
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
 				return hr;
 		}
 
@@ -4536,9 +4547,6 @@ HRESULT DeviceResources::LoadResources()
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
-			return hr;
 	}
 
 	D3D11_RASTERIZER_DESC rsDesc;

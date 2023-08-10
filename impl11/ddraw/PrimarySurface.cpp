@@ -2900,7 +2900,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		if (!g_bEnableHeadLights)
 		{
 			if (g_bUseSteamVR)
-				resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS_VR); // VR path
+				resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS_VR : resources->_ssdoAddPS_VR); // VR path
 			else
 				resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS); // Non-VR path
 		}
@@ -3044,7 +3044,7 @@ void PrimarySurface::DeferredPass()
 	if (!g_bEnableHeadLights)
 	{
 		if (g_bUseSteamVR)
-			resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS_VR); // VR path
+			resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS_VR : resources->_ssdoAddPS_VR); // VR path
 		else
 			resources->InitPixelShader(g_SSAO_Type == SSO_PBR ? resources->_pbrAddPS : resources->_ssdoAddPS); // Non-VR path
 	}
