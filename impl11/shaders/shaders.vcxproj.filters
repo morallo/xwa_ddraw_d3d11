@@ -108,6 +108,7 @@
     <FxCompile Include="PBRAddVR.hlsl" />
     <FxCompile Include="RT\RTShadowMaskPS_VR.hlsl" />
     <FxCompile Include="SSDO\SSDODirectVR.hlsl" />
+    <FxCompile Include="SunFlareShaderVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -218,6 +219,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="SSDO\SSDODirectCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SunFlareShaderCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

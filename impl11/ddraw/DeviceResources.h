@@ -457,6 +457,7 @@ public:
 	ComPtr<ID3D11PixelShader> _externalHUDPS_VR;
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
+	ComPtr<ID3D11PixelShader> _sunFlareShaderPS_VR;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS_VR;
 	ComPtr<ID3D11PixelShader> _edgeDetectorPS;

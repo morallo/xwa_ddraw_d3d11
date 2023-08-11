@@ -6836,7 +6836,7 @@ void PrimarySurface::RenderSunFlare()
 	resources->InitRasterizerState(resources->_rasterizerState);
 	// Set the shadertoy constant buffer:
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-	resources->InitPixelShader(resources->_sunFlareShaderPS);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_sunFlareShaderPS_VR : resources->_sunFlareShaderPS);
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
