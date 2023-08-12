@@ -29,8 +29,11 @@ void DirectSBSRenderer::CreateShaders()
 
 	EffectsRenderer::CreateShaders();
 
-	device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
-	device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
+	if (g_bEnableVR)
+	{
+		device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
+		device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
+	}
 }
 
 void DirectSBSRenderer::SceneBegin(DeviceResources* deviceResources)

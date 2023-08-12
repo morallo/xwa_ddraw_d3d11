@@ -4617,7 +4617,10 @@ void EffectsRenderer::DCCaptureMiniature()
 	QuickSetZWriteEnabled(TRUE);
 
 	// Render
-	context->DrawIndexedInstanced(_trianglesCount * 3, 1, 0, 0, 0);
+	if (g_bUseSteamVR)
+		context->DrawIndexedInstanced(_trianglesCount * 3, 1, 0, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->DrawIndexed(_trianglesCount * 3, 0, 0);
 	g_iHUDOffscreenCommandsRendered++;
 
 	// Restore the regular texture, RTV, shaders, etc:
@@ -4625,7 +4628,7 @@ void EffectsRenderer::DCCaptureMiniature()
 	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), resources->_depthStencilViewL.Get());
 	/*
 	if (g_bEnableVR) {
-		resources->InitVertexShader(resources->_sbsVertexShader);
+		resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 		// Restore the right constants in case we're doing VR rendering
 		g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 		g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;

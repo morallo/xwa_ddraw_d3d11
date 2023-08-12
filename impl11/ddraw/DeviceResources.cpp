@@ -15,6 +15,7 @@
 
 #ifdef _DEBUG
 #include "../Debug/MainVertexShader.h"
+#include "../Debug/MainVertexShaderVR.h"
 #include "../Debug/MainPixelShader.h"
 #include "../Debug/MainPixelShaderBpp2ColorKey20.h"
 #include "../Debug/MainPixelShaderBpp2ColorKey00.h"
@@ -35,35 +36,52 @@
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
 #include "../Debug/BloomHGaussPS.h"
+#include "../Debug/BloomHGaussPS_VR.h"
 #include "../Debug/BloomVGaussPS.h"
+#include "../Debug/BloomVGaussPS_VR.h"
 #include "../Debug/BloomCombinePS.h"
+#include "../Debug/BloomCombinePS_VR.h"
 #include "../Debug/BloomBufferAddPS.h"
+#include "../Debug/BloomBufferAddPS_VR.h"
 #include "../Debug/SSAOPixelShader.h"
+#include "../Debug/SSAOPixelShaderVR.h"
 #include "../Debug/SSAOBlurPixelShader.h"
+#include "../Debug/SSAOBlurPixelShaderVR.h"
 #include "../Debug/SSAOAddPixelShader.h"
 #include "../Debug/SSDODirect.h"
+#include "../Debug/SSDODirectVR.h"
 #include "../Debug/SSDOIndirect.h"
 #include "../Debug/SSDOAdd.h"
+#include "../Debug/SSDOAddVR.h"
 #include "../Debug/SSDOBlur.h"
+#include "../Debug/SSDOBlurVR.h"
 #include "../Debug/DeathStarShader.h"
 #include "../Debug/HyperEntry.h"
 #include "../Debug/HyperExit.h"
 #include "../Debug/HyperTunnel.h"
 #include "../Debug/HyperCompose.h"
+#include "../Debug/HyperComposeVR.h"
 #include "../Debug/HyperZoom.h"
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
+#include "../Debug/FXAA_VR.h"
 #include "../Debug/ExternalHUDShader.h"
+#include "../Debug/ExternalHUDShaderVR.h"
 #include "../Debug/SunFlareShader.h"
+#include "../Debug/SunFlareShaderVR.h"
 #include "../Debug/SunShader.h"
 #include "../Debug/SunFlareCompose.h"
+#include "../Debug/SunFlareComposeVR.h"
 #include "../Debug/SpeedEffectPixelShader.h"
 #include "../Debug/SpeedEffectCompose.h"
+#include "../Debug/SpeedEffectComposeVR.h"
 #include "../Debug/SpeedEffectVertexShader.h"
+#include "../Debug/SpeedEffectVertexShaderVR.h"
 #include "../Debug/AddGeometryVertexShader.h"
 #include "../Debug/AddGeometryPixelShader.h"
 #include "../Debug/AddGeometryComposePixelShader.h"
 #include "../Debug/HeadLightsPS.h"
+#include "../Debug/HeadLightsPS_VR.h"
 #include "../Debug/HeadLightsSSAOPS.h"
 #include "../Debug/ShadowMapPS.h"
 #include "../Debug/ShadowMapVS.h"
@@ -80,9 +98,12 @@
 #include "../Debug/XwaD3dCSMVertexShader.h"
 #include "../Debug/LevelsPS.h"
 #include "../Debug/RTShadowMaskPS.h"
+#include "../Debug/RTShadowMaskPS_VR.h"
 #include "../Debug/PBRAdd.h"
+#include "../Debug/PBRAddVR.h"
 #else
 #include "../Release/MainVertexShader.h"
+#include "../Release/MainVertexShaderVR.h"
 #include "../Release/MainPixelShader.h"
 #include "../Release/MainPixelShaderBpp2ColorKey20.h"
 #include "../Release/MainPixelShaderBpp2ColorKey00.h"
@@ -103,35 +124,52 @@
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
 #include "../Release/BloomHGaussPS.h"
+#include "../Release/BloomHGaussPS_VR.h"
 #include "../Release/BloomVGaussPS.h"
+#include "../Release/BloomVGaussPS_VR.h"
 #include "../Release/BloomCombinePS.h"
+#include "../Release/BloomCombinePS_VR.h"
 #include "../Release/BloomBufferAddPS.h"
+#include "../Release/BloomBufferAddPS_VR.h"
 #include "../Release/SSAOPixelShader.h"
+#include "../Release/SSAOPixelShaderVR.h"
 #include "../Release/SSAOBlurPixelShader.h"
+#include "../Release/SSAOBlurPixelShaderVR.h"
 #include "../Release/SSAOAddPixelShader.h"
 #include "../Release/SSDODirect.h"
+#include "../Release/SSDODirectVR.h"
 #include "../Release/SSDOIndirect.h"
 #include "../Release/SSDOAdd.h"
+#include "../Release/SSDOAddVR.h"
 #include "../Release/SSDOBlur.h"
+#include "../Release/SSDOBlurVR.h"
 #include "../Release/DeathStarShader.h"
 #include "../Release/HyperEntry.h"
 #include "../Release/HyperExit.h"
 #include "../Release/HyperTunnel.h"
 #include "../Release/HyperCompose.h"
+#include "../Release/HyperComposeVR.h"
 #include "../Release/HyperZoom.h"
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
+#include "../Release/FXAA_VR.h"
 #include "../Release/ExternalHUDShader.h"
+#include "../Release/ExternalHUDShaderVR.h"
 #include "../Release/SunFlareShader.h"
+#include "../Release/SunFlareShaderVR.h"
 #include "../Release/SunShader.h"
 #include "../Release/SunFlareCompose.h"
+#include "../Release/SunFlareComposeVR.h"
 #include "../Release/SpeedEffectPixelShader.h"
 #include "../Release/SpeedEffectCompose.h"
+#include "../Release/SpeedEffectComposeVR.h"
 #include "../Release/SpeedEffectVertexShader.h"
+#include "../Release/SpeedEffectVertexShaderVR.h"
 #include "../Release/AddGeometryVertexShader.h"
 #include "../Release/AddGeometryPixelShader.h"
 #include "../Release/AddGeometryComposePixelShader.h"
 #include "../Release/HeadLightsPS.h"
+#include "../Release/HeadLightsPS_VR.h"
 #include "../Release/HeadLightsSSAOPS.h"
 #include "../Release/ShadowMapPS.h"
 #include "../Release/ShadowMapVS.h"
@@ -148,7 +186,9 @@
 #include "../Release/XwaD3dCSMVertexShader.h"
 #include "../Release/LevelsPS.h"
 #include "../Release/RTShadowMaskPS.h"
+#include "../Release/RTShadowMaskPS_VR.h"
 #include "../Release/PBRAdd.h"
+#include "../Release/PBRAddVR.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -3302,7 +3342,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (FAILED(hr)) goto out;
 
 		step = "_renderTargetViewPost";
-		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_renderTargetViewPost);
+		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BACKBUFFER_FORMAT), &this->_renderTargetViewPost);
 		if (FAILED(hr)) goto out;
 
 		if (g_b3DVisionEnabled) {
@@ -3889,49 +3929,81 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
-		return hr;
+	if (g_bUseSteamVR || g_bEnableVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShaderVR, sizeof(g_MainVertexShaderVR), nullptr, &_mainVertexShaderVR)))
+			return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
-		return hr;
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperComposeVR, sizeof(g_HyperComposeVR), nullptr, &_hyperComposePS_VR)))
+			return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
-		return hr;
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectComposeVR, sizeof(g_SpeedEffectComposeVR), nullptr, &_speedEffectComposePS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShaderVR, sizeof(g_SunFlareShaderVR), nullptr, &_sunFlareShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareComposeVR, sizeof(g_SunFlareComposeVR), nullptr, &_sunFlareComposeShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShaderVR, sizeof(g_ExternalHUDShaderVR), nullptr, &_externalHUDPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
+			return hr;
+	}
+	else
+	{
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
@@ -3968,33 +4040,80 @@ HRESULT DeviceResources::LoadMainResources()
 		return hr;
 
 	if (g_bBloomEnabled) {
-		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
-		//	return hr;
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
-			return hr;
-		
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS_VR, sizeof(g_BloomVGaussPS_VR), nullptr, &_bloomVGaussPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS_VR, sizeof(g_BloomBufferAddPS_VR), nullptr, &_bloomBufferAddPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS_VR, sizeof(g_BloomCombinePS_VR), nullptr, &_bloomCombinePS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+				return hr;
+		}
 	}
 
 	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
-			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
-			return hr;
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlurVR, sizeof(g_SSDOBlurVR), nullptr, &_ssdoBlurPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddVR, sizeof(g_SSDOAddVR), nullptr, &_ssdoAddPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectVR, sizeof(g_SSDODirectVR), nullptr, &_ssdoDirectPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAddVR, sizeof(g_PBRAddVR), nullptr, &_pbrAddPS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
+				return hr;
+		}
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
@@ -4006,20 +4125,11 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
-			return hr;
-
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
 		//	return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
-			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -4167,12 +4277,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &_vertexShader)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), nullptr, &_datVertexShaderVR)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_PassthroughVertexShader, sizeof(g_PassthroughVertexShader), nullptr, &_passthroughVertexShader)))
 		return hr;
 
@@ -4196,12 +4300,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(shadowVertexLayoutDesc, ARRAYSIZE(shadowVertexLayoutDesc), g_ShadowMapVS, sizeof(g_ShadowMapVS), &_shadowMapInputLayout)))
 		return hr;
 
-//	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_SBSVertexShader, sizeof(g_SBSVertexShader), &_inputLayout)))
-//		return hr;
-
-//	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), &_inputLayout)))
-//		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
 
@@ -4216,10 +4314,6 @@ HRESULT DeviceResources::LoadResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LevelsPS, sizeof(g_LevelsPS), nullptr, &_levelsPS)))
 		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
-		return hr;
-
 
 	if (g_bDynCockpitEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
@@ -4262,49 +4356,93 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
-		return hr;
+	if (g_bEnableVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
+			return hr;
+	}
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
-		return hr;
+	if (g_bUseSteamVR || g_bEnableVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), nullptr, &_datVertexShaderVR)))
+			return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
-		return hr;
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperComposeVR, sizeof(g_HyperComposeVR), nullptr, &_hyperComposePS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectComposeVR, sizeof(g_SpeedEffectComposeVR), nullptr, &_speedEffectComposePS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShaderVR, sizeof(g_SunFlareShaderVR), nullptr, &_sunFlareShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareComposeVR, sizeof(g_SunFlareComposeVR), nullptr, &_sunFlareComposeShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShaderVR, sizeof(g_ExternalHUDShaderVR), nullptr, &_externalHUDPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS_VR, sizeof(g_RTShadowMaskPS_VR), nullptr, &_rtShadowMaskPS_VR)))
+			return hr;
+	}
+	else
+	{
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
@@ -4341,30 +4479,79 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (g_bBloomEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
-			return hr;
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS_VR, sizeof(g_BloomVGaussPS_VR), nullptr, &_bloomVGaussPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS_VR, sizeof(g_BloomBufferAddPS_VR), nullptr, &_bloomBufferAddPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS_VR, sizeof(g_BloomCombinePS_VR), nullptr, &_bloomCombinePS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+				return hr;
+		}
 	}
 
 	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
-			return hr;
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlurVR, sizeof(g_SSDOBlurVR), nullptr, &_ssdoBlurPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddVR, sizeof(g_SSDOAddVR), nullptr, &_ssdoAddPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectVR, sizeof(g_SSDODirectVR), nullptr, &_ssdoDirectPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAddVR, sizeof(g_PBRAddVR), nullptr, &_pbrAddPS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
+				return hr;
+		}
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
@@ -4376,20 +4563,11 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
-			return hr;
-
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
 		//	return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
-			return hr;
 	}
 
 	D3D11_RASTERIZER_DESC rsDesc;
@@ -5268,7 +5446,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	this->InitInputLayout(this->_mainInputLayout);
 	this->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	this->InitVertexShader(this->_mainVertexShader);
+	this->InitVertexShader(g_bUseSteamVR ? this->_mainVertexShaderVR : this->_mainVertexShader);
 
 	if (bpp == 2)
 	{
@@ -5496,8 +5674,10 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
-		//this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
-		this->_d3dDeviceContext->DrawIndexedInstanced(6, g_bUseSteamVR? 2:1, 0, 0, 0);
+		if (g_bUseSteamVR)
+			this->_d3dDeviceContext->DrawIndexedInstanced(6, 2, 0, 0, 0); // if (g_bUseSteamVR)
+		else
+			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 
 		// Right viewport
 		if (g_bUseSteamVR)

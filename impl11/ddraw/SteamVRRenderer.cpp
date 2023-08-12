@@ -38,8 +38,11 @@ void SteamVRRenderer::CreateShaders()
 
 	EffectsRenderer::CreateShaders();
 
-	device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
-	device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
+	if (g_bUseSteamVR)
+	{
+		device->CreateVertexShader(g_XwaD3dVertexShaderVR, sizeof(g_XwaD3dVertexShaderVR), nullptr, &_vertexShaderVR);
+		device->CreateVertexShader(g_XwaD3dShadowVertexShaderVR, sizeof(g_XwaD3dShadowVertexShaderVR), nullptr, &_shadowVertexShaderVR);
+	}
 }
 
 void SteamVRRenderer::SceneBegin(DeviceResources* deviceResources)
@@ -141,7 +144,7 @@ void SteamVRRenderer::RenderScene()
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
 		//context->DrawIndexed(_trianglesCount * 3, 0, 0);
-		context->DrawIndexedInstanced(_trianglesCount * 3, 2, 0, 0, 1);
+		context->DrawIndexedInstanced(_trianglesCount * 3, 2, 0, 0, 1); // Already in the SteamVR path
 	}
 
 	// ****************************************************************************

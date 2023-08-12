@@ -409,6 +409,7 @@ public:
 	ComPtr<ID2D1DrawingStateBlock> _d2d1DrawingStateBlock;
 
 	ComPtr<ID3D11VertexShader> _mainVertexShader;
+	ComPtr<ID3D11VertexShader> _mainVertexShaderVR;
 	ComPtr<ID3D11InputLayout> _mainInputLayout;
 	ComPtr<ID3D11PixelShader> _mainPixelShader;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;
@@ -418,31 +419,47 @@ public:
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
 	ComPtr<ID3D11PixelShader> _simpleResizePS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
+	ComPtr<ID3D11PixelShader> _bloomHGaussPS_VR;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
+	ComPtr<ID3D11PixelShader> _bloomVGaussPS_VR;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
+	ComPtr<ID3D11PixelShader> _bloomCombinePS_VR;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
+	ComPtr<ID3D11PixelShader> _bloomBufferAddPS_VR;
 	ComPtr<ID3D11PixelShader> _ssaoPS;
+	ComPtr<ID3D11PixelShader> _ssaoPS_VR;
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
+	ComPtr<ID3D11PixelShader> _ssaoBlurPS_VR;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
+	ComPtr<ID3D11PixelShader> _ssdoDirectPS_VR;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
+	ComPtr<ID3D11PixelShader> _ssdoAddPS_VR;
 	ComPtr<ID3D11PixelShader> _pbrAddPS;
+	ComPtr<ID3D11PixelShader> _pbrAddPS_VR;
 	ComPtr<ID3D11PixelShader> _headLightsPS;
+	ComPtr<ID3D11PixelShader> _headLightsPS_VR;
 	ComPtr<ID3D11PixelShader> _headLightsSSAOPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
+	ComPtr<ID3D11PixelShader> _ssdoBlurPS_VR;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;
 	ComPtr<ID3D11PixelShader> _hyperExitPS;
 	ComPtr<ID3D11PixelShader> _hyperTunnelPS;
 	ComPtr<ID3D11PixelShader> _hyperZoomPS;
 	ComPtr<ID3D11PixelShader> _hyperComposePS;
+	ComPtr<ID3D11PixelShader> _hyperComposePS_VR;
 	ComPtr<ID3D11PixelShader> _laserPointerPS;
 	ComPtr<ID3D11PixelShader> _fxaaPS;
+	ComPtr<ID3D11PixelShader> _fxaaPS_VR;
 	ComPtr<ID3D11PixelShader> _externalHUDPS;
+	ComPtr<ID3D11PixelShader> _externalHUDPS_VR;
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
+	ComPtr<ID3D11PixelShader> _sunFlareShaderPS_VR;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
+	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS_VR;
 	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
 	ComPtr<ID3D11PixelShader> _starDebugPS;
 	ComPtr<ID3D11PixelShader> _lavaPS;
@@ -459,6 +476,7 @@ public:
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
+	ComPtr<ID3D11PixelShader> _speedEffectComposePS_VR;
 	ComPtr<ID3D11PixelShader> _addGeomPS;
 	ComPtr<ID3D11PixelShader> _addGeomComposePS;
 
@@ -484,6 +502,7 @@ public:
 	ComPtr<ID3D11VertexShader> _datVertexShaderVR;
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
+	ComPtr<ID3D11VertexShader> _speedEffectVS_VR;
 	ComPtr<ID3D11VertexShader> _addGeomVS;
 	ComPtr<ID3D11VertexShader> _shadowMapVS;
 	ComPtr<ID3D11VertexShader> _hangarShadowMapVS;
@@ -502,6 +521,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderGreeble;
 	ComPtr<ID3D11PixelShader> _levelsPS;
 	ComPtr<ID3D11PixelShader> _rtShadowMaskPS;
+	ComPtr<ID3D11PixelShader> _rtShadowMaskPS_VR;
 
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless

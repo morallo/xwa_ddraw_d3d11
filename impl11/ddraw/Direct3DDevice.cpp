@@ -2869,7 +2869,7 @@ HRESULT Direct3DDevice::Execute(
 
 	this->_deviceResources->InitInputLayout(resources->_inputLayout);
 	if (g_bEnableVR)
-		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader);
+		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 	else
 		// The original code used _vertexShader:
 		this->_deviceResources->InitVertexShader(resources->_vertexShader);	
@@ -5198,7 +5198,10 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Render
-					context->DrawIndexedInstanced(3 * instruction->wCount, 1, currentIndexLocation, 0, 0);
+					if (g_bUseSteamVR)
+						context->DrawIndexedInstanced(3 * instruction->wCount, 1, currentIndexLocation, 0, 0); // if (g_bUseSteamVR)
+					else
+						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 					g_iHUDOffscreenCommandsRendered++;
 
 					// Restore the regular texture, RTV, shaders, etc:
@@ -5206,7 +5209,7 @@ HRESULT Direct3DDevice::Execute(
 					context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(),
 						resources->_depthStencilViewL.Get());
 					if (g_bEnableVR) {
-						resources->InitVertexShader(resources->_sbsVertexShader);
+						resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 						// Restore the right constants in case we're doing VR rendering
 						g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
 						g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
@@ -5616,7 +5619,10 @@ HRESULT Direct3DDevice::Execute(
 					// The viewMatrix is set at the beginning of the frame
 					resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 					// Draw the Left Image (and the right one if were using instanced stereo)
-					context->DrawIndexedInstanced(3 * instruction->wCount, g_bUseSteamVR ? 2 : 1, currentIndexLocation, 0, 0);
+					if (g_bUseSteamVR)
+						context->DrawIndexedInstanced(3 * instruction->wCount, 2, currentIndexLocation, 0, 0); // if (g_bUseSteamVR)
+					else
+						context->DrawIndexed(3 * instruction->wCount, currentIndexLocation, 0);
 				}
 
 				// ****************************************************************************
@@ -5763,7 +5769,7 @@ HRESULT Direct3DDevice::Execute(
 
 				if (bModifiedVertexShader) {
 					if (g_bEnableVR)
-						resources->InitVertexShader(resources->_sbsVertexShader);
+						resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 					else
 						resources->InitVertexShader(resources->_vertexShader);
 				}

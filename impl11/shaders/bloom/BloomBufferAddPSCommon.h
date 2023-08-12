@@ -4,13 +4,23 @@
 // Based on the implementation from:
 // https://learnopengl.com/Advanced-Lighting/Bloom
 
+#ifdef INSTANCED_RENDERING
 // This texture slot should be the source bloom buffer
 Texture2DArray bloomTex0 : register(t0);
-SamplerState sampler0 : register(s0);
+SamplerState   sampler0 : register(s0);
 
 // This texture slot should be a copy of the accummulator
 Texture2DArray bloomSumTex : register(t1);
+SamplerState   bloomSumSampler : register(s1);
+#else
+// This texture slot should be the source bloom buffer
+Texture2D    bloomTex0 : register(t0);
+SamplerState sampler0 : register(s0);
+
+// This texture slot should be a copy of the accummulator
+Texture2D    bloomSumTex : register(t1);
 SamplerState bloomSumSampler : register(s1);
+#endif
 
 cbuffer ConstantBuffer : register(b2)
 {
@@ -24,14 +34,21 @@ struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
 	float2 uv : TEXCOORD;
-	uint viewId: SV_RenderTargetArrayIndex;
+#ifdef INSTANCED_RENDERING
+	uint   viewId : SV_RenderTargetArrayIndex;
+#endif
 };
 
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	float2 input_uv_sub = input.uv * amplifyFactor;
+#ifdef INSTANCED_RENDERING
 	float3 bloom = bloomTex0.Sample(sampler0, float3(input_uv_sub, input.viewId)).rgb;
 	float3 bloomSum = bloomSumTex.Sample(bloomSumSampler, float3(input.uv, input.viewId)).rgb;
+#else
+	float3 bloom = bloomTex0.Sample(sampler0, input_uv_sub).rgb;
+	float3 bloomSum = bloomSumTex.Sample(bloomSumSampler, input.uv).rgb;
+#endif
 
 	// Truncate negative values coming from the bloom texture:
 	return float4(bloomSum.rgb + max(0, bloomStrength * bloom.rgb), 1);
