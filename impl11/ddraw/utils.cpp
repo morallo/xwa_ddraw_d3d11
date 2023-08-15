@@ -812,31 +812,43 @@ void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...)
 	va_end(args);
 }
 
+static FILE* g_debugFile = NULL;
 void log_file(const char *format, ...)
 {
 	char buf[256];
-	static FILE *file = NULL;
+	static bool firstTime = true;
 	int error = 0;
 	
-	if (file == NULL) {
-		error = fopen_s(&file, "C:\\Temp\\_debug_data.txt", "wt");
-		if (error != 0) {
-			log_debug("[DBG] Error: %d when creating _debug_data.txt", error);
+	if (firstTime)
+	{
+		firstTime = false;
+		error = fopen_s(&g_debugFile, ".\\debug_log.txt", "wt");
+		if (error != 0)
+		{
+			log_debug("[DBG] Error: %d when creating debug_log.txt", error);
 			return;
 		}
 	}
 
-	if (file == NULL)
+	if (g_debugFile == NULL)
 		return;
 
 	va_list args;
 	va_start(args, format);
 
 	vsprintf_s(buf, 256, format, args);
-	fprintf(file, buf);
-	fflush(file);
+	fprintf(g_debugFile, buf);
+	fflush(g_debugFile);
 
 	va_end(args);
+}
+
+void close_log_file()
+{
+	if (g_debugFile == NULL)
+		return;
+	fclose(g_debugFile);
+	g_debugFile = NULL;
 }
 
 // From: https://stackoverflow.com/questions/27303062/strstr-function-like-that-ignores-upper-or-lower-case

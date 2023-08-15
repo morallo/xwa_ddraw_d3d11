@@ -1995,7 +1995,6 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			log_debug("[DBG] NULL mission index");
 		log_debug("[DBG] [INT] current region: %d", PlayerDataTable[*g_playerIndex].currentRegion);
 		log_debug("[DBG] s_XwaGlobalLightsCount: %d", *s_XwaGlobalLightsCount);
-		log_file("[DBG] s_XwaGlobalLightsCount: %d, maxLights: %d\n", *s_XwaGlobalLightsCount, maxLights);
 		//DumpGlobalLights();
 	}
 
@@ -2110,18 +2109,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
 					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
 				);
-				/*
-				log_file("[DBG] light[%d], I: %0.3f: i: %0.3f, m1C: %0.3f, V:[%0.3f, %0.3f, %0.3f], COL: (%0.3f, %0.3f, %0.3f), col: (%0.3f, %0.3f, %0.3f)\n",
-					i, s_XwaGlobalLights[i].Intensity, intensity, s_XwaGlobalLights[i].m1C,
-					g_ShadingSys_PSBuffer.LightVector[i].x, g_ShadingSys_PSBuffer.LightVector[i].y, g_ShadingSys_PSBuffer.LightVector[i].z,
-					s_XwaGlobalLights[i].ColorR, s_XwaGlobalLights[i].ColorG, s_XwaGlobalLights[i].ColorB,
-					g_ShadingSys_PSBuffer.LightColor[i].x, g_ShadingSys_PSBuffer.LightColor[i].y, g_ShadingSys_PSBuffer.LightColor[i].z
-				);
-				*/
 			}
 		}
-		if (g_bDumpSSAOBuffers)
-			log_file("[DBG] maxIdx: %d, maxIntensity: %0.3f\n\n", maxIdx, maxIntensity);
+
 		if (*g_playerInHangar) {
 			// I don't remember why we're forcing 2 lights in the hangar, but removing the
 			// next line disables hangar shadow mapping, so they are related somehow; see
