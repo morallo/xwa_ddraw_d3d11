@@ -527,14 +527,12 @@ HRESULT DeviceResources::Initialize()
 	if (SUCCEEDED(hr))
 	{
 		static int counter = 0;
-		log_file("LoadMainResources(): %d\n", counter++);
 		hr = this->LoadMainResources();
 	}
 
 	if (SUCCEEDED(hr))
 	{
 		static int counter = 0;
-		log_file("LoadResources(): %d\n", counter++);
 		hr = this->LoadResources();
 	}
 
@@ -3897,8 +3895,6 @@ HRESULT DeviceResources::LoadMainResources()
 {
 	HRESULT hr = S_OK;
 
-	log_file("LoadMainResources 0\n");
-
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShader, sizeof(g_MainVertexShader), nullptr, &_mainVertexShader)))
 		return hr;
 
@@ -3907,8 +3903,6 @@ HRESULT DeviceResources::LoadMainResources()
 		{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
-
-	log_file("LoadMainResources 1\n");
 
 	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_MainVertexShader, sizeof(g_MainVertexShader), &_mainInputLayout)))
 		return hr;
@@ -3949,11 +3943,8 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
-	log_file("LoadMainResources 2\n");
-
 	if (g_bUseSteamVR || g_bEnableVR)
 	{
-		log_file("LoadMainResources 3\n");
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShaderVR, sizeof(g_MainVertexShaderVR), nullptr, &_mainVertexShaderVR)))
 			return hr;
 
@@ -3989,7 +3980,6 @@ HRESULT DeviceResources::LoadMainResources()
 	}
 	else
 	{
-		log_file("LoadMainResources 4\n");
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
 			return hr;
 
@@ -4014,8 +4004,6 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 			return hr;
 	}
-
-	log_file("LoadMainResources 5\n");
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
 		return hr;
@@ -4053,12 +4041,10 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
 		return hr;
 
-	log_file("LoadMainResources 6\n");
 	if (g_bBloomEnabled)
 	{
 		if (g_bUseSteamVR || g_bEnableVR)
 		{
-			log_file("LoadMainResources 7\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
 				return hr;
 
@@ -4073,7 +4059,6 @@ HRESULT DeviceResources::LoadMainResources()
 		}
 		else
 		{
-			log_file("LoadMainResources 8\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 				return hr;
 
@@ -4088,13 +4073,11 @@ HRESULT DeviceResources::LoadMainResources()
 		}
 	}
 
-	log_file("LoadMainResources 9\n");
 	if (g_bAOEnabled)
 	{
 
 		if (g_bUseSteamVR || g_bEnableVR)
 		{
-			log_file("LoadMainResources 10\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
 				return hr;
 
@@ -4115,7 +4098,6 @@ HRESULT DeviceResources::LoadMainResources()
 		}
 		else
 		{
-			log_file("LoadMainResources 11\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
 				return hr;
 
@@ -4135,7 +4117,6 @@ HRESULT DeviceResources::LoadMainResources()
 				return hr;
 		}
 
-		log_file("LoadMainResources 12\n");
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
 			return hr;
 
@@ -4155,7 +4136,6 @@ HRESULT DeviceResources::LoadMainResources()
 		//	return hr;
 	}
 
-	log_file("LoadMainResources 13\n");
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
 	{
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_MainPixelShaderBpp2ColorKey20, sizeof(g_MainPixelShaderBpp2ColorKey20), nullptr, &_mainPixelShaderBpp2ColorKey20)))
@@ -4265,7 +4245,6 @@ HRESULT DeviceResources::LoadMainResources()
 	vertexBufferData.SysMemPitch = 0;
 	vertexBufferData.SysMemSlicePitch = 0;
 
-	log_file("LoadMainResources 14\n");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &this->_mainVertexBuffer)))
 		return hr;
 	this->_steamVRPresentBuffer = NULL;
@@ -4289,11 +4268,9 @@ HRESULT DeviceResources::LoadMainResources()
 	indexBufferData.SysMemPitch = 0;
 	indexBufferData.SysMemSlicePitch = 0;
 
-	log_file("LoadMainResources 15\n");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&indexBufferDesc, &indexBufferData, &this->_mainIndexBuffer)))
 		return hr;
 
-	log_file("LoadMainResources 16\n");
 	return hr;
 }
 
@@ -4301,7 +4278,6 @@ HRESULT DeviceResources::LoadResources()
 {
 	HRESULT hr = S_OK;
 
-	log_file("LoadResources 0\n");
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &_vertexShader)))
 		return hr;
 
@@ -4343,7 +4319,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LevelsPS, sizeof(g_LevelsPS), nullptr, &_levelsPS)))
 		return hr;
 
-	log_file("LoadResources 1\n");
 	if (g_bDynCockpitEnabled) {
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
 			return hr;
@@ -4397,17 +4372,14 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
-	log_file("LoadResources 2\n");
 	if (g_bEnableVR)
 	{
-		log_file("LoadResources 3\n");
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
 			return hr;
 	}
 
 	if (g_bUseSteamVR || g_bEnableVR)
 	{
-		log_file("LoadResources 4\n");
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), nullptr, &_datVertexShaderVR)))
 			return hr;
 
@@ -4446,7 +4418,6 @@ HRESULT DeviceResources::LoadResources()
 	}
 	else
 	{
-		log_file("LoadResources 5\n");
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
 			return hr;
 
@@ -4475,7 +4446,6 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 	}
 
-	log_file("LoadResources 6\n");
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
 		return hr;
 
@@ -4512,12 +4482,10 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderNoGlass, sizeof(g_PixelShaderNoGlass), nullptr, &_noGlassPS)))
 		return hr;
 
-	log_file("LoadResources 7\n");
 	if (g_bBloomEnabled)
 	{
 		if (g_bUseSteamVR || g_bEnableVR)
 		{
-			log_file("LoadResources 8\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
 				return hr;
 
@@ -4532,7 +4500,6 @@ HRESULT DeviceResources::LoadResources()
 		}
 		else
 		{
-			log_file("LoadResources 9\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
 				return hr;
 
@@ -4547,12 +4514,10 @@ HRESULT DeviceResources::LoadResources()
 		}
 	}
 
-	log_file("LoadResources 10\n");
 	if (g_bAOEnabled)
 	{
 		if (g_bUseSteamVR || g_bEnableVR)
 		{
-			log_file("LoadResources 11\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
 				return hr;
 
@@ -4573,7 +4538,6 @@ HRESULT DeviceResources::LoadResources()
 		}
 		else
 		{
-			log_file("LoadResources 12\n");
 			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
 				return hr;
 
@@ -4593,7 +4557,6 @@ HRESULT DeviceResources::LoadResources()
 				return hr;
 		}
 
-		log_file("LoadResources 13\n");
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
 			return hr;
 
@@ -4612,7 +4575,6 @@ HRESULT DeviceResources::LoadResources()
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
 	}
-	log_file("LoadResources 14\n");
 
 	D3D11_RASTERIZER_DESC rsDesc;
 	rsDesc.FillMode = g_config.WireframeFillMode ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;
@@ -4684,7 +4646,6 @@ HRESULT DeviceResources::LoadResources()
 	constantBufferDesc.StructureByteStride = 0;
 
 	constantBufferDesc.ByteWidth = 80;
-	log_file("LoadResources 15\n");
 	// This was the original constant buffer. Now it's called _VSConstantBuffer
 	static_assert(sizeof(VertexShaderCBuffer) == 80, "sizeof(VertexShaderCBuffer) must be 80");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSConstantBuffer)))
@@ -4775,11 +4736,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
 		return hr;
 
-	log_file("LoadResources 16\n");
 	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
 	InitOPTnames();
 	InitCraftMaterials();
-	log_file("LoadResources 17\n");
 	// Apply the external FOV parameters
 	// LoadFocalLength(); // This doesn't work: looks like XWA overwrites these params after this call.
 	return hr;
