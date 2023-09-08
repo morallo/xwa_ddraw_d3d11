@@ -115,7 +115,7 @@ struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 	float4 bloom : SV_TARGET1;
-	float4 bent  : SV_TARGET2;
+	//float4 bent  : SV_TARGET2; // The bent buffer does not exist anymore
 };
 
 // From: https://www.shadertoy.com/view/MdfXWr
@@ -220,7 +220,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
-	output.bent = 0;
+	//output.bent = 0;
 
 	float2 input_uv_sub   = input.uv * amplifyFactor;
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
