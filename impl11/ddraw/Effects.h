@@ -177,7 +177,7 @@ inline int32_t&    BLASGetMeshVertices(BLASData& X) { return std::get<4>(X); }
 // - MeshKey is scene->MeshVertices
 // - Set is the LOD index. We can get the LOD from its FaceGroup.
 using BLASKey_t = std::tuple<int, int>;
-// Map of unique IDs for BLASes. (MeshKey, LOD) --> BlasId
+// Map of unique IDs for BLASes. (MeshKey, LOD) --> BlasId. Gets cleared on OnSizeChanged()
 extern std::map<BLASKey_t, int> g_BLASIdMap;
 
 // TLAS leaf uniqueness is determined by the BlasID and its centroid.
@@ -186,11 +186,11 @@ using IDCentroid_t = std::tuple<int32_t, float, float, float>;
 
 // The {Single|Coalesced} BLAS map: meshKey --> MeshData (only used in the Tech Room)
 extern std::map<int32_t, MeshData> g_LBVHMap;
-// The Multiple BLAS map: BlasId --> BLASData
+// The Multiple BLAS map: BlasId --> BLASData. Gets cleared on OnSizeChanged().
 extern std::map<int, BLASData> g_BLASMap;
-// The TLAS map: (BlasId, centroid) --> matrixSlot
+// The TLAS map: (BlasId, centroid) --> matrixSlot. Gets cleared at the beginning of each frame.
 extern std::map<IDCentroid_t, int32_t> g_TLASMap;
-// The TLAS matrix buffer (1:1 correspondence with g_TLASMap)
+// The TLAS matrix buffer (1:1 correspondence with g_TLASMap). The matrix slot index is reset each frame.
 extern std::vector<Matrix4> g_TLASMatrices;
 #undef DEBUG_RT
 #ifdef DEBUG_RT
