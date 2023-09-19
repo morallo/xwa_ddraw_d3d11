@@ -110,7 +110,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask and provide default output values
 	output.bloom = 0;
-	output.color = texelColor;
+	output.color = float4(texelColor.rgb, alpha);
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 
@@ -139,9 +139,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// material stays shadeless. This isn't a proper fix. Instead, we should get rid of
 	// the multiple materials in channel ssaoMask.r and instead just keep separate channels
 	// for metallicity, glossiness, etc. This should work for now, though.
-	output.ssaoMask = float4(fSSAOMaskVal/alpha, glossiness, specInt, alpha);
+	output.ssaoMask = float4(fSSAOMaskVal/alpha, glossiness, specInt, texelColor.a);
 	// SS Mask: unused, Specular Value, Shadeless
-	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
+	output.ssMask = float4(0, fSpecVal, fAmbient, texelColor.a);
 
 	// The regular layer might have transparency. If we're in hyperspace, we don't want to show
 	// the background through it, so we mix it with a black color

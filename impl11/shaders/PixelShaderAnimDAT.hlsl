@@ -64,7 +64,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask and provide default output values
 	output.bloom = 0;
-	output.color = texelColor;
+	output.color = float4(texelColor.rgb, alpha);
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 
@@ -74,9 +74,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
-	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
+	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, texelColor.a);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, texelColor.a);
 
 	// Looks like we don't need to blend with a black background anymore.
 	//if (bInHyperspace) output.color = float4(lerp(float3(0, 0, 0), output.color.rgb, alpha), 1);
