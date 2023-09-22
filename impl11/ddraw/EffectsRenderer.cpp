@@ -3852,9 +3852,11 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 			if (g_bUseCentroids)
 			{
 				XwaVector3 xwacenter = center_it->second;
-				Vector3 center(xwacenter.x, xwacenter.y, xwacenter.z);
-				center = W * center; // Now the center is in WorldView space
-				centroid = center;   // And we override the centroid with the center of mass now
+				Vector4 center(xwacenter.x, xwacenter.y, xwacenter.z, 1.0f);
+				center = W * center;   // Now the center is in WorldView space
+				centroid.x = center.x; // And we override the centroid with the center of mass now
+				centroid.y = center.y;
+				centroid.z = center.z;
 			}
 
 			IDCentroid_t IDCentroidKey = IDCentroid_t(blasID, centroid.x, centroid.y, centroid.z);
