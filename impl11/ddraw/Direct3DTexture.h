@@ -116,6 +116,8 @@ public:
 	bool is_DS2_Reactor_Explosion;
 	// True if this is the energy field surrounding the reactor core.
 	//bool is_DS2_Energy_Field;
+	// True if this is a map icon
+	bool is_MapIcon;
 	// The following encodes whether this is a warning light or not (and which type)
 	WarningLightEnum WarningLightType;
 	// True if this is an Active Cockpit texture for VR

@@ -266,6 +266,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_BlastMark = false;
 	this->is_DS2_Reactor_Explosion = false;
 	//this->is_DS2_Energy_Field = false;
+	this->is_MapIcon = false;
 	this->WarningLightType = NONE_WLIGHT;
 	this->ActiveCockpitIdx = -1;
 	this->AuxVectorIndex = -1;
@@ -988,6 +989,15 @@ void Direct3DTexture::TagTexture() {
 			this->is_DS2_Reactor_Explosion = true;
 		//if (strstr(surface->_name, "dat,17001,") != NULL) // DSII reactor core explosion animation textures
 		//	this->is_DS2_Energy_Field = true;
+		if ((strstr(surface->_cname, "dat,14800,") != NULL) || // Gray map icons
+		    (strstr(surface->_cname, "dat,14610,") != NULL) || // Green map icons
+		    (strstr(surface->_cname, "dat,14620,") != NULL) || // Red map icons
+		    (strstr(surface->_cname, "dat,14630,") != NULL) || // Blue map icons
+		    (strstr(surface->_cname, "dat,14640,") != NULL) || // Yellow map icons
+		    (strstr(surface->_cname, "dat,14650,") != NULL))   // Purple map icons
+		{
+			this->is_MapIcon = true;
+		}
 		
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
@@ -1589,6 +1599,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_BlastMark = d3dTexture->is_BlastMark;
 	this->is_DS2_Reactor_Explosion = d3dTexture->is_DS2_Reactor_Explosion;
 	//this->is_DS2_Energy_Field = d3dTexture->is_DS2_Energy_Field;
+	this->is_MapIcon = d3dTexture->is_MapIcon;
 	this->WarningLightType = d3dTexture->WarningLightType;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	this->AuxVectorIndex = d3dTexture->AuxVectorIndex;

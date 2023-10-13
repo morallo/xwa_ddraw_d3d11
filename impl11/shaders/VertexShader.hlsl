@@ -87,7 +87,8 @@ PixelShaderInput main(VertexShaderInput input)
 		// float z = Zfar / input.pos.w;
 		// s_V0x05B46B4_Offset is nonzero only in the Tech Room. It's used to
 		// make the engine glows easier to see.
-		float z = s_V0x05B46B4 / input.pos.w - s_V0x05B46B4_Offset;
+		const float w = bIsMapIcon ? (1.0 - input.pos.w) : input.pos.w;
+		const float z = s_V0x05B46B4 / w - s_V0x05B46B4_Offset;
 		// st0 = Znear / z;
 		st0 = s_V0x08B94CC / z;
 	}

@@ -1580,12 +1580,12 @@ inline void backProjectMetric(UINT index, Vector3 *P) {
 	backProjectMetric(g_OrigVerts[index].sx, g_OrigVerts[index].sy, g_OrigVerts[index].rhw, P);
 }
 
-inline void InverseTransformProjectionScreen(UINT index, Vector3 *P) {
+inline void InverseTransformProjectionScreen(UINT index, Vector3 *P, bool invertZ=false) {
 	float4 input;
 	input.x = g_OrigVerts[index].sx;
 	input.y = g_OrigVerts[index].sy;
 	input.z = g_OrigVerts[index].sz;
-	input.w = g_OrigVerts[index].rhw;
+	input.w = invertZ ? (1.0f - g_OrigVerts[index].rhw) : g_OrigVerts[index].rhw;
 	float3 pos = InverseTransformProjectionScreen(input);
 	P->x = pos.x * OPT_TO_METERS;
 	P->y = pos.y * OPT_TO_METERS;
@@ -1994,9 +1994,9 @@ Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEye
 bool g_bDumpOBJEnabled = false;
 FILE *g_DumpOBJFile = NULL, *g_DumpLaserFile = NULL;
 int g_iOBJFileIdx = 0;
-int g_iDumpOBJIdx = 1, g_iDumpLaserOBJIdx = 1;
+int g_iDumpOBJIdx = 1, g_iDumpLaserOBJIdx = 1, g_iDumpFaceIdx = 1;
 
-void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, int &OBJIdx, char *name=nullptr)
+void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, int &OBJIdx, char *name=nullptr, bool invertZ=false)
 {
 	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
 	uint32_t index;
@@ -2005,7 +2005,6 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 	//Vector2 v0, v1, v2;
 	//float w0, w1, w2;
 	std::vector<int> indices;
-	int FaceIdx = 1;
 
 	if (file == NULL) {
 		log_debug("[DBG] Cannot dump vertices, NULL file ptr");
@@ -2015,6 +2014,8 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 #define METRIC 1
 
 	// DEPTH-BUFFER-CHANGE DONE
+	// Map Icons have an "inverted Z". Look in VertexShader.hlsl for details. Here this "fix" is applied
+	// when invertZ is true.
 	// Start a new object
 	if (name != nullptr) fprintf(file, "# %s\n", name);
 	float *Znear = (float *)0x08B94CC;
@@ -2030,7 +2031,7 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 	fprintf(file, "# projDeltaX,Y: %0.6f, %0.6f\n", projectionDeltaX, projectionDeltaY);
 	fprintf(file, "# viewportScale: %0.6f, %0.6f, %0.6f\n",
 		g_VSCBuffer.viewportScale[0], g_VSCBuffer.viewportScale[1], g_VSCBuffer.viewportScale[2]);
-	fprintf(file, "o obj_%d\n", OBJIdx);
+	fprintf(file, "o OBJ_%d\n", OBJIdx);
 	indices.clear();
 	for (uint32_t i = 0; i < instruction->wCount; i++)
 	{
@@ -2039,7 +2040,7 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 		//v0.x = g_OrigVerts[index].sx; v0.y = g_OrigVerts[index].sy; w0 = 1.0f / g_OrigVerts[index].rhw;
 #if METRIC == 1
 		//backProjectMetric(index, &tempv0);
-		InverseTransformProjectionScreen(index, &tempv0);
+		InverseTransformProjectionScreen(index, &tempv0, invertZ);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
 #else
 		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
@@ -2050,7 +2051,7 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 		//v1.x = g_OrigVerts[index].sx; v1.y = g_OrigVerts[index].sy; w1 = 1.0f / g_OrigVerts[index].rhw;
 #if METRIC == 1
 		//backProjectMetric(index, &tempv1);
-		InverseTransformProjectionScreen(index, &tempv1);
+		InverseTransformProjectionScreen(index, &tempv1, invertZ);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
 #else
 		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
@@ -2061,7 +2062,7 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 		//v2.x = g_OrigVerts[index].sx; v2.y = g_OrigVerts[index].sy; w2 = 1.0f / g_OrigVerts[index].rhw;
 #if METRIC == 1
 		//backProjectMetric(index, &tempv2);
-		InverseTransformProjectionScreen(index, &tempv2);
+		InverseTransformProjectionScreen(index, &tempv2, invertZ);
 		fprintf(file, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
 #else
 		fprintf(file, "v %0.6f %0.6f %0.6f  # %0.6f\n",
@@ -2070,9 +2071,9 @@ void DumpVerticesToOBJ(FILE *file, LPD3DINSTRUCTION instruction, UINT curIndex, 
 
 		if (!g_config.D3dHookExists) triangle++;
 
-		indices.push_back(FaceIdx++);
-		indices.push_back(FaceIdx++);
-		indices.push_back(FaceIdx++);
+		indices.push_back(g_iDumpFaceIdx++);
+		indices.push_back(g_iDumpFaceIdx++);
+		indices.push_back(g_iDumpFaceIdx++);
 	}
 	fprintf(file, "\n");
 
@@ -2811,7 +2812,7 @@ HRESULT Direct3DDevice::Execute(
 
 			fopen_s(&g_DumpOBJFile, sFileNameOBJ, "wt");
 			fopen_s(&g_DumpLaserFile, sFileNameLaser, "wt");
-			g_iDumpOBJIdx = 1; g_iDumpLaserOBJIdx = 1;
+			g_iDumpOBJIdx = 1; g_iDumpLaserOBJIdx = 1; g_iDumpFaceIdx = 1;
 			log_debug("[DBG] [SHW] sm_FOVscale: %0.3f", g_ShadowMapVSCBuffer.sm_FOVscale);
 			log_debug("[DBG] [SHW] sm_y_center: %0.3f", g_ShadowMapVSCBuffer.sm_y_center);
 			log_debug("[DBG] [SHW] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
@@ -3317,7 +3318,7 @@ HRESULT Direct3DDevice::Execute(
 				Vector2 SunCentroid2D;
 				const bool bLastTextureSelectedNotNULL = (lastTextureSelected != NULL);
 				bool bIsLaser = false, bIsLightTexture = false, bIsText = false, bIsReticle = false, bIsReticleCenter = false;
-				bool bIsGUI = false, bIsLensFlare = false, bIsSun = false;
+				bool bIsGUI = false, bIsLensFlare = false, bIsSun = false, bIsMapIcon = false;
 				bool bIsCockpit = false, bIsGunner = false, bIsExterior = false, bIsDAT = false;
 				bool bIsActiveCockpit = false, bIsBlastMark = false, bIsTargetHighlighted = false;
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
@@ -3367,6 +3368,7 @@ HRESULT Direct3DDevice::Execute(
 					bIsBlastMark = lastTextureSelected->is_BlastMark;
 					//bIsSkyDome = lastTextureSelected->is_SkydomeLight;
 					bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
+					bIsMapIcon = lastTextureSelected->is_MapIcon;
 					bIsElectricity = lastTextureSelected->is_Electricity;
 					bHasMaterial = lastTextureSelected->bHasMaterial;
 					bIsExplosion = lastTextureSelected->is_Explosion;
@@ -4652,7 +4654,7 @@ HRESULT Direct3DDevice::Execute(
 				// We should also avoid touching the GUI elements
 				// When the Death Star is destroyed s_XwaGlobalLightsCount becomes 0, we can use the original illumination in that case.
 				if (/* (*s_XwaGlobalLightsCount == 0) || */
-					(g_bRendering3D && !g_bStartedGUI && !g_bIsTrianglePointer)) {
+					(g_bRendering3D && !g_bStartedGUI && !g_bIsTrianglePointer && !bIsMapIcon)) {
 					bModifiedShaders = true;
 					g_PSCBuffer.fDisableDiffuse = 1.0f;
 				}
@@ -5012,7 +5014,7 @@ HRESULT Direct3DDevice::Execute(
 				{
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
 						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
-						lastTextureSelected->is_Electricity || bIsExplosion ||
+						lastTextureSelected->is_Electricity || bIsExplosion || bIsMapIcon ||
 						lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
@@ -5348,6 +5350,11 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.fBloomStrength = g_BloomConfig.fBracketStrength;
 				}
 
+				if (bIsMapIcon) {
+					bModifiedShaders = true;
+					g_VSCBuffer.bIsMapIcon = true;
+				}
+
 				// Transparent textures are currently used with DC to render floating text. However, if the erase region
 				// commands are being ignored, then this will cause the text messages to be rendered twice. To avoid
 				// having duplicated messages, we're removing these textures here when the erase_region commmands are
@@ -5381,10 +5388,10 @@ HRESULT Direct3DDevice::Execute(
 					DumpVerticesToOBJ(g_DumpLaserFile, instruction, currentIndexLocation, g_iDumpLaserOBJIdx);
 				}
 				*/
-				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsEngineGlow) {
-					log_debug("[DBG] Dumping OBJ (EngineGlow): obj_%d, %s", g_iDumpOBJIdx, lastTextureSelected->_surface->_cname);
+				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && (bIsEngineGlow || bIsMapIcon)) {
+					log_debug("[DBG] Dumping OBJ (bIsEngineGlow|bIsMapIcon): obj_%d, %s", g_iDumpOBJIdx, lastTextureSelected->_surface->_cname);
 					DumpVerticesToOBJ(g_DumpOBJFile, instruction, currentIndexLocation,
-						g_iDumpOBJIdx, lastTextureSelected->_surface->_cname);
+						g_iDumpOBJIdx, lastTextureSelected->_surface->_cname, bIsMapIcon);
 				}
 				if (g_bDumpSSAOBuffers && g_bDumpOBJEnabled && bIsExplosion) {
 					log_debug("[DBG] Dumping OBJ (bIsExplosion): obj_%d, %s", g_iDumpLaserOBJIdx, lastTextureSelected->_surface->_cname);
