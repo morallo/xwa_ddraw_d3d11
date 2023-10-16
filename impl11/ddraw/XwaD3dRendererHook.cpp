@@ -1799,8 +1799,7 @@ void D3dRendererOptLoadHook(int handle)
 		// Re-create the BVH buffers:
 		g_current_renderer->_isRTInitialized = false;
 		ClearGlobalLBVHMap();
-		// Loading external BVH files is no longer needed.
-		//g_current_renderer->_lbvh = LoadLBVH(s_XwaIOFileName);
+		g_meshToFGMap.clear(); // Called only in the Tech Room to properly compute the tangent map each time an OPT is loaded
 	}
 
 	// This hook is called every time an OPT is loaded. This can happen in the
