@@ -67,14 +67,12 @@ float3 perturb_normal(float3 N, float3 V, float2 texcoord, float3 NMCol)
 	// V: the view vector (vertex to eye)
 	// NMCol: the raw sampled color from the blue-ish normal map.
 	//NMCol.rgb = normalize((NMCol.rgb - 0.5) * 2.0); // Looks like we don't actually need to normalize this
-	NMCol.rgb = (NMCol.rgb - 0.5) * 2.0;
+	NMCol.rgb = (NMCol.rgb * 2.0) - 1.0;
 
 	float3x3 TBN = cotangent_frame(N, -V, texcoord); // V is the view vector, so -V is equivalent to the vertex 3D pos
 	//return normalize(mul(NMCol, TBN));
-	// We flip the Z coordinate for... reasons. See cotangent_frame() for the explanation.
 	// I _think_ mul(float3, float3x3) is the right order because of the way the matrix was built.
 	float3 tempN = normalize(mul(NMCol, TBN));
-	tempN.z = -tempN.z;
 	return tempN;
 }
 
@@ -84,14 +82,12 @@ float3 perturb_normal(float3x3 TBN, float3 N, float3 NMCol)
 	// N: the interpolated vertex normal and
 	// NMCol: the raw sampled color from the blue-ish normal map.
 	//NMCol.rgb = normalize((NMCol.rgb - 0.5) * 2.0); // Looks like we don't actually need to normalize this
-	NMCol.rgb = (NMCol.rgb - 0.5) * 2.0;
+	NMCol.rgb = (NMCol.rgb * 2.0) - 1.0;
 
 	//float3x3 TBN = cotangent_frame(N, -V, texcoord); // V is the view vector, so -V is equivalent to the vertex 3D pos
 	//return normalize(mul(NMCol, TBN));
-	// We flip the Z coordinate for... reasons. See cotangent_frame() for the explanation.
 	// I _think_ mul(float3, float3x3) is the right order because of the way the matrix was built.
 	float3 tempN = normalize(mul(NMCol, TBN));
-	tempN.z = -tempN.z;
 	return tempN;
 }
 

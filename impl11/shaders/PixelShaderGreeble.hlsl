@@ -97,7 +97,7 @@ void Greeble(inout float4 color, inout float4 normal, in float2 tex, in float3 P
 	uint BlendingMode1 = GreebleControl & 0xF;
 	uint BlendingMode2 = (GreebleControl >> 4) & 0xF;
 	//uint BlendingMode3 = (GreebleControl >> 8) & 0xF;
-	bool bUsesNormalMap = (GreebleControl & 0x10000) != 0x0;
+	//bool bUsesNormalMap = (GreebleControl & 0x10000) != 0x0;
 	bool bIsLightmapGreeble = (GreebleControl & 0x20000) != 0x0;
 	//float3x3 TBN;
 
@@ -195,11 +195,11 @@ void Greeble(inout float4 color, inout float4 normal, in float2 tex, in float3 P
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	float4 texelColor		= texture0.Sample(sampler0, input.tex);
-	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
-	float  alpha = texelColor.w;
-	float3 P = input.pos3D.xyz;
-	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float4 texelColor     = texture0.Sample(sampler0, input.tex);
+	float3 normalMapColor = bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
+	float  alpha          = texelColor.w;
+	float3 P              = input.pos3D.xyz;
+	float  SSAOAlpha      = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask.
 	output.bloom = 0;
 	output.color = texelColor;
