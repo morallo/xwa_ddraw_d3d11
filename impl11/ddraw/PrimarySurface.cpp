@@ -1954,6 +1954,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 	Vector4 light;
 	int i;
 
+	const bool bDS2Mission = (missionIndexLoaded != nullptr) && (*missionIndexLoaded == DEATH_STAR_MISSION_INDEX);
+
 	if (g_bHeadLightsAutoTurnOn) {
 		if (*s_XwaGlobalLightsCount == 0) {
 			//log_debug("[DBG] AUTO Turning headlights ON");
@@ -2065,7 +2067,8 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			g_ShadingSys_PSBuffer.LightColor[i].z = Lightness * g_fXWALightsIntensity * col.z;
 			g_ShadingSys_PSBuffer.LightColor[i].w = intensity;
 
-			if (g_ShadingSys_PSBuffer.HDREnabled) {
+			// Light normalization does not look great in the DS2 mission
+			if (g_ShadingSys_PSBuffer.HDREnabled && !bDS2Mission) {
 				g_ShadingSys_PSBuffer.LightColor[i].x *= g_fHDRLightsMultiplier;
 				g_ShadingSys_PSBuffer.LightColor[i].y *= g_fHDRLightsMultiplier;
 				g_ShadingSys_PSBuffer.LightColor[i].z *= g_fHDRLightsMultiplier;
@@ -2085,7 +2088,10 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 				{
 					if (g_bDumpSSAOBuffers)
 						log_debug("[DBG] Normalizing light %d, col:[%0.3f, %0.3f, %0.3f]", i, col.x, col.y, col.z);
-					col = 0.9f * g_fHDRLightsMultiplier * col.normalize();
+					if (!bDS2Mission)
+						col = 0.9f * g_fHDRLightsMultiplier * col.normalize();
+					else
+						col = 0.9f * col.normalize();
 					if (g_bDumpSSAOBuffers)
 						log_debug("[DBG] New color:[%0.3f, %0.3f, %0.3f]", col.x, col.y, col.z);
 					g_ShadingSys_PSBuffer.LightColor[i].x = col.x;
