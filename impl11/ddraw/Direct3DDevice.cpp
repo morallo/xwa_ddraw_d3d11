@@ -4780,6 +4780,7 @@ HRESULT Direct3DDevice::Execute(
 				// Render the procedural explosions
 				if (bIsExplosion && bHasMaterial)
 				{
+					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_EXPLOSION;
 					if (lastTextureSelected->material.ExplosionBlendMode > 0 ||
 						// The newest explosions by MechDonald are bigger and longer. Unfortunately, during the DS2 mission, this can
 						// block a lot of visibility in the tunnel. So if we're in the DS2 mission, let's use procedural explosions

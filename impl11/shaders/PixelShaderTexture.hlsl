@@ -135,8 +135,16 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
 		output.normal.a = 0;
-		output.ssaoMask.a = 0;
-		output.ssMask.a = 0;
+		// The reason explosions look "washed out" is that the ssao/ssMask is fully transparent, meaning
+		// that whatever is behind the explosion will affect how it looks. To fix that problem, we just
+		// need to use the explosion's transparency and blend its material properties. That way, the
+		// explosion becomes solid.
+		if (ExclusiveMask != SPECIAL_CONTROL_EXPLOSION)
+		{
+			output.ssaoMask.a = 0;
+			output.ssMask.a = 0;
+		}
+
 		float3 color = texelColor.rgb * input.color.xyz;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
@@ -148,6 +156,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		} 
 		output.color = float4(color, alpha);
 		output.bloom = float4(fBloomStrength * output.color.rgb, alpha);
+
+		// This block applies the Tech Room hologram effect to the engine glows
 		if (rand1 > 0.5)
 		{
 			const float  luma = dot(output.color.rgb, float3(0.299, 0.587, 0.114));
@@ -156,6 +166,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			const float4 mixed_color = lerp(output.color, luma * holo_col, 0.5f);
 			output.color = mixed_color * scans;
 		}
+
 		return output;
 	}
 
