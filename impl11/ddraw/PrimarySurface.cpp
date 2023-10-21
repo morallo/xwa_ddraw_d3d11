@@ -2075,7 +2075,9 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 			}
 
 			// Normalize low-intensity lights
-			if (g_bNormalizeLights && g_XWALightInfo[i].bIsSun)
+			// Do not normalize the lights while parked in the hangar (so that we can see red alert lights)
+			// Do not normalize lights when jumping into hyperspace
+			if (g_bNormalizeLights && g_XWALightInfo[i].bIsSun && !*g_playerInHangar && g_HyperspacePhaseFSM == HS_INIT_ST)
 			{
 				Vector3 col;
 				col.x = g_ShadingSys_PSBuffer.LightColor[i].x;
