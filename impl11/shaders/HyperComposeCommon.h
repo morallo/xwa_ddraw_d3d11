@@ -91,7 +91,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	// if I can fix the stupid blend operation to yield alpha=1 from PixelShaderDCHolo.
 	// So, instead, let's multiply the alpha for the foreground by 10 so that we can
 	// work around this stupid stupid stupid (stupid) problem.
-	float fg_alpha = saturate(10.0 * fgColor.a);
+	//float fg_alpha = saturate(10.0 * fgColor.a);
+	// Fast-forward several months into the future, and the stupid stupid stupid (stupid) hack
+	// above appears to have been resolved finally. The fix is really in the DestBlendAlpha/BlendOpAlpha
+	// settings in XwaD3dRenderHook and how they control blending between semi-transparent surfaces like
+	// the cockpit glass and the holograms. The following appear to work fine now:
+	float fg_alpha = fgColor.a;
 	float lightness = dot(0.333, effectColor.rgb);
 	// Combine the background with the hyperspace effect
 	if (hyperspace_phase == 2) {
