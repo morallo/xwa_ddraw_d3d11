@@ -73,6 +73,7 @@ AABB g_GlobalCentroidAABB; // The DirectBVH4 builder needs this AABB to compute 
 XwaVector3 g_CameraRange;
 XwaVector3 g_GlobalRange;
 LBVH* g_TLASTree = nullptr;
+LBVH* g_ACTLASTree = nullptr;
 std::vector<TLASLeafItem> tlasLeaves;
 std::vector<TLASLeafItem> ACtlasLeaves; // Active Cockpit TLAS leaves
 
@@ -642,7 +643,7 @@ void DumpTLASLeaves(std::vector<TLASLeafItem> &tlasLeaves, char *fileName)
 	log_debug("[DBG] [BVH] Dumped: %d tlas leaves", counter);
 }
 
-void DumpTLASTree(char* sFileName, bool useMetricScale)
+void DumpTLASTree(LBVH *g_TLASTree, char* sFileName, bool useMetricScale)
 {
 	BVHNode* nodes = (BVHNode*)(g_TLASTree->nodes);
 	FILE* file = NULL;
@@ -664,7 +665,8 @@ void DumpTLASTree(char* sFileName, bool useMetricScale)
 
 	int root = nodes[0].rootIdx;
 	log_debug("[DBG] [BVH] Dumping %d nodes to OBJ", numNodes - root);
-	for (int i = root; i < numNodes; i++) {
+	for (int i = root; i < numNodes; i++)
+	{
 		if (nodes[i].ref != -1)
 		{
 			// TLAS leaf
@@ -775,8 +777,12 @@ void DumpTLASTree(char* sFileName, bool useMetricScale)
 
 void BuildTLAS(std::vector<TLASLeafItem> &tlasLeaves, bool isACTLAS=false)
 {
-	g_iRTMeshesInThisFrame = tlasLeaves.size();
-	const uint32_t numLeaves = g_iRTMeshesInThisFrame;
+	const uint32_t numLeaves = tlasLeaves.size();
+	if (!isACTLAS)
+	{
+		g_iRTMeshesInThisFrame = numLeaves;
+	}
+
 	if (numLeaves == 0)
 	{
 		//log_debug("[DBG] [BVH] BuildTLAS: numLeaves 0. Early exit.");
@@ -818,7 +824,7 @@ void BuildTLAS(std::vector<TLASLeafItem> &tlasLeaves, bool isACTLAS=false)
 	// Initialize the root
 	QBVHBuffer[0].rootIdx = root;
 	if (g_bDumpSSAOBuffers)
-		log_debug("[DBG] [BVH] TLAS root: %d", root);
+		log_debug("[DBG] [BVH] TLAS root: %d, isACTLAS: %d", root, isACTLAS);
 
 	// delete[] QBVHBuffer;
 
@@ -835,7 +841,22 @@ void BuildTLAS(std::vector<TLASLeafItem> &tlasLeaves, bool isACTLAS=false)
 		{
 			// The single-node tree's AABB matches the global AABB and also contains the OBB
 			//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
-			DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
+			DumpTLASTree(g_TLASTree, ".\\TLASTree.obj", true /* Metric Scale? */);
+		}
+	}
+	else
+	{
+		g_ACTLASTree = new LBVH();
+		g_ACTLASTree->nodes = QBVHBuffer;
+		g_ACTLASTree->numNodes = numQBVHNodes;
+		g_ACTLASTree->scale = 1.0f;
+		g_ACTLASTree->scaleComputed = true;
+
+		if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+		{
+			// The single-node tree's AABB matches the global AABB and also contains the OBB
+			//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
+			DumpTLASTree(g_ACTLASTree, ".\\ACTLASTree.obj", true /* Metric Scale? */);
 		}
 	}
 }
@@ -905,7 +926,7 @@ void BuildTLASDBVH4()
 	{
 		// The single-node tree's AABB matches the global AABB and also contains the OBB
 		//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
-		DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
+		DumpTLASTree(g_TLASTree, ".\\TLASTree.obj", true /* Metric Scale? */);
 	}
 }
 
@@ -1148,7 +1169,7 @@ void BuildTLASEmbree()
 	{
 		// The single-node tree's AABB matches the global AABB and also contains the OBB
 		//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
-		DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
+		DumpTLASTree(g_TLASTree, ".\\TLASTree.obj", true /* Metric Scale? */);
 	}
 }
 
@@ -1574,6 +1595,11 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		{
 			delete g_TLASTree;
 			g_TLASTree = nullptr;
+		}
+		if (g_bActiveCockpitEnabled && g_ACTLASTree != nullptr)
+		{
+			delete g_ACTLASTree;
+			g_ACTLASTree = nullptr;
 		}
 
 		if (g_bRTCaptureCameraAABB && g_iPresentCounter > 2) {
@@ -2302,7 +2328,11 @@ void EffectsRenderer::SceneEnd()
 					BuildTLASDBVH4();
 					break;
 				}
-				// TODO: Build the AC TLAS here
+
+				if (g_bActiveCockpitEnabled)
+				{
+					BuildTLAS(ACtlasLeaves, true /* is AC TLAS */);
+				}
 			}
 			//log_debug("[DBG] [BVH] TLAS Built");
 			ReAllocateAndPopulateMatrixBuffer();
