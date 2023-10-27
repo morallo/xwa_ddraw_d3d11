@@ -59,7 +59,7 @@ class EffectsRenderer : public D3dRenderer
 protected:
 	bool _bLastTextureSelectedNotNULL, _bLastLightmapSelectedNotNULL, _bIsLaser, _bIsCockpit, _bIsExterior;
 	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bDCIsTransparent, _bDCElemAlwaysVisible;
-	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
+	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState, _bIsActiveCockpit;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
 	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady; // _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
@@ -132,6 +132,7 @@ public:
 	void ApplyBloomSettings(float bloomOverride);
 	void ApplyDiegeticCockpit();
 	void ApplyMeshTransform();
+	void ApplyActiveCockpit();
 	void DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();

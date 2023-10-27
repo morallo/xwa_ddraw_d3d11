@@ -74,6 +74,7 @@ XwaVector3 g_CameraRange;
 XwaVector3 g_GlobalRange;
 LBVH* g_TLASTree = nullptr;
 std::vector<TLASLeafItem> tlasLeaves;
+std::vector<TLASLeafItem> ACtlasLeaves; // Active Cockpit TLAS leaves
 
 std::map<std::string, bool> g_RTExcludeOPTNames;
 std::map<uint8_t, bool> g_RTExcludeShipCategories;
@@ -595,13 +596,13 @@ void DumpFrustrumToOBJ()
 	fclose(D3DDumpOBJFile);
 }
 
-void DumpTLASLeaves()
+void DumpTLASLeaves(std::vector<TLASLeafItem> &tlasLeaves, char *fileName)
 {
 	Matrix4 S1;
 
 	int VerticesCount = 1;
 	FILE* D3DDumpOBJFile = NULL;
-	fopen_s(&D3DDumpOBJFile, "./TLASLeaves.obj", "wt");
+	fopen_s(&D3DDumpOBJFile, fileName, "wt");
 	fprintf(D3DDumpOBJFile, "o globalAABB\n");
 
 	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
@@ -772,7 +773,7 @@ void DumpTLASTree(char* sFileName, bool useMetricScale)
 	log_debug("[DBG] [BVH] BVH Dumped to OBJ");
 }
 
-void BuildTLAS()
+void BuildTLAS(std::vector<TLASLeafItem> &tlasLeaves, bool isACTLAS=false)
 {
 	g_iRTMeshesInThisFrame = tlasLeaves.size();
 	const uint32_t numLeaves = g_iRTMeshesInThisFrame;
@@ -822,17 +823,20 @@ void BuildTLAS()
 	// delete[] QBVHBuffer;
 
 	// The previous TLAS tree should be deleted at the beginning of each frame.
-	g_TLASTree = new LBVH();
-	g_TLASTree->nodes = QBVHBuffer;
-	g_TLASTree->numNodes = numQBVHNodes;
-	g_TLASTree->scale = 1.0f;
-	g_TLASTree->scaleComputed = true;
-
-	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+	if (!isACTLAS)
 	{
-		// The single-node tree's AABB matches the global AABB and also contains the OBB
-		//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
-		DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
+		g_TLASTree = new LBVH();
+		g_TLASTree->nodes = QBVHBuffer;
+		g_TLASTree->numNodes = numQBVHNodes;
+		g_TLASTree->scale = 1.0f;
+		g_TLASTree->scaleComputed = true;
+
+		if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled)
+		{
+			// The single-node tree's AABB matches the global AABB and also contains the OBB
+			//g_TLASTree->DumpToOBJ(".\\TLASTree.obj", true /* isTLAS */, true /* Metric Scale? */);
+			DumpTLASTree(".\\TLASTree.obj", true /* Metric Scale? */);
+		}
 	}
 }
 
@@ -1563,6 +1567,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		g_GlobalAABB.SetInfinity();
 		g_GlobalCentroidAABB.SetInfinity();
 		tlasLeaves.clear();
+		ACtlasLeaves.clear();
 		g_TLASMap.clear();
 		RTResetMatrixSlotCounter();
 		if (g_TLASTree != nullptr)
@@ -2291,12 +2296,13 @@ void EffectsRenderer::SceneEnd()
 				switch (g_TLASBuilderType)
 				{
 				case TLASBuilderType::FastQBVH:
-					BuildTLAS();
+					BuildTLAS(tlasLeaves);
 					break;
 				case TLASBuilderType::DirectBVH4GPU:
 					BuildTLASDBVH4();
 					break;
 				}
+				// TODO: Build the AC TLAS here
 			}
 			//log_debug("[DBG] [BVH] TLAS Built");
 			ReAllocateAndPopulateMatrixBuffer();
@@ -2316,7 +2322,11 @@ void EffectsRenderer::SceneEnd()
 		}
 #endif
 		//DumpFrustrumToOBJ();
-		DumpTLASLeaves();
+		DumpTLASLeaves(tlasLeaves, "./TLASLeaves.obj");
+		if (g_bActiveCockpitEnabled)
+		{
+			DumpTLASLeaves(ACtlasLeaves, "./ACTLASLeaves.obj");
+		}
 	}
 
 	// Close the OBJ dump file for the current frame
@@ -2575,6 +2585,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bDCElemAlwaysVisible = false;
 	_bIsHologram = false;
 	_bIsNoisyHolo = false;
+	_bIsActiveCockpit = false;
 	_bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 	_bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	_bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
@@ -2583,7 +2594,6 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 
 	_bIsTargetHighlighted = false;
 	//bool bIsExterior = false, bIsDAT = false;
-	//bool bIsActiveCockpit = false,
 	//bool bIsDS2CoreExplosion = false;
 	bool bIsElectricity = false, bHasMaterial = false;
 
@@ -2622,7 +2632,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		_bIsGunner = _lastTextureSelected->is_GunnerTex;
 		_bIsExterior = _lastTextureSelected->is_Exterior;
 		//bIsDAT = lastTextureSelected->is_DAT;
-		//bIsActiveCockpit = lastTextureSelected->ActiveCockpitIdx > -1;
+		_bIsActiveCockpit = _lastTextureSelected->ActiveCockpitIdx > -1;
 		_bIsBlastMark = _lastTextureSelected->is_BlastMark;
 		//bIsDS2CoreExplosion = lastTextureSelected->is_DS2_Reactor_Explosion;
 		//bIsElectricity = lastTextureSelected->is_Electricity;
@@ -2949,6 +2959,34 @@ void EffectsRenderer::ApplyMeshTransform()
 	
 	material->meshTransform.UpdateTransform();
 	g_OPTMeshTransformCB.MeshTransform = material->meshTransform.ComputeTransform();
+}
+
+void EffectsRenderer::ApplyActiveCockpit()
+{
+	if (!g_bActiveCockpitEnabled || !_bLastTextureSelectedNotNULL || !_bIsActiveCockpit || _bIsHologram)
+		return;
+
+	// Intersect the current texture with the controller
+	// By this point, g_OPTMeshTransformCB.MeshTransform should contain the transform that is applied to
+	// animate the current mesh
+	Vector3 orig, dir, v0, v1, v2, P;
+	//bool debug = false;
+	//bool bIntersection;
+	//log_debug("[DBG] [AC] Testing for intersection...");
+	//if (bIsActiveCockpit) log_debug("[DBG] [AC] Testing %s", lastTextureSelected->_surface->_name);
+
+	orig.x = g_contOriginViewSpace.x;
+	orig.y = g_contOriginViewSpace.y;
+	orig.z = g_contOriginViewSpace.z;
+
+	dir.x = g_contDirViewSpace.x;
+	dir.y = g_contDirViewSpace.y;
+	dir.z = g_contDirViewSpace.z;
+
+	//IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx,
+	//	bIsActiveCockpit, orig, dir /*, debug */);
+	// TODO: Create a TLAS just for the cockpit so that we can quickly find the intersection of the
+	// ray coming from the cursor.
 }
 
 // Apply BLOOM flags and 32-bit mode enhancements
@@ -3881,6 +3919,11 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 				g_GlobalAABB.Expand(aabb);
 				g_GlobalCentroidAABB.Expand(centroid);
 				tlasLeaves.push_back({ 0, centroid, aabb, blasID, matrixSlot, obb });
+
+				if (g_bActiveCockpitEnabled && _bIsCockpit)
+				{
+					ACtlasLeaves.push_back({ 0, centroid, aabb, blasID, matrixSlot, obb });
+				}
 			}
 			else
 			{
@@ -4286,6 +4329,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Animate the current mesh (if applicable)
 	ApplyMeshTransform();
 
+	ApplyActiveCockpit();
+
 	if (g_bInTechRoom)
 	{
 		ApplyRTShadowsTechRoom(scene);
@@ -4375,7 +4420,11 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		!_lastTextureSelected->is_Transparent &&
 		!_lastTextureSelected->is_LightTexture)
 	{
-		const bool bSkipCockpit = _bIsCockpit && !g_bRTEnabledInCockpit;
+		bool bSkipCockpit = (_bIsCockpit && !g_bRTEnabledInCockpit);
+		if (g_bActiveCockpitEnabled)
+		{
+			bSkipCockpit = false;
+		}
 		bool bExclude = RTCheckExcludeMesh(scene);
 		//bool bRaytrace = _lastTextureSelected->material.Raytrace;
 
