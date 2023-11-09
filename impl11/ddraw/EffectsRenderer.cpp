@@ -1265,19 +1265,31 @@ void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matri
 				//fprintf(D3DDumpOBJFile, "# V %0.3f %0.3f %0.3f\n", V.x, V.y, V.z);
 			}
 #endif
+
+#define DUMP_2D 0
+#if DUMP_2D == 0
 			// OPT to meters conversion:
 			//V *= OPT_TO_METERS;
 			V = L * S1 * V;
 			fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+#else
+			float3 P = { V.x, V.y, V.z };
+			float4 Q = TransformProjectionScreen(P);
+			fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f # %0.6f\n", Q.x, Q.z, Q.y, Q.w);
+			//float4 Q = TransformProjection(P);
+			//fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f # %0.6f\n", g_fCurInGameWidth * Q.x, -g_fCurInGameHeight * Q.y, Q.z, Q.w);
+#endif
 		}
 		fprintf(D3DDumpOBJFile, "\n");
 
 		// Dump the normals
+#if DUMP_2D == 0
 		for (int i = 0; i < MeshNormalsCount; i++) {
 			XwaVector3 N = MeshNormals[i];
 			fprintf(D3DDumpOBJFile, "vn %0.6f %0.6f %0.6f\n", N.x, N.y, N.z);
 		}
 		fprintf(D3DDumpOBJFile, "\n");
+#endif
 
 		D3DTotalVertices += LastMeshVerticesCount;
 		D3DTotalNormals += LastMeshNormalsCount;

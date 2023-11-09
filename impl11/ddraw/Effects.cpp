@@ -666,7 +666,7 @@ bool SavePOVOffsetToIniFile()
 			else {
 				if (fsm == IN_TAG_ST) {
 					fsm = OUT_OF_TAG_ST;
-					fprintf(out_file, "[CockpitPOVOffset]\n");
+					fprintf(out_file, "\n[CockpitPOVOffset]\n");
 					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
 					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
 					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);

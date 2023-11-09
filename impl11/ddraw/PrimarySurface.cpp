@@ -23,6 +23,10 @@
 #include "commonVR.h"
 #include "VRConfig.h"
 #include "SharedMem.h"
+#include "D3dRenderer.h"
+#include "EffectsRenderer.h"
+
+extern D3dRenderer* g_current_renderer;
 
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
@@ -43,6 +47,9 @@ bool rayTriangleIntersect(
 	float &t, Vector3 &P, float &u, float &v);
 void ResetXWALightInfo();
 void DumpHyperspaceVertexBuffer(float width, float height);
+inline Matrix4 XwaTransformToMatrix4(const XwaTransform& M);
+float4 TransformProjection(float3 input);
+float4 TransformProjectionScreen(float3 input);
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -5591,7 +5598,7 @@ void PrimarySurface::RenderSpeedEffect()
 			zdisp = craft_speed * g_fSpeedShaderTrailSize;
 
 			// Transform the current particle into viewspace
-			// Q is the head of the particle, P is the tail:
+			// QH is the head of the particle, QT is the tail:
 			QT = QH; QT.z += zdisp;
 			RH = ViewMatrix * QH; // Head
 			RT = ViewMatrix * QT; // Tail
@@ -7070,6 +7077,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	ID3D11PixelShader *lastPixelShader, Direct3DTexture *lastTextureSelected,
 	ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset)
 {
+	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+	if (!renderer->_bCockpitConstantsCaptured)
+		return;
+
 	this->_deviceResources->BeginAnnotatedEvent(L"RenderLaserPointer");
 
 	auto& resources = this->_deviceResources;
@@ -7113,12 +7124,58 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_bACActionTriggered = true;
 	g_bACLastTriggerState = g_bACTriggerState;
 
-	// g_viewMatrix contains the camera Roll, nothing more right now
-	bool bProjectContOrigin = (g_contOriginViewSpace[2] >= 0.001f);
-	Vector3 contOriginDisplay = Vector3(g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
+	// g_viewMatrix contains the camera Roll, nothing more right now: TODO, check this claim later, we may not need this anymore
+	//bool bProjectContOrigin = (g_contOriginViewSpace[2] >= 0.001f);
+	//Vector3 contOriginDisplay = Vector3(g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
+	Vector4 contOriginDisplay;
 	Vector3 intersDisplay, pos2D;
 
-	// Project the controller's position:
+	// Use the ViewMatrix to project metric to normalized screen coords:
+#ifdef DISABLED
+	//Vector4 center = ViewMatrix * HeadingMatrix * contOriginDisplay;
+	Vector4 center = ViewMatrix * contOriginDisplay;
+	log_debug("[DBG] [AC] pos3D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
+		contOriginDisplay.x, contOriginDisplay.y, contOriginDisplay.z,
+		center.x, center.y);
+#endif
+	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
+
+	// Regular transform chain: OPT to in-game screen coords.
+	/*contOriginDisplay = Vector4(0.0f, -1.0f, 0.5f, 1.0f);
+	contOriginDisplay *= METERS_TO_OPT;
+	contOriginDisplay.w = 1.0f;
+	contOriginDisplay = W * contOriginDisplay;*/
+
+	float cockpitOriginX = *g_POV_X0;
+	float cockpitOriginY = *g_POV_Y0;
+	float cockpitOriginZ = *g_POV_Z0;
+	Vector3 cursor = { 0.0f, 0.0f, 1.0f };
+	// Convert to OPT scale
+	cursor *= METERS_TO_OPT;
+	// Swap Z-Y axes to match XWA's coord sys:
+	contOriginDisplay = Vector4(cockpitOriginX + cursor.x, -(cockpitOriginY + cursor.z), cockpitOriginZ + cursor.y, 1.0f);
+	contOriginDisplay = W * contOriginDisplay;
+	bool bDisplayContOrigin = (contOriginDisplay.z > 0.01f); // Don't display the cursor if it's behind the camera
+
+	float3 pos3D = { contOriginDisplay.x, contOriginDisplay.y, contOriginDisplay.z };
+	for (int i = 0; i < 4; i++)
+		g_VSCBuffer.viewportScale[i] = renderer->_CockpitConstants.viewportScale[i];
+	float4 pos2Dp = TransformProjectionScreen(pos3D);
+
+	// pos2Dp is now in in-game screen coords. We need to convert that to post-proc UV coords:
+	UINT left   = (UINT)g_nonVRViewport.TopLeftX;
+	UINT top    = (UINT)g_nonVRViewport.TopLeftY;
+	UINT width  = (UINT)g_nonVRViewport.Width;
+	UINT height = (UINT)g_nonVRViewport.Height;
+	float screenX, screenY;
+	InGameToScreenCoords(left, top, width, height, pos2Dp.x, pos2Dp.y, &screenX, &screenY);
+
+	g_LaserPointerBuffer.contOrigin[0] = screenX / g_fCurScreenWidth;
+	g_LaserPointerBuffer.contOrigin[1] = screenY / g_fCurScreenHeight;
+	g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
+
+	// Project the controller's position: (old version)
+#ifdef DISABLED
 	Matrix4 viewMatrix = g_viewMatrix;
 	viewMatrix.invert();
 	if (bProjectContOrigin) {
@@ -7153,8 +7210,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 	// Project the intersection point
 	pos2D = projectMetric(intersDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
-	g_LaserPointerBuffer.intersection[0] = pos2D.x;
-	g_LaserPointerBuffer.intersection[1] = pos2D.y;
+#endif
+
+	//g_LaserPointerBuffer.intersection[0] = pos2D.x;
+	//g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 	g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 	// If there was an intersection, find the action and execute it.
@@ -7304,25 +7363,25 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 		// Render the right image
 		if (g_bEnableVR) {
-			if (bProjectContOrigin) {
-				pos2D = projectMetric(contOriginDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
+			if (bDisplayContOrigin) {
+				//pos2D = projectMetric(contOriginDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
-				g_LaserPointerBuffer.bContOrigin = 1;
+				g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
 			}
 			else
 				g_LaserPointerBuffer.bContOrigin = 0;
 
 			// Project the intersection to 2D:
-			pos2D = projectMetric(intersDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
+			//pos2D = projectMetric(intersDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
 				Vector3 q;
-				q = projectMetric(g_debug_v0, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				q = projectMetric(g_debug_v1, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				q = projectMetric(g_debug_v2, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
+				//q = projectMetric(g_debug_v0, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
+				//q = projectMetric(g_debug_v1, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
+				//q = projectMetric(g_debug_v2, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
 			}
 
 			// VIEWPORT-RIGHT

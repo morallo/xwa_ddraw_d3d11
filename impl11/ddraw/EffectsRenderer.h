@@ -61,11 +61,10 @@ protected:
 	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bDCIsTransparent, _bDCElemAlwaysVisible;
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState, _bIsActiveCockpit;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
-	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
+	bool _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
 	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady; // _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
 	bool _bHangarShadowsRenderedInCurrentFrame;
-	D3dConstants _CockpitConstants;
-	XwaTransform _CockpitWorldView;
+
 	Direct3DTexture *_lastTextureSelected = nullptr;
 	Direct3DTexture *_lastLightmapSelected = nullptr;
 	std::vector<DrawCommand> _LaserDrawCommands;
@@ -116,6 +115,10 @@ protected:
 	void RestoreContext();
 
 public:
+	bool _bCockpitConstantsCaptured;
+	D3dConstants _CockpitConstants;
+	XwaTransform _CockpitWorldView;
+
 	EffectsRenderer();
 	virtual void CreateShaders();
 	virtual void SceneBegin(DeviceResources* deviceResources);

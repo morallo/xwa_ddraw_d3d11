@@ -158,11 +158,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 		dotcol = float3(0.0, 0.0, 1.0);
 
 	float v = 0.0, d = 10000.0;
-	//if (bContOrigin) {
-	//	d = sdCircle(p, contOrigin, 0.0);
-	//	d += 0.005;
-	//	v += exp(-(d * d) * 5000.0);
-	//}
+	if (bContOrigin)
+	{
+		d = sdCircle(lp_aspect_ratio * (p - contOrigin), cursor_radius);
+		d += 0.005;
+		v += exp(-(d * d) * 5000.0);
+	}
 
 	if (bIntersection) 
 	{
