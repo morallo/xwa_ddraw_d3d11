@@ -21,17 +21,77 @@ typedef struct uvfloat4_struct {
 	float x0, y0, x1, y1;
 } uvfloat4;
 
-typedef struct float3_struct {
+struct float3 {
 	float x, y, z;
-} float3;
 
-typedef struct float4_struct {
+	float3()
+	{
+		x = y = z = 0.0f;
+	}
+
+	float3(float x, float y, float z)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+	}
+
+	float3(const float data[4])
+	{
+		x = data[0];
+		y = data[1];
+		z = data[2];
+	}
+
+	float3(const Vector4 &P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+		this->z = P[2];
+	}
+
+	float3 xyz()
+	{
+		return float3(x, y, z);
+	}
+
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+
+	inline float3 operator-(const float3& rhs)
+	{
+		return float3(this->x - rhs.x, this->y - rhs.y, this->z - rhs.z);
+	}
+
+	inline float3 operator*(const float3& rhs)
+	{
+		return float3(this->x * rhs.x, this->y * rhs.y, this->z * rhs.z);
+	}
+};
+
+struct float4 {
 	float x, y, z, w;
-} float4;
 
-typedef struct float2_struct {
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+
+	float4()
+	{
+		x = y = z = w = 0.0f;
+	}
+
+	float4(float3 P, float w)
+	{
+		this->x = P.x;
+		this->y = P.y;
+		this->z = P.z;
+		this->w = w;
+	}
+};
+
+struct float2 {
 	float x, y;
-} float2;
+
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+};
 
 // Holds the current 3D reconstruction constants, register b6
 typedef struct MetricReconstructionCBStruct {
