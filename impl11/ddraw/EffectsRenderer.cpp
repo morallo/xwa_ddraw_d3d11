@@ -629,7 +629,7 @@ void DumpTLASLeaves(std::vector<TLASLeafItem> &tlasLeaves, char *fileName)
 			log_debug("[DBG] [BVH] TLAS leaf %d, matrixSlot: %d", counter, matrixSlot);
 			// The matrices are stored inverted in g_TLASMatrices because that's what
 			// the RT shader needs
-			m = m.transpose(); // Matrices are stored transposed because HLSL needs that
+			//m = m.transpose(); // Matrices are stored transposed because HLSL needs that
 			m = m.invert();
 			obb.UpdateLimits();
 			obb.TransformLimits(S1 * m);
@@ -713,7 +713,7 @@ void DumpTLASTree(LBVH *g_TLASTree, char* sFileName, bool useMetricScale)
 			S1.scale(scale[0], scale[1], scale[2]);
 
 			Matrix4 W = g_TLASMatrices[node->matrixSlot]; // WorldView to OPT-coords
-			W = W.transpose(); // Matrices are stored transposed for HLSL
+			//W = W.transpose(); // Matrices are stored transposed for HLSL
 			W = W.invert(); // OPT-coords to WorldView
 			AABB aabb;
 			// Recover the OBB from the node:
@@ -3913,12 +3913,14 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 	if (!g_bInTechRoom)
 	{
 		// This is the correct transform chain to apply the Diegetic Joystick in RT; but
-		// I'm getting double shadows. Maybe the IDCentroidKey below needs to be checked?
+		// I'm getting double shadows in the X-Wing (the A-Wing is fine). I think there's
+		// multiple profiles/meshes and maybe the transform is not applied to all the relevant
+		// meshes.
 		//Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
-		//MeshTransform = MeshTransform.transpose();
-		//Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform) * MeshTransform;
-
+		//MeshTransform = MeshTransform.invert();
+		//const Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform) * MeshTransform;
 		const Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+
 		// Fetch the AABB for this mesh
 		auto aabb_it = _AABBs.find(meshKey);
 		auto center_it = _centers.find(meshKey);
@@ -3951,7 +3953,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 				Matrix4 WInv = W;
 				WInv = WInv.invert();
 				// HLSL needs matrices to be stored transposed
-				WInv = WInv.transpose();
+				//WInv = WInv.transpose();
 				if (matrixSlot >= (int)g_TLASMatrices.size())
 					g_TLASMatrices.resize(g_TLASMatrices.size() + 128);
 				g_TLASMatrices[matrixSlot] = WInv;

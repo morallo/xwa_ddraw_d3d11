@@ -7327,10 +7327,6 @@ Intersection _TLASTraceRaySimpleHit(DeviceResources* resources, Ray ray)
 				if (BLASOffset != -1 && matrixSlot != -1)
 				{
 					Matrix4 Matrix = g_TLASMatrices[matrixSlot];
-					Matrix4 MatrixT = Matrix;
-					// TODO: Avoid the matrix transpose by commuting the mul(X, Matrix)
-					// operands here and in RTCommon.h
-					MatrixT = MatrixT.transpose();
 
 					float* fchildren = (float*)g_TLAS[curnode].children;
 					float3 obb_min = float3(
@@ -7345,12 +7341,12 @@ Intersection _TLASTraceRaySimpleHit(DeviceResources* resources, Ray ray)
 					Ray new_ray;
 					//new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
 					Vector4 temp(ray.origin.x, ray.origin.y, ray.origin.z, 1.0f);
-					temp = MatrixT * temp;
+					temp = Matrix * temp;
 					new_ray.origin = float3(temp);
 
 					//new_ray.dir = mul(float4(ray.dir, 0), Matrix).xyz;
 					temp = Vector4(ray.dir.x, ray.dir.y, ray.dir.z, 0.0f);
-					temp = MatrixT * temp;
+					temp = Matrix * temp;
 					new_ray.dir = float3(temp);
 
 					// Before traversing the BLAS, check if the ray intersects the OBB
