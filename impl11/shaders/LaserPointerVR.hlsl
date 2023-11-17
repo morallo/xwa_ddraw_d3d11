@@ -48,14 +48,12 @@ float sdCircle(in vec2 p, float radius)
 	return length(p) - radius;
 }
 
-/*
 float sdLine(in vec2 p, in vec2 a, in vec2 b)
 {
 	vec2 pa = p - a, ba = b - a;
 	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
 	return length(pa - ba * h);
 }
-*/
 
 #undef LASER_VR_DEBUG
 #ifdef LASER_VR_DEBUG
@@ -176,12 +174,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 		}
 	}
 
-	//if (bContOrigin) 
-	//{
-	//	d = sdLine(p, contOrigin, intersection);
-	//	d += 0.01;
-	//	v += exp(-(d * d) * 7500.0);
-	//}
+	if (bContOrigin)
+	{
+		d = sdLine(p, contOrigin, intersection);
+		d += 0.01;
+		v += exp(-(d * d) * 7500.0);
+	}
 
 	//v = clamp(1.2 * v, 0.0, 1.0);
 	float3 pointer_col = bIntersection ? dotcol : 0.7;

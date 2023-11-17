@@ -7080,6 +7080,7 @@ void PrimarySurface::RenderSunFlare()
 #define RT_MAX_DIST 5000.0f
 // TLAS leaves use the following fields for a different purpose:
 #define BLASMatrixSlot rootIdx
+#define BLASId rootIdx
 #define BLASBaseNodeOffset numChildren
 
 // These are copies of the structures in RTCommon.h:
@@ -7101,6 +7102,13 @@ struct Intersection
 {
 	int   TriID;
 	float U, V, T;
+
+	Intersection()
+	{
+		TriID = -1;
+		T = RT_MAX_DIST * OPT_TO_METERS;
+		U = V = 0.0f;
+	}
 };
 
 extern std::vector<Matrix4> g_TLASMatrices;
@@ -7187,25 +7195,12 @@ float2 BVHIntersectBox(const BVHNode* BVH, const float3 start, const float3 inv_
 }
 
 // Ray traversal, Embedded Geometry version
-Intersection _TraceRaySimpleHit(DeviceResources* resources, Ray ray, int Offset) {
+Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset) {
 	int stack[MAX_RT_STACK];
-	int stack_top = 0;
-	int curnode = -1;
-	float3 inv_dir = { 1.0f / ray.dir.x, 1.0f / ray.dir.y, 1.0f / ray.dir.z };
+	int stack_top  = 0;
+	int curnode    = -1;
+	float3 inv_dir = 1.0f / ray.dir;
 	Intersection best_inters;
-	best_inters.TriID = -1;
-	best_inters.T = RT_MAX_DIST;
-
-	auto& device = resources->_d3dDevice;
-	auto& context = resources->_d3dDeviceContext;
-	D3D11_MAPPED_SUBRESOURCE map;
-	ZeroMemory(&map, sizeof(D3D11_MAPPED_SUBRESOURCE));
-	HRESULT hr = context->Map(resources->_RTBvh.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-	if (FAILED(hr))
-	{
-		return best_inters;
-	}
-	BVHNode* g_BVH = (BVHNode*)map.pData;
 
 	// Read the padding from the first BVHNode. It will contain the location of the root
 	int root = g_BVH[Offset].rootIdx + Offset;
@@ -7239,7 +7234,8 @@ Intersection _TraceRaySimpleHit(DeviceResources* resources, Ray ray, int Offset)
 				}
 			}
 		}
-		else {
+		else
+		{
 			// This node is a triangle. Do the ray-triangle intersection test.
 			float3 A = float3(node.min);
 			float3 B = float3(node.max);
@@ -7250,28 +7246,26 @@ Intersection _TraceRaySimpleHit(DeviceResources* resources, Ray ray, int Offset)
 				fchildren[2]);
 
 			Intersection inters = getIntersection(ray, A, B, C);
-			if (RayTriangleTest(inters)) {
+			if (RayTriangleTest(inters))
+			{
 				inters.TriID = TriID;
 				best_inters = inters;
-				goto out;
+				return best_inters;
 			}
 		}
 	}
 
-out:
-	context->Unmap(resources->_RTBvh.Get(), 0);
 	return best_inters;
 }
 
 // This is a copy of the code in RTCommon.h, translated so that it runs in C/C++
-Intersection _TLASTraceRaySimpleHit(DeviceResources* resources, Ray ray)
+Intersection _TLASTraceRaySimpleHit(Ray ray)
 {
 	int stack[MAX_RT_STACK];
 	int stack_top = 0;
 	int curnode = -1;
-	float3 inv_dir = { 1.0f / ray.dir.x, 1.0f / ray.dir.y, 1.0f / ray.dir.z };
+	float3 inv_dir = 1.0f / ray.dir;
 	Intersection blank_inters;
-	blank_inters.TriID = -1;
 
 	// Read the index of the root node
 	BVHNode* g_TLAS = g_ACTLASTree->nodes;
@@ -7323,41 +7317,53 @@ Intersection _TLASTraceRaySimpleHit(DeviceResources* resources, Ray ray)
 			{
 				// Ray intersects the box, fetch the BLAS entry and continue the search from there
 				int BLASOffset = g_TLAS[curnode].BLASBaseNodeOffset;
-				int matrixSlot = g_TLAS[curnode].BLASMatrixSlot;
-				if (BLASOffset != -1 && matrixSlot != -1)
+				int blasID     = g_TLAS[curnode].BLASId;
+				auto it        = g_BLASMap.find(blasID);
+				if (it != g_BLASMap.end())
 				{
-					Matrix4 Matrix = g_TLASMatrices[matrixSlot];
-
-					float* fchildren = (float*)g_TLAS[curnode].children;
-					float3 obb_min = float3(
-						g_TLAS[curnode].min[3],
-						g_TLAS[curnode].max[3],
-						fchildren[3]);
-					float3 obb_max = float3(
-						fchildren[0],
-						fchildren[1],
-						fchildren[2]);
-					// Transform the ray into the same coord sys as the OBB
-					Ray new_ray;
-					//new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
-					Vector4 temp(ray.origin.x, ray.origin.y, ray.origin.z, 1.0f);
-					temp = Matrix * temp;
-					new_ray.origin = float3(temp);
-
-					//new_ray.dir = mul(float4(ray.dir, 0), Matrix).xyz;
-					temp = Vector4(ray.dir.x, ray.dir.y, ray.dir.z, 0.0f);
-					temp = Matrix * temp;
-					new_ray.dir = float3(temp);
-
-					// Before traversing the BLAS, check if the ray intersects the OBB
-					const float3 new_ray_inv_dir = { 1.0f / new_ray.dir.x, 1.0f / new_ray.dir.y, 1.0f / new_ray.dir.z };
-					float2 T2 = _BVHIntersectBox(obb_min, obb_max, new_ray.origin, new_ray_inv_dir);
-					// The ray intersects the OBB, check the BLAS for triangle intersections
-					if (T2[1] >= 0 && T2[1] >= T2[0])
+					BLASData blasData = it->second;
+					LBVH* bvh = (LBVH* )BLASGetBVH(blasData);
+					if (bvh != nullptr)
 					{
-						Intersection inters = _TraceRaySimpleHit(resources, new_ray, BLASOffset);
-						if (inters.TriID != -1)
-							return inters;
+						// The Active Cockpit TLAS is in OPT coords and the input
+						// ray is already in OPT coords: no need to use the WorldView matrices
+						//Matrix4 Matrix = g_TLASMatrices[matrixSlot];
+
+						/*
+						float* fchildren = (float*)g_TLAS[curnode].children;
+						float3 obb_min = float3(
+							g_TLAS[curnode].min[3],
+							g_TLAS[curnode].max[3],
+							fchildren[3]);
+						float3 obb_max = float3(
+							fchildren[0],
+							fchildren[1],
+							fchildren[2]);
+						*/
+						// Transform the ray into the same coord sys as the OBB
+						//Ray new_ray;
+						//Vector4 temp(ray.origin.x, ray.origin.y, ray.origin.z, 1.0f);
+						//temp = Matrix * temp;
+						//new_ray.origin = float3(temp);
+
+						//temp = Vector4(ray.dir.x, ray.dir.y, ray.dir.z, 0.0f);
+						//temp = Matrix * temp;
+						//new_ray.dir = float3(temp);
+
+						// Before traversing the BLAS, check if the ray intersects the OBB
+						//const float3 new_ray_inv_dir = { 1.0f / new_ray.dir.x, 1.0f / new_ray.dir.y, 1.0f / new_ray.dir.z };
+						//float2 T2 = _BVHIntersectBox(obb_min, obb_max, new_ray.origin, new_ray_inv_dir);
+						//const float3 new_ray_inv_dir = 1.0f / ray.dir;
+						//float2 T2 = _BVHIntersectBox(obb_min, obb_max, ray.origin, new_ray_inv_dir);
+						// The ray intersects the OBB, check the BLAS for triangle intersections
+						//if (T2[1] >= 0 && T2[1] >= T2[0])
+						{
+							//Intersection inters = _TraceRaySimpleHit(resources, new_ray, BLASOffset);
+							//log_debug("[DBG] [AC] Traversing BLAS");
+							Intersection inters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
+							if (inters.TriID != -1)
+								return inters;
+						}
 					}
 				}
 			}
@@ -7367,6 +7373,28 @@ Intersection _TLASTraceRaySimpleHit(DeviceResources* resources, Ray ray)
 
 	return blank_inters;
 }
+
+// Trace a ray and return as soon as we hit geometry.
+// metric system: Y+ is up, Z+ is forward
+// OPT system: Y- forward?, Z+ is up?
+Intersection TLASTraceRaySimpleHit(Ray ray)
+{
+	float3 pos3D = ray.origin;
+	// ray.origin is in the pos3D frame (Metric, Y+ is up, Z+ is forward)
+	// we need to revert it into OPT coords, but the TLAS and the ray are
+	// in the same coord sys. There's no need to transform anything
+	pos3D.y = -pos3D.y;
+	pos3D *= 40.96f;
+
+	// pos3D and dir are now in WorldView coords. We can cast the ray
+	ray.origin = pos3D;
+	// Ray needs to have its direction inverted. Also Y is flipped for the same reason
+	// pos3D.y is flipped (Y+ is up)
+	ray.max_dist *= 40.96f;
+	return _TLASTraceRaySimpleHit(ray);
+}
+
+extern std::vector<TLASLeafItem> g_ACtlasLeaves;
 // ****************************************************************************
 
 /*
@@ -7459,8 +7487,44 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
 	contOriginDisplay = Vector4(cockpitOriginX + cursor.x, -(cockpitOriginY + cursor.z), cockpitOriginZ + cursor.y, 1.0f);
 	// contOriginDisplay is now in OPT coords. We can now use g_ACTLASTree to find the closest hit
-	Vector3 rayDir = { 0.0f, -1.0f, 0.0f };
-	// ...
+	// OPT coord system:
+	//    X+ --> right
+	//    Y+ --> backwards
+	//    Z+ --> up
+	Ray ray;
+	ray.dir    = { 0.0f, -1.0f, 0.0f }; // Y- --> Points forwards
+	ray.origin = float3(contOriginDisplay);
+	// contOriginDisplay is in OPT coords, let's transform it back into metric coords
+	//ray.origin  *= OPT_TO_METERS;
+	//ray.origin.y = -ray.origin.y;
+	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
+
+	//Intersection inters = TLASTraceRaySimpleHit(ray);
+	Intersection inters;
+	g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
+	for (const auto &leaf : g_ACtlasLeaves)
+	{
+		auto it = g_BLASMap.find(leaf.PrimID);
+		if (it != g_BLASMap.end())
+		{
+			BLASData blasData = it->second;
+			LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+			if (bvh != nullptr)
+			{
+				Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
+				if (tempInters.TriID != -1 && // There was an intersection
+					tempInters.T > 0.0f &&    // It's not behind the ray's origin
+					tempInters.T < inters.T)  // It's better than the best intersection so far
+				{
+					inters = tempInters;
+				}
+			}
+		}
+	}
+
+	if (inters.TriID != -1)
+		g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
+
 	contOriginDisplay = W * contOriginDisplay;
 	// contOriginDisplay is now in Worldview coords
 	bool bDisplayContOrigin = (contOriginDisplay.z > 0.01f); // Don't display the cursor if it's behind the camera
@@ -7481,6 +7545,30 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.contOrigin[0] = screenX / g_fCurScreenWidth;
 	g_LaserPointerBuffer.contOrigin[1] = screenY / g_fCurScreenHeight;
 	g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
+
+	float3 P;
+	if (inters.TriID != -1)
+	{
+		P = ray.origin + inters.T * ray.dir;
+	}
+	else // When there's no intersection, just draw a line pointing in the direction of the ray
+	{
+		P = ray.origin + (0.5f * METERS_TO_OPT) * ray.dir;
+	}
+
+	{
+		// P is in OPT coords, now we need to transform it to WorldView coords for the projection:
+		Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f);
+		Q = W * Q;
+		if (Q.z > 0.01f) // Don't display the intersection if it's behind the camera
+		{
+			float4 pos2Dp = TransformProjectionScreen(float3(Q));
+			InGameToScreenCoords(left, top, width, height, pos2Dp.x, pos2Dp.y, &screenX, &screenY);
+			g_LaserPointerBuffer.bIntersection = true;
+			g_LaserPointerBuffer.intersection[0] = screenX / g_fCurScreenWidth;
+			g_LaserPointerBuffer.intersection[1] = screenY / g_fCurScreenHeight;
+		}
+	}
 
 	// Project the controller's position: (old version)
 #ifdef DISABLED
@@ -7523,7 +7611,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	//g_LaserPointerBuffer.intersection[0] = pos2D.x;
 	//g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
-	g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
+	//g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 	// If there was an intersection, find the action and execute it.
 	// (I don't think this code needs to be here; but I put it here with the rest of the render function)
 	if (g_LaserPointerBuffer.bIntersection && g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)

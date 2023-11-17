@@ -75,7 +75,7 @@ XwaVector3 g_GlobalRange;
 LBVH* g_TLASTree = nullptr;
 LBVH* g_ACTLASTree = nullptr;
 std::vector<TLASLeafItem> tlasLeaves;
-std::vector<TLASLeafItem> ACtlasLeaves; // Active Cockpit TLAS leaves
+std::vector<TLASLeafItem> g_ACtlasLeaves; // Active Cockpit TLAS leaves
 
 std::map<std::string, bool> g_RTExcludeOPTNames;
 std::map<uint8_t, bool> g_RTExcludeShipCategories;
@@ -1600,7 +1600,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		g_GlobalAABB.SetInfinity();
 		g_GlobalCentroidAABB.SetInfinity();
 		tlasLeaves.clear();
-		ACtlasLeaves.clear();
+		g_ACtlasLeaves.clear();
 		g_TLASMap.clear();
 		RTResetMatrixSlotCounter();
 		if (g_TLASTree != nullptr)
@@ -1978,8 +1978,6 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			resources->_RTBvhSRV = nullptr;
 		}
 
-		//log_debug("[DBG] [BVH] [REALLOC] CHECK 2");
-
 		desc.ByteWidth = sizeof(BVHNode) * g_iRTMaxBLASNodesSoFar;
 		desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: Write, GPU: Read
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -1992,8 +1990,6 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH buffer: 0x%x", hr);
 		}
 
-		//log_debug("[DBG] [BVH] [REALLOC] CHECK 3");
-
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 		ZeroMemory(&srvDesc, sizeof(srvDesc));
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -2005,8 +2001,6 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 		if (FAILED(hr)) {
 			log_debug("[DBG] [BVH] [REALLOC] Failed when creating BVH SRV: 0x%x", hr);
 		}
-
-		//log_debug("[DBG] [BVH] [REALLOC] CHECK 4");
 	}
 
 	// Populate the BVH buffer
@@ -2020,7 +2014,6 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 
 			if (SUCCEEDED(hr))
 			{
-				//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
 				uint8_t* base_ptr = (uint8_t*)map.pData;
 				int BaseNodeOffset = 0;
 				for (auto& it : g_BLASMap)
@@ -2029,7 +2022,6 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 					LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
 					if (bvh != nullptr)
 					{
-						//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
 #ifdef DEBUG_RT
 						if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
 							BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
@@ -2048,12 +2040,10 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 					}
 					else
 					{
-						//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
 						BLASGetBaseNodeOffset(blasData) = -1;
 					}
 				}
 				context->Unmap(resources->_RTBvh.Get(), 0);
-				//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
 			}
 			else
 				log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
@@ -2066,7 +2056,6 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 
 			if (SUCCEEDED(hr))
 			{
-				//log_debug("[DBG] [BVH] [REALLOC] CHECK 5");
 				uint8_t* base_ptr = (uint8_t*)map.pData;
 				int BaseNodeOffset = 0;
 				for (auto& it : g_LBVHMap)
@@ -2075,7 +2064,6 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 					LBVH* bvh = (LBVH*)GetLBVH(meshData);
 					if (bvh != nullptr)
 					{
-						//log_debug("[DBG] [BVH] [REALLOC] CHECK 6: %d", BaseNodeOffset);
 #ifdef DEBUG_RT
 						if (BaseNodeOffset >= g_iRTMaxBLASNodesSoFar ||
 							BaseNodeOffset + bvh->numNodes > g_iRTMaxBLASNodesSoFar)
@@ -2094,12 +2082,10 @@ void EffectsRenderer::ReAllocateAndPopulateBvhBuffers(const int numNodes)
 					}
 					else
 					{
-						//log_debug("[DBG] [BVH] [REALLOC] CHECK 7");
 						GetBaseNodeOffset(meshData) = -1;
 					}
 				}
 				context->Unmap(resources->_RTBvh.Get(), 0);
-				//log_debug("[DBG] [BVH] [REALLOC] CHECK 8");
 			}
 			else
 				log_debug("[DBG] [BVH] [REALLOC] Failed when mapping BVH nodes: 0x%x", hr);
@@ -2343,7 +2329,7 @@ void EffectsRenderer::SceneEnd()
 
 				if (g_bActiveCockpitEnabled)
 				{
-					BuildTLAS(ACtlasLeaves, true /* is AC TLAS */);
+					BuildTLAS(g_ACtlasLeaves, true /* is AC TLAS */);
 				}
 			}
 			//log_debug("[DBG] [BVH] TLAS Built");
@@ -2367,7 +2353,7 @@ void EffectsRenderer::SceneEnd()
 		DumpTLASLeaves(tlasLeaves, "./TLASLeaves.obj");
 		if (g_bActiveCockpitEnabled)
 		{
-			DumpTLASLeaves(ACtlasLeaves, "./ACTLASLeaves.obj");
+			DumpTLASLeaves(g_ACtlasLeaves, "./ACTLASLeaves.obj");
 		}
 	}
 
@@ -3966,7 +3952,10 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 
 				if (g_bActiveCockpitEnabled && _bIsCockpit)
 				{
-					ACtlasLeaves.push_back({ 0, centroid, aabb, blasID, matrixSlot, obb });
+					//ACtlasLeaves.push_back({ 0, centroid, aabb, blasID, matrixSlot, obb });
+					// Instead of the matrixSlot, let's store te blasID. That gets copied to the TLAS tree and
+					// we can use it to jump to the proper BLAS.
+					g_ACtlasLeaves.push_back({ 0, centroid, aabb, blasID, blasID, obb });
 				}
 			}
 			else

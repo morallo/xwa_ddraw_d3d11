@@ -57,6 +57,11 @@ struct float3 {
 
 	inline float& operator[] (uint32_t index) { return (&x)[index]; }
 
+	inline float3 operator+(const float3& rhs)
+	{
+		return float3(this->x + rhs.x, this->y + rhs.y, this->z + rhs.z);
+	}
+
 	inline float3 operator-(const float3& rhs)
 	{
 		return float3(this->x - rhs.x, this->y - rhs.y, this->z - rhs.z);
@@ -66,7 +71,26 @@ struct float3 {
 	{
 		return float3(this->x * rhs.x, this->y * rhs.y, this->z * rhs.z);
 	}
+
+	inline float3& operator*=(const float rhs)
+	{
+		this->x *= rhs;
+		this->y *= rhs;
+		this->z *= rhs;
+
+		return *this;
+	}
 };
+
+inline float3 operator*(const float s, const float3& rhs)
+{
+	return float3(s * rhs.x, s * rhs.y, s * rhs.z);
+}
+
+inline float3 operator/(const float s, const float3& rhs)
+{
+	return float3(s / rhs.x, s / rhs.y, s / rhs.z);
+}
 
 struct float4 {
 	float x, y, z, w;
