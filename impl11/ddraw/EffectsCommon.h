@@ -227,25 +227,27 @@ typedef struct OPTMeshTransformCBufferStruct {
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
 // so that we can reuse the same CB slot -- after all, we can't manipulate
 // anything while travelling through hyperspace anyway...
-typedef struct LaserPointerCBStruct {
+struct LaserPointerCBuffer {
 	int TriggerState; // 0 = Not pressed, 1 = Pressed
 	float FOVscale, iResolution[2];
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	float contOrigin[2], intersection[2];
+	//float contOrigin[2], intersection[2];
+	float contOrigin[4];
 	// 48 bytes
 	int bContOrigin, bIntersection, bHoveringOnActiveElem;
 	int DirectSBSEye;
 	// 64 bytes
-	float v0[2], v1[2]; // DEBUG
+	//float v0[2], v1[2]; // DEBUG
+	float intersection[4];
 	// 80 bytes
 	float v2[2], uv[2]; // DEBUG
 	// 96
 	int bDebugMode;
 	float cursor_radius, lp_aspect_ratio[2];
 	// 112 bytes
-} LaserPointerCBuffer;
+};
 
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {

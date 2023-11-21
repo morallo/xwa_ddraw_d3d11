@@ -308,7 +308,9 @@ Intersection _TraceRaySimpleHit(Ray ray, in int Offset) {
 				asfloat(node.children[2]));
 
 			Intersection inters = getIntersection(ray, A, B, C);
-			if (RayTriangleTest(inters)) {
+			if (inters.T > 0 && // Don't bother testing triangles if the intersection is behind the ray's origin
+				RayTriangleTest(inters))
+			{
 				inters.TriID = TriID;
 				best_inters = inters;
 				return best_inters;

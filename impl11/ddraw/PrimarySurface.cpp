@@ -7195,7 +7195,8 @@ float2 BVHIntersectBox(const BVHNode* BVH, const float3 start, const float3 inv_
 }
 
 // Ray traversal, Embedded Geometry version
-Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset) {
+Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset)
+{
 	int stack[MAX_RT_STACK];
 	int stack_top  = 0;
 	int curnode    = -1;
@@ -7246,11 +7247,14 @@ Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset) {
 				fchildren[2]);
 
 			Intersection inters = getIntersection(ray, A, B, C);
-			if (RayTriangleTest(inters))
+			if (inters.T > 0.0f && inters.T < best_inters.T)
 			{
-				inters.TriID = TriID;
-				best_inters = inters;
-				return best_inters;
+				if (RayTriangleTest(inters))
+				{
+					inters.TriID = TriID;
+					best_inters = inters;
+					// return best_inters; // Don't terminate early, keep searching the tree until we find the best intersection
+				}
 			}
 		}
 	}
@@ -7529,10 +7533,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// contOriginDisplay is now in Worldview coords
 	bool bDisplayContOrigin = (contOriginDisplay.z > 0.01f); // Don't display the cursor if it's behind the camera
 
-	float3 pos3D = { contOriginDisplay.x, contOriginDisplay.y, contOriginDisplay.z };
 	for (int i = 0; i < 4; i++)
 		g_VSCBuffer.viewportScale[i] = renderer->_CockpitConstants.viewportScale[i];
-	float4 pos2Dp = TransformProjectionScreen(pos3D);
+	float4 pos2Dp = TransformProjectionScreen(float3(contOriginDisplay));
 
 	// pos2Dp is now in in-game screen coords. We need to convert that to post-proc UV coords:
 	UINT left   = (UINT)g_nonVRViewport.TopLeftX;
@@ -7544,6 +7547,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	g_LaserPointerBuffer.contOrigin[0] = screenX / g_fCurScreenWidth;
 	g_LaserPointerBuffer.contOrigin[1] = screenY / g_fCurScreenHeight;
+	g_LaserPointerBuffer.contOrigin[2] = contOriginDisplay.z * OPT_TO_METERS;
 	g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
 
 	float3 P;
@@ -7567,6 +7571,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_LaserPointerBuffer.bIntersection = true;
 			g_LaserPointerBuffer.intersection[0] = screenX / g_fCurScreenWidth;
 			g_LaserPointerBuffer.intersection[1] = screenY / g_fCurScreenHeight;
+			g_LaserPointerBuffer.intersection[2] = Q.z * OPT_TO_METERS;
 		}
 	}
 
@@ -7692,9 +7697,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		log_debug("[DBG] [AC] g_contOrigin: (%0.3f, %0.3f, %0.3f)", g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
 		log_debug("[DBG] [AC] g_contDirection: (%0.3f, %0.3f, %0.3f)", g_contDirViewSpace.x, g_contDirViewSpace.y, g_contDirViewSpace.z);
 		log_debug("[DBG] [AC] Triangle, best t: %0.3f: ", g_fBestIntersectionDistance);
-		log_debug("[DBG] [AC] v0: (%0.3f, %0.3f)", g_LaserPointerBuffer.v0[0], g_LaserPointerBuffer.v0[1]);
-		log_debug("[DBG] [AC] v1: (%0.3f, %0.3f)", g_LaserPointerBuffer.v1[0], g_LaserPointerBuffer.v1[1]);
-		log_debug("[DBG] [AC] v2: (%0.3f, %0.3f)", g_LaserPointerBuffer.v2[0], g_LaserPointerBuffer.v2[1]);
+		//log_debug("[DBG] [AC] v0: (%0.3f, %0.3f)", g_LaserPointerBuffer.v0[0], g_LaserPointerBuffer.v0[1]);
+		//log_debug("[DBG] [AC] v1: (%0.3f, %0.3f)", g_LaserPointerBuffer.v1[0], g_LaserPointerBuffer.v1[1]);
+		//log_debug("[DBG] [AC] v2: (%0.3f, %0.3f)", g_LaserPointerBuffer.v2[0], g_LaserPointerBuffer.v2[1]);
 
 		/*
 		FILE *file = NULL;
@@ -7753,8 +7758,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
-		// Set the SRV:
-		context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+		// Set the SRVs:
+		ID3D11ShaderResourceView* srvs[] = {
+			resources->_offscreenAsInputShaderResourceView.Get(),
+			resources->_depthBufSRV.Get()
+		};
+		context->PSSetShaderResources(0, 2, srvs);
 		context->Draw(6, 0);
 
 		// Render the right image
@@ -7800,12 +7809,20 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
 
 			if (g_bUseSteamVR) {
+				ID3D11ShaderResourceView* srvs[] = {
+					resources->_offscreenAsInputShaderResourceViewR.Get(),
+					resources->_depthBufSRV_R.Get()
+				};
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-				context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceViewR.GetAddressOf());
+				context->PSSetShaderResources(0, 2, srvs);
 			} 
 			else {
+				ID3D11ShaderResourceView* srvs[] = {
+					resources->_offscreenAsInputShaderResourceView.Get(),
+					resources->_depthBufSRV.Get()
+				};
 				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
+				context->PSSetShaderResources(0, 2, srvs);
 			}
 			context->Draw(6, 0);
 		}

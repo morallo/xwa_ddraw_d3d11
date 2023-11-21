@@ -14,14 +14,16 @@ cbuffer ConstantBuffer : register(b8)
 	// 16 bytes
 	float2 p0, p1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	float2 contOrigin, intersection; // 2D coords of the controller's origin and the intersection
+	//float2 contOrigin, intersection; // 2D coords of the controller's origin and the intersection
+	float4 contOrigin; // contOrigin.xy --> uv-coords, contOrigin.z --> metric depth
 	// 48 bytes
 	bool bContOrigin;		    // True if contOrigin is valid (can be displayed)
 	bool bIntersection;		    // True if there is an intersection to display
 	bool bHoveringOnActiveElem; // True if the cursor is hovering over an action element
 	int DirectSBSEye; // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
 	// 64 bytes
-	float2 v0, v1; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
+	//float2 v0, v1; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
+	float4 intersection; // intersection.xy --> uv-coords, intersection.z --> metric depth
 	// 80 bytes
 	float2 v2, uv; // DEBUG
 	// 96 bytes
@@ -35,6 +37,9 @@ cbuffer ConstantBuffer : register(b8)
 // will be an overlay on top of everything else.
 Texture2D colorTex : register(t0);
 SamplerState colorSampler : register(s0);
+
+// The position/depth buffer
+Texture2D texPos : register(t1);
 
 /*
 float sdCircle(in vec2 p, in vec2 center, float radius)
@@ -108,7 +113,7 @@ struct PixelShaderOutput
 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
-	float2 input_uv_orig = input.uv;
+	//float2 input_uv_orig = input.uv;
 	vec3 color = 0.0;
 	output.color = 0.0;
 	
@@ -131,8 +136,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//return output;
 
 	float3 bgColor = colorTex.Sample(colorSampler, input.uv).xyz;
+	float3 pos3D   = texPos.Sample(colorSampler, input.uv).xyz;
+	vec2 p = input.uv;
 
-	vec2 p = input_uv_orig;
 	/*
 	if (DirectSBSEye == -1)
 		p = input.uv;
@@ -158,14 +164,16 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float v = 0.0, d = 10000.0;
 	if (bContOrigin)
 	{
-		d = sdCircle(lp_aspect_ratio * (p - contOrigin), cursor_radius);
+		d = sdCircle(lp_aspect_ratio * (p - contOrigin.xy), cursor_radius);
 		d += 0.005;
 		v += exp(-(d * d) * 5000.0);
 	}
 
-	if (bIntersection) 
+	if (bIntersection &&
+		// Do not display the intersection if it's occluded
+		intersection.z <= pos3D.z + 0.01)
 	{
-		d = sdCircle(lp_aspect_ratio * (p - intersection), cursor_radius);
+		d = sdCircle(lp_aspect_ratio * (p - intersection.xy), cursor_radius);
 		v += smoothstep(0.0015, 0.0, abs(d));
 		// Add a second ring if we're hovering on an active element
 		if (bHoveringOnActiveElem) {
@@ -176,9 +184,30 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	if (bContOrigin)
 	{
-		d = sdLine(p, contOrigin, intersection);
-		d += 0.01;
-		v += exp(-(d * d) * 7500.0);
+		d = sdLine(p, contOrigin.xy, intersection.xy);
+
+		// Compute the vector from the controller origin to the intersection
+		const float2 dir0 = intersection.xy - contOrigin.xy;
+		const float D = length(dir0);
+		float2 dir = dir0 / D;
+		// Compute the orthogonal vector
+		dir = float2(-dir.y, dir.x);
+		// Find the closest point on the line to the current pixel (p)
+		const float2 q = p + d * dir;
+		// Find the normalized distance from the closest point on the line (q) to the controller origin:
+		const float dist = length(q - contOrigin.xy) / D;
+		// Find the depth for the point q on the line:
+		const float lineZ = lerp(contOrigin.z, intersection.z, dist);
+		if (lineZ <= pos3D.z + 0.01)
+		{
+			// DEBUG: Draw a really small circle around q. This ends up looking like a thin line
+			//d = sdCircle(lp_aspect_ratio * (p - q), 0.001f);
+			//v += smoothstep(0.0015, 0.0, abs(d));
+
+			// Display the original line, with depth occlusion:
+			d += 0.01;
+			v += exp(-(d * d) * 7500.0);
+		}
 	}
 
 	//v = clamp(1.2 * v, 0.0, 1.0);
