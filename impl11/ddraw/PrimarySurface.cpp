@@ -7482,9 +7482,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		}
 	}
 
-	//if (inters.TriID != -1)
-	//	g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
-
 	contOriginDisplay = W * contOriginDisplay;
 	// contOriginDisplay is now in Worldview coords
 	bool bDisplayContOrigin = (contOriginDisplay.z > 0.01f); // Don't display the cursor if it's behind the camera
@@ -7510,10 +7507,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	if (inters.TriID != -1)
 	{
 		P = ray.origin + inters.T * ray.dir;
+		g_LaserPointerBuffer.bIntersection = true;
 	}
 	else // When there's no intersection, just draw a line pointing in the direction of the ray
 	{
 		P = ray.origin + (0.5f * METERS_TO_OPT) * ray.dir;
+		g_LaserPointerBuffer.bIntersection = false;
 	}
 
 	{
@@ -7524,55 +7523,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		{
 			float4 pos2Dp = TransformProjectionScreen(float3(Q));
 			InGameToScreenCoords(left, top, width, height, pos2Dp.x, pos2Dp.y, &screenX, &screenY);
-			g_LaserPointerBuffer.bIntersection = true;
 			g_LaserPointerBuffer.intersection[0] = screenX / g_fCurScreenWidth;
 			g_LaserPointerBuffer.intersection[1] = screenY / g_fCurScreenHeight;
 			g_LaserPointerBuffer.intersection[2] = Q.z * OPT_TO_METERS;
 		}
 	}
 
-	// Project the controller's position: (old version)
-#ifdef DISABLED
-	Matrix4 viewMatrix = g_viewMatrix;
-	viewMatrix.invert();
-	if (bProjectContOrigin) {
-		pos2D = projectMetric(contOriginDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
-		g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
-		g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
-		g_LaserPointerBuffer.bContOrigin = 1;
-		/* if (g_bDumpLaserPointerDebugInfo) {
-			log_debug("[DBG] [AC] contOrigin: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)", 
-				g_contOrigin.x, g_contOrigin.y, g_contOrigin.y,
-				p.x, p.y);
-		} */
-	}
-	else
-		g_LaserPointerBuffer.bContOrigin = 0;
-	
-	// Project the intersection to 2D:
-	if (g_LaserPointerBuffer.bIntersection) {
-		intersDisplay = g_LaserPointer3DIntersection;
-		if (g_LaserPointerBuffer.bDebugMode) {
-			Vector3 q;
-			q = projectMetric(g_debug_v0, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-			q = projectMetric(g_debug_v1, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-			q = projectMetric(g_debug_v2, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
-		}
-	} 
-	else {
-		// Make a fake intersection just to help the user move around the cockpit
-		intersDisplay.x = contOriginDisplay.x + g_fLaserPointerLength * g_contDirViewSpace.x;
-		intersDisplay.y = contOriginDisplay.y + g_fLaserPointerLength * g_contDirViewSpace.y;
-		intersDisplay.z = contOriginDisplay.z + g_fLaserPointerLength * g_contDirViewSpace.z;
-	}
-	// Project the intersection point
-	pos2D = projectMetric(intersDisplay, viewMatrix, g_FullProjMatrixLeft /*, NULL, NULL*/);
-#endif
-
-	//g_LaserPointerBuffer.intersection[0] = pos2D.x;
-	//g_LaserPointerBuffer.intersection[1] = pos2D.y;
-
-	//g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 	// If there was an intersection, find the action and execute it.
 	// (I don't think this code needs to be here; but I put it here with the rest of the render function)
 	if (g_LaserPointerBuffer.bIntersection && g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)

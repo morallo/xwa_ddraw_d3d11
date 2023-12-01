@@ -3139,7 +3139,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				Vector4 v1 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
 				Vector4 v2 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
 				Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
-				if (RayTriangleTest(inters) && inters.T < bestInters.T)
+				if (inters.T < bestInters.T && RayTriangleTest(inters))
 				{
 					bestInters = inters;
 					bestInters.TriID = faceIndex;
@@ -3152,7 +3152,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	{
 		g_LaserPointerBuffer.uv[0] = bestInters.U;
 		g_LaserPointerBuffer.uv[1] = bestInters.V;
-		g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
+		g_iBestIntersTexIdx = _lastTextureSelected->ActiveCockpitIdx;
 	}
 }
 
