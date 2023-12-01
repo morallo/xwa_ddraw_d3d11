@@ -104,6 +104,7 @@ protected:
 	bool _BLASNeedsUpdate;
 
 	void OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A);
+	void SingleFileOBJDumpD3dVertices(const SceneCompData* scene, int trianglesCount, const std::string& name);
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
@@ -135,7 +136,7 @@ public:
 	void ApplyBloomSettings(float bloomOverride);
 	void ApplyDiegeticCockpit();
 	void ApplyMeshTransform();
-	void ApplyActiveCockpit();
+	void ApplyActiveCockpit(const SceneCompData* scene);
 	void DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();

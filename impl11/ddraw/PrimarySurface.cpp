@@ -7077,39 +7077,10 @@ void PrimarySurface::RenderSunFlare()
 // ****************************************************************************
 
 #define MAX_RT_STACK 32
-#define RT_MAX_DIST 5000.0f
 // TLAS leaves use the following fields for a different purpose:
 #define BLASMatrixSlot rootIdx
 #define BLASId rootIdx
 #define BLASBaseNodeOffset numChildren
-
-// These are copies of the structures in RTCommon.h:
-struct Ray
-{
-	float3 origin;
-	float3 dir;
-	float  max_dist;
-
-	Ray()
-	{
-		origin = float3(0, 0, 0);
-		dir = float3(0, 0, 0);
-		max_dist = RT_MAX_DIST;
-	}
-};
-
-struct Intersection
-{
-	int   TriID;
-	float U, V, T;
-
-	Intersection()
-	{
-		TriID = -1;
-		T = RT_MAX_DIST * OPT_TO_METERS;
-		U = V = 0.0f;
-	}
-};
 
 extern std::vector<Matrix4> g_TLASMatrices;
 
@@ -7157,8 +7128,8 @@ bool RayTriangleTest(const Intersection& inters)
 	return (
             (inters.U >= 0.0f) &&
             (inters.V >= 0.0f) &&
-            ((inters.U + inters.V) <= 1.0f) &&
-            (inters.T >= 0.0f)
+            (inters.U + inters.V <= 1.0f) &&
+            (inters.T > 0.0f)
            );
 }
 
@@ -7247,14 +7218,11 @@ Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset)
 				fchildren[2]);
 
 			Intersection inters = getIntersection(ray, A, B, C);
-			if (inters.T > 0.0f && inters.T < best_inters.T)
+			if (RayTriangleTest(inters) && inters.T < best_inters.T)
 			{
-				if (RayTriangleTest(inters))
-				{
-					inters.TriID = TriID;
-					best_inters = inters;
-					// return best_inters; // Don't terminate early, keep searching the tree until we find the best intersection
-				}
+				inters.TriID = TriID;
+				best_inters = inters;
+				// return best_inters; // Don't terminate early, keep searching the tree until we find the best intersection
 			}
 		}
 	}
@@ -7401,6 +7369,20 @@ Intersection TLASTraceRaySimpleHit(Ray ray)
 extern std::vector<TLASLeafItem> g_ACtlasLeaves;
 // ****************************************************************************
 
+Vector4 VRControllerOriginToOPTCoords()
+{
+	float cockpitOriginX = *g_POV_X0;
+	float cockpitOriginY = *g_POV_Y0;
+	float cockpitOriginZ = *g_POV_Z0;
+	// cursor is in metric coords
+	Vector4 cursor = g_contOriginWorldSpace;
+	// Convert to OPT scale
+	cursor *= METERS_TO_OPT;
+	cursor.w = 1.0f;
+	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
+	return Vector4(cockpitOriginX + cursor.x, -(cockpitOriginY + cursor.z), cockpitOriginZ + cursor.y, 1.0f);
+}
+
 /*
  * Input: offscreenBuffer (resolved here)
  * Output: offscreenBufferPost
@@ -7421,7 +7403,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	float x0, y0, x1, y1;
 	static float iTime = 0.0f;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	//static Vector3 referencePos = Vector3(0, 0, 0);
+
 	D3D11_VIEWPORT viewport{};
 	// The viewport covers the *whole* screen, including areas that were not rendered during the first pass
 	// because this is a post-process effect
@@ -7439,7 +7421,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_LaserPointerBuffer.DirectSBSEye = 1;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-	//GetCraftViewMatrix(&g_LaserPointerBuffer.viewMat);
 	g_LaserPointerBuffer.x0 = x0;
 	g_LaserPointerBuffer.y0 = y0;
 	g_LaserPointerBuffer.x1 = x1;
@@ -7456,20 +7437,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_bACActionTriggered = true;
 	g_bACLastTriggerState = g_bACTriggerState;
 
-	// g_viewMatrix contains the camera Roll, nothing more right now: TODO, check this claim later, we may not need this anymore
-	//bool bProjectContOrigin = (g_contOriginViewSpace[2] >= 0.001f);
-	//Vector3 contOriginDisplay = Vector3(g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
-	Vector4 contOriginDisplay;
 	Vector3 intersDisplay, pos2D;
-
-	// Use the ViewMatrix to project metric to normalized screen coords:
-#ifdef DISABLED
-	//Vector4 center = ViewMatrix * HeadingMatrix * contOriginDisplay;
-	Vector4 center = ViewMatrix * contOriginDisplay;
-	log_debug("[DBG] [AC] pos3D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
-		contOriginDisplay.x, contOriginDisplay.y, contOriginDisplay.z,
-		center.x, center.y);
-#endif
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
 	Matrix4 Winv = W;
 	Winv.invert();
@@ -7480,32 +7448,20 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	contOriginDisplay.w = 1.0f;
 	contOriginDisplay = W * contOriginDisplay;*/
 
-	float cockpitOriginX = *g_POV_X0;
-	float cockpitOriginY = *g_POV_Y0;
-	float cockpitOriginZ = *g_POV_Z0;
-	// cursor is in metric coords
-	Vector4 cursor = g_contOriginWorldSpace;
-	// Convert to OPT scale
-	cursor *= METERS_TO_OPT;
-	cursor.w = 1.0f;
-	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
-	contOriginDisplay = Vector4(cockpitOriginX + cursor.x, -(cockpitOriginY + cursor.z), cockpitOriginZ + cursor.y, 1.0f);
+	Vector4 contOriginDisplay = VRControllerOriginToOPTCoords();
 	// contOriginDisplay is now in OPT coords. We can now use g_ACTLASTree to find the closest hit
 	// OPT coord system:
 	//    X+ --> right
 	//    Y+ --> backwards
 	//    Z+ --> up
 	Ray ray;
-	ray.dir    = { 0.0f, -1.0f, 0.0f }; // Y- --> Points forwards
-	ray.origin = float3(contOriginDisplay);
-	// contOriginDisplay is in OPT coords, let's transform it back into metric coords
-	//ray.origin  *= OPT_TO_METERS;
-	//ray.origin.y = -ray.origin.y;
+	ray.dir      = { 0.0f, -1.0f, 0.0f }; // Y- --> Points forwards
+	ray.origin   = float3(contOriginDisplay);
 	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
 
 	//Intersection inters = TLASTraceRaySimpleHit(ray);
 	Intersection inters;
-	g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
+
 	for (const auto &leaf : g_ACtlasLeaves)
 	{
 		auto it = g_BLASMap.find(leaf.PrimID);
@@ -7526,8 +7482,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		}
 	}
 
-	if (inters.TriID != -1)
-		g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
+	//if (inters.TriID != -1)
+	//	g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
 
 	contOriginDisplay = W * contOriginDisplay;
 	// contOriginDisplay is now in Worldview coords

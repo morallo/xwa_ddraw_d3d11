@@ -124,17 +124,27 @@ void ApplyYawPitchRoll(float yaw_deg, float pitch_deg, float roll_deg);
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 void ClearGlobalLBVHMap();
 
+Vector4 VRControllerOriginToOPTCoords();
+Intersection getIntersection(Ray ray, float3 A, float3 B, float3 C);
+bool RayTriangleTest(const Intersection& inters);
+
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
 #ifdef DUMP_TLAS
 static FILE* g_TLASFile = NULL;
 #endif
 
+/// <summary>
+/// Returns scene->MeshVertices
+/// </summary>
 int32_t MakeMeshKey(const SceneCompData* scene)
 {
 	return (int32_t)scene->MeshVertices;
 }
 
+/// <summary>
+/// Returns scene->FaceIndices
+/// </summary>
 int32_t MakeFaceGroupKey(const SceneCompData* scene)
 {
 	return (int32_t)scene->FaceIndices;
@@ -1173,6 +1183,9 @@ void BuildTLASEmbree()
 	}
 }
 
+/// <summary>
+/// Appends the current MeshVertices/FaceIndices to the current OBJ file.
+/// </summary>
 void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A)
 {
 	std::ostringstream str;
@@ -1266,7 +1279,7 @@ void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matri
 			}
 #endif
 
-#define DUMP_2D 0
+#define DUMP_2D 0 // If enabled, it will project 3D content to 2D screen coords and then dump those coords
 #if DUMP_2D == 0
 			// OPT to meters conversion:
 			//V *= OPT_TO_METERS;
@@ -1315,6 +1328,70 @@ void EffectsRenderer::OBJDumpD3dVertices(const SceneCompData *scene, const Matri
 		fprintf(D3DDumpOBJFile, "%s\n", line.c_str());
 	}
 	fprintf(D3DDumpOBJFile, "\n");
+}
+
+/// <summary>
+/// Dumps a single file for the current MeshVertices/FaceIndices.
+/// </summary>
+void EffectsRenderer::SingleFileOBJDumpD3dVertices(const SceneCompData* scene, int trianglesCount, const std::string& name)
+{
+	std::ostringstream str;
+	XwaVector3* MeshVertices = scene->MeshVertices;
+	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	XwaVector3* MeshNormals = scene->MeshVertexNormals;
+	int MeshNormalsCount = *(int*)((int)MeshNormals - 8);
+
+	int D3DOBJGroup = 0;
+	FILE* D3DDumpOBJFile = nullptr;
+	fopen_s(&D3DDumpOBJFile, name.c_str(), "wt");
+	if (D3DDumpOBJFile == nullptr)
+	{
+		log_debug("[DBG] Could not dump file: %s", name.c_str());
+		return;
+	}
+
+	// This is a new mesh, dump all the vertices.
+	//Matrix4 W = XwaTransformToMatrix4(scene->WorldViewTransform);
+	Matrix4 W;
+	W.identity();
+
+	Matrix4 S1;
+	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
+
+	fprintf(D3DDumpOBJFile, "o obj-%d\n", D3DOBJGroup);
+	for (int i = 0; i < MeshVerticesCount; i++) {
+		XwaVector3 v = MeshVertices[i];
+		Vector4 V(v.x, v.y, v.z, 1.0f);
+		// Apply the world view transform + OPT->meters conversion
+		V = S1 * W * V;
+		fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+	}
+	fprintf(D3DDumpOBJFile, "\n");
+
+	// Dump the normals
+	for (int i = 0; i < MeshNormalsCount; i++) {
+		XwaVector3 N = MeshNormals[i];
+		fprintf(D3DDumpOBJFile, "vn %0.6f %0.6f %0.6f\n", N.x, N.y, N.z);
+	}
+	fprintf(D3DDumpOBJFile, "\n");
+	D3DOBJGroup++;
+
+	// The following works alright, but it's not how things are rendered.
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
+	//for (int faceIndex = 0; faceIndex < trianglesCount; faceIndex++) {
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+		std::string line = "f ";
+
+		for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
+		{
+			// faceData.Vertex[vertexIndex] matches the vertex index data from the OPT
+			line += std::to_string(faceData.Vertex[vertexIndex] + 1) + "//" +
+			        std::to_string(faceData.VertexNormal[vertexIndex] + 1) + " ";
+		}
+		fprintf(D3DDumpOBJFile, "%s\n", line.c_str());
+	}
+	fclose(D3DDumpOBJFile);
 }
 
 //************************************************************************
@@ -1628,6 +1705,10 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			g_bRTCaptureCameraAABB = false;
 		}
 	}
+
+	// Active Cockpit.
+	// Reset the hover status flag.
+	g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -2989,20 +3070,29 @@ void EffectsRenderer::ApplyMeshTransform()
 	g_OPTMeshTransformCB.MeshTransform = material->meshTransform.ComputeTransform();
 }
 
-void EffectsRenderer::ApplyActiveCockpit()
+void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 {
 	if (!g_bActiveCockpitEnabled || !_bLastTextureSelectedNotNULL || !_bIsActiveCockpit || _bIsHologram)
 		return;
 
+	// DEBUG: Dump the mesh associated with the current texture
+	/*
+	if (g_bDumpSSAOBuffers)
+	{
+		static int counter = 0;
+		log_debug("[DBG] [AC] Dumping vertices with AC-enabled textures");
+		SingleFileOBJDumpD3dVertices(scene, _trianglesCount, std::string(".\\AC-") + std::to_string(counter++) + ".obj");
+	}
+	*/
+
 	// Intersect the current texture with the controller
 	// By this point, g_OPTMeshTransformCB.MeshTransform should contain the transform that is applied to
 	// animate the current mesh
-	Vector3 orig, dir, v0, v1, v2, P;
+	//Vector3 orig, dir, v0, v1, v2, P;
 	//bool debug = false;
 	//bool bIntersection;
-	//log_debug("[DBG] [AC] Testing for intersection...");
-	//if (bIsActiveCockpit) log_debug("[DBG] [AC] Testing %s", lastTextureSelected->_surface->_name);
 
+	/*
 	orig.x = g_contOriginViewSpace.x;
 	orig.y = g_contOriginViewSpace.y;
 	orig.z = g_contOriginViewSpace.z;
@@ -3010,11 +3100,60 @@ void EffectsRenderer::ApplyActiveCockpit()
 	dir.x = g_contDirViewSpace.x;
 	dir.y = g_contDirViewSpace.y;
 	dir.z = g_contDirViewSpace.z;
+	*/
+
+	Ray ray;
+	ray.origin   = float3(VRControllerOriginToOPTCoords());
+	// TODO: Apply g_contDirViewSpace here
+	ray.dir      = { 0.0f, -1.0f, 0.0f }; // Forwards direction, in the OPT coord sys
+	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
 
 	//IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx,
 	//	bIsActiveCockpit, orig, dir /*, debug */);
+
 	// TODO: Create a TLAS just for the cockpit so that we can quickly find the intersection of the
 	// ray coming from the cursor.
+
+	XwaVector3* MeshVertices = scene->MeshVertices;
+	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	Intersection bestInters;
+
+	// TODO: Apply the g_OPTMeshTransformCB.MeshTransform to the MeshVertices
+
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+	{
+		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+
+		// See BuildMultipleBLASFromCurrentBLASMap() too
+		for (int edge = 2; edge < edgesCount; edge++)
+		{
+			for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
+			{
+				D3dTriangle t;
+				t.v1 = 0;
+				t.v2 = edge - 1;
+				t.v3 = edge;
+
+				Vector4 v0 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
+				Vector4 v1 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
+				Vector4 v2 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
+				Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
+				if (RayTriangleTest(inters) && inters.T < bestInters.T)
+				{
+					bestInters = inters;
+					bestInters.TriID = faceIndex;
+				}
+			}
+		}
+	}
+
+	if (bestInters.TriID != -1)
+	{
+		g_LaserPointerBuffer.uv[0] = bestInters.U;
+		g_LaserPointerBuffer.uv[1] = bestInters.V;
+		g_LaserPointerBuffer.bHoveringOnActiveElem = 1;
+	}
 }
 
 // Apply BLOOM flags and 32-bit mode enhancements
@@ -4362,7 +4501,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Animate the current mesh (if applicable)
 	ApplyMeshTransform();
 
-	ApplyActiveCockpit();
+	ApplyActiveCockpit(scene);
 
 	if (g_bInTechRoom)
 	{
@@ -4927,7 +5066,6 @@ void EffectsRenderer::RenderScene()
 //out:
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
-
 }
 
 void EffectsRenderer::RenderLasers()

@@ -4510,6 +4510,8 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 				}
+
+				// TODO: This path is probably not used anymore
 				// Active Cockpit: Intersect the current texture with the controller
 				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
 					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest && !bIsHologram))
