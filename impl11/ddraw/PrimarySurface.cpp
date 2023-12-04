@@ -7526,6 +7526,33 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_LaserPointerBuffer.intersection[0] = screenX / g_fCurScreenWidth;
 			g_LaserPointerBuffer.intersection[1] = screenY / g_fCurScreenHeight;
 			g_LaserPointerBuffer.intersection[2] = Q.z * OPT_TO_METERS;
+			// DEBUG
+			{
+				float screenX, screenY;
+				Vector4 tmp;
+				float4 pos2D;
+
+				tmp.x = g_debug_v0.x; tmp.y = g_debug_v0.y; tmp.z = g_debug_v0.z; tmp.w = 1.0f;
+				tmp = W * tmp;
+				pos2D = TransformProjectionScreen(float3(tmp));
+				InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
+				g_LaserPointerBuffer.v0[0] = screenX / g_fCurScreenWidth;
+				g_LaserPointerBuffer.v0[1] = screenY / g_fCurScreenHeight;
+
+				tmp.x = g_debug_v1.x; tmp.y = g_debug_v1.y; tmp.z = g_debug_v1.z; tmp.w = 1.0f;
+				tmp = W * tmp;
+				pos2D = TransformProjectionScreen(float3(tmp));
+				InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
+				g_LaserPointerBuffer.v1[0] = screenX / g_fCurScreenWidth;
+				g_LaserPointerBuffer.v1[1] = screenY / g_fCurScreenHeight;
+
+				tmp.x = g_debug_v2.x; tmp.y = g_debug_v2.y; tmp.z = g_debug_v2.z; tmp.w = 1.0f;
+				tmp = W * tmp;
+				pos2D = TransformProjectionScreen(float3(tmp));
+				InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
+				g_LaserPointerBuffer.v2[0] = screenX / g_fCurScreenWidth;
+				g_LaserPointerBuffer.v2[1] = screenY / g_fCurScreenHeight;
+			}
 		}
 	}
 
@@ -9844,6 +9871,7 @@ HRESULT PrimarySurface::Flip(
 				// Reset the laser pointer intersection
 				if (g_bActiveCockpitEnabled) {
 					g_LaserPointerBuffer.bIntersection = 0;
+					g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 					g_fBestIntersectionDistance = 10000.0f;
 					g_iBestIntersTexIdx = -1;
 				}

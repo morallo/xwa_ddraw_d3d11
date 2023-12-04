@@ -247,6 +247,8 @@ struct LaserPointerCBuffer {
 	int bDebugMode;
 	float cursor_radius, lp_aspect_ratio[2];
 	// 112 bytes
+	float v0[2], v1[2]; // DEBUG
+	// 128 bytes
 };
 
 /* 3D Constant Buffers */

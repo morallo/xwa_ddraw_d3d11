@@ -6,7 +6,7 @@
 
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
+Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, -0.15f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
 Vector4 g_contDirWorldSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // This is the direction in which the controller is pointing in world-space coords
 Vector4 g_contOriginViewSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
 Vector4 g_contDirViewSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
@@ -295,12 +295,13 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 			TranslateACAction(&(coords->action[idx][0]), action);
 			//DisplayACAction(&(coords->action[idx][0]));
 
+			if (y0 > y1) std::swap(y0, y1);
 			coords->area[idx].x0 = x0 / width;
 			coords->area[idx].y0 = y0 / height;
 			coords->area[idx].x1 = x1 / width;
 			coords->area[idx].y1 = y1 / height;
 			// Flip the coordinates if necessary
-			if (x0 != -1.0f && x1 != -1.0f) {
+			/*if (x0 != -1.0f && x1 != -1.0f) {
 				if (x0 > x1)
 				{
 					// Swap coords in the X-axis:
@@ -324,7 +325,7 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 					coords->area[idx].y0 = 1.0f - coords->area[idx].y0;
 					coords->area[idx].y1 = 1.0f - coords->area[idx].y1;
 				}
-			}
+			}*/
 			coords->numCoords++;
 		}
 	}

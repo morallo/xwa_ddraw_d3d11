@@ -127,6 +127,10 @@ void ClearGlobalLBVHMap();
 Vector4 VRControllerOriginToOPTCoords();
 Intersection getIntersection(Ray ray, float3 A, float3 B, float3 C);
 bool RayTriangleTest(const Intersection& inters);
+bool rayTriangleIntersect(
+	const Vector3& orig, const Vector3& dir,
+	const Vector3& v0, const Vector3& v1, const Vector3& v2,
+	float& t, Vector3& P, float& u, float& v);
 
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
@@ -405,6 +409,11 @@ inline Matrix4 XwaTransformToMatrix4(const XwaTransform &M)
 inline Vector4 XwaVector3ToVector4(const XwaVector3 &V)
 {
 	return Vector4(V.x, V.y, V.z, 1.0f);
+}
+
+inline Vector3 XwaVector3ToVector3(const XwaVector3& V)
+{
+	return Vector3(V.x, V.y, V.z);
 }
 
 inline Vector2 XwaTextureVertexToVector2(const XwaTextureVertex &V)
@@ -1705,10 +1714,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			g_bRTCaptureCameraAABB = false;
 		}
 	}
-
-	// Active Cockpit.
-	// Reset the hover status flag.
-	g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -3108,6 +3113,9 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	ray.dir      = { 0.0f, -1.0f, 0.0f }; // Forwards direction, in the OPT coord sys
 	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
 
+	Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
+	Vector3 dir  = { ray.dir.x, ray.dir.y, ray.dir.z };
+
 	//IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx,
 	//	bIsActiveCockpit, orig, dir /*, debug */);
 
@@ -3116,7 +3124,13 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	XwaTextureVertex* MeshTextureVertices = scene->MeshTextureVertices;
+	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
+
 	Intersection bestInters;
+	float bestU = -FLT_MAX, bestV = -FLT_MAX;
+	XwaTextureVertex bestUV0, bestUV1, bestUV2;
+	int bestId = -1;
 
 	// TODO: Apply the g_OPTMeshTransformCB.MeshTransform to the MeshVertices
 
@@ -3135,24 +3149,46 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				t.v2 = edge - 1;
 				t.v3 = edge;
 
-				Vector4 v0 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
-				Vector4 v1 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
-				Vector4 v2 = XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
-				Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
-				if (inters.T < bestInters.T && RayTriangleTest(inters))
+				Vector3 v0 = XwaVector3ToVector3(MeshVertices[faceData.Vertex[t.v1]]);
+				Vector3 v1 = XwaVector3ToVector3(MeshVertices[faceData.Vertex[t.v2]]);
+				Vector3 v2 = XwaVector3ToVector3(MeshVertices[faceData.Vertex[t.v3]]);
+
+				Vector3 P;
+				float dist, u, v;
+				//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
+				//if (inters.T < bestInters.T && RayTriangleTest(inters))
+				if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v))
 				{
-					bestInters = inters;
-					bestInters.TriID = faceIndex;
+					if (dist < g_fBestIntersectionDistance)
+					{
+						g_fBestIntersectionDistance = dist;
+						bestU   = u;
+						bestV   = v;
+						bestUV0 = scene->MeshTextureVertices[faceData.TextureVertex[t.v1]];
+						bestUV1 = scene->MeshTextureVertices[faceData.TextureVertex[t.v2]];
+						bestUV2 = scene->MeshTextureVertices[faceData.TextureVertex[t.v3]];
+						bestId  = faceIndex;
+						g_debug_v0 = v0;
+						g_debug_v1 = v1;
+						g_debug_v2 = v2;
+					}
 				}
 			}
 		}
 	}
 
-	if (bestInters.TriID != -1)
+	//if (bestInters.TriID != -1)
+	if (bestId != -1)
 	{
-		g_LaserPointerBuffer.uv[0] = bestInters.U;
-		g_LaserPointerBuffer.uv[1] = bestInters.V;
+		// Interpolate the texture UV using the barycentric coords:
+		const float bestW = 1.0f - bestU - bestV;
+		const float u = bestU * bestUV0.u + bestV * bestUV1.u + bestW * bestUV2.u;
+		const float v = bestU * bestUV0.v + bestV * bestUV1.v + bestW * bestUV2.v;
+		g_LaserPointerBuffer.uv[0] = u;
+		g_LaserPointerBuffer.uv[1] = v;
 		g_iBestIntersTexIdx = _lastTextureSelected->ActiveCockpitIdx;
+		/*log_debug("[DBG] [AC] baryUVW: (%0.3f, %0.3f, %0.3f), uv: (%0.1f, %0.1f)",
+			bestU, bestV, bestW, u * 128.0f, v * 128.0f);*/
 	}
 }
 

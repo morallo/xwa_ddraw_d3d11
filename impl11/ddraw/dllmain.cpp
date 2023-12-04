@@ -288,8 +288,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 11:
 					g_contOriginWorldSpace.z += 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
-						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);
+					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
+						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
 					break;
 				case 12:
 					g_bShowBlastMarks = !g_bShowBlastMarks;
@@ -371,8 +371,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					break;
 				case 11:
 					g_contOriginWorldSpace.z -= 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
-						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);
+					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
+						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
 					break;
 				case 13:
 					g_fBlastMarkOfsX -= 0.01f;
@@ -968,8 +968,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				case 11:
-					g_contOriginWorldSpace.y += 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace.y += 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
@@ -1010,8 +1010,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				case 11:
-					g_contOriginWorldSpace.y -= 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace.y -= 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
@@ -1021,8 +1021,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					break;
 				case 11:
-					g_contOriginWorldSpace.x -= 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace.x -= 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
@@ -1032,8 +1032,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					break;
 				case 11:
-					g_contOriginWorldSpace.x += 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace.x += 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;

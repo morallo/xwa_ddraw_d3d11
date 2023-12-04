@@ -31,6 +31,8 @@ cbuffer ConstantBuffer : register(b8)
 	float cursor_radius;
 	float2 lp_aspect_ratio;
 	// 112 bytes
+	float2 v0, v1; // Debug vertices
+	// 128 bytes
 };
 
 // Color buffer: The fully-rendered image should go in this slot. This laser pointer 
@@ -71,8 +73,8 @@ float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 	vec2 pq2 = v2 - e2 * clamp(dot(v2, e2) / dot(e2, e2), 0.0, 1.0);
 	float s = sign(e0.x*e2.y - e0.y*e2.x);
 	vec2 d = min(min(vec2(dot(pq0, pq0), s*(v0.x*e0.y - v0.y*e0.x)),
-		vec2(dot(pq1, pq1), s*(v1.x*e1.y - v1.y*e1.x))),
-		vec2(dot(pq2, pq2), s*(v2.x*e2.y - v2.y*e2.x)));
+					 vec2(dot(pq1, pq1), s*(v1.x*e1.y - v1.y*e1.x))),
+				 vec2(dot(pq2, pq2), s*(v2.x*e2.y - v2.y*e2.x)));
 	return -sqrt(d.x)*sign(d.y);
 }
 
@@ -214,10 +216,16 @@ PixelShaderOutput main(PixelShaderInput input) {
 	float3 pointer_col = bIntersection ? dotcol : 0.7;
 	col = lerp(bgColor, pointer_col, v);
 
-#ifdef DEBUG
+#ifdef LASER_VR_DEBUG
 	// Draw the triangle uv-color-coded
-	if (bDebugMode && bIntersection && debug_map(p) < 0.001)
-		col = lerp(col, float3(uv, 0.0), 0.5);
+	//if (bDebugMode && bIntersection && debug_map(p) < 0.001)
+	if (bIntersection)
+	{
+		if (debug_map(p) <= 0.0)
+			col = lerp(col, float3(uv, 0.0), 0.5);
+		else if (debug_map(p) < 0.001)
+			col = 1;
+	}
 #endif
 
 	output.color = vec4(col, 1.0);
