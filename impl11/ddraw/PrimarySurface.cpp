@@ -7437,7 +7437,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_bACActionTriggered = true;
 	g_bACLastTriggerState = g_bACTriggerState;
 
-	Vector3 intersDisplay, pos2D;
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
 	Matrix4 Winv = W;
 	Winv.invert();
@@ -7488,7 +7487,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	for (int i = 0; i < 4; i++)
 		g_VSCBuffer.viewportScale[i] = renderer->_CockpitConstants.viewportScale[i];
-	float4 pos2Dp = TransformProjectionScreen(float3(contOriginDisplay));
+	float4 pos2D = TransformProjectionScreen(float3(contOriginDisplay));
 
 	// pos2Dp is now in in-game screen coords. We need to convert that to post-proc UV coords:
 	UINT left   = (UINT)g_nonVRViewport.TopLeftX;
@@ -7496,7 +7495,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	UINT width  = (UINT)g_nonVRViewport.Width;
 	UINT height = (UINT)g_nonVRViewport.Height;
 	float screenX, screenY;
-	InGameToScreenCoords(left, top, width, height, pos2Dp.x, pos2Dp.y, &screenX, &screenY);
+	InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
 
 	g_LaserPointerBuffer.contOrigin[0] = screenX / g_fCurScreenWidth;
 	g_LaserPointerBuffer.contOrigin[1] = screenY / g_fCurScreenHeight;
@@ -7527,6 +7526,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_LaserPointerBuffer.intersection[1] = screenY / g_fCurScreenHeight;
 			g_LaserPointerBuffer.intersection[2] = Q.z * OPT_TO_METERS;
 			// DEBUG
+#ifdef DISABLED
 			{
 				float screenX, screenY;
 				Vector4 tmp;
@@ -7553,6 +7553,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.v2[0] = screenX / g_fCurScreenWidth;
 				g_LaserPointerBuffer.v2[1] = screenY / g_fCurScreenHeight;
 			}
+#endif
 		}
 	}
 
@@ -7633,8 +7634,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				(short)(width * g_LaserPointerBuffer.uv[0]), (short)(height * g_LaserPointerBuffer.uv[1]));
 			
 		}
-		log_debug("[DBG] [AC] g_contOrigin: (%0.3f, %0.3f, %0.3f)", g_contOriginViewSpace.x, g_contOriginViewSpace.y, g_contOriginViewSpace.z);
-		log_debug("[DBG] [AC] g_contDirection: (%0.3f, %0.3f, %0.3f)", g_contDirViewSpace.x, g_contDirViewSpace.y, g_contDirViewSpace.z);
+		log_debug("[DBG] [AC] g_contOrigin: (%0.3f, %0.3f, %0.3f)", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);
+		log_debug("[DBG] [AC] g_contDirection: (%0.3f, %0.3f, %0.3f)", g_contDirWorldSpace.x, g_contDirWorldSpace.y, g_contDirWorldSpace.z);
 		log_debug("[DBG] [AC] Triangle, best t: %0.3f: ", g_fBestIntersectionDistance);
 		//log_debug("[DBG] [AC] v0: (%0.3f, %0.3f)", g_LaserPointerBuffer.v0[0], g_LaserPointerBuffer.v0[1]);
 		//log_debug("[DBG] [AC] v1: (%0.3f, %0.3f)", g_LaserPointerBuffer.v1[0], g_LaserPointerBuffer.v1[1]);
@@ -7708,7 +7709,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Render the right image
 		if (g_bEnableVR) {
 			if (bDisplayContOrigin) {
-				//pos2D = projectMetric(contOriginDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
 				g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
@@ -7717,16 +7717,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.bContOrigin = 0;
 
 			// Project the intersection to 2D:
-			//pos2D = projectMetric(intersDisplay, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/);
 			g_LaserPointerBuffer.intersection[0] = pos2D.x;
 			g_LaserPointerBuffer.intersection[1] = pos2D.y;
-
-			if (g_LaserPointerBuffer.bIntersection && g_LaserPointerBuffer.bDebugMode) {
-				Vector3 q;
-				//q = projectMetric(g_debug_v0, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-				//q = projectMetric(g_debug_v1, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-				//q = projectMetric(g_debug_v2, viewMatrix, g_FullProjMatrixRight /*, NULL, NULL*/); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;
-			}
 
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
@@ -7739,7 +7731,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				viewport.TopLeftX = (float)viewport.Width;
 				g_LaserPointerBuffer.DirectSBSEye = 2;
 			}
-			viewport.Height = (float)resources->_backbufferHeight;
+			viewport.Height   = (float)resources->_backbufferHeight;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
@@ -7971,11 +7963,9 @@ void UpdateViewMatrix()
 	*/
 
 	// Update the laser pointer position.
-	g_contOriginViewSpace = g_contOriginWorldSpace;
-	g_contDirViewSpace = g_contDirWorldSpace;
 	// In VR mode, the y-axis of the laser pointer is flipped with respect to the non-VR path:
 	if (g_bEnableVR)
-		g_contOriginViewSpace.y = -g_contOriginViewSpace.y;
+		g_contOriginWorldSpace.y = -g_contOriginWorldSpace.y;
 }
 
 void PrimarySurface::Add3DVisionSignature()

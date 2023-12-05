@@ -3093,19 +3093,6 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	// Intersect the current texture with the controller
 	// By this point, g_OPTMeshTransformCB.MeshTransform should contain the transform that is applied to
 	// animate the current mesh
-	//Vector3 orig, dir, v0, v1, v2, P;
-	//bool debug = false;
-	//bool bIntersection;
-
-	/*
-	orig.x = g_contOriginViewSpace.x;
-	orig.y = g_contOriginViewSpace.y;
-	orig.z = g_contOriginViewSpace.z;
-
-	dir.x = g_contDirViewSpace.x;
-	dir.y = g_contDirViewSpace.y;
-	dir.z = g_contDirViewSpace.z;
-	*/
 
 	Ray ray;
 	ray.origin   = float3(VRControllerOriginToOPTCoords());
@@ -3187,8 +3174,6 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 		g_LaserPointerBuffer.uv[0] = u;
 		g_LaserPointerBuffer.uv[1] = v;
 		g_iBestIntersTexIdx = _lastTextureSelected->ActiveCockpitIdx;
-		/*log_debug("[DBG] [AC] baryUVW: (%0.3f, %0.3f, %0.3f), uv: (%0.1f, %0.1f)",
-			bestU, bestV, bestW, u * 128.0f, v * 128.0f);*/
 	}
 }
 

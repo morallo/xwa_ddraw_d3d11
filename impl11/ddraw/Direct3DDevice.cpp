@@ -4513,6 +4513,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// TODO: This path is probably not used anymore
 				// Active Cockpit: Intersect the current texture with the controller
+#ifdef DISABLED
 				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
 					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest && !bIsHologram))
 				{
@@ -4583,6 +4584,7 @@ HRESULT Direct3DDevice::Execute(
 							//}
 					}
 				}
+#endif
 
 				// Skip specific draw calls for debugging purposes.
 #ifdef DBG_VR

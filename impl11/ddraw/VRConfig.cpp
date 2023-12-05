@@ -1693,9 +1693,6 @@ bool LoadACParams() {
 				g_bCompensateHMDRotation = (bool)fValue;
 				g_bCompensateHMDPosition = (bool)fValue;
 			}
-			else if (_stricmp(param, "full_cockpit_test") == 0) {
-				g_bFullCockpitTest = (bool)fValue;
-			}
 			else if (_stricmp(param, "laser_pointer_length") == 0) {
 				g_fLaserPointerLength = fValue;
 			}
