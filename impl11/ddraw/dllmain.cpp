@@ -287,7 +287,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
 				case 11:
-					g_contOriginWorldSpace.z += 0.02f;
+					g_contOriginWorldSpace.z -= 0.02f;
 					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
 						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
 					break;
@@ -370,7 +370,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
 				case 11:
-					g_contOriginWorldSpace.z -= 0.02f;
+					g_contOriginWorldSpace.z += 0.02f;
 					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
 						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
 					break;

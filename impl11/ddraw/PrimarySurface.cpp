@@ -7371,16 +7371,17 @@ extern std::vector<TLASLeafItem> g_ACtlasLeaves;
 
 Vector4 VRControllerOriginToOPTCoords()
 {
-	float cockpitOriginX = *g_POV_X0;
-	float cockpitOriginY = *g_POV_Y0;
-	float cockpitOriginZ = *g_POV_Z0;
+	float cockpitOriginX = *g_POV_X;
+	float cockpitOriginY = *g_POV_Y;
+	float cockpitOriginZ = *g_POV_Z;
+
 	// cursor is in metric coords
 	Vector4 cursor = g_contOriginWorldSpace;
 	// Convert to OPT scale
 	cursor *= METERS_TO_OPT;
 	cursor.w = 1.0f;
 	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
-	return Vector4(cockpitOriginX + cursor.x, -(cockpitOriginY + cursor.z), cockpitOriginZ + cursor.y, 1.0f);
+	return Vector4(cockpitOriginX + cursor.x, cockpitOriginY + cursor.z, cockpitOriginZ + cursor.y, 1.0f);
 }
 
 /*
@@ -7438,8 +7439,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_bACLastTriggerState = g_bACTriggerState;
 
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
-	Matrix4 Winv = W;
-	Winv.invert();
 
 	// Regular transform chain: OPT to in-game screen coords.
 	/*contOriginDisplay = Vector4(0.0f, -1.0f, 0.5f, 1.0f);

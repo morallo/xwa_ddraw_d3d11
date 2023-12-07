@@ -416,6 +416,11 @@ inline Vector3 XwaVector3ToVector3(const XwaVector3& V)
 	return Vector3(V.x, V.y, V.z);
 }
 
+inline Vector3 Vector4ToVector3(const Vector4& V)
+{
+	return Vector3(V.x, V.y, V.z);
+}
+
 inline Vector2 XwaTextureVertexToVector2(const XwaTextureVertex &V)
 {
 	return Vector2(V.u, V.v);
@@ -3075,6 +3080,9 @@ void EffectsRenderer::ApplyMeshTransform()
 	g_OPTMeshTransformCB.MeshTransform = material->meshTransform.ComputeTransform();
 }
 
+/// <summary>
+/// If the current texture is ActiveCockpit-enabled, then this code will check for intersections
+/// </summary>
 void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 {
 	if (!g_bActiveCockpitEnabled || !_bLastTextureSelectedNotNULL || !_bIsActiveCockpit || _bIsHologram)
@@ -3091,9 +3099,6 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	*/
 
 	// Intersect the current texture with the controller
-	// By this point, g_OPTMeshTransformCB.MeshTransform should contain the transform that is applied to
-	// animate the current mesh
-
 	Ray ray;
 	ray.origin   = float3(VRControllerOriginToOPTCoords());
 	// TODO: Apply g_contDirViewSpace here
@@ -3119,8 +3124,6 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	XwaTextureVertex bestUV0, bestUV1, bestUV2;
 	int bestId = -1;
 
-	// TODO: Apply the g_OPTMeshTransformCB.MeshTransform to the MeshVertices
-
 	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
 	{
 		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
@@ -3136,9 +3139,13 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				t.v2 = edge - 1;
 				t.v3 = edge;
 
-				Vector3 v0 = XwaVector3ToVector3(MeshVertices[faceData.Vertex[t.v1]]);
-				Vector3 v1 = XwaVector3ToVector3(MeshVertices[faceData.Vertex[t.v2]]);
-				Vector3 v2 = XwaVector3ToVector3(MeshVertices[faceData.Vertex[t.v3]]);
+				Vector4 p0 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
+				Vector4 p1 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
+				Vector4 p2 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
+
+				Vector3 v0 = Vector4ToVector3(p0);
+				Vector3 v1 = Vector4ToVector3(p1);
+				Vector3 v2 = Vector4ToVector3(p2);
 
 				Vector3 P;
 				float dist, u, v;

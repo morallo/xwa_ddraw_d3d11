@@ -6,7 +6,7 @@
 
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, -0.15f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
+Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, -0.4f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
 Vector4 g_contDirWorldSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // This is the direction in which the controller is pointing in world-space coords
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
