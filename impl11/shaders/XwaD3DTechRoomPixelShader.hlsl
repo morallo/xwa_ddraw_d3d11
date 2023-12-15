@@ -10,6 +10,7 @@
 #include "PixelShaderTextureCommon.h"
 #include "PBRShading.h"
 #include "RT/RTCommon.h"
+#include "NormalMapping.h"
 
 Texture2D texture0 : register(t0); // This is the regular color texture
 Texture2D texture1 : register(t1); // If present, this is the light texture
@@ -64,11 +65,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, SSAOAlpha);
 
 	if (bDoNormalMapping) {
+		/*
 		float3 T = normalize(input.tangent.xyz);
 		T.y = -T.y; // Invert the Y axis, originally Y+ is down
 		T.z = -T.z;
 		float3 B = cross(T, N);
 		float3x3 TBN = float3x3(T, B, N);
+		*/
+		const float3x3 TBN = cotangent_frame(N, P, input.tex);
 		const float3 NM = normalize(mul((normalMapColor * 2.0) - 1.0, TBN));
 		N = lerp(N, NM, fNMIntensity);
 	}

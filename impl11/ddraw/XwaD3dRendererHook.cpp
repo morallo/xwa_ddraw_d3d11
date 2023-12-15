@@ -322,7 +322,6 @@ void D3dRenderer::FlightStart()
 	_AABBs.clear();
 	_centers.clear();
 	_LBVHs.clear();
-	_tangentMap.clear();
 	// g_meshToFGMap is cleared in DeviceResources::OnSizeChanged().
 	// The reason for that is that pressing H to restart a mission will cause this class to
 	// be re-created; but the D3dRendererOptNodeHook() will not get called again and that's
@@ -484,6 +483,7 @@ void D3dRenderer::UpdateTextures(const SceneCompData* scene)
 }
 
 // Returns true if all the tangents for the current mesh have been computed.
+#ifdef DISABLED
 bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangents)
 {
 	// Fetch all the FGs for this mesh -- including all LODs.
@@ -556,6 +556,7 @@ bool D3dRenderer::ComputeTangents(const SceneCompData* scene, XwaVector3 *tangen
 	// All normals should have a tangent if we iterate over all the FGs in all LODs
 	return true;
 }
+#endif
 
 void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 {
@@ -696,10 +697,19 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		}
 	}
 
+	// Tangent maps are optional, so in this case, we default to nullptr
+	_lastMeshVertexTangentsView = nullptr;
+	// Tangent maps are no longer computed by the CPU. They are computed as needed in the GPU,
+	// in the forward rendering pass (see XwaD3dPixelShader.hlsl). The main reason for this is
+	// that OPT profiles apparently mess up the Mesh -> Tangent Buffer mapping, so it's no longer
+	// possible to tell what was the original mesh that was associated with a texture. This sometimes
+	// causes crashes, so it's better not to do this.
+	// Plus, the hangar reloads the meshes every time a view changes, causing memory leaks as the tangent
+	// maps were also recomputed.
+#ifdef DISABLED
 	// Tangent maps
+	if (!(*g_playerInHangar))
 	{
-		// Tangent maps are optional, so in this case, we default to nullptr
-		_lastMeshVertexTangentsView = nullptr;
 		// The key for the tangent map is going to be the same key we use for the normals.
 		// We do this because the scene object does not have a tangent map.
 		auto it_tan = _meshTangentsViews.find((int)normals);
@@ -712,22 +722,8 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 		{
 			// The tangents SRV isn't ready yet. Try computing it
 			int normalsCount = *(int*)((int)normals - 8);
-			XwaVector3 *tangents = nullptr;
-
-			auto it_tanmap = _tangentMap.find((int)normals);
-			if (it_tanmap == _tangentMap.end()) {
-				// There's no entry yet, create an empty tangent map and add it
-				tangents = new XwaVector3[normalsCount];
-				_tangentMap.insert(std::make_pair((int)normals, tangents));
-				// Make sure it_tanmap is valid. We'll need it below
-				it_tanmap = _tangentMap.find((int)normals);
-			}
-			else {
-				// Existing entry, fetch the previous data
-				tangents = it_tanmap->second;
-			}
-			
-			if (tangents != nullptr && it_tanmap != _tangentMap.end())
+			XwaVector3 *tangents = tangents = new XwaVector3[normalsCount];
+			if (tangents != nullptr)
 			{
 				// If the entry in g_meshToFGMap for this mesh hasn't been populated yet (meaning
 				// that we don't know all the FGs in all the LODs for the current mesh yet), then
@@ -754,11 +750,11 @@ void D3dRenderer::UpdateMeshBuffers(const SceneCompData* scene)
 
 					delete[] tangents;
 					tangents = nullptr;
-					it_tanmap->second = tangents;
 				}
 			}
 		}
 	}
+#endif
 
 	if (textureCoords != _lastMeshTextureVertices)
 	{

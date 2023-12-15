@@ -58,7 +58,17 @@ float3x3 cotangent_frame(float3 N, float3 p, float2 uv)
 
 	// construct a scale-invariant frame
 	float invmax = rsqrt(max(dot(T, T), dot(B, B)));
-	return float3x3(T * invmax, B * invmax, N);
+	// return float3x3(T * invmax, B * invmax, N);
+	T *= invmax;
+	// There's an explanation for the following math.
+	// N.z is inverted because that way we recover the original normal (we inverted it at the beginning of this function)
+	// T.z is inverted to match the tangent maps as computed by ComputeTangents().
+	// B is computed using a cross product because that's how we used to do it when ComputeTangents() was enabled.
+	N.z = -N.z;
+	T.z = -T.z;
+	//T = normalize(T);
+	B = cross(T, N);
+	return float3x3(T, B, N);
 }
 
 float3 perturb_normal(float3 N, float3 V, float2 texcoord, float3 NMCol)
@@ -72,8 +82,7 @@ float3 perturb_normal(float3 N, float3 V, float2 texcoord, float3 NMCol)
 	float3x3 TBN = cotangent_frame(N, -V, texcoord); // V is the view vector, so -V is equivalent to the vertex 3D pos
 	//return normalize(mul(NMCol, TBN));
 	// I _think_ mul(float3, float3x3) is the right order because of the way the matrix was built.
-	float3 tempN = normalize(mul(NMCol, TBN));
-	return tempN;
+	return normalize(mul(NMCol, TBN));
 }
 
 // Simplified version of the above, supply the TBN matrix computed with cotangent_frame to this function.
@@ -87,8 +96,7 @@ float3 perturb_normal(float3x3 TBN, float3 N, float3 NMCol)
 	//float3x3 TBN = cotangent_frame(N, -V, texcoord); // V is the view vector, so -V is equivalent to the vertex 3D pos
 	//return normalize(mul(NMCol, TBN));
 	// I _think_ mul(float3, float3x3) is the right order because of the way the matrix was built.
-	float3 tempN = normalize(mul(NMCol, TBN));
-	return tempN;
+	return normalize(mul(NMCol, TBN));
 }
 
 #endif

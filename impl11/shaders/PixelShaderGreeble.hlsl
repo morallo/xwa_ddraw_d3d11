@@ -222,15 +222,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	// DEBUG
 
 	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
+	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
+
+	const float3x3 TBN = cotangent_frame(N, P, input.tex);
 
 	// Replicate the same transforms we're applying to the normal N
-	float3 T = normalize(input.tangent.xyz);
-	T.y = -T.y;
-	T.z = -T.z;
-	const float3 B = cross(T, N);
-	const float3x3 TBN = float3x3(T, B, N);
+	//float3 T = normalize(input.tangent.xyz);
+	//T.yz = -T.yz;
+	//const float3 B = cross(T, N);
+	//const float3x3 TBN = float3x3(T, B, N);
 	if (bDoNormalMapping) {
 		const float3 NM = normalize(mul((normalMapColor * 2.0) - 1.0, TBN));
 		N = lerp(N, NM, fNMIntensity);

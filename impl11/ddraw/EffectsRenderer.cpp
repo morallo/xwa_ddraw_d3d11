@@ -3621,7 +3621,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 void EffectsRenderer::ApplyNormalMapping()
 {
 	if (!g_bFNEnable || !_bHasMaterial || !_lastTextureSelected->material.NormalMapLoaded ||
-		_lastTextureSelected->NormalMapIdx == -1 || _lastMeshVertexTangentsView == nullptr)
+		_lastTextureSelected->NormalMapIdx == -1)
 		return;
 
 	auto &resources = _deviceResources;
