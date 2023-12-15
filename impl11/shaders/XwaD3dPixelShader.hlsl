@@ -55,7 +55,7 @@ struct PixelShaderInput
 	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
 	//float4 color  : COLOR0;
-	float4 tangent : TANGENT;
+	//float4 tangent : TANGENT;
 };
 
 struct PixelShaderOutput

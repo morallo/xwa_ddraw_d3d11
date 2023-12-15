@@ -31,7 +31,7 @@ struct PixelShaderInput
 	float4 normal : NORMAL;
 	float2 tex    : TEXCOORD;
 	//float4 color  : COLOR0;
-	float4 tangent : TANGENT;
+	//float4 tangent : TANGENT;
 	uint viewId : SV_RenderTargetArrayIndex;
 };
 
@@ -48,7 +48,7 @@ PixelShaderInput main(VertexShaderInput input)
 	n = mul(float4(n, 0.0f), MeshTransform).xyz;
 	T = mul(float4(T, 0.0f), MeshTransform).xyz;
 	output.normal = mul(float4(n, 0.0f), transformWorldView);
-	output.tangent = mul(float4(T, 0.0f), transformWorldView);
+	//output.tangent = mul(float4(T, 0.0f), transformWorldView);
 	output.tex = t;
 
 	// The 3D coordinates we get here are in "OPT scale". The conversion factor from

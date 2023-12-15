@@ -11,6 +11,7 @@
 #include "HSV.h"
 #include "shading_system.h"
 #include "PixelShaderTextureCommon.h"
+#include "NormalMapping.h"
 
 Texture2D    texture0 : register(t0);
 Texture2D	 texture1 : register(t1); // If present, this is the light texture
@@ -29,7 +30,7 @@ struct PixelShaderInput
 	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
 	//float4 color  : COLOR0;
-	float4 tangent : TANGENT;
+	//float4 tangent : TANGENT;
 };
 
 struct PixelShaderOutput
@@ -115,16 +116,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 
 	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
+	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 
 	if (bDoNormalMapping) {
 		float3 normalMapColor = normalMap.Sample(sampler0, input.tex).rgb;
-		float3 T = normalize(input.tangent.xyz);
-		T.y = -T.y; // Replicate the same transforms we're applying to the normal N
-		T.z = -T.z;
-		const float3 B = cross(T, N);
-		const float3x3 TBN = float3x3(T, B, N);
+		const float3x3 TBN = cotangent_frame(N, P, input.tex);
 		const float3 NM = normalize(mul((normalMapColor * 2.0) - 1.0, TBN));
 		N = lerp(N, NM, fNMIntensity);
 	}
