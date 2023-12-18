@@ -171,6 +171,12 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
     </FxCompile>
+    <FxCompile Include="LaserPointer.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4.0</ShaderModel>
+    </FxCompile>
     <FxCompile Include="LavaPixelShader.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
@@ -643,6 +649,7 @@
     <ClInclude Include="HeadLightsPSCommon.h" />
     <ClInclude Include="HSV.h" />
     <ClInclude Include="HyperComposeCommon.h" />
+    <ClInclude Include="LaserPointerCommon.h" />
     <ClInclude Include="MainVertexShaderCommon.h" />
     <ClInclude Include="material_defs.h" />
     <ClInclude Include="metric_common.h" />

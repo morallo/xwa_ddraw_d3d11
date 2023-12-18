@@ -4435,15 +4435,15 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
 
-		g_VSCBuffer.aspect_ratio			=  g_fAspectRatio;
-		g_VSCBuffer.z_override			= -1.0f;
-		g_VSCBuffer.sz_override			= -1.0f;
-		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.apply_uv_comp       =  false;
-		g_VSCBuffer.bPreventTransform	=  0.0f;
-		g_VSCBuffer.bFullTransform		=  0.0f;
-		g_VSCBuffer.s_V0x08B94CC			= *(float*)0x08B94CC;
-		g_VSCBuffer.s_V0x05B46B4			= *(float*)0x05B46B4;
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
+		g_VSCBuffer.s_V0x08B94CC      = *(float*)0x08B94CC;
+		g_VSCBuffer.s_V0x05B46B4      = *(float*)0x05B46B4;
 		if (g_bEnableVR) 
 		{
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
@@ -7406,7 +7406,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	D3D11_VIEWPORT viewport{};
-	// The viewport covers the *whole* screen, including areas that were not rendered during the first pass
+	// The viewport covers the *whole* screen, including areas that were not rendered during the forward pass
 	// because this is a post-process effect
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
@@ -7415,7 +7415,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
-	resources->InitPixelShader(resources->_laserPointerPS);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_laserPointerPS_VR :resources->_laserPointerPS);
 
 	g_LaserPointerBuffer.DirectSBSEye = -1;
 	if (g_bEnableVR && !g_bUseSteamVR)
@@ -7459,7 +7459,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	//Intersection inters = TLASTraceRaySimpleHit(ray);
 	Intersection inters;
-
+	// Find the ray-geometry intersection by iterating over all the BLASes
 	for (const auto &leaf : g_ACtlasLeaves)
 	{
 		auto it = g_BLASMap.find(leaf.PrimID);
@@ -7488,7 +7488,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_VSCBuffer.viewportScale[i] = renderer->_CockpitConstants.viewportScale[i];
 	float4 pos2D = TransformProjectionScreen(float3(contOriginDisplay));
 
-	// pos2Dp is now in in-game screen coords. We need to convert that to post-proc UV coords:
+	// pos2D is now in in-game screen coords. We need to convert that to post-proc UV coords:
 	UINT left   = (UINT)g_nonVRViewport.TopLeftX;
 	UINT top    = (UINT)g_nonVRViewport.TopLeftY;
 	UINT width  = (UINT)g_nonVRViewport.Width;
@@ -7519,8 +7519,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		Q = W * Q;
 		if (Q.z > 0.01f) // Don't display the intersection if it's behind the camera
 		{
-			float4 pos2Dp = TransformProjectionScreen(float3(Q));
-			InGameToScreenCoords(left, top, width, height, pos2Dp.x, pos2Dp.y, &screenX, &screenY);
+			float4 pos2D = TransformProjectionScreen(float3(Q));
+			InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
 			g_LaserPointerBuffer.intersection[0] = screenX / g_fCurScreenWidth;
 			g_LaserPointerBuffer.intersection[1] = screenY / g_fCurScreenHeight;
 			g_LaserPointerBuffer.intersection[2] = Q.z * OPT_TO_METERS;
@@ -7663,7 +7663,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 
 	{
-		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the new viewport (a full quad covering the full screen)
 		viewport.Width  = g_fCurScreenWidth;
 		viewport.Height = g_fCurScreenHeight;
@@ -7703,10 +7702,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			resources->_depthBufSRV.Get()
 		};
 		context->PSSetShaderResources(0, 2, srvs);
-		context->Draw(6, 0);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
 
 		// Render the right image
+#ifdef DISABLED
 		if (g_bEnableVR) {
+			/*
 			if (bDisplayContOrigin) {
 				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
 				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
@@ -7714,10 +7718,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			}
 			else
 				g_LaserPointerBuffer.bContOrigin = 0;
+			*/
+			g_LaserPointerBuffer.bContOrigin = 0;
+			g_LaserPointerBuffer.bIntersection = 0;
 
 			// Project the intersection to 2D:
-			g_LaserPointerBuffer.intersection[0] = pos2D.x;
-			g_LaserPointerBuffer.intersection[1] = pos2D.y;
+			//g_LaserPointerBuffer.intersection[0] = pos2D.x;
+			//g_LaserPointerBuffer.intersection[1] = pos2D.y;
 
 			// VIEWPORT-RIGHT
 			if (g_bUseSteamVR) {
@@ -7756,6 +7763,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			}
 			context->Draw(6, 0);
 		}
+#endif
 	}
 
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);

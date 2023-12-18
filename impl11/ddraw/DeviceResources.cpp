@@ -62,6 +62,7 @@
 #include "../Debug/HyperCompose.h"
 #include "../Debug/HyperComposeVR.h"
 #include "../Debug/HyperZoom.h"
+#include "../Debug/LaserPointer.h"
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
 #include "../Debug/FXAA_VR.h"
@@ -150,6 +151,7 @@
 #include "../Release/HyperCompose.h"
 #include "../Release/HyperComposeVR.h"
 #include "../Release/HyperZoom.h"
+#include "../Release/LaserPointer.h"
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
 #include "../Release/FXAA_VR.h"
@@ -3972,9 +3974,6 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
@@ -4015,6 +4014,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -4040,6 +4042,9 @@ HRESULT DeviceResources::LoadMainResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointer, sizeof(g_LaserPointer), nullptr, &_laserPointerPS)))
 			return hr;
 	}
 
@@ -4401,9 +4406,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
@@ -4453,6 +4455,9 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS_VR, sizeof(g_RTShadowMaskPS_VR), nullptr, &_rtShadowMaskPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -4481,6 +4486,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointer, sizeof(g_LaserPointer), nullptr, &_laserPointerPS)))
 			return hr;
 	}
 
