@@ -3,7 +3,7 @@
 Buffer<float3> g_vertices : register(t0);
 Buffer<float3> g_normals : register(t1);
 Buffer<float2> g_textureCoords : register(t2);
-Buffer<float3> g_tangents : register(t3);
+//Buffer<float3> g_tangents : register(t3);
 
 // OPTMeshTransformCBuffer
 cbuffer ConstantBuffer : register(b8) {
