@@ -7410,8 +7410,10 @@ void OPTVertexToPostProcCoords(float* viewportScale, const Vector4& P, float *sc
 void PrimarySurface::OPTVertexToSteamVRPostProcCoords(Vector4 pos3D, Vector4 pos2D[2])
 {
 	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
-	Matrix4 W = Matrix4(renderer->_CockpitConstants.transformWorldView);
+	const Matrix4 W = Matrix4(renderer->_CockpitConstants.transformWorldView);
 	pos3D.w = 1.0f;
+
+	const Matrix4 V = g_VSMatrixCB.fullViewMat;
 
 	Vector4 P;
 	// Transform to WorldView coords:
@@ -7421,9 +7423,18 @@ void PrimarySurface::OPTVertexToSteamVRPostProcCoords(Vector4 pos3D, Vector4 pos
 	pos3D.x = P.x;
 	pos3D.y = P.z;
 	pos3D.z = P.y;
-	pos3D.w = 1.0f;
 	// At this point, output.pos3D is metric, X+ is right, Y+ is up and Z- is forward (away from the camera), because
 	// that's the SteamVR coord sys
+
+	// Apply the current SteamVR headset orientation:
+	// I know this is weird, but we need to set w = 0 because the translation is already
+	// applied to the World through the Cockpit Look Hook. So if we apply it here again,
+	// the cursor will be translated twice. So, we set w = 0 and thus avoid the translation...
+	pos3D.w = 0.0f;
+	pos3D = V * pos3D;
+	// ... but then we need to set w = 1 back here to enable the regular projection that is
+	// effected below.
+	pos3D.w = 1.0f;
 
 	for (int eye = 0; eye < 2; eye++)
 	{
