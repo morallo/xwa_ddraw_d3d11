@@ -214,9 +214,9 @@ float4 TransformProjection(float3 input)
 	return pos;
 }
 
-/*
- * Same as TransformProjection, but returns screen coordinates + depth buffer
- */
+/// <summary>
+/// Same as TransformProjection(), but returns in-game screen coordinates + depth buffer
+/// </summary>
 float4 TransformProjectionScreen(float3 input)
 {
 	float4 pos = TransformProjection(input);

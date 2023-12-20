@@ -7384,6 +7384,66 @@ Vector4 VRControllerOriginToOPTCoords()
 	return Vector4(cockpitOriginX + cursor.x, cockpitOriginY + cursor.z, cockpitOriginZ + cursor.y, 1.0f);
 }
 
+void OPTVertexToPostProcCoords(float* viewportScale, const Vector4& P, float *screenX, float *screenY)
+{
+	for (int i = 0; i < 4; i++)
+		g_VSCBuffer.viewportScale[i] = viewportScale[i];
+	float4 pos2D = TransformProjectionScreen(float3(P));
+
+	// pos2D is now in in-game screen coords. We need to convert that to post-proc UV coords:
+	UINT left   = (UINT)g_nonVRViewport.TopLeftX;
+	UINT top    = (UINT)g_nonVRViewport.TopLeftY;
+	UINT width  = (UINT)g_nonVRViewport.Width;
+	UINT height = (UINT)g_nonVRViewport.Height;
+
+	InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, screenX, screenY);
+	*screenX /= g_fCurScreenWidth;
+	*screenY /= g_fCurScreenHeight;
+}
+
+/*
+ * According to my own notes, in SteamVR, the coordinate system is as follows:
+ * +x is right
+ * +y is up
+ * -z is forward
+ */
+void PrimarySurface::OPTVertexToSteamVRPostProcCoords(Vector4 pos3D, Vector4 pos2D[2])
+{
+	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+	Matrix4 W = Matrix4(renderer->_CockpitConstants.transformWorldView);
+	pos3D.w = 1.0f;
+
+	Vector4 P;
+	// Transform to WorldView coords:
+	P  = W * pos3D;
+	P *= OPT_TO_METERS;
+
+	pos3D.x = P.x;
+	pos3D.y = P.z;
+	pos3D.z = P.y;
+	pos3D.w = 1.0f;
+	// At this point, output.pos3D is metric, X+ is right, Y+ is up and Z- is forward (away from the camera), because
+	// that's the SteamVR coord sys
+
+	for (int eye = 0; eye < 2; eye++)
+	{
+		// Project:
+		pos2D[eye] = g_VSMatrixCB.projEye[eye] * pos3D;
+		// DirectX divides by w internally after the PixelShader output is written. We don't
+		// see that division in the shader; but we have to do it explicitly here because
+		// that's what actually accomplishes the 3D -> 2D projection (it's like a weighed
+		// division by Z)
+		pos2D[eye] *= (1.0f / pos2D[eye].w);
+
+		// P is now in the internal DirectX coord sys: xy in (-1..1)
+		// So let's transform to the range 0..1 for post-proc coords:
+		pos2D[eye].x = pos2D[eye].x * 0.5f + 0.5f;
+		pos2D[eye].y = pos2D[eye].y * 0.5f + 0.5f;
+		// Post-proc coords are 0 on the top and 1 at the bottom, so we need to invert the Y axis:
+		pos2D[eye].y = 1.0f - pos2D[eye].y;
+	}
+}
+
 /*
  * Input: offscreenBuffer (resolved here)
  * Output: offscreenBufferPost
@@ -7484,21 +7544,27 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// contOriginDisplay is now in Worldview coords
 	bool bDisplayContOrigin = (contOriginDisplay.z > 0.01f); // Don't display the cursor if it's behind the camera
 
-	for (int i = 0; i < 4; i++)
-		g_VSCBuffer.viewportScale[i] = renderer->_CockpitConstants.viewportScale[i];
-	float4 pos2D = TransformProjectionScreen(float3(contOriginDisplay));
-
-	// pos2D is now in in-game screen coords. We need to convert that to post-proc UV coords:
-	UINT left   = (UINT)g_nonVRViewport.TopLeftX;
-	UINT top    = (UINT)g_nonVRViewport.TopLeftY;
-	UINT width  = (UINT)g_nonVRViewport.Width;
-	UINT height = (UINT)g_nonVRViewport.Height;
 	float screenX, screenY;
-	InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
+	Vector4 pos2D[2];
 
-	g_LaserPointerBuffer.contOrigin[0] = screenX / g_fCurScreenWidth;
-	g_LaserPointerBuffer.contOrigin[1] = screenY / g_fCurScreenHeight;
-	g_LaserPointerBuffer.contOrigin[2] = contOriginDisplay.z * OPT_TO_METERS;
+	if (!g_bUseSteamVR)
+	{
+		OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, contOriginDisplay, &screenX, &screenY);
+		g_LaserPointerBuffer.contOrigin[0].x = screenX;
+		g_LaserPointerBuffer.contOrigin[0].y = screenY;
+		g_LaserPointerBuffer.contOrigin[0].z = contOriginDisplay.z * OPT_TO_METERS;
+	}
+	else
+	{
+		OPTVertexToSteamVRPostProcCoords(contOriginDisplay, pos2D);
+		g_LaserPointerBuffer.contOrigin[0].x = pos2D[0].x;
+		g_LaserPointerBuffer.contOrigin[0].y = pos2D[0].y;
+		g_LaserPointerBuffer.contOrigin[0].z = contOriginDisplay.z * OPT_TO_METERS;
+
+		g_LaserPointerBuffer.contOrigin[1].x = pos2D[1].x;
+		g_LaserPointerBuffer.contOrigin[1].y = pos2D[1].y;
+		g_LaserPointerBuffer.contOrigin[1].z = contOriginDisplay.z * OPT_TO_METERS;
+	}
 	g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
 
 	float3 P;
@@ -7519,11 +7585,25 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		Q = W * Q;
 		if (Q.z > 0.01f) // Don't display the intersection if it's behind the camera
 		{
-			float4 pos2D = TransformProjectionScreen(float3(Q));
-			InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
-			g_LaserPointerBuffer.intersection[0] = screenX / g_fCurScreenWidth;
-			g_LaserPointerBuffer.intersection[1] = screenY / g_fCurScreenHeight;
-			g_LaserPointerBuffer.intersection[2] = Q.z * OPT_TO_METERS;
+			if (!g_bUseSteamVR)
+			{
+				OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &screenX, &screenY);
+				g_LaserPointerBuffer.intersection[0][0] = screenX;
+				g_LaserPointerBuffer.intersection[0][1] = screenY;
+				g_LaserPointerBuffer.intersection[0][2] = Q.z * OPT_TO_METERS;
+			}
+			else
+			{
+				OPTVertexToSteamVRPostProcCoords(Q, pos2D);
+				g_LaserPointerBuffer.intersection[0][0] = pos2D[0].x;
+				g_LaserPointerBuffer.intersection[0][1] = pos2D[0].y;
+				g_LaserPointerBuffer.intersection[0][2] = Q.z * OPT_TO_METERS;
+
+				g_LaserPointerBuffer.intersection[1][0] = pos2D[1].x;
+				g_LaserPointerBuffer.intersection[1][1] = pos2D[1].y;
+				g_LaserPointerBuffer.intersection[1][2] = Q.z * OPT_TO_METERS;
+			}
+
 			// DEBUG
 #ifdef DISABLED
 			{
@@ -7706,64 +7786,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
 			context->Draw(6, 0);
-
-		// Render the right image
-#ifdef DISABLED
-		if (g_bEnableVR) {
-			/*
-			if (bDisplayContOrigin) {
-				g_LaserPointerBuffer.contOrigin[0] = pos2D.x;
-				g_LaserPointerBuffer.contOrigin[1] = pos2D.y;
-				g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
-			}
-			else
-				g_LaserPointerBuffer.bContOrigin = 0;
-			*/
-			g_LaserPointerBuffer.bContOrigin = 0;
-			g_LaserPointerBuffer.bIntersection = 0;
-
-			// Project the intersection to 2D:
-			//g_LaserPointerBuffer.intersection[0] = pos2D.x;
-			//g_LaserPointerBuffer.intersection[1] = pos2D.y;
-
-			// VIEWPORT-RIGHT
-			if (g_bUseSteamVR) {
-				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
-				viewport.Width = (float)resources->_backbufferWidth;
-				viewport.TopLeftX = 0.0f;
-			}
-			else {
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-				viewport.TopLeftX = (float)viewport.Width;
-				g_LaserPointerBuffer.DirectSBSEye = 2;
-			}
-			viewport.Height   = (float)resources->_backbufferHeight;
-			viewport.TopLeftY = 0.0f;
-			viewport.MinDepth = D3D11_MIN_DEPTH;
-			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			resources->InitViewport(&viewport);
-
-			resources->InitPSConstantBufferLaserPointer(resources->_laserPointerConstantBuffer.GetAddressOf(), &g_LaserPointerBuffer);
-
-			if (g_bUseSteamVR) {
-				ID3D11ShaderResourceView* srvs[] = {
-					resources->_offscreenAsInputShaderResourceViewR.Get(),
-					resources->_depthBufSRV_R.Get()
-				};
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPostR.GetAddressOf(), NULL);
-				context->PSSetShaderResources(0, 2, srvs);
-			} 
-			else {
-				ID3D11ShaderResourceView* srvs[] = {
-					resources->_offscreenAsInputShaderResourceView.Get(),
-					resources->_depthBufSRV.Get()
-				};
-				context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-				context->PSSetShaderResources(0, 2, srvs);
-			}
-			context->Draw(6, 0);
-		}
-#endif
 	}
 
 	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
@@ -7880,7 +7902,7 @@ void UpdateViewMatrix()
 	// Enable roll (formerly this was 6dof)
 	if (g_bUseSteamVR) {
 		Matrix4 viewMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
-		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &viewMatrixFull );
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &viewMatrixFull);
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
@@ -7893,8 +7915,8 @@ void UpdateViewMatrix()
 		yaw   += g_fYawOffset;
 		pitch += g_fPitchOffset;
 
-		// There is no rotation to applynce the full rotation+translation is applied in CockpitLook now.
-			g_viewMatrix.identity();
+		// There is no rotation to apply since the full rotation+translation is applied in CockpitLook now.
+		g_viewMatrix.identity();
 
 		g_VSMatrixCB.viewMat = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = viewMatrixFull;
@@ -7968,11 +7990,6 @@ void UpdateViewMatrix()
 		}
 	}
 	*/
-
-	// Update the laser pointer position.
-	// In VR mode, the y-axis of the laser pointer is flipped with respect to the non-VR path:
-	if (g_bEnableVR)
-		g_contOriginWorldSpace.y = -g_contOriginWorldSpace.y;
 }
 
 void PrimarySurface::Add3DVisionSignature()

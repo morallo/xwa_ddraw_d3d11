@@ -233,20 +233,19 @@ struct LaserPointerCBuffer {
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	float contOrigin[4];
+	int bContOrigin, bIntersection, bHoveringOnActiveElem, DirectSBSEye;
 	// 48 bytes
-	int bContOrigin, bIntersection, bHoveringOnActiveElem;
-	int DirectSBSEye;
-	// 64 bytes
-	float intersection[4];
+	float4 contOrigin[2];
 	// 80 bytes
+	float4 intersection[2];
+	// 112 bytes
 	float v2[2], uv[2]; // DEBUG
-	// 96
+	// 128
 	int bDebugMode;
 	float cursor_radius, lp_aspect_ratio[2];
-	// 112 bytes
+	// 144 bytes
 	float v0[2], v1[2]; // DEBUG
-	// 128 bytes
+	// 160 bytes
 };
 
 /* 3D Constant Buffers */

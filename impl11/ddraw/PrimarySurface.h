@@ -155,9 +155,9 @@ public:
 
 	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);
 
-	void FixViewport();
-
 	void RenderSunFlare();
+
+	void OPTVertexToSteamVRPostProcCoords(Vector4 P, Vector4 pos2D[2]);
 
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
 

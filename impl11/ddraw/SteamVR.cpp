@@ -309,10 +309,8 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
-	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
-		//log_debug("[DBG] HMD is not connected");
+	if (!g_pHMD->IsTrackedDeviceConnected(unDevice))
 		return;
-	}
 
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
@@ -324,16 +322,17 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		if (g_bRendering3D) {
+		if (g_bRendering3D)
+		{
 			// For legacy/stable tracking, WaitGetPoses() is run in CockpitLook. Get the last tracking pose obtained then.
 			// This pose was just used to render the current frame in xwingaliance.exe and will provide consistent tracking.			
 			vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 			//log_debug("[DBG] ddraw.dll calling GetLastPoses()\n");
 		}
-		else {
+		else
+		{
 			// CockpitLookHook is not running (we are in 2D mode). We do the vsync blocking here
 			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-			//log_debug("[DBG] ddraw.dll calling WaitGetPoses()\n");
 		}
 		trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];		
 
@@ -356,9 +355,6 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			*y = m34_fullMatrix.m[1][3];
 			*z = m34_fullMatrix.m[2][3];
 		}
-		/*else {
-			log_debug("[DBG] HMD pose not valid");
-		}*/
 	}
 }
 
