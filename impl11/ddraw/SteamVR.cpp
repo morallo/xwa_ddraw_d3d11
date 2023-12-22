@@ -307,7 +307,7 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 }
 
 void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose,
-	Matrix4* controllerPose)
+	Matrix4* controllerPose, bool *bGripPressed)
 {
 	const bool bGetControllerPose = (controllerPose != nullptr);
 
@@ -332,7 +332,6 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			// For legacy/stable tracking, WaitGetPoses() is run in CockpitLook. Get the last tracking pose obtained then.
 			// This pose was just used to render the current frame in xwingaliance.exe and will provide consistent tracking.			
 			vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-			//log_debug("[DBG] ddraw.dll calling GetLastPoses()\n");
 		}
 		else
 		{
@@ -349,9 +348,6 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			// We take the pose as it was returned by GetLastPoses() and used by CockpitLook.
 			Matrix4toHmdMatrix34(*m4_hmdPose, m34_fullMatrix);
 
-			// DEBUG: 
-			//ShowHmdMatrix34(m34_fullMatrix, "m34_fullMatrix");
-
 			// We extract the components of the composed matrix to use them later to correct the rotation
 			// of 2D elements like reticle, hyperspace, speedeffect, shadows...
 			q = rotationToQuaternion(m34_fullMatrix);
@@ -365,8 +361,18 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 		if (bGetControllerPose && trackedControllerPose.bPoseIsValid)
 		{
 			*controllerPose = HmdMatrix34toMatrix4(trackedControllerPose.mDeviceToAbsoluteTracking);
-			//ShowMatrix4(contPose, "contPose");
-			//Matrix4toHmdMatrix34(contPose, m34_fullMatrix);
+
+			// Get the state of the grip button
+			static uint32_t packetNum = 0xFFFFFFFF;
+			vr::VRControllerState_t state;
+			if (vr::VRSystem()->GetControllerState(1, &state, sizeof(state)))
+			{
+				if (packetNum != state.unPacketNum)
+				{
+					*bGripPressed = (state.ulButtonPressed >> 2) & 1;
+					packetNum = state.unPacketNum;
+				}
+			}
 		}
 	}
 }
