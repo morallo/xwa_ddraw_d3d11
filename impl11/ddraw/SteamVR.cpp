@@ -306,18 +306,23 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose)
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose,
+	Matrix4* controllerPose)
 {
+	const bool bGetControllerPose = (controllerPose != nullptr);
+
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
+
 	if (!g_pHMD->IsTrackedDeviceConnected(unDevice))
 		return;
 
-	vr::VRControllerState_t state;
-	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
+	vr::VRControllerState_t state[2];
+	if (g_pHMD->GetControllerState(unDevice, state, ARRAYSIZE(state)))
 	{
 		// Pose array predicted for current frame N, to use by ddraw to render current frame in GPU (minimize latency)
 		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
 		vr::TrackedDevicePose_t trackedDevicePose; // HMD pose to use for the current frame render
+		vr::TrackedDevicePose_t trackedControllerPose;
 		vr::HmdMatrix34_t m34_fullMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
@@ -334,7 +339,8 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			// CockpitLookHook is not running (we are in 2D mode). We do the vsync blocking here
 			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 		}
-		trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];		
+		trackedDevicePose     = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
+		trackedControllerPose = trackedDevicePoseArray[1];
 
 		if (trackedDevicePose.bPoseIsValid)
 		{
@@ -354,6 +360,13 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			*x = m34_fullMatrix.m[0][3];
 			*y = m34_fullMatrix.m[1][3];
 			*z = m34_fullMatrix.m[2][3];
+		}
+
+		if (bGetControllerPose && trackedControllerPose.bPoseIsValid)
+		{
+			*controllerPose = HmdMatrix34toMatrix4(trackedControllerPose.mDeviceToAbsoluteTracking);
+			//ShowMatrix4(contPose, "contPose");
+			//Matrix4toHmdMatrix34(contPose, m34_fullMatrix);
 		}
 	}
 }

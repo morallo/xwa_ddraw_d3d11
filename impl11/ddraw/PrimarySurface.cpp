@@ -7369,7 +7369,7 @@ Intersection TLASTraceRaySimpleHit(Ray ray)
 extern std::vector<TLASLeafItem> g_ACtlasLeaves;
 // ****************************************************************************
 
-Vector4 VRControllerOriginToOPTCoords()
+void VRControllerOriginToOPTCoords(Vector4 &contOrigin, Vector4 &contDir)
 {
 	float cockpitOriginX = *g_POV_X;
 	float cockpitOriginY = *g_POV_Y;
@@ -7378,10 +7378,35 @@ Vector4 VRControllerOriginToOPTCoords()
 	// cursor is in metric coords
 	Vector4 cursor = g_contOriginWorldSpace;
 	// Convert to OPT scale
-	cursor *= METERS_TO_OPT;
+	cursor  *= METERS_TO_OPT;
 	cursor.w = 1.0f;
+
 	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
-	return Vector4(cockpitOriginX + cursor.x, cockpitOriginY + cursor.z, cockpitOriginZ + cursor.y, 1.0f);
+	// return Vector4(cockpitOriginX + cursor.x, cockpitOriginY + cursor.z, cockpitOriginZ + cursor.y, 1.0f);
+	if (g_bUseSteamVR)
+	{
+		contOrigin.x = cockpitOriginX + cursor.x;
+		contOrigin.y = cockpitOriginY + cursor.z; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
+		contOrigin.z = cockpitOriginZ + cursor.y;
+		contOrigin.w = 1.0f;
+
+		contDir.x = g_contDirWorldSpace.x;
+		contDir.y = g_contDirWorldSpace.z; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
+		contDir.z = g_contDirWorldSpace.y;
+		contDir.w = 0.0f;
+	}
+	else
+	{
+		contOrigin.x = cockpitOriginX + cursor.x;
+		contOrigin.y = cockpitOriginY - cursor.z; // Y- is forwards in the XWA coord sys
+		contOrigin.z = cockpitOriginZ + cursor.y;
+		contOrigin.w = 1.0f;
+
+		contDir.x =  g_contDirWorldSpace.x;
+		contDir.y = -g_contDirWorldSpace.z; // Y- is forwards in the XWA coord sys
+		contDir.z =  g_contDirWorldSpace.y;
+		contDir.w =  0.0f;
+	}
 }
 
 void OPTVertexToPostProcCoords(float* viewportScale, const Vector4& P, float *screenX, float *screenY)
@@ -7517,15 +7542,17 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	contOriginDisplay.w = 1.0f;
 	contOriginDisplay = W * contOriginDisplay;*/
 
-	Vector4 contOriginDisplay = VRControllerOriginToOPTCoords();
+	Vector4 contOriginDisplay, contDirDisplay;
+	VRControllerOriginToOPTCoords(contOriginDisplay, contDirDisplay);
 	// contOriginDisplay is now in OPT coords. We can now use g_ACTLASTree to find the closest hit
 	// OPT coord system:
 	//    X+ --> right
 	//    Y+ --> backwards
 	//    Z+ --> up
 	Ray ray;
-	ray.dir      = { 0.0f, -1.0f, 0.0f }; // Y- --> Points forwards
 	ray.origin   = float3(contOriginDisplay);
+	//ray.dir      = { 0.0f, -1.0f, 0.0f }; // Y- --> Points forwards
+	ray.dir      = float3(contDirDisplay);
 	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
 
 	//Intersection inters = TLASTraceRaySimpleHit(ray);
@@ -7910,10 +7937,11 @@ void UpdateViewMatrix()
 	float x = 0.0f, y = 0.0f, z = 0.0f;
 	static float home_yaw = 0.0f, home_pitch = 0.0f, home_roll = 0.0f;
 
-	// Enable roll (formerly this was 6dof)
-	if (g_bUseSteamVR) {
+	if (g_bUseSteamVR)
+	{
 		Matrix4 viewMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
-		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &viewMatrixFull);
+		Matrix4 controllerPose;
+		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &viewMatrixFull, &controllerPose);
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
@@ -7929,8 +7957,11 @@ void UpdateViewMatrix()
 		// There is no rotation to apply since the full rotation+translation is applied in CockpitLook now.
 		g_viewMatrix.identity();
 
-		g_VSMatrixCB.viewMat = g_viewMatrix;
+		g_VSMatrixCB.viewMat     = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = viewMatrixFull;
+
+		g_contOriginWorldSpace = controllerPose * Vector4(0, 0, 0, 1);
+		g_contDirWorldSpace    = controllerPose * Vector4(0, 0, -1, 0); // In SteamVR Z- is forwards
 	}
 	else 
 	{

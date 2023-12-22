@@ -124,7 +124,7 @@ void ApplyYawPitchRoll(float yaw_deg, float pitch_deg, float roll_deg);
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 void ClearGlobalLBVHMap();
 
-Vector4 VRControllerOriginToOPTCoords();
+void VRControllerOriginToOPTCoords(Vector4& contOrigin, Vector4& contDir);
 Intersection getIntersection(Ray ray, float3 A, float3 B, float3 C);
 bool RayTriangleTest(const Intersection& inters);
 bool rayTriangleIntersect(
@@ -3099,10 +3099,13 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	*/
 
 	// Intersect the current texture with the controller
+	Vector4 contOrigin, contDir;
+	VRControllerOriginToOPTCoords(contOrigin, contDir);
+
 	Ray ray;
-	ray.origin   = float3(VRControllerOriginToOPTCoords());
-	// TODO: Apply g_contDirViewSpace here
-	ray.dir      = { 0.0f, -1.0f, 0.0f }; // Forwards direction, in the OPT coord sys
+	ray.origin   = float3(contOrigin);
+	//ray.dir      = { 0.0f, -1.0f, 0.0f }; // Forwards direction, in the OPT coord sys
+	ray.dir      = float3(contDir);
 	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
 
 	Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
