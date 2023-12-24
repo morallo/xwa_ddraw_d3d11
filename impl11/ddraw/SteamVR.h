@@ -35,6 +35,25 @@ extern void* g_pSurface;
 extern bool g_bTogglePostPresentHandoff;
 extern bool g_bSteamVRMirrorWindowLeftEye;
 
+struct ControllerState
+{
+	Matrix4 pose;
+	bool bIsValid;
+	bool bTriggerPressed;
+	bool bGripPressed;
+	uint32_t packetNum; // Internal, do not modify
+
+	ControllerState()
+	{
+		pose.identity();
+		bIsValid        = false;
+		bTriggerPressed = false;
+		bGripPressed    = false;
+		packetNum       = 0xFFFFFFFF;
+	}
+};
+extern ControllerState g_contStates[2];
+
 /*
  *	SteamVR specific functions declarations
  */
@@ -45,8 +64,7 @@ void ShutDownSteamVR();
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& y, float& z);
 void ProcessSteamVREyeMatrices(vr::EVREye eye);
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError = NULL);
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose,
-	Matrix4* controllerPose, bool* bGripPressed);
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose);
 // WaitGetPoses is now called from the CockpitLook hook.
 //bool WaitGetPoses();
 

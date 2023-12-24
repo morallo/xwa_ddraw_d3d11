@@ -7,13 +7,14 @@
 /*********************************************************/
 // ACTIVE COCKPIT
 Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, 0.4f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
-Vector4 g_contDirWorldSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // This is the direction in which the controller is pointing in world-space coords
+Vector4 g_controllerForwardVector = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // Forward direction in the controller's frame of reference
+// This is the direction in which the controller is pointing in world-space coords.
+// Comes from transforming g_controllerForwardVector into viewspace coords.
+Vector4 g_contDirWorldSpace;
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
-float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false;
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0, g_iLaserDirSelector = 3;

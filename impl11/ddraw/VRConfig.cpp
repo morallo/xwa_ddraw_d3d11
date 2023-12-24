@@ -1662,37 +1662,6 @@ bool LoadACParams() {
 			else if (_stricmp(param, "button_data_available") == 0) {
 				g_bFreePIEControllerButtonDataAvailable = (bool)fValue;
 			}
-			else if (_stricmp(param, "controller_multiplier_x") == 0) {
-				g_fContMultiplierX = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_y") == 0) {
-				g_fContMultiplierY = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_z") == 0) {
-				g_fContMultiplierZ = fValue;
-			}
-			else if (_stricmp(param, "origin_from_HMD_position") == 0) {
-				g_bOriginFromHMD = (bool)fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_x") == 0) {
-				g_contOriginWorldSpace.x = fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_y") == 0) {
-				g_contOriginWorldSpace.y = fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_z") == 0) {
-				g_contOriginWorldSpace.z = fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_rotation") == 0) {
-				g_bCompensateHMDRotation = (bool)fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_position") == 0) {
-				g_bCompensateHMDPosition = (bool)fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_motion") == 0) {
-				g_bCompensateHMDRotation = (bool)fValue;
-				g_bCompensateHMDPosition = (bool)fValue;
-			}
 			else if (_stricmp(param, "laser_pointer_length") == 0) {
 				g_fLaserPointerLength = fValue;
 			}
@@ -1704,6 +1673,14 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "cursor_radius") == 0) {
 				g_LaserPointerBuffer.cursor_radius = fValue;
+			}
+			else if (_stricmp(param, "controller_forward_vector") == 0) {
+				LoadGeneric3DCoords(buf,
+					&(g_controllerForwardVector.x),
+					&(g_controllerForwardVector.y),
+					&(g_controllerForwardVector.z));
+				g_controllerForwardVector.w = 0;
+				g_controllerForwardVector.normalize();
 			}
 		}
 	}

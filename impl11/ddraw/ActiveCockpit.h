@@ -28,18 +28,17 @@ typedef struct ac_element_struct {
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled;
 extern Vector4 g_contOriginWorldSpace; // This is the origin of the controller in 3D, in world-space coords
+extern Vector4 g_controllerForwardVector; // Forward direction in the controller's frame of reference
 extern Vector4 g_contDirWorldSpace; // This is the direction in which the controller is pointing in world-space coords
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
-extern float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ, g_fFakeRoll;
 extern int g_iBestIntersTexIdx; // The index into g_ACElements where the intersection occurred
-extern bool g_bOriginFromHMD, g_bCompensateHMDRotation, g_bCompensateHMDPosition;
 extern bool g_bFreePIEControllerButtonDataAvailable;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
 extern int g_iLaserDirSelector;
 extern int g_iNumACElements;
 extern bool g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
-extern bool g_bFreePIEInitialized, g_bOriginFromHMD, g_bCompensateHMDRotation, g_bCompensateHMDPosition, g_bFreePIEControllerButtonDataAvailable;
+extern bool g_bFreePIEInitialized, g_bFreePIEControllerButtonDataAvailable;
 extern float g_fLaserPointerLength;
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 

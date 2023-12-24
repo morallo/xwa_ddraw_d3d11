@@ -41,6 +41,8 @@ int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 0.0f;
 
+ControllerState g_contStates[2];
+
 bool InitSteamVR()
 {
 	/*
@@ -306,23 +308,46 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose,
-	Matrix4* controllerPose, bool *bGripPressed)
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose)
 {
-	const bool bGetControllerPose = (controllerPose != nullptr);
-
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
 
 	if (!g_pHMD->IsTrackedDeviceConnected(unDevice))
 		return;
 
-	vr::VRControllerState_t state[2];
-	if (g_pHMD->GetControllerState(unDevice, state, ARRAYSIZE(state)))
+	static vr::TrackedDeviceIndex_t leftId = -1, rightId = -1;
+	static int tries = 0;
+	if (tries < 512 && (leftId == -1 || rightId == -1))
+	{
+		for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++)
+		{
+			auto deviceClass = vr::VRSystem()->GetTrackedDeviceClass(i);
+			if (deviceClass == vr::TrackedDeviceClass_Controller)
+			{
+				auto role = vr::VRSystem()->GetControllerRoleForTrackedDeviceIndex(i);
+				if (rightId == -1 && role == vr::TrackedControllerRole_RightHand)
+				{
+					rightId = i;
+					log_debug("[DBG] [AC] Right Controller ID: %d", rightId);
+				}
+				if (leftId == -1 && role == vr::TrackedControllerRole_LeftHand)
+				{
+					leftId = i;
+					log_debug("[DBG] [AC] Left Controller ID: %d", leftId);
+				}
+			}
+		}
+
+		tries++;
+	}
+
+	vr::VRControllerState_t state;
+	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
 		// Pose array predicted for current frame N, to use by ddraw to render current frame in GPU (minimize latency)
 		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
 		vr::TrackedDevicePose_t trackedDevicePose; // HMD pose to use for the current frame render
-		vr::TrackedDevicePose_t trackedControllerPose;
+		vr::TrackedDevicePose_t trackedControllerPose[2];
 		vr::HmdMatrix34_t m34_fullMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
@@ -338,8 +363,9 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			// CockpitLookHook is not running (we are in 2D mode). We do the vsync blocking here
 			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
 		}
-		trackedDevicePose     = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
-		trackedControllerPose = trackedDevicePoseArray[1];
+		trackedDevicePose        = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
+		trackedControllerPose[0] = trackedDevicePoseArray[leftId];
+		trackedControllerPose[1] = trackedDevicePoseArray[rightId];
 
 		if (trackedDevicePose.bPoseIsValid)
 		{
@@ -358,21 +384,29 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			*z = m34_fullMatrix.m[2][3];
 		}
 
-		if (bGetControllerPose && trackedControllerPose.bPoseIsValid)
+		for (int i = 0; i < 2; i++)
 		{
-			*controllerPose = HmdMatrix34toMatrix4(trackedControllerPose.mDeviceToAbsoluteTracking);
-
-			// Get the state of the grip button
-			static uint32_t packetNum = 0xFFFFFFFF;
-			vr::VRControllerState_t state;
-			if (vr::VRSystem()->GetControllerState(1, &state, sizeof(state)))
+			g_contStates[i].bIsValid = trackedControllerPose[i].bPoseIsValid;
+			if (trackedControllerPose[i].bPoseIsValid)
 			{
-				if (packetNum != state.unPacketNum)
+				g_contStates[i].pose = HmdMatrix34toMatrix4(trackedControllerPose[i].mDeviceToAbsoluteTracking);
+
+				// Get the state of the grip button
+				vr::VRControllerState_t state;
+				if (vr::VRSystem()->GetControllerState(i == 0 ? leftId : rightId, &state, sizeof(state)))
 				{
-					*bGripPressed = (state.ulButtonPressed >> 2) & 1;
-					packetNum = state.unPacketNum;
+					if (g_contStates[i].packetNum != state.unPacketNum)
+					{
+						g_contStates[i].bGripPressed    = (state.ulButtonPressed >> 2) & 1;
+						g_contStates[i].bTriggerPressed = (state.rAxis[1].x > 0.1f); // 0 is fully released
+						g_contStates[i].packetNum       = state.unPacketNum;
+					}
 				}
 			}
+			/*else
+			{
+				log_debug("[DBG] [AC] Controller [%s] INVALID", i == 0 ? "LEFT" : "RIGHT");
+			}*/
 		}
 	}
 }
