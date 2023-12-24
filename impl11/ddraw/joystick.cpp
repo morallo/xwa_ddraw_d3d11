@@ -11,6 +11,8 @@
 #include "SharedMem.h"
 #include "joystick.h"
 #include "HiResTimer.h"
+#include "SteamVR.h"
+#include "ActiveCockpit.h"
 
 extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
@@ -473,24 +475,74 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	}
 	log_debug("[DBG] dwXpos,dwRpos: %d, %d", pji->dwZpos, pji->dwRpos);
 	*/
-	
-	if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-		pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+
+	float normYaw = 0, normPitch = 0;
+	if (g_bUseSteamVR && g_bActiveCockpitEnabled)
+	{
+		// Support VR controllers (quick-and-dirty approach, the proper way is to add code to the
+		// joystick hook so that proper bindings can be done).
+
+		// These will allow us to change handedness later:
+		int leftIdx  = 0;
+		int rightIdx = 1;
+		if (g_contStates[rightIdx].bIsValid)
+		{
+			if (g_contStates[rightIdx].bGripPressed)
+			{
+				static const Vector3 F = Vector3(g_controllerForwardVector.x, g_controllerForwardVector.y, g_controllerForwardVector.z);
+				static const Vector3 U = Vector3(1, 0, 0).cross(F);
+				Vector4 Up  = g_contStates[rightIdx].pose * Vector4(U.x, U.y, U.z, 0);
+				float yaw   = acos(Up.dot(Vector4(1, 0, 0, 0)))       / DEG2RAD;
+				float pitch = acos(Up.dot(g_controllerForwardVector)) / DEG2RAD;
+				//log_debug("[DBG] [AC] Up: %0.3f, %0.3f, %0.3f, yaw: %0.3f, pitch: %0.3f",
+				//	Up.x, Up.y, Up.z, yaw / DEG2RAD, pitch / DEG2RAD);
+				//log_debug("[DBG] [AC] yaw, pitch: %0.3f, %0.3f", yaw, pitch);
+
+				constexpr float YAW_MID     = 90.0f;
+				constexpr float PITCH_MID   = 125.0f;
+
+				constexpr float YAW_RANGE   = 30.0f;
+				constexpr float PITCH_RANGE = 20.0f;
+				yaw   = clamp(yaw,   YAW_MID   - YAW_RANGE,   YAW_MID   + YAW_RANGE);
+				pitch = clamp(pitch, PITCH_MID - PITCH_RANGE, PITCH_MID + PITCH_RANGE);
+
+				// Normalize:
+				yaw   = (yaw   - YAW_MID)   / YAW_RANGE;
+				pitch = (pitch - PITCH_MID) / PITCH_RANGE;
+				//log_debug("[DBG] [AC] yaw, pitch: %0.3f, %0.3f", yaw, pitch);
+
+				normYaw   = -yaw;
+				normPitch = pitch;
+				pji->dwXpos = (DWORD)(512.0f * ((normYaw   / 2.0f) + 0.5f));
+				pji->dwYpos = (DWORD)(512.0f * ((normPitch / 2.0f) + 0.5f));
+			}
+		}
+		/*else
+		{
+			log_debug("[DBG] [AC] Right controller is not available");
+		}*/
 	}
-	if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-		pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+	else
+	{
+		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+			pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+		}
+		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+			pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+		}
+
+		if (GetAsyncKeyState(VK_UP) & 0x8000) {
+			pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+		}
+		if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
+			pji->dwYpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+		}
+		if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;
+		// Normalize each axis to the range -1..1:
+		normYaw   = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
+		normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
 	}
 
-	if (GetAsyncKeyState(VK_UP) & 0x8000) {
-		pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
-	}
-	if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
-		pji->dwYpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
-	}
-	if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;
-	// Normalize each axis to the range -1..1:
-	float normYaw   = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
-	float normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
 	if (g_pSharedDataJoystick != NULL) {
 		g_pSharedDataJoystick->JoystickYaw   = normYaw;
 		g_pSharedDataJoystick->JoystickPitch = normPitch;
