@@ -42,6 +42,35 @@ extern bool g_bFreePIEInitialized, g_bFreePIEControllerButtonDataAvailable;
 extern float g_fLaserPointerLength;
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 
+struct ACJoyEmulSettings
+{
+	bool  joystickEnabled;
+	bool  throttleEnabled;
+	// Internally, the left-hand index is always 0 and the right hand is at index 1
+	// We use these indices to enable handedness:
+	int   joyHandIdx;
+	int   thrHandIdx;
+	float joyHalfRangeX;
+	float joyHalfRangeZ;
+	float deadZonePerc;
+	float thrHalfRange;
+
+	ACJoyEmulSettings()
+	{
+		joystickEnabled = false;
+		throttleEnabled = true;
+
+		joyHandIdx    = 1;
+		thrHandIdx    = 0;
+
+		joyHalfRangeX = 0.075f;
+		joyHalfRangeZ = 0.075f;
+		deadZonePerc  = 0.1f;
+		thrHalfRange  = 0.07f;
+	}
+};
+extern ACJoyEmulSettings g_ACJoyEmul;
+
 // DEBUG vars
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;

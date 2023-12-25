@@ -7967,7 +7967,7 @@ void UpdateViewMatrix()
 	{
 		Matrix4 viewMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
 		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &viewMatrixFull);
-		g_bACTriggerState = (g_contStates[0].bTriggerPressed || g_contStates[1].bTriggerPressed);
+		g_bACTriggerState = g_contStates[g_ACJoyEmul.thrHandIdx].bTriggerPressed;
 
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
@@ -7987,18 +7987,8 @@ void UpdateViewMatrix()
 		g_VSMatrixCB.viewMat     = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = viewMatrixFull;
 
-		//ShowMatrix4(g_contStates[0].pose, "g_contPose[0]");
-
-		int index = -1;
-		if (g_contStates[0].bIsValid)
-			index = 0;
-		else if (g_contStates[1].bIsValid)
-			index = 1;
-		if (index != -1)
-		{
-			g_contOriginWorldSpace = g_contStates[index].pose * Vector4(0, 0, 0, 1);
-			g_contDirWorldSpace    = g_contStates[index].pose * g_controllerForwardVector;
-		}
+		g_contOriginWorldSpace = g_contStates[g_ACJoyEmul.thrHandIdx].pose * Vector4(0, 0, 0, 1);
+		g_contDirWorldSpace    = g_contStates[g_ACJoyEmul.thrHandIdx].pose * g_controllerForwardVector;
 	}
 	else 
 	{

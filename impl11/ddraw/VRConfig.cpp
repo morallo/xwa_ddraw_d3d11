@@ -1682,6 +1682,38 @@ bool LoadACParams() {
 				g_controllerForwardVector.w = 0;
 				g_controllerForwardVector.normalize();
 			}
+			else if (_stricmp(param, "joystick_emulaton_enabled") == 0) {
+				g_ACJoyEmul.joystickEnabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "throttle_emulation_enabled") == 0) {
+				g_ACJoyEmul.throttleEnabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "joystick_handedness") == 0) {
+				if (_stricmp(svalue, "right") == 0)
+				{
+					log_debug("[DBG] [AC] Right-handed VR controllers");
+					g_ACJoyEmul.joyHandIdx = 1;
+					g_ACJoyEmul.thrHandIdx = 0;
+				}
+				else
+				{
+					log_debug("[DBG] [AC] Left-handed VR controllers");
+					g_ACJoyEmul.joyHandIdx = 0;
+					g_ACJoyEmul.thrHandIdx = 1;
+				}
+			}
+			else if (_stricmp(param, "joystick_range_x") == 0) {
+				g_ACJoyEmul.joyHalfRangeX = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_range_z") == 0) {
+				g_ACJoyEmul.joyHalfRangeZ = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_dead_zone") == 0) {
+				g_ACJoyEmul.deadZonePerc = fValue / 100.0f;
+			}
+			else if (_stricmp(param, "throttle_range") == 0) {
+				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
+			}
 		}
 	}
 	fclose(file);

@@ -41,6 +41,7 @@ int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 0.0f;
 
+ControllerState g_prevContStates[2];
 ControllerState g_contStates[2];
 
 bool InitSteamVR()
@@ -315,31 +316,8 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	if (!g_pHMD->IsTrackedDeviceConnected(unDevice))
 		return;
 
-	static vr::TrackedDeviceIndex_t leftId = -1, rightId = -1;
-	static int tries = 0;
-	if (tries < 512 && (leftId == -1 || rightId == -1))
-	{
-		for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++)
-		{
-			auto deviceClass = vr::VRSystem()->GetTrackedDeviceClass(i);
-			if (deviceClass == vr::TrackedDeviceClass_Controller)
-			{
-				auto role = vr::VRSystem()->GetControllerRoleForTrackedDeviceIndex(i);
-				if (rightId == -1 && role == vr::TrackedControllerRole_RightHand)
-				{
-					rightId = i;
-					log_debug("[DBG] [AC] Right Controller ID: %d", rightId);
-				}
-				if (leftId == -1 && role == vr::TrackedControllerRole_LeftHand)
-				{
-					leftId = i;
-					log_debug("[DBG] [AC] Left Controller ID: %d", leftId);
-				}
-			}
-		}
-
-		tries++;
-	}
+	static vr::TrackedDeviceIndex_t leftId  = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand);
+	static vr::TrackedDeviceIndex_t rightId = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand);
 
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
@@ -386,27 +364,29 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		for (int i = 0; i < 2; i++)
 		{
-			g_contStates[i].bIsValid = trackedControllerPose[i].bPoseIsValid;
-			if (trackedControllerPose[i].bPoseIsValid)
-			{
-				g_contStates[i].pose = HmdMatrix34toMatrix4(trackedControllerPose[i].mDeviceToAbsoluteTracking);
+			g_prevContStates[i] = g_contStates[i];
 
-				// Get the state of the grip button
-				vr::VRControllerState_t state;
-				if (vr::VRSystem()->GetControllerState(i == 0 ? leftId : rightId, &state, sizeof(state)))
+			g_contStates[i].bIsValid = trackedControllerPose[i].bPoseIsValid;
+			g_contStates[i].pose = HmdMatrix34toMatrix4(trackedControllerPose[i].mDeviceToAbsoluteTracking);
+
+			// Get the state of the buttons
+			vr::VRControllerState_t state;
+			if (vr::VRSystem()->GetControllerState(i == 0 ? leftId : rightId, &state, sizeof(state)))
+			{
+				//if (g_contStates[i].packetNum != state.unPacketNum)
 				{
-					if (g_contStates[i].packetNum != state.unPacketNum)
-					{
-						g_contStates[i].bGripPressed    = (state.ulButtonPressed >> 2) & 1;
-						g_contStates[i].bTriggerPressed = (state.rAxis[1].x > 0.1f); // 0 is fully released
-						g_contStates[i].packetNum       = state.unPacketNum;
-					}
+					g_contStates[i].bGripPressed     = (state.ulButtonPressed & 0x04) != 0;
+					g_contStates[i].bAPressed        = (state.ulButtonPressed & 0x80) != 0;
+					g_contStates[i].bBPressed        = (state.ulButtonPressed & 0x02) != 0;
+					g_contStates[i].trackPadX        = state.rAxis[0].x;
+					g_contStates[i].trackPadY        = state.rAxis[0].y;
+					g_contStates[i].bTriggerPressed  = (state.rAxis[1].x > 0.1f); // 0 is fully released
+					g_contStates[i].bTrackpadPressed = (state.ulButtonPressed >> 32) & 1;
+
+					g_contStates[i].packetNum        = state.unPacketNum;
 				}
 			}
-			/*else
-			{
-				log_debug("[DBG] [AC] Controller [%s] INVALID", i == 0 ? "LEFT" : "RIGHT");
-			}*/
+
 		}
 	}
 }

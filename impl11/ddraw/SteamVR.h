@@ -37,21 +37,31 @@ extern bool g_bSteamVRMirrorWindowLeftEye;
 
 struct ControllerState
 {
-	Matrix4 pose;
-	bool bIsValid;
-	bool bTriggerPressed;
-	bool bGripPressed;
+	Matrix4  pose;
+	bool     bIsValid;
+	bool     bAPressed;
+	bool     bBPressed;
+	bool     bTrackpadPressed;
+	bool     bTriggerPressed;
+	bool     bGripPressed;
+	float    trackPadX, trackPadY;
 	uint32_t packetNum; // Internal, do not modify
 
 	ControllerState()
 	{
 		pose.identity();
-		bIsValid        = false;
-		bTriggerPressed = false;
-		bGripPressed    = false;
-		packetNum       = 0xFFFFFFFF;
+		bIsValid         = false;
+		bAPressed        = false;
+		bBPressed        = false;
+		bTrackpadPressed = false;
+		bTriggerPressed  = false;
+		bGripPressed     = false;
+		trackPadX        = 0;
+		trackPadY        = 0;
+		packetNum        = 0xFFFFFFFF;
 	}
 };
+extern ControllerState g_prevContStates[2];
 extern ControllerState g_contStates[2];
 
 /*

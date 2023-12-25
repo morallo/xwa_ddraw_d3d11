@@ -69,6 +69,10 @@ inline float clamp(float val, float min, float max)
 	return val;
 }
 
+inline float lerp(float x, float y, float s) {
+	return x + s * (y - x);
+}
+
 float SignedReduceClamp(float val, float delta, float abs_min, float abs_max)
 {
 	float s = sign(val);
@@ -479,48 +483,87 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	float normYaw = 0, normPitch = 0;
 	if (g_bUseSteamVR && g_bActiveCockpitEnabled)
 	{
-		// Support VR controllers (quick-and-dirty approach, the proper way is to add code to the
-		// joystick hook so that proper bindings can be done).
+		// Support VR controllers (quick-and-dirty approach, the proper way is probably to add code to the
+		// joystick hook so that bindings can be configured).
 
-		// These will allow us to change handedness later:
-		int leftIdx  = 0;
-		int rightIdx = 1;
-		if (g_contStates[rightIdx].bIsValid)
+		const int joyIdx = g_ACJoyEmul.joyHandIdx;
+		const int thrIdx = g_ACJoyEmul.thrHandIdx;
+
+		if (g_ACJoyEmul.joystickEnabled)
 		{
-			if (g_contStates[rightIdx].bGripPressed)
+			static Vector4 rightAnchor;
+			if (!(g_prevContStates[joyIdx].bGripPressed) && g_contStates[joyIdx].bGripPressed)
 			{
-				static const Vector3 F = Vector3(g_controllerForwardVector.x, g_controllerForwardVector.y, g_controllerForwardVector.z);
-				static const Vector3 U = Vector3(1, 0, 0).cross(F);
-				Vector4 Up  = g_contStates[rightIdx].pose * Vector4(U.x, U.y, U.z, 0);
-				float yaw   = acos(Up.dot(Vector4(1, 0, 0, 0)))       / DEG2RAD;
-				float pitch = acos(Up.dot(g_controllerForwardVector)) / DEG2RAD;
-				//log_debug("[DBG] [AC] Up: %0.3f, %0.3f, %0.3f, yaw: %0.3f, pitch: %0.3f",
-				//	Up.x, Up.y, Up.z, yaw / DEG2RAD, pitch / DEG2RAD);
-				//log_debug("[DBG] [AC] yaw, pitch: %0.3f, %0.3f", yaw, pitch);
+				rightAnchor = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);;
+			}
 
-				constexpr float YAW_MID     = 90.0f;
-				constexpr float PITCH_MID   = 125.0f;
+			if (g_contStates[joyIdx].bGripPressed)
+			{
+				Vector4 current = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);
+				float yaw   = clamp(current.x - rightAnchor.x, -g_ACJoyEmul.joyHalfRangeX, g_ACJoyEmul.joyHalfRangeX) / g_ACJoyEmul.joyHalfRangeX;
+				float pitch = clamp(current.z - rightAnchor.z, -g_ACJoyEmul.joyHalfRangeZ, g_ACJoyEmul.joyHalfRangeZ) / g_ACJoyEmul.joyHalfRangeZ;
 
-				constexpr float YAW_RANGE   = 30.0f;
-				constexpr float PITCH_RANGE = 20.0f;
-				yaw   = clamp(yaw,   YAW_MID   - YAW_RANGE,   YAW_MID   + YAW_RANGE);
-				pitch = clamp(pitch, PITCH_MID - PITCH_RANGE, PITCH_MID + PITCH_RANGE);
+				// Apply deadzone
+				const float s_yaw   = sign(yaw);
+				const float s_pitch = sign(pitch);
 
-				// Normalize:
-				yaw   = (yaw   - YAW_MID)   / YAW_RANGE;
-				pitch = (pitch - PITCH_MID) / PITCH_RANGE;
-				//log_debug("[DBG] [AC] yaw, pitch: %0.3f, %0.3f", yaw, pitch);
+				yaw   = fabs(yaw);
+				pitch = fabs(pitch);
 
-				normYaw   = -yaw;
-				normPitch = pitch;
-				pji->dwXpos = (DWORD)(512.0f * ((normYaw   / 2.0f) + 0.5f));
+				constexpr float DEAD_ZONE = 0.1f; // 10%
+				if (yaw < g_ACJoyEmul.deadZonePerc)
+					yaw = 0.0f;
+				else
+					yaw = lerp(0.0f, 1.0f, clamp(yaw / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
+
+				if (pitch < g_ACJoyEmul.deadZonePerc)
+					pitch = 0.0f;
+				else
+					pitch = lerp(0.0f, 1.0f, clamp(pitch / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
+
+				yaw   *= s_yaw;
+				pitch *= s_pitch;
+
+				normYaw     = yaw;
+				normPitch   = pitch;
+				pji->dwXpos = (DWORD)(512.0f * ((normYaw / 2.0f) + 0.5f));
 				pji->dwYpos = (DWORD)(512.0f * ((normPitch / 2.0f) + 0.5f));
 			}
+
+			// Synthesize mouse clicks
+			pji->dwButtons = 0;
+			pji->dwButtonNumber = 0;
+			if (g_contStates[joyIdx].bTriggerPressed)
+			{
+				pji->dwButtons |= 1;
+				++pji->dwButtonNumber;
+			}
+			if (g_contStates[joyIdx].bAPressed)
+			{
+				pji->dwButtons |= 2;
+				++pji->dwButtonNumber;
+			}
 		}
-		/*else
+
+		if (g_ACJoyEmul.throttleEnabled)
 		{
-			log_debug("[DBG] [AC] Right controller is not available");
-		}*/
+			static Vector4 anchor;
+			static float throttleAnchor = 0.0f;
+			static float normThrottle = 0.0f;
+			if (!(g_prevContStates[thrIdx].bGripPressed) && g_contStates[thrIdx].bGripPressed)
+			{
+				anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
+				throttleAnchor = 2.0f * (pji->dwZpos / 512.0f - 0.5f);
+			}
+
+			if (g_contStates[thrIdx].bGripPressed)
+			{
+				Vector4 current = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
+				normThrottle    = clamp(current.z - anchor.z, -g_ACJoyEmul.thrHalfRange, g_ACJoyEmul.thrHalfRange) / g_ACJoyEmul.thrHalfRange;
+			}
+
+			pji->dwZpos = (DWORD)(512.0f * ((normThrottle / 2.0f) + 0.5f));
+		}
 	}
 	else
 	{

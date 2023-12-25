@@ -23,6 +23,9 @@ Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
+
+ACJoyEmulSettings g_ACJoyEmul;
+
 // DEBUG vars
 
 /*
