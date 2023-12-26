@@ -33,6 +33,8 @@ cbuffer ConstantBuffer : register(b8)
 	// 144 bytes
 	float2 v0, v1; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
 	// 160 bytes
+	float inters_radius, ac_unused1, ac_unused2, ac_unused3;
+	// 176 bytes
 };
 
 #ifdef INSTANCED_RENDERING
@@ -79,7 +81,8 @@ float sdCircle(in vec2 p, float radius)
 
 float sdLine(in vec2 p, in vec2 a, in vec2 b)
 {
-	vec2 pa = p - a, ba = b - a;
+	vec2 pa = lp_aspect_ratio * (p - a);
+	vec2 ba = lp_aspect_ratio * (b - a);
 	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
 	return length(pa - ba * h);
 }
@@ -191,20 +194,22 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (bContOrigin)
 	{
 		d  = sdCircle(lp_aspect_ratio * (p - contOrigin.xy), cursor_radius);
-		d += 0.005;
-		v += exp(-(d * d) * 5000.0);
+		//d += 0.005;
+		//v += exp(-(d * d) * 5000.0);
+		v += smoothstep(0.0015, 0.0, abs(d));
 	}
 
 	if (bIntersection &&
 		// Do not display the intersection if it's occluded
 		intersection.z <= pos3D.z + 0.01)
 	{
-		d = sdCircle(lp_aspect_ratio * (p - intersection.xy), cursor_radius);
+		d = sdCircle(lp_aspect_ratio * (p - intersection.xy), inters_radius);
 		v += smoothstep(0.0015, 0.0, abs(d));
 		// Add a second ring if we're hovering on an active element
 		if (bHoveringOnActiveElem) {
 			//d = sdCircle(p - intersection, cursor_radius + 0.005);
-			v += smoothstep(0.0015, 0.0, abs(d - 0.005));
+			//v += smoothstep(0.0015, 0.0, abs(d - 0.005));
+			v += smoothstep(0.0015, 0.0, abs(d - 0.0025));
 		}
 	}
 
@@ -224,17 +229,24 @@ PixelShaderOutput main(PixelShaderInput input) {
 		const float dist = length(q - contOrigin.xy) / D;
 		// Find the depth for the point q on the line:
 		const float lineZ = lerp(contOrigin.z, intersection.z, dist);
+		// Interpolate the cursor radius at point q
+		const float lineRadius = lerp(cursor_radius, inters_radius, dist);
 		// Display the original line, with depth occlusion:
 		if (lineZ <= pos3D.z + 0.01)
 		{
 			// DEBUG: Draw a really small circle around q. This ends up looking like a thin line
 			//d = sdCircle(lp_aspect_ratio * (p - q), 0.001f);
-			//v += smoothstep(0.0015, 0.0, abs(d));
+			//v += smoothstep(0.0045, 0.0, abs(d));
 
-			d += 0.01;
-			v += exp(-(d * d) * 7500.0);
+			v += smoothstep(lineRadius + 0.0015, lineRadius, abs(d));
 		}
+		// v controls the blending, so we can apply transparency by modulating it:
+		if (!bIntersection)
+			v *= (1.0 - dist);
 	}
+
+	// v controls the blending, so we can apply transparency by modulating it
+	v *= 0.7;
 
 	//v = clamp(1.2 * v, 0.0, 1.0);
 	const float3 pointer_col = bIntersection ? dotcol : 0.7;

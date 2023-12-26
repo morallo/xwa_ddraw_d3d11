@@ -7462,7 +7462,7 @@ void PrimarySurface::OPTVertexToSteamVRPostProcCoords(Vector4 pos3D, Vector4 pos
 {
 	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
 	const Matrix4 W = Matrix4(renderer->_CockpitConstants.transformWorldView);
-	pos3D.w = 1.0f;
+	const float pos3Dw = pos3D.w;
 
 	const Matrix4 V = g_VSMatrixCB.fullViewMat;
 
@@ -7485,7 +7485,7 @@ void PrimarySurface::OPTVertexToSteamVRPostProcCoords(Vector4 pos3D, Vector4 pos
 	pos3D = V * pos3D;
 	// ... but then we need to set w = 1 back here to enable the regular projection that is
 	// effected below.
-	pos3D.w = 1.0f;
+	pos3D.w = pos3Dw;
 
 	for (int eye = 0; eye < 2; eye++)
 	{
@@ -7617,17 +7617,33 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_LaserPointerBuffer.contOrigin[0].x = screenX;
 		g_LaserPointerBuffer.contOrigin[0].y = screenY;
 		g_LaserPointerBuffer.contOrigin[0].z = contOriginDisplay.z * OPT_TO_METERS;
+
+		// Project a point 4mm to the right of contOriginDisplay to get the proper radius
+		float sX1;
+		Vector4 Q = contOriginDisplay;
+		Q.x += (0.004f * METERS_TO_OPT);
+		OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &sX1, &screenY);
+		g_LaserPointerBuffer.cursor_radius = (sX1 - screenX);
 	}
 	else
 	{
 		OPTVertexToSteamVRPostProcCoords(contOriginDisplay, pos2D);
+		// Left eye cursor
 		g_LaserPointerBuffer.contOrigin[0].x = pos2D[0].x;
 		g_LaserPointerBuffer.contOrigin[0].y = pos2D[0].y;
 		g_LaserPointerBuffer.contOrigin[0].z = contOriginDisplay.z * OPT_TO_METERS;
 
+		// Right eye cursor
 		g_LaserPointerBuffer.contOrigin[1].x = pos2D[1].x;
 		g_LaserPointerBuffer.contOrigin[1].y = pos2D[1].y;
 		g_LaserPointerBuffer.contOrigin[1].z = contOriginDisplay.z * OPT_TO_METERS;
+
+		// Project a point 2mm to the right of contOriginDisplay to get the proper radius
+		float sX0 = pos2D[0].x;
+		Vector4 Q = contOriginDisplay;
+		Q.x += (0.002f * METERS_TO_OPT);
+		OPTVertexToSteamVRPostProcCoords(Q, pos2D);
+		g_LaserPointerBuffer.cursor_radius = (pos2D[0].x - sX0);
 	}
 	g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
 
@@ -7639,7 +7655,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 	else // When there's no intersection, just draw a line pointing in the direction of the ray
 	{
-		P = ray.origin + (0.5f * METERS_TO_OPT) * ray.dir;
+		// ray.dir is already in OPT metric (i.e. its length is 40.96), so the following line is equivalent to:
+		// 0.2f * METERS_TO_OPT * normalize(ray.dir)
+		P = ray.origin + 0.2f * ray.dir;
 		g_LaserPointerBuffer.bIntersection = false;
 	}
 
@@ -7655,6 +7673,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.intersection[0][0] = screenX;
 				g_LaserPointerBuffer.intersection[0][1] = screenY;
 				g_LaserPointerBuffer.intersection[0][2] = Q.z * OPT_TO_METERS;
+
+				// Project a point 2.5mm to the right of Q to get the proper 3D radius
+				float sX1;
+				Q.x += (0.0025f * METERS_TO_OPT);
+				OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &sX1, &screenY);
+				g_LaserPointerBuffer.inters_radius = (sX1 - screenX);
 			}
 			else
 			{
@@ -7666,6 +7690,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.intersection[1][0] = pos2D[1].x;
 				g_LaserPointerBuffer.intersection[1][1] = pos2D[1].y;
 				g_LaserPointerBuffer.intersection[1][2] = Q.z * OPT_TO_METERS;
+
+				// Project a point 2mm to the right of Q to get the proper 3D radius
+				float sX0 = pos2D[0].x;
+				Q.x += (0.002f * METERS_TO_OPT);
+				OPTVertexToSteamVRPostProcCoords(Q, pos2D);
+				g_LaserPointerBuffer.inters_radius = (pos2D[0].x - sX0);
 			}
 
 			// DEBUG
@@ -7987,11 +8017,15 @@ void UpdateViewMatrix()
 		g_VSMatrixCB.viewMat     = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = viewMatrixFull;
 
-		g_contOriginWorldSpace = g_contStates[g_ACJoyEmul.thrHandIdx].pose * Vector4(0, 0, 0, 1);
-		g_contDirWorldSpace    = g_contStates[g_ACJoyEmul.thrHandIdx].pose * g_controllerForwardVector;
+		g_contOriginWorldSpace   = g_contStates[g_ACJoyEmul.thrHandIdx].pose * Vector4(0, 0, 0, 1);
+		g_contOriginWorldSpace.w = 1.0f;
+		g_contDirWorldSpace      = g_contStates[g_ACJoyEmul.thrHandIdx].pose * g_controllerForwardVector;
+		g_contDirWorldSpace.w    = 0.0f;
 	}
 	else 
 	{
+		g_contDirWorldSpace = Vector4(0, 0, 1, 0);
+
 		// non-VR and DirectSBS modes, read the roll and position from FreePIE
 		//static Vector4 headCenterPos(0, 0, 0, 0);
 

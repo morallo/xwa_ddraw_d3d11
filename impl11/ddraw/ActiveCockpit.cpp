@@ -6,7 +6,7 @@
 
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, 0.4f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
+Vector4 g_contOriginWorldSpace = Vector4(-0.15f, -0.05f, 0.3f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
 Vector4 g_controllerForwardVector = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // Forward direction in the controller's frame of reference
 // This is the direction in which the controller is pointing in world-space coords.
 // Comes from transforming g_controllerForwardVector into viewspace coords.
