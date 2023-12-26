@@ -140,8 +140,8 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 	// Composite keys
 	ptr = action;
 	if ((cursor = strstr(action, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
-	if ((cursor = strstr(action, "CTRL")) != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
-	if ((cursor = strstr(action, "ALT")) != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+	if ((cursor = strstr(action, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(action, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
 
 	// Process the function keys
 	if (strstr(ptr, "F") != NULL) {
@@ -159,10 +159,10 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 	if (strstr(ptr, "ARROW") != NULL)
 	{
 		scanCodes[j++] = 0xE0;
-		if (strstr(ptr, "LEFT") != NULL)	scanCodes[j++] = 0x4B;
-		if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = 0x4D;
-		if (strstr(ptr, "UP") != NULL)	scanCodes[j++] = 0x48;
-		if (strstr(ptr, "DOWN") != NULL) 	scanCodes[j++] = 0x50;
+		if (strstr(ptr, "LEFT")  != NULL) scanCodes[j++] = 0x4B;
+		if (strstr(ptr, "RIGHT") != NULL) scanCodes[j++] = 0x4D;
+		if (strstr(ptr, "UP")    != NULL) scanCodes[j++] = 0x48;
+		if (strstr(ptr, "DOWN")  != NULL) scanCodes[j++] = 0x50;
 
 		//if (strstr(ptr, "LEFT") != NULL)		scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4B
 		//if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4D
@@ -220,6 +220,12 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 			return;
 		}
 
+		if (strstr(ptr, "BACKSPACE") != NULL) {
+			scanCodes[j++] = MapVirtualKey(VK_BACK, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
 		if (strstr(ptr, "SPACE") != NULL) {
 			scanCodes[j++] = 0x39;
 			scanCodes[j] = 0;
@@ -229,6 +235,24 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 		if (strstr(ptr, "HOLOGRAM") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_HOLOGRAM_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "[") != NULL) {
+			scanCodes[j++] = 0x1A;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "]") != NULL) {
+			scanCodes[j++] = 0x1B;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "\\") != NULL) {
+			scanCodes[j++] = 0x2B;
+			scanCodes[j] = 0;
 			return;
 		}
 	}
