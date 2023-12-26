@@ -192,8 +192,9 @@ UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 	pjc->wMaxButtons = 5;
 	// wNumAxes should probably stay at 2 here because needsJoyEmul() compares against
 	// 2 num axes to decide whether or not to use XInput.
-	pjc->wNumAxes = 2;
-	pjc->wMaxAxes = 2;
+	pjc->wNumAxes = 6;
+	pjc->wMaxAxes = 6;
+	pjc->wCaps = JOYCAPS_HASR;
 	return JOYERR_NOERROR;
 }
 
@@ -324,6 +325,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 	if (joy != 0) return MMSYSERR_NODRIVER;
 	if (pji->dwSize != 0x34) return MMSYSERR_INVALPARAM;
+
 	// XInput
 	if (g_config.JoystickEmul == 2) {
 		XINPUT_STATE state;
@@ -371,6 +373,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 		return JOYERR_NOERROR;
 	}
+
 	DWORD now = GetTickCount();
 	// Assume we started a new game
 	if ((now - lastGetPos) > 5000)
@@ -457,29 +460,6 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 	}
 
-	/*
-	bool AltKey = (GetAsyncKeyState(VK_MENU) & 0x8000) == 0x8000;
-	pji->dwRpos = 256; // This is the center position for this axis
-	if (AltKey) {
-		//log_debug("[DBG] AltKey Pressed");
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-			pji->dwRpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
-		}
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-			pji->dwRpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
-		}
-	}
-	else {
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-			pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
-		}
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-			pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
-		}
-	}
-	log_debug("[DBG] dwXpos,dwRpos: %d, %d", pji->dwZpos, pji->dwRpos);
-	*/
-
 	float normYaw = 0, normPitch = 0;
 	if (g_bUseSteamVR && g_bActiveCockpitEnabled)
 	{
@@ -526,7 +506,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 				normYaw     = yaw;
 				normPitch   = pitch;
-				pji->dwXpos = (DWORD)(512.0f * ((normYaw / 2.0f) + 0.5f));
+				pji->dwXpos = (DWORD)(512.0f * ((normYaw   / 2.0f) + 0.5f));
 				pji->dwYpos = (DWORD)(512.0f * ((normPitch / 2.0f) + 0.5f));
 			}
 
@@ -567,11 +547,24 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	}
 	else
 	{
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-			pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+		bool bCtrlKey = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
+		if (bCtrlKey)
+		{
+			if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+				pji->dwRpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+			}
+			if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+				pji->dwRpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+			}
 		}
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-			pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+		else
+		{
+			if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+				pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+			}
+			if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+				pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+			}
 		}
 
 		if (GetAsyncKeyState(VK_UP) & 0x8000) {
