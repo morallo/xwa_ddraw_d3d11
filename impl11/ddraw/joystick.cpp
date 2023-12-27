@@ -513,18 +513,19 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		if (g_ACJoyEmul.throttleEnabled)
 		{
 			static Vector4 anchor;
-			static float throttleAnchor = 0.0f;
 			static float normThrottle = 0.0f;
+			static float anchorThrottle = 0.0f;
 			if (!(g_prevContStates[thrIdx].buttons[VRButtons::GRIP]) && g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
-				throttleAnchor = 2.0f * (pji->dwZpos / 512.0f - 0.5f);
+				anchorThrottle = normThrottle;
 			}
 
 			if (g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				Vector4 current = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
-				normThrottle    = clamp(current.z - anchor.z, -g_ACJoyEmul.thrHalfRange, g_ACJoyEmul.thrHalfRange) / g_ACJoyEmul.thrHalfRange;
+				const float D   = (current.z - anchor.z) / g_ACJoyEmul.thrHalfRange;
+				normThrottle    = clamp(anchorThrottle + D, -1.0f, 1.0f);
 			}
 
 			pji->dwZpos = (DWORD)(512.0f * ((normThrottle / 2.0f) + 0.5f));
