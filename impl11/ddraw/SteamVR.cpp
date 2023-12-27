@@ -364,8 +364,6 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		for (int i = 0; i < 2; i++)
 		{
-			g_prevContStates[i] = g_contStates[i];
-
 			g_contStates[i].bIsValid = trackedControllerPose[i].bPoseIsValid;
 			g_contStates[i].pose = HmdMatrix34toMatrix4(trackedControllerPose[i].mDeviceToAbsoluteTracking);
 
@@ -373,17 +371,21 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 			vr::VRControllerState_t state;
 			if (vr::VRSystem()->GetControllerState(i == 0 ? leftId : rightId, &state, sizeof(state)))
 			{
-				//if (g_contStates[i].packetNum != state.unPacketNum)
+				if (g_contStates[i].packetNum != state.unPacketNum)
 				{
-					g_contStates[i].bGripPressed     = (state.ulButtonPressed & 0x04) != 0;
-					g_contStates[i].bAPressed        = (state.ulButtonPressed & 0x80) != 0;
-					g_contStates[i].bBPressed        = (state.ulButtonPressed & 0x02) != 0;
-					g_contStates[i].trackPadX        = state.rAxis[0].x;
-					g_contStates[i].trackPadY        = state.rAxis[0].y;
-					g_contStates[i].bTriggerPressed  = (state.rAxis[1].x > 0.1f); // 0 is fully released
-					g_contStates[i].bTrackpadPressed = (state.ulButtonPressed >> 32) & 1;
+					g_contStates[i].buttons[VRButtons::TRIGGER]   = (state.rAxis[1].x > 0.1f); // 0 is fully released
+					g_contStates[i].buttons[VRButtons::GRIP]      = (state.ulButtonPressed & 0x04) != 0;
+					g_contStates[i].buttons[VRButtons::BUTTON_1]  = (state.ulButtonPressed & 0x80) != 0;
+					g_contStates[i].buttons[VRButtons::BUTTON_2]  = (state.ulButtonPressed & 0x02) != 0;
+					g_contStates[i].buttons[VRButtons::PAD_CLICK] = (state.ulButtonPressed >> 32) & 1;
+					g_contStates[i].buttons[VRButtons::PAD_LEFT]  = (state.rAxis[0].x < -0.8f);
+					g_contStates[i].buttons[VRButtons::PAD_RIGHT] = (state.rAxis[0].x >  0.8f);
+					g_contStates[i].buttons[VRButtons::PAD_UP]    = (state.rAxis[0].y >  0.8f);
+					g_contStates[i].buttons[VRButtons::PAD_DOWN]  = (state.rAxis[0].y < -0.8f);
 
-					g_contStates[i].packetNum        = state.unPacketNum;
+					g_contStates[i].trackPadX = state.rAxis[0].x;
+					g_contStates[i].trackPadY = state.rAxis[0].y;
+					g_contStates[i].packetNum = state.unPacketNum;
 				}
 			}
 

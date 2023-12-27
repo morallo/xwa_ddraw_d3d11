@@ -1601,11 +1601,31 @@ bool LoadDCParams() {
 	return true;
 }
 
+void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
+{
+	bool bIsActivator = false;
+	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsActivator);
+	if (bIsActivator)
+	{
+		g_ACPointerData.contIdx = contIdx;
+		g_ACPointerData.button  = buttonId;
+		log_debug("[DBG] [AC] Controller %d, button %d is now the cursor",
+			contIdx, buttonId);
+	}
+}
+
 /* Loads the dynamic_cockpit.cfg file */
 bool LoadACParams() {
 	log_debug("[DBG] [AC] Loading Active Cockpit params...");
 	FILE* file;
 	int error = 0, line = 0;
+
+	// Clear all the VR controller mappings
+	for (int i = 0; i < 2; i++)
+	{
+		for (int j = 0; j < (int)VRButtons::MAX; j++)
+			g_ACJoyMappings[i].action[j][0] = 0;
+	}
 
 	try {
 		error = fopen_s(&file, "./active_cockpit.cfg", "rt");
@@ -1713,6 +1733,73 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "throttle_range") == 0) {
 				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
+			}
+
+			// VR controller configuration
+			if (_stricmp(param, "leftpad_up") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_UP, svalue);
+			}
+			if (_stricmp(param, "leftpad_down") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_DOWN, svalue);
+			}
+			if (_stricmp(param, "leftpad_left") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_LEFT, svalue);
+			}
+			if (_stricmp(param, "leftpad_right") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_RIGHT, svalue);
+			}
+			if (_stricmp(param, "leftpad_click") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_CLICK, svalue);
+			}
+			if (_stricmp(param, "left_trigger") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::TRIGGER, svalue);
+			}
+			if (_stricmp(param, "left_button_1") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::BUTTON_1, svalue);
+			}
+			if (_stricmp(param, "left_button_2") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::BUTTON_2, svalue);
+			}
+
+			if (_stricmp(param, "rightpad_up") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_UP, svalue);
+			}
+			if (_stricmp(param, "rightpad_down") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_DOWN, svalue);
+			}
+			if (_stricmp(param, "rightpad_left") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_LEFT, svalue);
+			}
+			if (_stricmp(param, "rightpad_right") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_RIGHT, svalue);
+			}
+			if (_stricmp(param, "rightpad_click") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_CLICK, svalue);
+			}
+			if (_stricmp(param, "right_trigger") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::TRIGGER, svalue);
+			}
+			if (_stricmp(param, "right_button_1") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::BUTTON_1, svalue);
+			}
+			if (_stricmp(param, "right_button_2") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::BUTTON_2, svalue);
 			}
 		}
 	}

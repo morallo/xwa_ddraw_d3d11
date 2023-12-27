@@ -4,6 +4,8 @@
 #include "utils.h"
 #include "Direct3DTexture.h"
 
+#include <mmsystem.h>
+
 /*********************************************************/
 // ACTIVE COCKPIT
 Vector4 g_contOriginWorldSpace = Vector4(-0.15f, -0.05f, 0.3f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
@@ -23,16 +25,26 @@ Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
-
-ACJoyEmulSettings g_ACJoyEmul;
-
 // DEBUG vars
+
+ACJoyEmulSettings g_ACJoyEmul;        // Stores data needed to configure VR controllers (handedness, motion range, deadzones)
+ACJoyMapping      g_ACJoyMappings[2]; // Maps VR buttons to AC actions
+ACPointerData     g_ACPointerData;    // Tells us which controller and button is used to activate AC controls
+
+bool IsContinousAction(WORD* action)
+{
+	return (action != nullptr &&
+			action[0] == 0xFF &&
+			// The first joystick button is fire, so it's a continuous action.
+			// The second joystick button is target/roll. In order to enable roll, it must be a continous action.
+			(action[1] == AC_JOYBUTTON1_FAKE_VK_CODE || action[1] == AC_JOYBUTTON2_FAKE_VK_CODE));
+}
 
 /*
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void ACRunAction(WORD* action) {
+void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
@@ -49,10 +61,42 @@ void ACRunAction(WORD* action) {
 	}
 
 	// Special internal action: these actions don't need to synthesize any input
-	if (action[0] == 0xFF) {
-		switch (action[1]) {
+	if (action[0] == 0xFF)
+	{
+		switch (action[1])
+		{
 		case AC_HOLOGRAM_FAKE_VK_CODE:
 			g_bDCHologramsVisible = !g_bDCHologramsVisible;
+			return;
+		case AC_JOYBUTTON1_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 1;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 1);
+			}
+			return;
+		case AC_JOYBUTTON2_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 2;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 2);
+			}
+			return;
+		case AC_JOYBUTTON3_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 4;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 3);
+			}
+			return;
+		case AC_JOYBUTTON4_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 8;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 4);
+			}
+			return;
+		case AC_JOYBUTTON5_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 16;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 5);
+			}
 			return;
 		}
 		return;
@@ -101,7 +145,7 @@ void ACRunAction(WORD* action) {
 /*
  * Converts a string representation of a hotkey to a series of scan codes
  */
-void TranslateACAction(WORD* scanCodes, char* action) {
+void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 	// XWA keyboard reference:
 	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
 	// Scan code tables:
@@ -111,6 +155,10 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 	int len = strlen(action);
 	const char* ptr = action, * cursor;
 	int i, j;
+
+	if (bIsACActivator != nullptr)
+		*bIsACActivator = false;
+
 	// Translate to uppercase
 	for (i = 0; i < len; i++)
 		action[i] = toupper(action[i]);
@@ -226,15 +274,47 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 			return;
 		}
 
-		if (strstr(ptr, "SPACE") != NULL) {
+		if (strstr(ptr, "SPACE") != NULL || strstr(ptr, "ACTIVATE") != NULL) {
 			scanCodes[j++] = 0x39;
 			scanCodes[j] = 0;
+			if (bIsACActivator != nullptr)
+				*bIsACActivator = true;
 			return;
 		}
 
 		if (strstr(ptr, "HOLOGRAM") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_HOLOGRAM_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON1") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON1_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON2") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON2_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON3") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON3_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON4") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON4_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON5") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON5_FAKE_VK_CODE;
 			return;
 		}
 
@@ -255,6 +335,11 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 			scanCodes[j] = 0;
 			return;
 		}
+	}
+
+	if (strlen(ptr) > 1)
+	{
+		log_debug("[DBG] [AC] WARNING: Parsing a probably unknown action: [%s]", ptr);
 	}
 
 	// Regular single-char keys
@@ -317,8 +402,9 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
 		}
 		else {
+			bool dummy;
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
-			TranslateACAction(&(coords->action[idx][0]), action);
+			TranslateACAction(&(coords->action[idx][0]), action, &dummy);
 			//DisplayACAction(&(coords->action[idx][0]));
 
 			if (y0 > y1) std::swap(y0, y1);

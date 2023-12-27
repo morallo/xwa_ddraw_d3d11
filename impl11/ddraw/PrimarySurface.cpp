@@ -7638,10 +7638,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_LaserPointerBuffer.contOrigin[1].y = pos2D[1].y;
 		g_LaserPointerBuffer.contOrigin[1].z = contOriginDisplay.z * OPT_TO_METERS;
 
-		// Project a point 2mm to the right of contOriginDisplay to get the proper radius
+		// Project a point 3mm to the right of contOriginDisplay to get the proper radius
 		float sX0 = pos2D[0].x;
 		Vector4 Q = contOriginDisplay;
-		Q.x += (0.002f * METERS_TO_OPT);
+		Q.x += (0.003f * METERS_TO_OPT);
 		OPTVertexToSteamVRPostProcCoords(Q, pos2D);
 		g_LaserPointerBuffer.cursor_radius = (pos2D[0].x - sX0);
 	}
@@ -7656,8 +7656,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	else // When there's no intersection, just draw a line pointing in the direction of the ray
 	{
 		// ray.dir is already in OPT metric (i.e. its length is 40.96), so the following line is equivalent to:
-		// 0.2f * METERS_TO_OPT * normalize(ray.dir)
-		P = ray.origin + 0.2f * ray.dir;
+		// 0.5f * METERS_TO_OPT * normalize(ray.dir)
+		P = ray.origin + 0.5f * ray.dir;
 		g_LaserPointerBuffer.bIntersection = false;
 	}
 
@@ -7691,9 +7691,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				g_LaserPointerBuffer.intersection[1][1] = pos2D[1].y;
 				g_LaserPointerBuffer.intersection[1][2] = Q.z * OPT_TO_METERS;
 
-				// Project a point 2mm to the right of Q to get the proper 3D radius
+				// Project a point 1.5mm to the right of Q to get the proper 3D radius
 				float sX0 = pos2D[0].x;
-				Q.x += (0.002f * METERS_TO_OPT);
+				Q.x += (0.0015f * METERS_TO_OPT);
 				OPTVertexToSteamVRPostProcCoords(Q, pos2D);
 				g_LaserPointerBuffer.inters_radius = (pos2D[0].x - sX0);
 			}
@@ -7997,7 +7997,7 @@ void UpdateViewMatrix()
 	{
 		Matrix4 viewMatrixFull, rotMatrixYaw, rotMatrixPitch, rotMatrixRoll, posMatrix;
 		GetSteamVRPositionalData(&yaw, &pitch, &roll, &x, &y, &z, &viewMatrixFull);
-		g_bACTriggerState = g_contStates[g_ACJoyEmul.thrHandIdx].bTriggerPressed;
+		g_bACTriggerState = g_contStates[g_ACPointerData.contIdx].buttons[g_ACPointerData.button];
 
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
@@ -8017,9 +8017,9 @@ void UpdateViewMatrix()
 		g_VSMatrixCB.viewMat     = g_viewMatrix;
 		g_VSMatrixCB.fullViewMat = viewMatrixFull;
 
-		g_contOriginWorldSpace   = g_contStates[g_ACJoyEmul.thrHandIdx].pose * Vector4(0, 0, 0, 1);
+		g_contOriginWorldSpace   = g_contStates[g_ACPointerData.contIdx].pose * Vector4(0, 0, 0, 1);
 		g_contOriginWorldSpace.w = 1.0f;
-		g_contDirWorldSpace      = g_contStates[g_ACJoyEmul.thrHandIdx].pose * g_controllerForwardVector;
+		g_contDirWorldSpace      = g_contStates[g_ACPointerData.contIdx].pose * g_controllerForwardVector;
 		g_contDirWorldSpace.w    = 0.0f;
 	}
 	else 

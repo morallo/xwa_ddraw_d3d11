@@ -2,6 +2,7 @@
 
 #include "EffectsCommon.h"
 #include "DynamicCockpit.h"
+#include "SteamVR.h"
 #include <wincodec.h>
 
 
@@ -10,6 +11,12 @@
 #define MAX_AC_TEXTURES_PER_COCKPIT 16
 #define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
 #define AC_HOLOGRAM_FAKE_VK_CODE 0x01 // Internal AC code to toggle the holograms
+#define AC_JOYBUTTON1_FAKE_VK_CODE 0x02 // Internal AC code to emulate joystick button clicks
+#define AC_JOYBUTTON2_FAKE_VK_CODE 0x03
+#define AC_JOYBUTTON3_FAKE_VK_CODE 0x04
+#define AC_JOYBUTTON4_FAKE_VK_CODE 0x05
+#define AC_JOYBUTTON5_FAKE_VK_CODE 0x06
+
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
 	WORD action[MAX_AC_COORDS_PER_TEXTURE][MAX_AC_ACTION_LEN]; // List of scan codes
@@ -71,6 +78,26 @@ struct ACJoyEmulSettings
 };
 extern ACJoyEmulSettings g_ACJoyEmul;
 
+struct ACJoyMapping
+{
+	WORD action[VRButtons::MAX][MAX_AC_ACTION_LEN];
+};
+extern ACJoyMapping g_ACJoyMappings[2];
+
+// Used to tell which controller and button are used in VR for activating AC controls
+struct ACPointerData
+{
+	int contIdx;
+	int button;
+
+	ACPointerData()
+	{
+		contIdx = 0; // Left controller
+		button  = VRButtons::TRIGGER;
+	}
+};
+extern ACPointerData g_ACPointerData;
+
 // DEBUG vars
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
@@ -80,6 +107,8 @@ extern float g_fLPdebugPointOffset;
 
 bool LoadIndividualACParams(char* sFileName);
 void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
-void TranslateACAction(WORD* scanCodes, char* action);
+void TranslateACAction(WORD* scanCodes, char* action, bool* bIsACActivator);
 void DisplayACAction(WORD* scanCodes);
 int isInVector(char* name, ac_element* ac_elements, int num_elems);
+void ACRunAction(WORD* action, struct joyinfoex_tag* pji = nullptr);
+bool IsContinousAction(WORD* action);

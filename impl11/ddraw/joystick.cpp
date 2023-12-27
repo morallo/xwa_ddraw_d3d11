@@ -472,12 +472,12 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		if (g_ACJoyEmul.joystickEnabled)
 		{
 			static Vector4 rightAnchor;
-			if (!(g_prevContStates[joyIdx].bGripPressed) && g_contStates[joyIdx].bGripPressed)
+			if (!(g_prevContStates[joyIdx].buttons[VRButtons::GRIP]) && g_contStates[joyIdx].buttons[VRButtons::GRIP])
 			{
 				rightAnchor = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);;
 			}
 
-			if (g_contStates[joyIdx].bGripPressed)
+			if (g_contStates[joyIdx].buttons[VRButtons::GRIP])
 			{
 				Vector4 current = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);
 				float yaw   = clamp(current.x - rightAnchor.x, -g_ACJoyEmul.joyHalfRangeX, g_ACJoyEmul.joyHalfRangeX) / g_ACJoyEmul.joyHalfRangeX;
@@ -490,7 +490,6 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				yaw   = fabs(yaw);
 				pitch = fabs(pitch);
 
-				constexpr float DEAD_ZONE = 0.1f; // 10%
 				if (yaw < g_ACJoyEmul.deadZonePerc)
 					yaw = 0.0f;
 				else
@@ -509,20 +508,6 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				pji->dwXpos = (DWORD)(512.0f * ((normYaw   / 2.0f) + 0.5f));
 				pji->dwYpos = (DWORD)(512.0f * ((normPitch / 2.0f) + 0.5f));
 			}
-
-			// Synthesize mouse clicks
-			pji->dwButtons = 0;
-			pji->dwButtonNumber = 0;
-			if (g_contStates[joyIdx].bTriggerPressed)
-			{
-				pji->dwButtons |= 1;
-				++pji->dwButtonNumber;
-			}
-			if (g_contStates[joyIdx].bAPressed)
-			{
-				pji->dwButtons |= 2;
-				++pji->dwButtonNumber;
-			}
 		}
 
 		if (g_ACJoyEmul.throttleEnabled)
@@ -530,19 +515,41 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			static Vector4 anchor;
 			static float throttleAnchor = 0.0f;
 			static float normThrottle = 0.0f;
-			if (!(g_prevContStates[thrIdx].bGripPressed) && g_contStates[thrIdx].bGripPressed)
+			if (!(g_prevContStates[thrIdx].buttons[VRButtons::GRIP]) && g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
 				throttleAnchor = 2.0f * (pji->dwZpos / 512.0f - 0.5f);
 			}
 
-			if (g_contStates[thrIdx].bGripPressed)
+			if (g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				Vector4 current = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
 				normThrottle    = clamp(current.z - anchor.z, -g_ACJoyEmul.thrHalfRange, g_ACJoyEmul.thrHalfRange) / g_ACJoyEmul.thrHalfRange;
 			}
 
 			pji->dwZpos = (DWORD)(512.0f * ((normThrottle / 2.0f) + 0.5f));
+		}
+
+		// Synthesize joystick button clicks and run AC actions associated with VR buttons
+		pji->dwButtons = 0;
+		pji->dwButtonNumber = 0;
+		for (int contIdx = 0; contIdx < 2; contIdx++)
+		{
+			for (int buttonIdx = 0; buttonIdx < VRButtons::MAX; buttonIdx++)
+			{
+				if (IsContinousAction(g_ACJoyMappings[contIdx].action[buttonIdx]))
+				{
+					if (g_contStates[contIdx].buttons[buttonIdx])
+						ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
+				}
+				else
+				{
+					if (!g_prevContStates[contIdx].buttons[buttonIdx] && g_contStates[contIdx].buttons[buttonIdx])
+						ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
+				}
+			}
+			// Actions have been processed, we can update the previous state now
+			g_prevContStates[contIdx] = g_contStates[contIdx];
 		}
 	}
 	else

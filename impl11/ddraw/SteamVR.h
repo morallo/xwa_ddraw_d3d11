@@ -35,30 +35,42 @@ extern void* g_pSurface;
 extern bool g_bTogglePostPresentHandoff;
 extern bool g_bSteamVRMirrorWindowLeftEye;
 
+namespace VRButtons
+{
+	enum VRButtons
+	{
+		TRIGGER = 0,
+		GRIP,
+		BUTTON_1,
+		BUTTON_2,
+
+		PAD_LEFT,
+		PAD_RIGHT,
+		PAD_UP,
+		PAD_DOWN,
+		PAD_CLICK,
+
+		MAX // Sentinel, do not remove
+	};
+};
+
 struct ControllerState
 {
 	Matrix4  pose;
 	bool     bIsValid;
-	bool     bAPressed;
-	bool     bBPressed;
-	bool     bTrackpadPressed;
-	bool     bTriggerPressed;
-	bool     bGripPressed;
+	bool     buttons[VRButtons::MAX];
 	float    trackPadX, trackPadY;
 	uint32_t packetNum; // Internal, do not modify
 
 	ControllerState()
 	{
 		pose.identity();
-		bIsValid         = false;
-		bAPressed        = false;
-		bBPressed        = false;
-		bTrackpadPressed = false;
-		bTriggerPressed  = false;
-		bGripPressed     = false;
-		trackPadX        = 0;
-		trackPadY        = 0;
-		packetNum        = 0xFFFFFFFF;
+		for (int i = 0; i < VRButtons::MAX; i++)
+			buttons[i] = false;
+		bIsValid  = false;
+		trackPadX = 0;
+		trackPadY = 0;
+		packetNum = 0xFFFFFFFF;
 	}
 };
 extern ControllerState g_prevContStates[2];

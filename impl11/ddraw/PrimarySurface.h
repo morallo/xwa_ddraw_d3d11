@@ -13,7 +13,6 @@ Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool inve
 Matrix4 GetCurrentHeadingViewMatrix();
 void UpdateViewMatrix();
 void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
-void ACRunAction(WORD* action);
 
 class PrimarySurface : public IDirectDrawSurface
 {
