@@ -115,12 +115,17 @@ void SendMouseEvent(float dx, float dy, bool bLeft, bool bRight)
 void EmulMouseWithVRControllers()
 {
 	const int ptrIdx = g_ACPointerData.contIdx;
+	const int auxIdx = ptrIdx == 0 ? 1 : 0;
 	static bool bFirstTime = true;
 	static WORD escScanCodes[2];
+	static WORD periodScanCodes[2];
 	if (bFirstTime)
 	{
-		char action[] = "ESC";
-		TranslateACAction(escScanCodes, action, nullptr);
+		char action1[] = "ESC";
+		TranslateACAction(escScanCodes, action1, nullptr);
+
+		char action2[] = "PERIOD";
+		TranslateACAction(periodScanCodes, action2, nullptr);
 		bFirstTime = false;
 	}
 
@@ -133,6 +138,10 @@ void EmulMouseWithVRControllers()
 	// Send the ESC command
 	if (!g_prevContStates[ptrIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[ptrIdx].buttons[VRButtons::PAD_CLICK])
 		ACRunAction(escScanCodes, nullptr);
+
+	// Send the PERIOD command
+	if (!g_prevContStates[auxIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[auxIdx].buttons[VRButtons::PAD_CLICK])
+		ACRunAction(periodScanCodes, nullptr);
 
 	// Actions have been processed, we can update the previous state now
 	for (int i = 0; i < 2; i++)
@@ -336,6 +345,35 @@ void ResetRawMouseInput()
 }
 #endif
 
+/// <summary>
+/// Computes the yaw, pitch, roll for the emulated joystick and returns normalized values
+/// </summary>
+void EmulYawPitchRollFromVR(float *yaw, float *pitch, float *roll)
+{
+	// yaw: left: 40, right: -40
+	// pitch: forward: -40, backward: 40
+	// roll : left : 40, right : -40
+	const int joyIdx = g_ACJoyEmul.joyHandIdx;
+	Matrix4 pose = g_contStates[joyIdx].pose;
+	*yaw  = RAD2DEG * (g_contStates[joyIdx].roll - g_contStates[joyIdx].centerRoll);
+	*roll = RAD2DEG * (g_contStates[joyIdx].yaw  - g_contStates[joyIdx].centerYaw);
+
+	// g_controllerUpVector is already normalized
+	Vector4 U = pose * g_controllerUpVector;
+
+	// Project U to the Y-Z plane and find the angle
+	Vector4 Up = Vector4(0, U.y, U.z, 0);
+	Up.normalize();
+	*pitch = RAD2DEG * atan2(Up.z, Up.y);
+	// Signs need to be inverted to match XWA's system
+	*yaw  = - *yaw;
+	*roll = - *roll;
+
+	*yaw   = clamp(*yaw,   -g_ACJoyEmul.yawHalfRange,   g_ACJoyEmul.yawHalfRange)   / g_ACJoyEmul.yawHalfRange;
+	*pitch = clamp(*pitch, -g_ACJoyEmul.pitchHalfRange, g_ACJoyEmul.pitchHalfRange) / g_ACJoyEmul.pitchHalfRange;
+	*roll  = clamp(*roll,  -g_ACJoyEmul.rollHalfRange,  g_ACJoyEmul.rollHalfRange)  / g_ACJoyEmul.rollHalfRange;
+}
+
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
 	// Tell the joystick hook when to disable the joystick
@@ -538,13 +576,18 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				Vector4 current = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);
 				float yaw   = clamp(current.x - rightAnchor.x, -g_ACJoyEmul.joyHalfRangeX, g_ACJoyEmul.joyHalfRangeX) / g_ACJoyEmul.joyHalfRangeX;
 				float pitch = clamp(current.z - rightAnchor.z, -g_ACJoyEmul.joyHalfRangeZ, g_ACJoyEmul.joyHalfRangeZ) / g_ACJoyEmul.joyHalfRangeZ;
+				float roll  = 0;
+
+				EmulYawPitchRollFromVR(&yaw, &pitch, &roll);
 
 				// Apply deadzone
 				const float s_yaw   = sign(yaw);
 				const float s_pitch = sign(pitch);
+				const float s_roll  = sign(roll);
 
 				yaw   = fabs(yaw);
 				pitch = fabs(pitch);
+				roll  = fabs(roll);
 
 				if (yaw < g_ACJoyEmul.deadZonePerc)
 					yaw = 0.0f;
@@ -556,13 +599,21 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				else
 					pitch = lerp(0.0f, 1.0f, clamp(pitch / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
 
+				if (roll < g_ACJoyEmul.deadZonePerc)
+					roll = 0.0f;
+				else
+					roll = lerp(0.0f, 1.0f, clamp(roll / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
+
 				yaw   *= s_yaw;
 				pitch *= s_pitch;
+				roll  *= s_roll;
 
 				normYaw     = yaw;
 				normPitch   = pitch;
+				normRoll    = roll;
 				pji->dwXpos = (DWORD)(512.0f * ((normYaw   / 2.0f) + 0.5f));
 				pji->dwYpos = (DWORD)(512.0f * ((normPitch / 2.0f) + 0.5f));
+				pji->dwRpos = (DWORD)(512.0f * ((normRoll  / 2.0f) + 0.5f));
 			}
 		}
 

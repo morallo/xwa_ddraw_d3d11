@@ -36,6 +36,7 @@ typedef struct ac_element_struct {
 extern bool g_bActiveCockpitEnabled;
 extern Vector4 g_contOriginWorldSpace; // This is the origin of the controller in 3D, in world-space coords
 extern Vector4 g_controllerForwardVector; // Forward direction in the controller's frame of reference
+extern Vector4 g_controllerUpVector;
 extern Vector4 g_contDirWorldSpace; // This is the direction in which the controller is pointing in world-space coords
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
@@ -62,6 +63,10 @@ struct ACJoyEmulSettings
 	float deadZonePerc;
 	float thrHalfRange;
 
+	float yawHalfRange;
+	float pitchHalfRange;
+	float rollHalfRange;
+
 	ACJoyEmulSettings()
 	{
 		joystickEnabled = false;
@@ -74,6 +79,10 @@ struct ACJoyEmulSettings
 		joyHalfRangeZ = 0.075f;
 		deadZonePerc  = 0.1f;
 		thrHalfRange  = 0.07f;
+
+		yawHalfRange   = 35.0f;
+		pitchHalfRange = 25.0f;
+		rollHalfRange  = 25.0f;
 	}
 };
 extern ACJoyEmulSettings g_ACJoyEmul;

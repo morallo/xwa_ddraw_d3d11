@@ -1704,6 +1704,19 @@ bool LoadACParams() {
 					&(g_controllerForwardVector.z));
 				g_controllerForwardVector.w = 0;
 				g_controllerForwardVector.normalize();
+
+				// Compute the up vector
+				Vector3 R0, U0, F0;
+				R0 = Vector3(1, 0, 0);
+				F0.x = g_controllerForwardVector.x;
+				F0.y = g_controllerForwardVector.y;
+				F0.z = g_controllerForwardVector.z;
+				U0 = R0.cross(F0);
+				g_controllerUpVector.x = U0.x;
+				g_controllerUpVector.y = U0.y;
+				g_controllerUpVector.z = U0.z;
+				g_controllerUpVector.w = 0;
+				g_controllerUpVector.normalize();
 			}
 			else if (_stricmp(param, "joystick_emulaton_enabled") == 0) {
 				g_ACJoyEmul.joystickEnabled = (bool)fValue;
@@ -1736,6 +1749,15 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "throttle_range") == 0) {
 				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_yaw_range") == 0) {
+				g_ACJoyEmul.yawHalfRange = fValue / 2.0f;
+			}
+			else if (_stricmp(param, "joystick_pitch_range") == 0) {
+				g_ACJoyEmul.pitchHalfRange = fValue / 2.0f;
+			}
+			else if (_stricmp(param, "joystick_roll_range") == 0) {
+				g_ACJoyEmul.rollHalfRange = fValue / 2.0f;
 			}
 
 			// VR controller configuration

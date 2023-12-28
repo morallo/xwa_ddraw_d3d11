@@ -8022,6 +8022,17 @@ void UpdateViewMatrix()
 		g_contOriginWorldSpace.w = 1.0f;
 		g_contDirWorldSpace      = g_contStates[g_ACPointerData.contIdx].pose * g_controllerForwardVector;
 		g_contDirWorldSpace.w    = 0.0f;
+
+		if (g_bResetHeadCenter)
+		{
+			for (int i = 0; i < 2; i++)
+			{
+				g_contStates[i].centerYaw   = g_contStates[i].yaw;
+				g_contStates[i].centerPitch = g_contStates[i].pitch;
+				g_contStates[i].centerRoll  = g_contStates[i].roll;
+				//log_debug("[DBG] [AC] Center YPR captured for controller %d", i);
+			}
+		}
 	}
 	else 
 	{

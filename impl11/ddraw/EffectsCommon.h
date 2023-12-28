@@ -11,6 +11,7 @@
 const int MAX_TEXTURE_NAME = 128;
 const float PI = 3.141593f;
 const float DEG2RAD = PI / 180.0f;
+const float RAD2DEG = 180.0f / PI;
 #endif
 
 // General types and globals
