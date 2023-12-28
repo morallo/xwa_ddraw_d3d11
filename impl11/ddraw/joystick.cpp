@@ -516,8 +516,8 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 	}
 
-	float normYaw = 0, normPitch = 0;
-	if (g_bUseSteamVR && g_bActiveCockpitEnabled)
+	float normYaw = 0, normPitch = 0, normRoll = 0;
+	if (g_config.JoystickEmul == 3 && g_bUseSteamVR && g_bActiveCockpitEnabled)
 	{
 		// Support VR controllers (quick-and-dirty approach, the proper way is probably to add code to the
 		// joystick hook so that bindings can be configured).
@@ -649,12 +649,13 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		// Normalize each axis to the range -1..1:
 		normYaw   = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
 		normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
+		normRoll  = 2.0f * (pji->dwRpos / 512.0f - 0.5f);
 	}
 
 	if (g_pSharedDataJoystick != NULL) {
 		g_pSharedDataJoystick->JoystickYaw   = normYaw;
 		g_pSharedDataJoystick->JoystickPitch = normPitch;
-		g_pSharedDataJoystick->JoystickRoll  = 0.0f;
+		g_pSharedDataJoystick->JoystickRoll  = normRoll;
 	}
 
 	if (g_bGimbalLockFixActive)

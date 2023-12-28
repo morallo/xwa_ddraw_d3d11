@@ -1669,10 +1669,16 @@ bool LoadACParams() {
 			if (_stricmp(param, "active_cockpit_enabled") == 0) {
 				g_bActiveCockpitEnabled = (bool)fValue;
 				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
-				if (!g_bActiveCockpitEnabled) {
+				if (!g_bActiveCockpitEnabled)
+				{
 					// Early abort: stop reading coordinates if the active cockpit is disabled
 					fclose(file);
 					return false;
+				}
+				else
+				{
+					// Force VR joystick emulation. Joystick/throttle emulation is controlled by Active_Cockpit.cfg anyway
+					g_config.JoystickEmul = 3;
 				}
 			}
 			else if (_stricmp(param, "freepie_controller_slot") == 0) {
@@ -1690,9 +1696,6 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
-			}
-			else if (_stricmp(param, "cursor_radius") == 0) {
-				g_LaserPointerBuffer.cursor_radius = fValue;
 			}
 			else if (_stricmp(param, "controller_forward_vector") == 0) {
 				LoadGeneric3DCoords(buf,
