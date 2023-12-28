@@ -1801,6 +1801,15 @@ bool LoadACParams() {
 			{
 				TranslateACActionForVRController(1, VRButtons::BUTTON_2, svalue);
 			}
+
+			if (_stricmp(param, "mouse_speed_x") == 0)
+			{
+				g_ACPointerData.mouseSpeedX = fValue;
+			}
+			else if (_stricmp(param, "mouse_speed_y") == 0)
+			{
+				g_ACPointerData.mouseSpeedY = fValue;
+			}
 		}
 	}
 	fclose(file);
@@ -3110,10 +3119,10 @@ bool LoadGimbaLockFixConfig() {
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
 			fValue = (float)atof(svalue);
 
-			if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
+			/*if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
 				g_bEnableGimbalLockFix = (bool)fValue;
-			}
-			else if (_stricmp(param, "enable_rudder") == 0) {
+			}*/
+			if (_stricmp(param, "enable_rudder") == 0) {
 				g_bEnableRudder = (bool)fValue;
 			}
 			/*

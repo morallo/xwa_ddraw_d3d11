@@ -83,6 +83,35 @@ float SignedReduceClamp(float val, float delta, float abs_min, float abs_max)
 	return s * val;
 }
 
+void SendMouseEvent(float dx, float dy, bool bLeft, bool bRight)
+{
+	constexpr int MAX_ACTION_LEN = 12;
+	INPUT input[MAX_ACTION_LEN];
+
+	int i = 0;
+	input[i].ki.wScan = 0;
+	input[i].type = INPUT_MOUSE;
+	input[i].mi.dx = (LONG)dx;
+	input[i].mi.dy = (LONG)dy;
+	input[i].mi.dwFlags = MOUSEEVENTF_MOVE | (bLeft ? MOUSEEVENTF_LEFTDOWN : 0) | (bLeft ? MOUSEEVENTF_RIGHTDOWN : 0);
+	input[i].mi.mouseData = 0;
+	input[i].mi.dwExtraInfo = NULL;
+	input[i].mi.time = 0;
+	i++;
+
+	input[i].ki.wScan = 0;
+	input[i].type = INPUT_MOUSE;
+	input[i].mi.dx = 0;
+	input[i].mi.dy = 0;
+	input[i].mi.dwFlags = (bLeft ? MOUSEEVENTF_LEFTUP : 0) | (bLeft ? MOUSEEVENTF_RIGHTUP : 0);
+	input[i].mi.mouseData = 0;
+	input[i].mi.dwExtraInfo = NULL;
+	input[i].mi.time = 0;
+	i++;
+
+	SendInput(i, input, sizeof(INPUT));
+}
+
 // timeGetTime emulation.
 // if it is called in a tight loop it will call Sleep()
 // prevents high CPU usage due to busy loop
@@ -194,7 +223,7 @@ UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 	// 2 num axes to decide whether or not to use XInput.
 	pjc->wNumAxes = 6;
 	pjc->wMaxAxes = 6;
-	pjc->wCaps = JOYCAPS_HASR;
+	pjc->wCaps = JOYCAPS_HASZ | JOYCAPS_HASR;
 	return JOYERR_NOERROR;
 }
 
@@ -513,7 +542,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		if (g_ACJoyEmul.throttleEnabled)
 		{
 			static Vector4 anchor;
-			static float normThrottle = 0.0f;
+			static float normThrottle   = 0.0f;
 			static float anchorThrottle = 0.0f;
 			if (!(g_prevContStates[thrIdx].buttons[VRButtons::GRIP]) && g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
@@ -529,6 +558,17 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			}
 
 			pji->dwZpos = (DWORD)(512.0f * ((normThrottle / 2.0f) + 0.5f));
+		}
+
+		// Synthesize mouse motion
+		if (!g_bRendering3D)
+		{
+			const int   contIdx    = g_ACPointerData.contIdx;
+			const int   triggerIdx = VRButtons::TRIGGER;
+			const float dx =  g_contStates[contIdx].trackPadX * g_ACPointerData.mouseSpeedX;
+			const float dy = -g_contStates[contIdx].trackPadY * g_ACPointerData.mouseSpeedY;
+			const bool  bLeftClick = (!g_prevContStates[contIdx].buttons[triggerIdx] && g_contStates[contIdx].buttons[triggerIdx]);
+			SendMouseEvent(dx, dy, bLeftClick, false);
 		}
 
 		// Synthesize joystick button clicks and run AC actions associated with VR buttons

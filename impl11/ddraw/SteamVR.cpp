@@ -44,6 +44,20 @@ float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 
 ControllerState g_prevContStates[2];
 ControllerState g_contStates[2];
 
+const char *VRButtonNames[VRButtons::MAX]
+{
+	"TRIGGER",
+	"GRIP",
+	"BUTTON_1",
+	"BUTTON_2",
+
+	"PAD_LEFT",
+	"PAD_RIGHT",
+	"PAD_UP",
+	"PAD_DOWN",
+	"PAD_CLICK",
+};
+
 bool InitSteamVR()
 {
 	/*
@@ -309,6 +323,21 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
+void DisplayController(int idx)
+{
+	std::string name = idx == 0 ? "LT," : "RT,";
+	for (int i = 0; i < VRButtons::MAX; i++)
+	{
+		if (g_contStates[idx].buttons[i])
+		{
+			name += VRButtonNames[i];
+			name += ",";
+		}
+	}
+	name += "(" + std::to_string(g_contStates[idx].trackPadX) + ", " + std::to_string(g_contStates[idx].trackPadY) + "), ";
+	log_debug("[DBG] [AC] %s", name.c_str());
+}
+
 void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
@@ -369,9 +398,10 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 			// Get the state of the buttons
 			vr::VRControllerState_t state;
-			if (vr::VRSystem()->GetControllerState(i == 0 ? leftId : rightId, &state, sizeof(state)))
+			const int contIdx = i == 0 ? leftId : rightId;
+			if (vr::VRSystem()->GetControllerState(contIdx, &state, sizeof(state)))
 			{
-				if (g_contStates[i].packetNum != state.unPacketNum)
+				//if (g_contStates[i].packetNum != state.unPacketNum)
 				{
 					g_contStates[i].buttons[VRButtons::TRIGGER]   = (state.rAxis[1].x > 0.1f); // 0 is fully released
 					g_contStates[i].buttons[VRButtons::GRIP]      = (state.ulButtonPressed & 0x04) != 0;
@@ -386,6 +416,7 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 					g_contStates[i].trackPadX = state.rAxis[0].x;
 					g_contStates[i].trackPadY = state.rAxis[0].y;
 					g_contStates[i].packetNum = state.unPacketNum;
+					//DisplayController(i);
 				}
 			}
 
