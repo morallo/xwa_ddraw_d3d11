@@ -335,6 +335,12 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 			scanCodes[j] = 0;
 			return;
 		}
+
+		if (strstr(ptr, "ESC") != NULL) {
+			scanCodes[j++] = MapVirtualKey(VK_ESCAPE, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
 	}
 
 	if (strlen(ptr) > 1)

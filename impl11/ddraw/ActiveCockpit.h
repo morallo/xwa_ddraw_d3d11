@@ -96,8 +96,8 @@ struct ACPointerData
 	{
 		contIdx = 0; // Left controller
 		button  = VRButtons::TRIGGER;
-		mouseSpeedX = 10.0f;
-		mouseSpeedY = 10.0f;
+		mouseSpeedX = 3.0f;
+		mouseSpeedY = 3.0f;
 	}
 };
 extern ACPointerData g_ACPointerData;

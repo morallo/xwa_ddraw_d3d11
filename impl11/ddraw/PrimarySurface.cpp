@@ -52,6 +52,7 @@ void DumpHyperspaceVertexBuffer(float width, float height);
 inline Matrix4 XwaTransformToMatrix4(const XwaTransform& M);
 float4 TransformProjection(float3 input);
 float4 TransformProjectionScreen(float3 input);
+void EmulMouseWithVRControllers();
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -8955,6 +8956,13 @@ HRESULT PrimarySurface::Flip(
 					g_iDraw2DCounter = 0;				
 					SetPresentCounter(0, 0);
 					if (g_bUseSteamVR) {
+						// HACK ALERT:
+						// We're calling UpdateViewMatrix here and then running the mouse emulation code so that
+						// the mouse emulation gets refreshed at least 25fps. If we don't do this, the emulation is
+						// too choppy.
+						UpdateViewMatrix();
+						EmulMouseWithVRControllers();
+
 						/*vr::EVRCompositorError error = vr::VRCompositorError_None;
 						vr::Texture_t leftEyeTexture = { this->_deviceResources->_offscreenBuffer.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };
 						vr::Texture_t rightEyeTexture = { this->_deviceResources->_offscreenBufferR.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto };

@@ -112,6 +112,33 @@ void SendMouseEvent(float dx, float dy, bool bLeft, bool bRight)
 	SendInput(i, input, sizeof(INPUT));
 }
 
+void EmulMouseWithVRControllers()
+{
+	const int ptrIdx = g_ACPointerData.contIdx;
+	static bool bFirstTime = true;
+	static WORD escScanCodes[2];
+	if (bFirstTime)
+	{
+		char action[] = "ESC";
+		TranslateACAction(escScanCodes, action, nullptr);
+		bFirstTime = false;
+	}
+
+	const float dx =  g_contStates[ptrIdx].trackPadX * g_ACPointerData.mouseSpeedX;
+	const float dy = -g_contStates[ptrIdx].trackPadY * g_ACPointerData.mouseSpeedY;
+	const bool  bLeftClick = (!g_prevContStates[ptrIdx].buttons[VRButtons::TRIGGER] && g_contStates[ptrIdx].buttons[VRButtons::TRIGGER]);
+
+	SendMouseEvent(dx, dy, bLeftClick, false);
+
+	// Send the ESC command
+	if (!g_prevContStates[ptrIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[ptrIdx].buttons[VRButtons::PAD_CLICK])
+		ACRunAction(escScanCodes, nullptr);
+
+	// Actions have been processed, we can update the previous state now
+	for (int i = 0; i < 2; i++)
+		g_prevContStates[i] = g_contStates[i];
+}
+
 // timeGetTime emulation.
 // if it is called in a tight loop it will call Sleep()
 // prevents high CPU usage due to busy loop
@@ -563,34 +590,31 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		// Synthesize mouse motion
 		if (!g_bRendering3D)
 		{
-			const int   contIdx    = g_ACPointerData.contIdx;
-			const int   triggerIdx = VRButtons::TRIGGER;
-			const float dx =  g_contStates[contIdx].trackPadX * g_ACPointerData.mouseSpeedX;
-			const float dy = -g_contStates[contIdx].trackPadY * g_ACPointerData.mouseSpeedY;
-			const bool  bLeftClick = (!g_prevContStates[contIdx].buttons[triggerIdx] && g_contStates[contIdx].buttons[triggerIdx]);
-			SendMouseEvent(dx, dy, bLeftClick, false);
+			EmulMouseWithVRControllers();
 		}
-
-		// Synthesize joystick button clicks and run AC actions associated with VR buttons
-		pji->dwButtons = 0;
-		pji->dwButtonNumber = 0;
-		for (int contIdx = 0; contIdx < 2; contIdx++)
+		else
 		{
-			for (int buttonIdx = 0; buttonIdx < VRButtons::MAX; buttonIdx++)
+			// Synthesize joystick button clicks and run AC actions associated with VR buttons
+			pji->dwButtons = 0;
+			pji->dwButtonNumber = 0;
+			for (int contIdx = 0; contIdx < 2; contIdx++)
 			{
-				if (IsContinousAction(g_ACJoyMappings[contIdx].action[buttonIdx]))
+				for (int buttonIdx = 0; buttonIdx < VRButtons::MAX; buttonIdx++)
 				{
-					if (g_contStates[contIdx].buttons[buttonIdx])
-						ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
+					if (IsContinousAction(g_ACJoyMappings[contIdx].action[buttonIdx]))
+					{
+						if (g_contStates[contIdx].buttons[buttonIdx])
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
+					}
+					else
+					{
+						if (!g_prevContStates[contIdx].buttons[buttonIdx] && g_contStates[contIdx].buttons[buttonIdx])
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
+					}
 				}
-				else
-				{
-					if (!g_prevContStates[contIdx].buttons[buttonIdx] && g_contStates[contIdx].buttons[buttonIdx])
-						ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
-				}
+				// Actions have been processed, we can update the previous state now
+				g_prevContStates[contIdx] = g_contStates[contIdx];
 			}
-			// Actions have been processed, we can update the previous state now
-			g_prevContStates[contIdx] = g_contStates[contIdx];
 		}
 	}
 	else
