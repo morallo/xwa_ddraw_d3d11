@@ -360,8 +360,9 @@ void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, f
 	Matrix4 pose = g_contStates[joyIdx].pose;
 	if (bResetCenter)
 	{
-		g_contStates[joyIdx].centerRoll = g_contStates[joyIdx].roll;
-		g_contStates[joyIdx].centerYaw  = g_contStates[joyIdx].yaw;
+		g_contStates[joyIdx].centerYaw   = g_contStates[joyIdx].yaw;
+		g_contStates[joyIdx].centerPitch = g_contStates[joyIdx].pitch;
+		g_contStates[joyIdx].centerRoll  = g_contStates[joyIdx].roll;
 	}
 	*yaw  = RAD2DEG * (g_contStates[joyIdx].roll - g_contStates[joyIdx].centerRoll);
 	*roll = RAD2DEG * (g_contStates[joyIdx].yaw  - g_contStates[joyIdx].centerYaw);
