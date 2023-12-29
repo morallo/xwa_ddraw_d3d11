@@ -154,7 +154,7 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 	// https://www.shsu.edu/~csc_tjm/fall2000/cs272/scan_codes.html
 	// https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	int len = strlen(action);
-	const char* ptr = action, * cursor;
+	const char* ptr = action, *cursor;
 	int i, j;
 
 	if (bIsACActivator != nullptr)
@@ -186,11 +186,19 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 	// End of function keys
 	*/
 
-	// Composite keys
+	// Composite keys, allow combinations like CTRL+SHIFT+ALT+*
 	ptr = action;
-	if ((cursor = strstr(action, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
-	if ((cursor = strstr(action, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
-	if ((cursor = strstr(action, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+	if ((cursor = strstr(ptr, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(ptr, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(ptr, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+
+	if ((cursor = strstr(ptr, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(ptr, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(ptr, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+
+	if ((cursor = strstr(ptr, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(ptr, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(ptr, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
 
 	// Process the function keys
 	if (strstr(ptr, "F") != NULL) {
