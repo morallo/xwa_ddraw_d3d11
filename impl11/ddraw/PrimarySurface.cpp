@@ -7584,22 +7584,32 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	//Intersection inters = TLASTraceRaySimpleHit(ray);
 	Intersection inters;
-	// Find the ray-geometry intersection by iterating over all the BLASes
-	for (const auto &leaf : g_ACtlasLeaves)
+	// The intersection was already found with an active element in EffectsRenderer:ApplyActiveCockpit()
+	// There's no need to traverse the BVH again here
+	if (g_iBestIntersTexIdx != -1)
 	{
-		auto it = g_BLASMap.find(leaf.PrimID);
-		if (it != g_BLASMap.end())
+		inters.T = g_fBestIntersectionDistance;
+		inters.TriID = g_iBestIntersTexIdx;
+	}
+	else
+	{
+		// Find the ray-geometry intersection by iterating over all the BLASes
+		for (const auto& leaf : g_ACtlasLeaves)
 		{
-			BLASData blasData = it->second;
-			LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
-			if (bvh != nullptr)
+			auto it = g_BLASMap.find(leaf.PrimID);
+			if (it != g_BLASMap.end())
 			{
-				Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
-				if (tempInters.TriID != -1 && // There was an intersection
-					tempInters.T > 0.0f &&    // It's not behind the ray's origin
-					tempInters.T < inters.T)  // It's better than the best intersection so far
+				BLASData blasData = it->second;
+				LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+				if (bvh != nullptr)
 				{
-					inters = tempInters;
+					Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
+					if (tempInters.TriID != -1 && // There was an intersection
+						tempInters.T > 0.0f &&    // It's not behind the ray's origin
+						tempInters.T < inters.T)  // It's better than the best intersection so far
+					{
+						inters = tempInters;
+					}
 				}
 			}
 		}
@@ -7651,7 +7661,16 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	float3 P;
 	if (inters.TriID != -1)
 	{
-		P = ray.origin + inters.T * ray.dir;
+		if (g_iBestIntersTexIdx != -1)
+		{
+			P.x = g_LaserPointer3DIntersection.x;
+			P.y = g_LaserPointer3DIntersection.y;
+			P.z = g_LaserPointer3DIntersection.z;
+		}
+		else
+		{
+			P = ray.origin + inters.T * ray.dir;
+		}
 		g_LaserPointerBuffer.bIntersection = true;
 	}
 	else // When there's no intersection, just draw a line pointing in the direction of the ray
@@ -7736,6 +7755,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	if (g_LaserPointerBuffer.bIntersection && g_iBestIntersTexIdx > -1 && g_iBestIntersTexIdx < g_iNumACElements)
 	{
 		ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx].coords);
+		// g_iBestIntersTexIdx and g_LaserPointerBuffer.uv are populated in EffectsRenderer.cpp:ApplyActiveCockpit()
 		float u = g_LaserPointerBuffer.uv[0];
 		float v = g_LaserPointerBuffer.uv[1];
 		float u0 = u, v0 = v;
@@ -7755,8 +7775,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				if (g_bACActionTriggered) {
 					short width = g_ACElements[g_iBestIntersTexIdx].width;
 					short height = g_ACElements[g_iBestIntersTexIdx].height;
-					
-					/*log_debug("[DBG} *************");
+
+					/*
+					log_debug("[DBG} [AC] *************");
 					log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
 					log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
 					log_debug("[DBG] [AC] numCoords: %d", g_ACElements[g_iBestIntersTexIdx].coords.numCoords);
@@ -7766,11 +7787,12 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 						coords->area[i].x1, coords->area[i].y1);
 					log_debug("[DBG] [AC] laser uv (raw): (%0.3f, %0.3f)", u0, v0);
 					log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
-						u, v, (short)(width * u), (short)(height * v));*/
-					
+						u, v, (short)(width * u), (short)(height * v));
+					*/
+
 					// Run the action itself
 					ACRunAction(coords->action[i]);
-					//log_debug("[DBG} *************");
+					//log_debug("[DBG} [AC] *************");
 				}
 				break;
 			}
@@ -9986,7 +10008,7 @@ HRESULT PrimarySurface::Flip(
 				if (g_bActiveCockpitEnabled) {
 					g_LaserPointerBuffer.bIntersection = 0;
 					g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
-					g_fBestIntersectionDistance = 10000.0f;
+					g_fBestIntersectionDistance = FLT_MAX;
 					g_iBestIntersTexIdx = -1;
 				}
 

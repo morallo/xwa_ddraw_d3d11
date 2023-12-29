@@ -15,7 +15,7 @@ Vector4 g_controllerUpVector = Vector4(0.0f, 1.0f, 0.0f, 0.0f);
 // Comes from transforming g_controllerForwardVector into viewspace coords.
 Vector4 g_contDirWorldSpace;
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
-float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
+float g_fBestIntersectionDistance = FLT_MAX, g_fLaserPointerLength = 0.0f;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
 bool g_bFreePIEControllerButtonDataAvailable = false;
@@ -414,11 +414,18 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 			TranslateACAction(&(coords->action[idx][0]), action, &dummy);
 			//DisplayACAction(&(coords->action[idx][0]));
 
+			x0 /= width;
+			y0 /= height;
+			x1 /= width;
+			y1 /= height;
+			// Images are stored upside down in an OPT (I think), so we need to flip the Y axis:
+			y0 = 1.0f - y0;
+			y1 = 1.0f - y1;
 			if (y0 > y1) std::swap(y0, y1);
-			coords->area[idx].x0 = x0 / width;
-			coords->area[idx].y0 = y0 / height;
-			coords->area[idx].x1 = x1 / width;
-			coords->area[idx].y1 = y1 / height;
+			coords->area[idx].x0 = x0;
+			coords->area[idx].y0 = y0;
+			coords->area[idx].x1 = x1;
+			coords->area[idx].y1 = y1;
 			// Flip the coordinates if necessary
 			/*if (x0 != -1.0f && x1 != -1.0f) {
 				if (x0 > x1)
@@ -542,16 +549,17 @@ bool LoadIndividualACParams(char* sFileName) {
 					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without a corresponding texture section.", line);
 					continue;
 				}
+				//log_debug("[DBG] [AC] Loading action for: [%s]", g_ACElements[lastACElemSelected].name);
 				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
 				// DEBUG
-				/*g_ACElements[lastACElemSelected].width = (short)tex_width;
-				g_ACElements[lastACElemSelected].height = (short)tex_height;
-				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
+				//g_ACElements[lastACElemSelected].width = (short)tex_width;
+				//g_ACElements[lastACElemSelected].height = (short)tex_height;
+				/*ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
 				int idx = coords->numCoords - 1;
-				log_debug("[DBG] [AC] Action: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				log_debug("[DBG] [AC] Action (v is flipped): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 					coords->area[idx].x0, coords->area[idx].y0,
 					coords->area[idx].x1, coords->area[idx].y1);*/
-					// DEBUG
+				// DEBUG
 			}
 
 		}

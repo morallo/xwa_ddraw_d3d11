@@ -1352,6 +1352,8 @@ void EffectsRenderer::SingleFileOBJDumpD3dVertices(const SceneCompData* scene, i
 	std::ostringstream str;
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	XwaTextureVertex* MeshTextureVertices = scene->MeshTextureVertices;
+	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
 	XwaVector3* MeshNormals = scene->MeshVertexNormals;
 	int MeshNormalsCount = *(int*)((int)MeshNormals - 8);
 
@@ -1372,13 +1374,23 @@ void EffectsRenderer::SingleFileOBJDumpD3dVertices(const SceneCompData* scene, i
 	Matrix4 S1;
 	S1.scale(OPT_TO_METERS, -OPT_TO_METERS, OPT_TO_METERS);
 
+	fprintf(D3DDumpOBJFile, "# %s\n", _lastTextureSelected->_name.c_str());
 	fprintf(D3DDumpOBJFile, "o obj-%d\n", D3DOBJGroup);
+
+	// Dump the vertices
 	for (int i = 0; i < MeshVerticesCount; i++) {
 		XwaVector3 v = MeshVertices[i];
 		Vector4 V(v.x, v.y, v.z, 1.0f);
 		// Apply the world view transform + OPT->meters conversion
 		V = S1 * W * V;
 		fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
+	}
+	fprintf(D3DDumpOBJFile, "\n");
+
+	// Dump the UVs
+	for (int i = 0; i < MeshTextureVerticesCount; i++) {
+		XwaTextureVertex vt = MeshTextureVertices[i];
+		fprintf(D3DDumpOBJFile, "vt %0.3f %0.3f\n", vt.u, vt.v);
 	}
 	fprintf(D3DDumpOBJFile, "\n");
 
@@ -1391,19 +1403,47 @@ void EffectsRenderer::SingleFileOBJDumpD3dVertices(const SceneCompData* scene, i
 	D3DOBJGroup++;
 
 	// The following works alright, but it's not how things are rendered.
-	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++) {
-	//for (int faceIndex = 0; faceIndex < trianglesCount; faceIndex++) {
+	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+	{
 		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
 		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
-		std::string line = "f ";
 
+		// Undefine the following to dump full quads
+#define DUMP_TRIS 1
+#ifdef DUMP_TRIS
+		// This converts quads into 2 tris if necessary
+		for (int edge = 2; edge < edgesCount; edge++)
+		{
+			D3dTriangle t;
+			t.v1 = 0;
+			t.v2 = edge - 1;
+			t.v3 = edge;
+
+			std::string line = "f ";
+			line += std::to_string(faceData.Vertex[t.v1] + 1) + "/" +
+				    std::to_string(faceData.TextureVertex[t.v1] + 1) + "/" +
+				    std::to_string(faceData.VertexNormal[t.v1] + 1) + " ";
+
+			line += std::to_string(faceData.Vertex[t.v2] + 1) + "/" +
+				    std::to_string(faceData.TextureVertex[t.v2] + 1) + "/" +
+				    std::to_string(faceData.VertexNormal[t.v2] + 1) + " ";
+
+			line += std::to_string(faceData.Vertex[t.v3] + 1) + "/" +
+				    std::to_string(faceData.TextureVertex[t.v3] + 1) + "/" +
+				    std::to_string(faceData.VertexNormal[t.v3] + 1) + " ";
+			fprintf(D3DDumpOBJFile, "%s\n", line.c_str());
+		}
+#else
+		std::string line = "f ";
 		for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
 		{
 			// faceData.Vertex[vertexIndex] matches the vertex index data from the OPT
-			line += std::to_string(faceData.Vertex[vertexIndex] + 1) + "//" +
-			        std::to_string(faceData.VertexNormal[vertexIndex] + 1) + " ";
+			line += std::to_string(faceData.Vertex[vertexIndex] + 1) + "/" +
+					std::to_string(faceData.TextureVertex[vertexIndex] + 1) + "/" +
+					std::to_string(faceData.VertexNormal[vertexIndex] + 1) + " ";
 		}
 		fprintf(D3DDumpOBJFile, "%s\n", line.c_str());
+#endif
 	}
 	fclose(D3DDumpOBJFile);
 }
@@ -3089,14 +3129,12 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 		return;
 
 	// DEBUG: Dump the mesh associated with the current texture
-	/*
-	if (g_bDumpSSAOBuffers)
+	/*if (g_bDumpSSAOBuffers)
 	{
 		static int counter = 0;
 		log_debug("[DBG] [AC] Dumping vertices with AC-enabled textures");
 		SingleFileOBJDumpD3dVertices(scene, _trianglesCount, std::string(".\\AC-") + std::to_string(counter++) + ".obj");
-	}
-	*/
+	}*/
 
 	// Intersect the current texture with the controller
 	Vector4 contOrigin, contDir;
@@ -3123,7 +3161,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
 
 	Intersection bestInters;
-	float bestU = -FLT_MAX, bestV = -FLT_MAX;
+	float baryU = -FLT_MAX, baryV = -FLT_MAX;
 	XwaTextureVertex bestUV0, bestUV1, bestUV2;
 	int bestId = -1;
 
@@ -3159,8 +3197,8 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 					if (dist < g_fBestIntersectionDistance)
 					{
 						g_fBestIntersectionDistance = dist;
-						bestU   = u;
-						bestV   = v;
+						baryU   = u;
+						baryV   = v;
 						bestUV0 = scene->MeshTextureVertices[faceData.TextureVertex[t.v1]];
 						bestUV1 = scene->MeshTextureVertices[faceData.TextureVertex[t.v2]];
 						bestUV2 = scene->MeshTextureVertices[faceData.TextureVertex[t.v3]];
@@ -3168,6 +3206,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 						g_debug_v0 = v0;
 						g_debug_v1 = v1;
 						g_debug_v2 = v2;
+						g_LaserPointer3DIntersection = P;
 					}
 				}
 			}
@@ -3178,12 +3217,17 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	if (bestId != -1)
 	{
 		// Interpolate the texture UV using the barycentric coords:
-		const float bestW = 1.0f - bestU - bestV;
-		const float u = bestU * bestUV0.u + bestV * bestUV1.u + bestW * bestUV2.u;
-		const float v = bestU * bestUV0.v + bestV * bestUV1.v + bestW * bestUV2.v;
+		const float baryW = 1.0f - baryU - baryV;
+		const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+		const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
 		g_LaserPointerBuffer.uv[0] = u;
 		g_LaserPointerBuffer.uv[1] = v;
 		g_iBestIntersTexIdx = _lastTextureSelected->ActiveCockpitIdx;
+		/*log_debug("[DBG] [AC] bestUV0: (%0.3f, %0.3f)", bestUV0.u, bestUV0.v);
+		log_debug("[DBG] [AC] bestUV1: (%0.3f, %0.3f)", bestUV1.u, bestUV1.v);
+		log_debug("[DBG] [AC] bestUV2: (%0.3f, %0.3f)", bestUV2.u, bestUV2.v);
+		log_debug("[DBG] [AC] baryPoint: (%0.3f, %0.3f, %0.3f), uv: %0.3f, %0.3f",
+			baryU, baryV, baryW, u, v);*/
 	}
 }
 
