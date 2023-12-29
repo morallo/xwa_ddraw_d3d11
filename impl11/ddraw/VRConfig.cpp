@@ -1675,11 +1675,6 @@ bool LoadACParams() {
 					fclose(file);
 					return false;
 				}
-				else
-				{
-					// Force VR joystick emulation. Joystick/throttle emulation is controlled by Active_Cockpit.cfg anyway
-					g_config.JoystickEmul = 3;
-				}
 			}
 			else if (_stricmp(param, "freepie_controller_slot") == 0) {
 				g_iFreePIEControllerSlot = (int)fValue;
@@ -1717,9 +1712,6 @@ bool LoadACParams() {
 				g_controllerUpVector.z = U0.z;
 				g_controllerUpVector.w = 0;
 				g_controllerUpVector.normalize();
-			}
-			else if (_stricmp(param, "joystick_emulaton_enabled") == 0) {
-				g_ACJoyEmul.joystickEnabled = (bool)fValue;
 			}
 			else if (_stricmp(param, "throttle_emulation_enabled") == 0) {
 				g_ACJoyEmul.throttleEnabled = (bool)fValue;

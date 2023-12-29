@@ -251,7 +251,10 @@ UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 	}
 	pjc->wXmax = 512;
 	pjc->wYmax = 512;
-	pjc->wZmax = 512;
+	// VR controllers can be used to emulate the throttle, so the emulated range must match
+	// the range used in a real joystick. That way we can have both a real joystick with a
+	// throttle and an emulated throttle from a VR controller.
+	pjc->wZmax = 65536;
 	pjc->wRmax = 512;
 	pjc->wNumButtons = 5;
 	pjc->wMaxButtons = 5;
@@ -348,13 +351,18 @@ void ResetRawMouseInput()
 /// <summary>
 /// Computes the yaw, pitch, roll for the emulated joystick and returns normalized values
 /// </summary>
-void EmulYawPitchRollFromVR(float *yaw, float *pitch, float *roll)
+void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, float *roll)
 {
 	// yaw: left: 40, right: -40
 	// pitch: forward: -40, backward: 40
 	// roll : left : 40, right : -40
 	const int joyIdx = g_ACJoyEmul.joyHandIdx;
 	Matrix4 pose = g_contStates[joyIdx].pose;
+	if (bResetCenter)
+	{
+		g_contStates[joyIdx].centerRoll = g_contStates[joyIdx].roll;
+		g_contStates[joyIdx].centerYaw  = g_contStates[joyIdx].yaw;
+	}
 	*yaw  = RAD2DEG * (g_contStates[joyIdx].roll - g_contStates[joyIdx].centerRoll);
 	*roll = RAD2DEG * (g_contStates[joyIdx].yaw  - g_contStates[joyIdx].centerYaw);
 
@@ -376,13 +384,15 @@ void EmulYawPitchRollFromVR(float *yaw, float *pitch, float *roll)
 
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
+	const bool bJoystickEmulationEnabled = (g_config.JoystickEmul != 0);
+
 	// Tell the joystick hook when to disable the joystick
 	if (g_pSharedDataJoystick != NULL) {
 		g_pSharedDataJoystick->GimbalLockFixActive = g_bGimbalLockFixActive;
-		g_pSharedDataJoystick->JoystickEmulationEnabled = (g_config.JoystickEmul != 0);
+		g_pSharedDataJoystick->JoystickEmulationEnabled = bJoystickEmulationEnabled;
 	}
 
-	if (!g_config.JoystickEmul) {
+	if (!bJoystickEmulationEnabled) {
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
 
@@ -414,11 +424,13 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				pji->dwRpos = 32767;
 			}
 		}
-		return res;
+
+		// There's code below to emulate the throttle when AC is on. We need to let this block fall through to reach that part
+		//return res;
 	}
 
-	if (joy != 0) return MMSYSERR_NODRIVER;
-	if (pji->dwSize != 0x34) return MMSYSERR_INVALPARAM;
+	//if (joy != 0) return MMSYSERR_NODRIVER;
+	//if (pji->dwSize != 0x34) return MMSYSERR_INVALPARAM;
 
 	// XInput
 	if (g_config.JoystickEmul == 2) {
@@ -483,12 +495,16 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	POINT pos;
 	GetCursorPos(&pos);
 
-	pji->dwXpos = 256; // This is the center position for this axis
-	pji->dwYpos = 256;
-	pji->dwZpos = 256; // Throttle
-	pji->dwRpos = 256; // Rudder (roll)
+	// Reset pji, but only if emulation is enabled.
+	if (bJoystickEmulationEnabled) {
+		pji->dwXpos = 256; // This is the center position for this axis
+		pji->dwYpos = 256;
+		pji->dwZpos = 32768; // Throttle
+		pji->dwRpos = 256; // Rudder (roll)
+	}
 
 	// Mouse input
+	if (g_config.JoystickEmul == 1)
 	{
 		//if (!g_bGimbalLockFixActive)
 		{
@@ -555,18 +571,19 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	}
 
 	float normYaw = 0, normPitch = 0, normRoll = 0;
-	if (g_config.JoystickEmul == 3 && g_bUseSteamVR && g_bActiveCockpitEnabled)
+	if (g_bUseSteamVR)
 	{
-		// Support VR controllers (quick-and-dirty approach, the proper way is probably to add code to the
-		// joystick hook so that bindings can be configured).
-
+		// Support VR controllers (quick-and-dirty approach, the proper way is probably
+		// to add code to the joystick hook so that bindings can be configured).
 		const int joyIdx = g_ACJoyEmul.joyHandIdx;
 		const int thrIdx = g_ACJoyEmul.thrHandIdx;
 
-		if (g_ACJoyEmul.joystickEnabled)
+		if (g_config.JoystickEmul == 3)
 		{
 			static Vector4 rightAnchor;
-			if (!(g_prevContStates[joyIdx].buttons[VRButtons::GRIP]) && g_contStates[joyIdx].buttons[VRButtons::GRIP])
+			const bool bResetAnchor = !(g_prevContStates[joyIdx].buttons[VRButtons::GRIP]) &&
+										g_contStates[joyIdx].buttons[VRButtons::GRIP];
+			if (bResetAnchor)
 			{
 				rightAnchor = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);;
 			}
@@ -577,8 +594,9 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				float yaw   = clamp(current.x - rightAnchor.x, -g_ACJoyEmul.joyHalfRangeX, g_ACJoyEmul.joyHalfRangeX) / g_ACJoyEmul.joyHalfRangeX;
 				float pitch = clamp(current.z - rightAnchor.z, -g_ACJoyEmul.joyHalfRangeZ, g_ACJoyEmul.joyHalfRangeZ) / g_ACJoyEmul.joyHalfRangeZ;
 				float roll  = 0;
+				float dummy;
 
-				EmulYawPitchRollFromVR(&yaw, &pitch, &roll);
+				EmulYawPitchRollFromVR(bResetAnchor, &dummy, &dummy, &roll);
 
 				// Apply deadzone
 				const float s_yaw   = sign(yaw);
@@ -635,7 +653,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				normThrottle    = clamp(anchorThrottle + D, -1.0f, 1.0f);
 			}
 
-			pji->dwZpos = (DWORD)(512.0f * ((normThrottle / 2.0f) + 0.5f));
+			pji->dwZpos = (DWORD)(65536.0f * ((normThrottle / 2.0f) + 0.5f));
 		}
 
 		// Synthesize mouse motion
@@ -643,11 +661,9 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		{
 			EmulMouseWithVRControllers();
 		}
-		else
+		else if (g_bActiveCockpitEnabled)
 		{
 			// Synthesize joystick button clicks and run AC actions associated with VR buttons
-			pji->dwButtons = 0;
-			pji->dwButtonNumber = 0;
 			for (int contIdx = 0; contIdx < 2; contIdx++)
 			{
 				for (int buttonIdx = 0; buttonIdx < VRButtons::MAX; buttonIdx++)
@@ -668,7 +684,9 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			}
 		}
 	}
-	else
+
+	// Joystick emulation through the keyboard
+	if (g_config.JoystickEmul == 1)
 	{
 		bool bCtrlKey = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
 		if (bCtrlKey)
@@ -703,7 +721,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		normRoll  = 2.0f * (pji->dwRpos / 512.0f - 0.5f);
 	}
 
-	if (g_pSharedDataJoystick != NULL) {
+	if (bJoystickEmulationEnabled && g_pSharedDataJoystick != NULL) {
 		g_pSharedDataJoystick->JoystickYaw   = normYaw;
 		g_pSharedDataJoystick->JoystickPitch = normPitch;
 		g_pSharedDataJoystick->JoystickRoll  = normRoll;
