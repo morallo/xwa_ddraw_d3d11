@@ -1724,7 +1724,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	}
 
 	_BLASNeedsUpdate = false;
-	if (g_bRTEnabled)
+	if (g_bRTEnabled || g_bActiveCockpitEnabled)
 	{
 		// Restart the TLAS for the frame that is about to begin
 		g_iRTMeshesInThisFrame = 0;
@@ -2417,7 +2417,7 @@ void EffectsRenderer::SceneEnd()
 				BuildSingleBLASFromCurrentBVHMap();
 			}
 		}
-		else if (g_bRTEnabled && !(*g_playerInHangar))
+		else if ((g_bRTEnabled || g_bActiveCockpitEnabled) && !(*g_playerInHangar))
 		{
 			// Build multiple BLASes and put them in g_LBVHMap
 			BuildMultipleBLASFromCurrentBLASMap();
@@ -2428,7 +2428,7 @@ void EffectsRenderer::SceneEnd()
 		_BLASNeedsUpdate = false;
 	}
 
-	if (g_bRTEnabled && !g_bInTechRoom && !(*g_playerInHangar))
+	if ((g_bRTEnabled || g_bActiveCockpitEnabled) && !g_bInTechRoom && !(*g_playerInHangar))
 	{
 		// We may need to reallocate the matrices buffer depending on how many
 		// unique meshes we saw in this frame
@@ -4660,7 +4660,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Only add these vertices to the BLAS if the texture is not transparent
 	// (engine glows are transparent and may both cast and catch shadows
 	// otherwise)... and other conditions
-	if (((g_bRTEnabledInTechRoom && InTechGlobe()) || g_bRTEnabled) &&
+	if (((g_bRTEnabledInTechRoom && InTechGlobe()) || g_bRTEnabled || g_bActiveCockpitEnabled) &&
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		!(*g_playerInHangar) && // Disable raytracing when parked in the hangar
 		_bLastTextureSelectedNotNULL &&

@@ -1388,7 +1388,7 @@ void D3dRenderer::Initialize()
 	CreateStates();
 	CreateShaders();
 
-	if (g_bRTEnabledInTechRoom || g_bRTEnabled) {
+	if (g_bRTEnabledInTechRoom || g_bRTEnabled || g_bActiveCockpitEnabled) {
 		ClearGlobalLBVHMap();
 		_lbvh = nullptr;
 		// Reserve some space for the matrices we'll use to build the TLAS
