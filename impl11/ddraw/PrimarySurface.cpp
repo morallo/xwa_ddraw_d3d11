@@ -7552,14 +7552,43 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_LaserPointerBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_LaserPointerBuffer.FOVscale = g_ShadertoyBuffer.FOVscale;
-	g_LaserPointerBuffer.TriggerState = g_bACTriggerState;
 	// Let's fix the aspect ratio of the laser pointer in non-VR mode:
 	g_LaserPointerBuffer.lp_aspect_ratio[0] = g_bEnableVR ? 1.0f : g_MetricRecCBuffer.mr_screen_aspect_ratio;
 	g_LaserPointerBuffer.lp_aspect_ratio[1] = 1.0f;
+
+	// Push button detection
+	static bool bPrevPushButton = false;
+	static int buttonState = 0;
+	bool bPushButton = (g_iBestIntersTexIdx != -1) && (g_fBestIntersectionDistance <= g_fPushButtonThreshold);
+	bool bReleaseButton = (g_iBestIntersTexIdx == -1) || (g_fBestIntersectionDistance > g_fReleaseButtonThreshold);
+	bool bButtonTrigger = false;
+
+	// Small FSM to better control button behavior. Makes it more difficult to trigger a button multiple times
+	switch (buttonState)
+	{
+	case 0:
+		if (!bPrevPushButton && bPushButton)
+		{
+			bButtonTrigger = true;
+			buttonState = 1;
+		}
+		break;
+	case 1:
+		bButtonTrigger = false; // Only trigger the button action once
+		// Only go back to "unpushed" if the distance is big enough:
+		if (bReleaseButton)
+			buttonState = 0;
+		break;
+	}
+
 	// Detect triggers:
-	if (g_bACLastTriggerState && !g_bACTriggerState)
+	if (g_bACLastTriggerState && !g_bACTriggerState || bButtonTrigger)
 		g_bACActionTriggered = true;
+
 	g_bACLastTriggerState = g_bACTriggerState;
+	// Update the display
+	g_LaserPointerBuffer.TriggerState = g_bACTriggerState || bPushButton;
+	bPrevPushButton = bPushButton;
 
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
 

@@ -16,6 +16,7 @@ Vector4 g_controllerUpVector = Vector4(0.0f, 1.0f, 0.0f, 0.0f);
 Vector4 g_contDirWorldSpace;
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
 float g_fBestIntersectionDistance = FLT_MAX, g_fLaserPointerLength = 0.0f;
+float g_fPushButtonThreshold = 0.01f, g_fReleaseButtonThreshold = 0.018f;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
 bool g_bFreePIEControllerButtonDataAvailable = false;

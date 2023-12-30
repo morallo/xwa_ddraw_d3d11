@@ -40,6 +40,7 @@ extern Vector4 g_controllerUpVector;
 extern Vector4 g_contDirWorldSpace; // This is the direction in which the controller is pointing in world-space coords
 extern Vector3 g_LaserPointer3DIntersection;
 extern float g_fBestIntersectionDistance;
+extern float g_fPushButtonThreshold, g_fReleaseButtonThreshold;
 extern int g_iBestIntersTexIdx; // The index into g_ACElements where the intersection occurred
 extern bool g_bFreePIEControllerButtonDataAvailable;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];

@@ -1827,6 +1827,15 @@ bool LoadACParams() {
 			{
 				g_ACPointerData.mouseSpeedY = fValue;
 			}
+
+			if (_stricmp(param, "push_button_threshold") == 0)
+			{
+				g_fPushButtonThreshold = fValue / 100.0f; // Convert to meters
+			}
+			if (_stricmp(param, "release_button_threshold") == 0)
+			{
+				g_fReleaseButtonThreshold = fValue / 100.0f; // Convert to meters
+			}
 		}
 	}
 	fclose(file);
