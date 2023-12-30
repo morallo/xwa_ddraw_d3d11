@@ -1457,12 +1457,81 @@ EffectsRenderer::EffectsRenderer() : D3dRenderer() {
 	_hangarShadowMapRotation.rotateX(180.0f);
 }
 
+void EffectsRenderer::CreateVRMeshes()
+{
+	ID3D11Device* device = _deviceResources->_d3dDevice;
+
+	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
+	constexpr int numVertices = 4, numTriangles = 2;
+	D3dVertex _vertices[numVertices];
+	D3dTriangle _triangles[numTriangles];
+
+	_vertices[0] = { 0, 0, 0, 0 };
+	_vertices[1] = { 1, 0, 1, 0 };
+	_vertices[2] = { 2, 0, 2, 0 };
+	_vertices[3] = { 3, 0, 3, 0 };
+
+	_triangles[0] = { 0, 1, 2 };
+	_triangles[1] = { 0, 2, 3 };
+
+	D3D11_SUBRESOURCE_DATA initialData;
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+
+	initialData.pSysMem = _vertices;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybVertexBuffer);
+
+	initialData.pSysMem = _triangles;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybIndexBuffer);
+
+	constexpr int verticesCount = 4;
+	XwaVector3 vertices[verticesCount];
+	vertices[0] = { -10.0f, -25.0f, 30.0f };
+	vertices[1] = {  10.0f, -25.0f, 30.0f };
+	vertices[2] = {  10.0f, -25.0f, 18.0f };
+	vertices[3] = { -10.0f, -25.0f, 18.0f };
+
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+	initialData.pSysMem = vertices;
+
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(verticesCount * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshVerticesBuffer);
+	device->CreateShaderResourceView(_vrKeybMeshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, verticesCount), &_vrKeybMeshVerticesSRV);
+
+	// Create the UVs
+	constexpr int textureCoordsCount = 4;
+	XwaTextureVertex textureCoords[textureCoordsCount];
+	textureCoords[0] = { 0, 0 };
+	textureCoords[1] = { 1, 0 };
+	textureCoords[2] = { 1, 1 };
+	textureCoords[3] = { 0, 1 };
+
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+	initialData.pSysMem = textureCoords;
+
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(textureCoordsCount * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshTexCoordsBuffer);
+	device->CreateShaderResourceView(_vrKeybMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, textureCoordsCount), &_vrKeybMeshTexCoordsSRV);
+	//_vrKeybVertexBuffer->AddRef();
+	//_vrKeybIndexBuffer->AddRef();
+	//_vrKeybMeshVerticesBuffer->AddRef();
+	//_vrKeybMeshVerticesView->AddRef();
+	//_vrKeybMeshTextureCoordsBuffer->AddRef();
+	//_vrKeybMeshTextureCoordsView->AddRef();
+
+	// TODO: Check for memory leaks. Should I Release() these resources?
+
+	log_debug("[DBG] [AC] Virtual keyboard buffers CREATED");
+}
+
 void EffectsRenderer::CreateShaders() {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
 	D3dRenderer::CreateShaders();
 
 	//StartCascadedShadowMap();
+
+	CreateVRMeshes();
 }
 
 void ResetGimbalLockFix()
@@ -1759,6 +1828,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			g_bRTCaptureCameraAABB = false;
 		}
 	}
+
+	_vrKeyboardRendered = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -4819,6 +4890,14 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// Add the command to the list of deferred commands
 		_TransparentDrawCommands.push_back(command);
 
+#ifdef DISABLED
+		if (!_vrKeyboardConstantsCaptured /* && _bIsCockpit */)
+		{
+			_vrKeybCommand = command;
+			_vrKeyboardConstantsCaptured = true;
+		}
+#endif
+
 		goto out;
 	}
 
@@ -5318,6 +5397,88 @@ void EffectsRenderer::RenderTransparency()
 	_TransparentDrawCommands.clear();
 	RestoreContext();
 
+	_deviceResources->EndAnnotatedEvent();
+}
+
+void EffectsRenderer::RenderVRGeometry()
+{
+	//if (!g_bActiveCockpitEnabled ...
+	if (_vrKeyboardRendered || !_bCockpitConstantsCaptured)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderVRGeometry");
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rastersize and depth stencil states for transparency
+	//_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	_deviceResources->InitBlendState(_solidBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	// fSSAOAlphaMult ?
+	// fSSAOMaskVal ?
+	// fPosNormalAlpha ?
+	// fBloomStrength ?
+	// bInHyperspace ?
+
+	// Flags used in RenderScene():
+	_bIsCockpit   = true;
+	_bIsGunner    = false;
+	_bIsBlastMark = false;
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	g_OPTMeshTransformCB.MeshTransform.identity();
+	resources->InitVSConstantOPTMeshTransform(
+		resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+	// Set the textures
+	//_deviceResources->InitPSShaderResourceView(_vrKeybCommand.SRVs[0], _vrKeybCommand.SRVs[1]);
+	_deviceResources->InitPSShaderResourceView(nullptr, nullptr);
+
+	// Set the mesh buffers
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrKeybMeshVerticesSRV, nullptr, _vrKeybMeshTexCoordsSRV, nullptr };
+	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+	_deviceResources->InitVertexBuffer(&_vrKeybVertexBuffer, &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(nullptr, true);
+	_deviceResources->InitIndexBuffer(_vrKeybIndexBuffer, true);
+
+	// Set the constants buffer
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	_trianglesCount = 2;
+	_deviceResources->InitPixelShader(_pixelShader);
+	//_deviceResources->InitPixelShader(resources->_pixelShaderDCHolo);
+	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
+
+	// Render the deferred commands
+	RenderScene();
+
+	// Decrease the refcount of the textures
+	/*for (int i = 0; i < 2; i++)
+		if (_vrKeybCommand.SRVs[i] != nullptr) _vrKeybCommand.SRVs[i]->Release();*/
+
+	// Restore the previous state
+	_vrKeyboardRendered = true;
+	RestoreContext();
 	_deviceResources->EndAnnotatedEvent();
 }
 
@@ -6016,5 +6177,6 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
+	RenderVRGeometry();
 	_deviceResources->EndAnnotatedEvent();
 }

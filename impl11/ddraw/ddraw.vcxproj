@@ -71,6 +71,9 @@
       <AdditionalLibraryDirectories>$(SolutionDir)dependencies\openvr\lib;$(SolutionDir)dependencies\embree\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
+    <PostBuildEvent>
+      <Command>copy /Y $(TargetPath) "C:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance 5.6.2"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -102,6 +105,12 @@
       <AdditionalLibraryDirectories>$(SolutionDir)dependencies\openvr\lib;$(SolutionDir)dependencies\embree\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent />
+    <PostBuildEvent>
+      <Command>copy /Y $(TargetPath) "C:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance 6.0"
+copy /Y $(TargetPath) "C:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance 5.6.2"
+
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="ddraw.cfg">
@@ -114,7 +123,7 @@
   <ItemGroup>
     <ClCompile Include="ActiveCockpit.cpp" />
     <ClCompile Include="BackbufferSurface.cpp" />
-	<ClCompile Include="bc7decomp.cpp" />
+    <ClCompile Include="bc7decomp.cpp" />
     <ClCompile Include="bc7_main.cpp" />
     <ClCompile Include="commonVR.cpp" />
     <ClCompile Include="config.cpp" />

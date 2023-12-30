@@ -91,6 +91,15 @@ protected:
 	ComPtr<ID3D11BlendState> _oldBlendState;
 	ComPtr<ID3D11InputLayout> _oldInputLayout;
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+
+	bool _vrKeyboardRendered;
+	ID3D11Buffer* _vrKeybVertexBuffer;
+	ID3D11Buffer* _vrKeybIndexBuffer;
+	ID3D11Buffer* _vrKeybMeshVerticesBuffer;
+	ID3D11Buffer* _vrKeybMeshTexCoordsBuffer;
+	ID3D11ShaderResourceView* _vrKeybMeshVerticesSRV;
+	ID3D11ShaderResourceView* _vrKeybMeshTexCoordsSRV;
+
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
 	FLOAT _oldBlendFactor[4];
@@ -165,9 +174,12 @@ public:
 	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);
 	FixedInstanceData* ObjectIDToFixedInstanceData(int objectId, uint32_t materialId);
 
+	void CreateVRMeshes();
+
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();
+	void RenderVRGeometry();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
 	void StartCascadedShadowMap();
