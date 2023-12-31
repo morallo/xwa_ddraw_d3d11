@@ -1969,7 +1969,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		}
 	}
 
-	_vrKeyboardRendered = false;
+	g_vrKeybState.bRendered = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -3361,48 +3361,51 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	Vector3 dir  = { ray.dir.x, ray.dir.y, ray.dir.z };
 
 	// Test the VR keyboard first
-	for (int i = 0; i < g_vrKeybNumTriangles; i++)
+	if (g_vrKeybState.bVisible)
 	{
-		D3dTriangle t = g_vrKeybTriangles[i];
-
-		Vector4 p0 = /*MeshTransform * */ XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
-		Vector4 p1 = /*MeshTransform * */ XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
-		Vector4 p2 = /*MeshTransform * */ XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
-
-		Vector3 v0 = Vector4ToVector3(p0);
-		Vector3 v1 = Vector4ToVector3(p1);
-		Vector3 v2 = Vector4ToVector3(p2);
-
-		Vector3 P;
-		float dist, u, v;
-		//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
-		//if (inters.T < bestInters.T && RayTriangleTest(inters))
-		if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v))
+		for (int i = 0; i < g_vrKeybNumTriangles; i++)
 		{
-			if (dist > 0.0f)
+			D3dTriangle t = g_vrKeybTriangles[i];
+
+			Vector4 p0 = g_vrKeybState.Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
+			Vector4 p1 = g_vrKeybState.Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
+			Vector4 p2 = g_vrKeybState.Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
+
+			Vector3 v0 = Vector4ToVector3(p0);
+			Vector3 v1 = Vector4ToVector3(p1);
+			Vector3 v2 = Vector4ToVector3(p2);
+
+			Vector3 P;
+			float dist, u, v;
+			//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
+			//if (inters.T < bestInters.T && RayTriangleTest(inters))
+			if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v))
 			{
-				g_fBestIntersectionDistance = dist;
+				if (dist > 0.0f)
+				{
+					g_fBestIntersectionDistance = dist;
 
-				const float baryU = u;
-				const float baryV = v;
-				const float baryW = 1.0f - baryU - baryV;
+					const float baryU = u;
+					const float baryV = v;
+					const float baryW = 1.0f - baryU - baryV;
 
-				XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
-				XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
-				XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
+					XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
+					XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
+					XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
 
-				const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
-				const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+					const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+					const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
 
-				g_LaserPointerBuffer.uv[0] = u;
-				g_LaserPointerBuffer.uv[1] = v;
-				g_iBestIntersTexIdx = g_iVRKeyboardSlot;
+					g_LaserPointerBuffer.uv[0] = u;
+					g_LaserPointerBuffer.uv[1] = v;
+					g_iBestIntersTexIdx = g_iVRKeyboardSlot;
 
-				g_debug_v0 = v0;
-				g_debug_v1 = v1;
-				g_debug_v2 = v2;
-				g_LaserPointer3DIntersection = P;
-				return;
+					g_debug_v0 = v0;
+					g_debug_v1 = v1;
+					g_debug_v2 = v2;
+					g_LaserPointer3DIntersection = P;
+					return;
+				}
 			}
 		}
 	}
@@ -5589,8 +5592,8 @@ void EffectsRenderer::RenderTransparency()
 
 void EffectsRenderer::RenderVRGeometry()
 {
-	// _vrKeyboardRendered is set to false on SceneBegin() -- at the beginning of each frame
-	if (!g_bActiveCockpitEnabled || _vrKeyboardRendered || !_bCockpitConstantsCaptured)
+	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
+	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || !g_vrKeybState.bVisible || !_bCockpitConstantsCaptured)
 		return;
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVRGeometry");
@@ -5663,7 +5666,7 @@ void EffectsRenderer::RenderVRGeometry()
 		if (_vrKeybCommand.SRVs[i] != nullptr) _vrKeybCommand.SRVs[i]->Release();*/
 
 	// Restore the previous state
-	_vrKeyboardRendered = true;
+	g_vrKeybState.bRendered = true;
 	RestoreContext();
 	_deviceResources->EndAnnotatedEvent();
 }

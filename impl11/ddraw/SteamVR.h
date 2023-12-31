@@ -80,6 +80,22 @@ struct ControllerState
 extern ControllerState g_prevContStates[2];
 extern ControllerState g_contStates[2];
 
+struct VRKeybState
+{
+	bool    bVisible;
+	bool    bRendered;
+	Matrix4 Transform;
+
+	VRKeybState()
+	{
+		bVisible  = false;
+		bRendered = false;
+		Transform.identity();
+	}
+};
+
+extern VRKeybState g_vrKeybState;
+
 /*
  *	SteamVR specific functions declarations
  */

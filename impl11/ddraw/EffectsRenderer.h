@@ -92,7 +92,6 @@ protected:
 	ComPtr<ID3D11InputLayout> _oldInputLayout;
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
 
-	bool _vrKeyboardRendered;
 	ComPtr<ID3D11Buffer> _vrKeybVertexBuffer;
 	ComPtr<ID3D11Buffer> _vrKeybIndexBuffer;
 	ComPtr<ID3D11Buffer> _vrKeybMeshVerticesBuffer;
