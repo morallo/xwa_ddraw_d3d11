@@ -84,12 +84,16 @@ struct VRKeybState
 {
 	bool    bVisible;
 	bool    bRendered;
+	float   fPixelWidth;
+	float   fPixelHeight;
 	Matrix4 Transform;
 
 	VRKeybState()
 	{
 		bVisible  = false;
 		bRendered = false;
+		fPixelWidth  = 1024;
+		fPixelHeight = 480;
 		Transform.identity();
 	}
 };

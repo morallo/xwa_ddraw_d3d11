@@ -1842,10 +1842,15 @@ bool LoadACParams() {
 				g_fReleaseButtonThreshold = fValue / 100.0f; // Convert to meters
 			}
 
-			if (_stricmp(param, "texture_size") == 0) {
+			if (_stricmp(param, "keyb_image") == 0) {
+				// TODO...
+			}
+			if (_stricmp(param, "keyb_texture_size") == 0) {
 				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
 				LoadDCCoverTextureSize(buf, &keyb_tex_width, &keyb_tex_height);
-				log_debug("[DBG] [AC] VRKeyb texture size: %0.3f, %0.3f", keyb_tex_width, keyb_tex_height);
+				//log_debug("[DBG] [AC] VRKeyb texture size: %0.3f, %0.3f", keyb_tex_width, keyb_tex_height);
+				g_vrKeybState.fPixelWidth  = keyb_tex_width;
+				g_vrKeybState.fPixelHeight = keyb_tex_height;
 				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
 				{
 					//log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",

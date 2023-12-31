@@ -70,6 +70,15 @@ void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 		case AC_HOLOGRAM_FAKE_VK_CODE:
 			g_bDCHologramsVisible = !g_bDCHologramsVisible;
 			return;
+		case AC_VRKEYB_TOGGLE_FAKE_VK_CODE:
+			g_vrKeybState.bVisible = !g_vrKeybState.bVisible;
+			return;
+		case AC_VRKEYB_ON_FAKE_VK_CODE:
+			g_vrKeybState.bVisible = true;
+			return;
+		case AC_VRKEYB_OFF_FAKE_VK_CODE:
+			g_vrKeybState.bVisible = false;
+			return;
 		case AC_JOYBUTTON1_FAKE_VK_CODE:
 			if (pji != nullptr) {
 				pji->dwButtons |= 1;
@@ -295,6 +304,24 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 		if (strstr(ptr, "HOLOGRAM") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_HOLOGRAM_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_TOGGLE") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_TOGGLE_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_ON") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_ON_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_OFF") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_OFF_FAKE_VK_CODE;
 			return;
 		}
 

@@ -11,11 +11,16 @@
 #define MAX_AC_TEXTURES_PER_COCKPIT 32
 #define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
 #define AC_HOLOGRAM_FAKE_VK_CODE 0x01 // Internal AC code to toggle the holograms
+
 #define AC_JOYBUTTON1_FAKE_VK_CODE 0x02 // Internal AC code to emulate joystick button clicks
 #define AC_JOYBUTTON2_FAKE_VK_CODE 0x03
 #define AC_JOYBUTTON3_FAKE_VK_CODE 0x04
 #define AC_JOYBUTTON4_FAKE_VK_CODE 0x05
 #define AC_JOYBUTTON5_FAKE_VK_CODE 0x06
+
+#define AC_VRKEYB_TOGGLE_FAKE_VK_CODE 0x07
+#define AC_VRKEYB_ON_FAKE_VK_CODE     0x08
+#define AC_VRKEYB_OFF_FAKE_VK_CODE    0x09
 
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];

@@ -1621,10 +1621,16 @@ void EffectsRenderer::CreateVRMeshes()
 	initialData.pSysMem = g_vrKeybTriangles;
 	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybNumTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybIndexBuffer);
 
-	g_vrKeybMeshVertices[0] = { -10.0f, -25.0f, 30.0f };
+	/*g_vrKeybMeshVertices[0] = { -10.0f, -25.0f, 30.0f };
 	g_vrKeybMeshVertices[1] = {  10.0f, -25.0f, 30.0f };
 	g_vrKeybMeshVertices[2] = {  10.0f, -25.0f, 18.0f };
-	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };
+	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };*/
+	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
+	const float W = 0.5f * METERS_TO_OPT, H = W / ratio;
+	g_vrKeybMeshVertices[0] = { -W / 2.0f, -25.0f,  H / 2.0f + 25.0f };
+	g_vrKeybMeshVertices[1] = {  W / 2.0f, -25.0f,  H / 2.0f + 25.0f };
+	g_vrKeybMeshVertices[2] = {  W / 2.0f, -25.0f, -H / 2.0f + 25.0f };
+	g_vrKeybMeshVertices[3] = { -W / 2.0f, -25.0f, -H / 2.0f + 25.0f };
 
 	initialData.SysMemPitch = 0;
 	initialData.SysMemSlicePitch = 0;
