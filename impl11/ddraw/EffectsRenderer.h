@@ -93,12 +93,12 @@ protected:
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
 
 	bool _vrKeyboardRendered;
-	ID3D11Buffer* _vrKeybVertexBuffer;
-	ID3D11Buffer* _vrKeybIndexBuffer;
-	ID3D11Buffer* _vrKeybMeshVerticesBuffer;
-	ID3D11Buffer* _vrKeybMeshTexCoordsBuffer;
-	ID3D11ShaderResourceView* _vrKeybMeshVerticesSRV;
-	ID3D11ShaderResourceView* _vrKeybMeshTexCoordsSRV;
+	ComPtr<ID3D11Buffer> _vrKeybVertexBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybIndexBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybMeshTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
 
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;

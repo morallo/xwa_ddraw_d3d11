@@ -5453,19 +5453,19 @@ void EffectsRenderer::RenderVRGeometry()
 	_deviceResources->InitPSShaderResourceView(nullptr, nullptr);
 
 	// Set the mesh buffers
-	ID3D11ShaderResourceView* vsSSRV[4] = { _vrKeybMeshVerticesSRV, nullptr, _vrKeybMeshTexCoordsSRV, nullptr };
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrKeybMeshVerticesSRV.Get(), nullptr, _vrKeybMeshTexCoordsSRV.Get(), nullptr};
 	context->VSSetShaderResources(0, 4, vsSSRV);
 
 	// Set the index and vertex buffers
 	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
-	_deviceResources->InitVertexBuffer(&_vrKeybVertexBuffer, &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitVertexBuffer(_vrKeybVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
 	_deviceResources->InitIndexBuffer(nullptr, true);
-	_deviceResources->InitIndexBuffer(_vrKeybIndexBuffer, true);
+	_deviceResources->InitIndexBuffer(_vrKeybIndexBuffer.Get(), true);
 
 	// Set the constants buffer
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
 	_trianglesCount = 2;
-	_deviceResources->InitPixelShader(_pixelShader);
+	//_deviceResources->InitPixelShader(_pixelShader);
 	//_deviceResources->InitPixelShader(resources->_pixelShaderDCHolo);
 	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
 
