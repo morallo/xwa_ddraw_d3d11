@@ -21,7 +21,7 @@ int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersect
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
-int g_iNumACElements = 0, g_iLaserDirSelector = 3;
+int g_iNumACElements = 0, g_iLaserDirSelector = 3, g_iVRKeyboardSlot = -1;
 // DEBUG vars
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
@@ -379,7 +379,7 @@ void DisplayACAction(WORD* scanCodes) {
  * Loads an "action" row:
  * "action" = ACTION, x0,y0, x1,y1
  */
-bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
+bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bool flip)
 {
 	float x0, y0, x1, y1;
 	int res = 0, idx = coords->numCoords;
@@ -428,8 +428,11 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 			x1 /= width;
 			y1 /= height;
 			// Images are stored upside down in an OPT (I think), so we need to flip the Y axis:
-			y0 = 1.0f - y0;
-			y1 = 1.0f - y1;
+			if (flip)
+			{
+				y0 = 1.0f - y0;
+				y1 = 1.0f - y1;
+			}
 			if (y0 > y1) std::swap(y0, y1);
 			coords->area[idx].x0 = x0;
 			coords->area[idx].y0 = y0;

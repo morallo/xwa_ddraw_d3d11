@@ -1581,22 +1581,35 @@ int EffectsRenderer::LoadDATImage(char* sDATFileName, int GroupId, int ImageId, 
 	return S_OK;
 }
 
+constexpr int g_vrKeybNumTriangles = 2;
+constexpr int g_vrKeybMeshVerticesCount = 4;
+constexpr int g_vrKeybTextureCoordsCount = 4;
+D3dTriangle g_vrKeybTriangles[g_vrKeybNumTriangles];
+XwaVector3 g_vrKeybMeshVertices[g_vrKeybMeshVerticesCount];
+XwaTextureVertex g_vrKeybTextureCoords[g_vrKeybTextureCoordsCount];
+
 void EffectsRenderer::CreateVRMeshes()
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
-	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
-	constexpr int numVertices = 4, numTriangles = 2;
-	D3dVertex _vertices[numVertices];
-	D3dTriangle _triangles[numTriangles];
+	// The virtual keyboard only makes sense when AC is on
+	if (!g_bActiveCockpitEnabled)
+		return;
 
+	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
+	constexpr int numVertices = 4;
+	D3dVertex _vertices[numVertices];
+
+	// The OPT/D3dHook system uses an indexing scheme for some reason. I don't have
+	// an use for that right now, but I still need to provide indices for
+	// XwaD3dVertexShader. So here the indices are just an "identity function":
 	_vertices[0] = { 0, 0, 0, 0 };
 	_vertices[1] = { 1, 0, 1, 0 };
 	_vertices[2] = { 2, 0, 2, 0 };
 	_vertices[3] = { 3, 0, 3, 0 };
 
-	_triangles[0] = { 0, 1, 2 };
-	_triangles[1] = { 0, 2, 3 };
+	g_vrKeybTriangles[0] = { 0, 1, 2 };
+	g_vrKeybTriangles[1] = { 0, 2, 3 };
 
 	D3D11_SUBRESOURCE_DATA initialData;
 	initialData.SysMemPitch = 0;
@@ -1605,37 +1618,33 @@ void EffectsRenderer::CreateVRMeshes()
 	initialData.pSysMem = _vertices;
 	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybVertexBuffer);
 
-	initialData.pSysMem = _triangles;
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(numTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybIndexBuffer);
+	initialData.pSysMem = g_vrKeybTriangles;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybNumTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybIndexBuffer);
 
-	constexpr int verticesCount = 4;
-	XwaVector3 vertices[verticesCount];
-	vertices[0] = { -10.0f, -25.0f, 30.0f };
-	vertices[1] = {  10.0f, -25.0f, 30.0f };
-	vertices[2] = {  10.0f, -25.0f, 18.0f };
-	vertices[3] = { -10.0f, -25.0f, 18.0f };
+	g_vrKeybMeshVertices[0] = { -10.0f, -25.0f, 30.0f };
+	g_vrKeybMeshVertices[1] = {  10.0f, -25.0f, 30.0f };
+	g_vrKeybMeshVertices[2] = {  10.0f, -25.0f, 18.0f };
+	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };
 
 	initialData.SysMemPitch = 0;
 	initialData.SysMemSlicePitch = 0;
-	initialData.pSysMem = vertices;
+	initialData.pSysMem = g_vrKeybMeshVertices;
 
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(verticesCount * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshVerticesBuffer);
-	device->CreateShaderResourceView(_vrKeybMeshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, verticesCount), &_vrKeybMeshVerticesSRV);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybMeshVerticesCount * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshVerticesBuffer);
+	device->CreateShaderResourceView(_vrKeybMeshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, g_vrKeybMeshVerticesCount), &_vrKeybMeshVerticesSRV);
 
 	// Create the UVs
-	constexpr int textureCoordsCount = 4;
-	XwaTextureVertex textureCoords[textureCoordsCount];
-	textureCoords[0] = { 0, 0 };
-	textureCoords[1] = { 1, 0 };
-	textureCoords[2] = { 1, 1 };
-	textureCoords[3] = { 0, 1 };
+	g_vrKeybTextureCoords[0] = { 0, 0 };
+	g_vrKeybTextureCoords[1] = { 1, 0 };
+	g_vrKeybTextureCoords[2] = { 1, 1 };
+	g_vrKeybTextureCoords[3] = { 0, 1 };
 
 	initialData.SysMemPitch = 0;
 	initialData.SysMemSlicePitch = 0;
-	initialData.pSysMem = textureCoords;
+	initialData.pSysMem = g_vrKeybTextureCoords;
 
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(textureCoordsCount * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshTexCoordsBuffer);
-	device->CreateShaderResourceView(_vrKeybMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, textureCoordsCount), &_vrKeybMeshTexCoordsSRV);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybTextureCoordsCount * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshTexCoordsBuffer);
+	device->CreateShaderResourceView(_vrKeybMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, g_vrKeybTextureCoordsCount), &_vrKeybMeshTexCoordsSRV);
 	//_vrKeybVertexBuffer->AddRef();
 	//_vrKeybIndexBuffer->AddRef();
 	//_vrKeybMeshVerticesBuffer->AddRef();
@@ -3350,6 +3359,53 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 
 	Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
 	Vector3 dir  = { ray.dir.x, ray.dir.y, ray.dir.z };
+
+	// Test the VR keyboard first
+	for (int i = 0; i < g_vrKeybNumTriangles; i++)
+	{
+		D3dTriangle t = g_vrKeybTriangles[i];
+
+		Vector4 p0 = /*MeshTransform * */ XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
+		Vector4 p1 = /*MeshTransform * */ XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
+		Vector4 p2 = /*MeshTransform * */ XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
+
+		Vector3 v0 = Vector4ToVector3(p0);
+		Vector3 v1 = Vector4ToVector3(p1);
+		Vector3 v2 = Vector4ToVector3(p2);
+
+		Vector3 P;
+		float dist, u, v;
+		//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
+		//if (inters.T < bestInters.T && RayTriangleTest(inters))
+		if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v))
+		{
+			if (dist > 0.0f)
+			{
+				g_fBestIntersectionDistance = dist;
+
+				const float baryU = u;
+				const float baryV = v;
+				const float baryW = 1.0f - baryU - baryV;
+
+				XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
+				XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
+				XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
+
+				const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+				const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+
+				g_LaserPointerBuffer.uv[0] = u;
+				g_LaserPointerBuffer.uv[1] = v;
+				g_iBestIntersTexIdx = g_iVRKeyboardSlot;
+
+				g_debug_v0 = v0;
+				g_debug_v1 = v1;
+				g_debug_v2 = v2;
+				g_LaserPointer3DIntersection = P;
+				return;
+			}
+		}
+	}
 
 	//IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx,
 	//	bIsActiveCockpit, orig, dir /*, debug */);
@@ -5533,8 +5589,8 @@ void EffectsRenderer::RenderTransparency()
 
 void EffectsRenderer::RenderVRGeometry()
 {
-	//if (!g_bActiveCockpitEnabled ...
-	if (_vrKeyboardRendered || !_bCockpitConstantsCaptured)
+	// _vrKeyboardRendered is set to false on SceneBegin() -- at the beginning of each frame
+	if (!g_bActiveCockpitEnabled || _vrKeyboardRendered || !_bCockpitConstantsCaptured)
 		return;
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVRGeometry");
@@ -5580,7 +5636,6 @@ void EffectsRenderer::RenderVRGeometry()
 		resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 	// Set the textures
-	//_deviceResources->InitPSShaderResourceView(_vrKeybCommand.SRVs[0], _vrKeybCommand.SRVs[1]);
 	_deviceResources->InitPSShaderResourceView(_vrKeybTextureSRV.Get(), nullptr);
 
 	// Set the mesh buffers
@@ -5595,9 +5650,9 @@ void EffectsRenderer::RenderVRGeometry()
 
 	// Set the constants buffer
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
-	_trianglesCount = 2;
+	_trianglesCount = g_vrKeybNumTriangles;
 	//_deviceResources->InitPixelShader(_pixelShader);
-	//_deviceResources->InitPixelShader(resources->_pixelShaderDCHolo);
+	// TODO: Provide a proper pixel shader for the VR Keyboard:
 	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
 
 	// Render the deferred commands
