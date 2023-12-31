@@ -1457,6 +1457,130 @@ EffectsRenderer::EffectsRenderer() : D3dRenderer() {
 	_hangarShadowMapRotation.rotateX(180.0f);
 }
 
+// Based on Direct3DTexture::CreateSRVFromBuffer()
+// Yes, I know I shouldn't duplicate code, but this is a much simpler
+// way to load textures. The code in Direct3DTexture is loaded in a
+// deferred fashion and that's always been a bit cumbersome.
+HRESULT EffectsRenderer::CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv)
+{
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	auto& device = resources->_d3dDevice;
+
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	ComPtr<ID3D11Texture2D> texture2D;
+	*srv = NULL;
+
+	bool isBc7 = (BufferLength == Width * Height);
+	DXGI_FORMAT ColorFormat = (g_DATReaderVersion <= DAT_READER_VERSION_101 || g_config.FlipDATImages) ?
+		DXGI_FORMAT_R8G8B8A8_UNORM : // Original, to be used with DATReader 1.0.1. Needs channel swizzling.
+		DXGI_FORMAT_B8G8R8A8_UNORM;  // To be used with DATReader 1.0.2+. Enables Marshal.Copy(), no channel swizzling.
+	desc.Width = (UINT)Width;
+	desc.Height = (UINT)Height;
+	desc.Format = isBc7 ? DXGI_FORMAT_BC7_UNORM : ColorFormat;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = (void*)Buffer;
+	textureData.SysMemPitch = sizeof(uint8_t) * Width * 4;
+	textureData.SysMemSlicePitch = 0;
+
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &texture2D))) {
+		log_debug("[DBG] Failed when calling CreateTexture2D from Buffer, reason: 0x%x",
+			device->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+	if (FAILED(hr = device->CreateShaderResourceView(texture2D, &shaderResourceViewDesc, srv))) {
+		log_debug("[DBG] Failed when calling CreateShaderResourceView on texture2D, reason: 0x%x",
+			device->GetDeviceRemovedReason());
+		goto out;
+	}
+
+out:
+	return hr;
+}
+
+// Based on Direct3DTexture::LoadDATImage()
+// Yes, I know I shouldn't duplicate code... see CreateSRVFromBuffer() above
+int EffectsRenderer::LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
+	short* Width_out, short* Height_out)
+{
+	short Width = 0, Height = 0;
+	uint8_t Format = 0;
+	uint8_t* buf = nullptr;
+	int buf_len = 0;
+	// Initialize the output to null/failure by default:
+	HRESULT res = E_FAIL;
+	auto& resources = this->_deviceResources;
+	int index = -1;
+	*srv = nullptr;
+
+	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
+		return -1;
+
+	if (!LoadDATFile(sDATFileName)) {
+		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);
+		return -1;
+	}
+
+	if (!GetDATImageMetadata(GroupId, ImageId, &Width, &Height, &Format)) {
+		log_debug("[DBG] [C++] DAT Image not found");
+		return -1;
+	}
+
+	if (Width_out != nullptr) *Width_out = Width;
+	if (Height_out != nullptr) *Height_out = Height;
+
+	const bool isBc7 = (Format == 27);
+
+	if (isBc7 && (Width % 4 == 0) && (Height % 4 == 0))
+	{
+		buf_len = Width * Height;
+	}
+	else
+	{
+		buf_len = Width * Height * 4;
+	}
+
+	buf = new uint8_t[buf_len];
+	if (!isBc7 && g_config.FlipDATImages && ReadFlippedDATImageData != nullptr)
+	{
+		if (ReadFlippedDATImageData(buf, buf_len))
+			res = CreateSRVFromBuffer(buf, buf_len, Width, Height, srv);
+		else
+			log_debug("[DBG] [C++] Failed to read flipped image data");
+	}
+	else
+	{
+		if (ReadDATImageData(buf, buf_len))
+			res = CreateSRVFromBuffer(buf, buf_len, Width, Height, srv);
+		else
+			log_debug("[DBG] [C++] Failed to read image data");
+	}
+
+	if (buf != nullptr) delete[] buf;
+
+	if (FAILED(res))
+		return -1;
+
+	return S_OK;
+}
+
 void EffectsRenderer::CreateVRMeshes()
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
@@ -1518,6 +1642,13 @@ void EffectsRenderer::CreateVRMeshes()
 	//_vrKeybMeshVerticesView->AddRef();
 	//_vrKeybMeshTextureCoordsBuffer->AddRef();
 	//_vrKeybMeshTextureCoordsView->AddRef();
+
+
+	int res = LoadDATImage(".\\Effects\\ActiveCockpit.dat", 0, 0, _vrKeybTextureSRV.GetAddressOf());
+	if (SUCCEEDED(res))
+	{
+		log_debug("[DBG] [AC] VR Keyboard texture successfully loaded!");
+	}
 
 	// TODO: Check for memory leaks. Should I Release() these resources?
 
@@ -5450,7 +5581,7 @@ void EffectsRenderer::RenderVRGeometry()
 
 	// Set the textures
 	//_deviceResources->InitPSShaderResourceView(_vrKeybCommand.SRVs[0], _vrKeybCommand.SRVs[1]);
-	_deviceResources->InitPSShaderResourceView(nullptr, nullptr);
+	_deviceResources->InitPSShaderResourceView(_vrKeybTextureSRV.Get(), nullptr);
 
 	// Set the mesh buffers
 	ID3D11ShaderResourceView* vsSSRV[4] = { _vrKeybMeshVerticesSRV.Get(), nullptr, _vrKeybMeshTexCoordsSRV.Get(), nullptr};

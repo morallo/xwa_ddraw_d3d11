@@ -99,6 +99,7 @@ protected:
 	ComPtr<ID3D11Buffer> _vrKeybMeshTexCoordsBuffer;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshVerticesSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybTextureSRV;
 
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
@@ -123,6 +124,10 @@ protected:
 
 	void SaveContext();
 	void RestoreContext();
+
+	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
+	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
+		short* Width_out=nullptr, short* Height_out=nullptr);
 
 public:
 	bool _bCockpitConstantsCaptured;
