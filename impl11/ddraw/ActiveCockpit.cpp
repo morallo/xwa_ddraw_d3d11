@@ -21,7 +21,7 @@ int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersect
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
-int g_iNumACElements = 0, g_iLaserDirSelector = 3;
+int g_iNumACElements = 0, g_iLaserDirSelector = 3, g_iVRKeyboardSlot = -1;
 // DEBUG vars
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
@@ -69,6 +69,15 @@ void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 		{
 		case AC_HOLOGRAM_FAKE_VK_CODE:
 			g_bDCHologramsVisible = !g_bDCHologramsVisible;
+			return;
+		case AC_VRKEYB_TOGGLE_FAKE_VK_CODE:
+			g_vrKeybState.bVisible = !g_vrKeybState.bVisible;
+			return;
+		case AC_VRKEYB_ON_FAKE_VK_CODE:
+			g_vrKeybState.bVisible = true;
+			return;
+		case AC_VRKEYB_OFF_FAKE_VK_CODE:
+			g_vrKeybState.bVisible = false;
 			return;
 		case AC_JOYBUTTON1_FAKE_VK_CODE:
 			if (pji != nullptr) {
@@ -147,7 +156,7 @@ void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 /*
  * Converts a string representation of a hotkey to a series of scan codes
  */
-void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
+void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator, bool* bIsVRKeybActivator) {
 	// XWA keyboard reference:
 	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
 	// Scan code tables:
@@ -160,6 +169,9 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 
 	if (bIsACActivator != nullptr)
 		*bIsACActivator = false;
+
+	if (bIsVRKeybActivator != nullptr)
+		*bIsVRKeybActivator = false;
 
 	// Translate to uppercase
 	for (i = 0; i < len; i++)
@@ -298,6 +310,26 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 			return;
 		}
 
+		if (strstr(ptr, "VRKEYB_TOGGLE") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_TOGGLE_FAKE_VK_CODE;
+			if (bIsVRKeybActivator != nullptr)
+				*bIsVRKeybActivator = true;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_ON") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_ON_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_OFF") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_OFF_FAKE_VK_CODE;
+			return;
+		}
+
 		if (strstr(ptr, "JOYBUTTON1") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_JOYBUTTON1_FAKE_VK_CODE;
@@ -379,7 +411,7 @@ void DisplayACAction(WORD* scanCodes) {
  * Loads an "action" row:
  * "action" = ACTION, x0,y0, x1,y1
  */
-bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
+bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bool flip)
 {
 	float x0, y0, x1, y1;
 	int res = 0, idx = coords->numCoords;
@@ -418,9 +450,8 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
 		}
 		else {
-			bool dummy;
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
-			TranslateACAction(&(coords->action[idx][0]), action, &dummy);
+			TranslateACAction(&(coords->action[idx][0]), action, nullptr, nullptr);
 			//DisplayACAction(&(coords->action[idx][0]));
 
 			x0 /= width;
@@ -428,8 +459,11 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 			x1 /= width;
 			y1 /= height;
 			// Images are stored upside down in an OPT (I think), so we need to flip the Y axis:
-			y0 = 1.0f - y0;
-			y1 = 1.0f - y1;
+			if (flip)
+			{
+				y0 = 1.0f - y0;
+				y1 = 1.0f - y1;
+			}
 			if (y0 > y1) std::swap(y0, y1);
 			coords->area[idx].x0 = x0;
 			coords->area[idx].y0 = y0;

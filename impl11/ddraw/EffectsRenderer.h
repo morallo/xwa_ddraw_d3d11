@@ -91,6 +91,15 @@ protected:
 	ComPtr<ID3D11BlendState> _oldBlendState;
 	ComPtr<ID3D11InputLayout> _oldInputLayout;
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+
+	ComPtr<ID3D11Buffer> _vrKeybVertexBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybIndexBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybMeshTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybTextureSRV;
+
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
 	FLOAT _oldBlendFactor[4];
@@ -114,6 +123,10 @@ protected:
 
 	void SaveContext();
 	void RestoreContext();
+
+	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
+	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
+		short* Width_out=nullptr, short* Height_out=nullptr);
 
 public:
 	bool _bCockpitConstantsCaptured;
@@ -165,9 +178,12 @@ public:
 	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);
 	FixedInstanceData* ObjectIDToFixedInstanceData(int objectId, uint32_t materialId);
 
+	void CreateVRMeshes();
+
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();
+	void RenderVRGeometry();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
 	void StartCascadedShadowMap();

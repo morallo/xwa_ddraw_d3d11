@@ -1603,14 +1603,19 @@ bool LoadDCParams() {
 
 void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
 {
-	bool bIsActivator = false;
-	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsActivator);
+	bool bIsActivator = false, bIsVRKeybActivator = false;
+	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsActivator, &bIsVRKeybActivator);
 	if (bIsActivator)
 	{
 		g_ACPointerData.contIdx = contIdx;
 		g_ACPointerData.button  = buttonId;
 		log_debug("[DBG] [AC] Controller %d, button %d is now the cursor",
 			contIdx, buttonId);
+	}
+	if (bIsVRKeybActivator)
+	{
+		g_vrKeybState.iActivatorContIdx = contIdx;
+		g_vrKeybState.iActivatorButtonIdx = buttonId;
 	}
 }
 
@@ -1654,6 +1659,11 @@ bool LoadACParams() {
 
 	g_LaserPointerBuffer.bDebugMode = 0;
 	g_LaserPointerBuffer.cursor_radius = 0.01f;
+
+	// VR keyboard AC elements
+	ac_element ac_elem;
+	float keyb_tex_width = -1.0f, keyb_tex_height = -1.0f;
+	g_iVRKeyboardSlot = -1;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1835,6 +1845,67 @@ bool LoadACParams() {
 			if (_stricmp(param, "release_button_threshold") == 0)
 			{
 				g_fReleaseButtonThreshold = fValue / 100.0f; // Convert to meters
+			}
+
+			if (_stricmp(param, "keyb_texture") == 0) {
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrKeybState.sImageName, 128, sDATFileName);
+					g_vrKeybState.iGroupId = GroupId;
+					g_vrKeybState.iImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for the VR Keyboard",
+						g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
+				}
+			}
+			else if (_stricmp(param, "keyb_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &keyb_tex_width, &keyb_tex_height);
+				//log_debug("[DBG] [AC] VRKeyb texture size: %0.3f, %0.3f", keyb_tex_width, keyb_tex_height);
+				g_vrKeybState.fPixelWidth  = keyb_tex_width;
+				g_vrKeybState.fPixelHeight = keyb_tex_height;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					//log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
+						//	ac_elem.name, g_iNumACElements);
+						//ac_elem.idx = g_iNumACElements; // Generate a unique ID
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRKeyboardSlot = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRKeyboardSlot].name, MAX_TEXTURE_NAME - 1, "_VRKeyboard");
+					log_debug("[DBG] [AC] g_iVRKeyboardSlot: %d", g_iVRKeyboardSlot);
+				}
+			}
+			else if (_stricmp(param, "keyb_width_cms") == 0) {
+				g_vrKeybState.fMetersWidth = fValue / 100.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "action") == 0) {
+				if (g_iVRKeyboardSlot == -1) {
+					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without defining a texture size first.", line);
+					continue;
+				}
+				//log_debug("[DBG] [AC] VRKeyboard. Loading action for: [%s]", g_ACElements[g_iVRKeyboardSlot].name);
+				LoadACAction(buf, keyb_tex_width, keyb_tex_height, &(g_ACElements[g_iVRKeyboardSlot].coords), false);
+				int lastIdx = g_ACElements[g_iVRKeyboardSlot].coords.numCoords - 1;
+				// The y coordinate in the UVs must be mirrored:
+				/*float y;
+				y = g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y0;
+				g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y0 = 1.0f - y;
+				y = g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y1;
+				g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y1 = 1.0f - y;*/
+
+				/*log_debug("[DBG] [AC] numCoords: %d, [%s], (%0.2f, %0.2f)-(%0.2f, %0.2f)",
+					g_ACElements[g_iVRKeyboardSlot].coords.numCoords,
+					g_ACElements[g_iVRKeyboardSlot].coords.action_name[lastIdx],
+					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].x0,
+					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y0,
+					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].x1,
+					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y1);*/
 			}
 		}
 	}

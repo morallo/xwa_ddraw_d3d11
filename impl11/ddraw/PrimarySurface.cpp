@@ -46,7 +46,7 @@ inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 view
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
-	float &t, Vector3 &P, float &u, float &v);
+	float &t, Vector3 &P, float &u, float &v, float margin);
 void ResetXWALightInfo();
 void DumpHyperspaceVertexBuffer(float width, float height);
 inline Matrix4 XwaTransformToMatrix4(const XwaTransform& M);
@@ -6734,7 +6734,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 	backProjectMetric(0.0f, 0.0f, hb_rhw_depth, &v0);
 	backProjectMetric(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v1);
 	backProjectMetric(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
-	if (rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv)) {
+	if (rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv, 0)) {
 		U0 = 0.0f; U1 = 1.0f; U2 = 0.0f;
 		V0 = 0.0f; V1 = 0.0f; V2 = 1.0f;
 	}
@@ -6744,7 +6744,7 @@ void PrimarySurface::ProjectCentroidToPostProc(Vector3 Centroid, float *u, float
 		backProjectMetric(g_fCurInGameWidth, 0.0f, hb_rhw_depth, &v0);
 		backProjectMetric(g_fCurInGameWidth, g_fCurInGameHeight, hb_rhw_depth, &v1);
 		backProjectMetric(0.0f, g_fCurInGameHeight, hb_rhw_depth, &v2);
-		rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv);
+		rayTriangleIntersect(orig, dir, v0, v1, v2, t, P, tu, tv, 0);
 		U0 = 1.0f; U1 = 1.0f; U2 = 0.0f;
 		V0 = 0.0f; V1 = 1.0f; V2 = 1.0f;
 	}
@@ -7399,7 +7399,7 @@ Vector4 MetricToOPTCoords(Vector4 P)
 // P is in the SteamVR metric system:
 // X+: Right
 // Y+: Up
-// Z-: Towards the camera
+// Z-: Forwards
 Vector4 SteamVRToOPTCoords(Vector4 P)
 {
 	Vector4 Q;
@@ -7408,15 +7408,31 @@ Vector4 SteamVRToOPTCoords(Vector4 P)
 	float cockpitOriginY = *g_POV_Y;
 	float cockpitOriginZ = *g_POV_Z;
 
-	// Convert to OPT scale
-	P.x *= METERS_TO_OPT;
-	P.y *= METERS_TO_OPT;
-	P.z *= METERS_TO_OPT;
+	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
+	Q.x = (P.x * METERS_TO_OPT) + P.w * cockpitOriginX;
+	Q.y = (P.z * METERS_TO_OPT) + P.w * cockpitOriginY; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
+	Q.z = (P.y * METERS_TO_OPT) + P.w * cockpitOriginZ;
+	Q.w = P.w;
+
+	return Q;
+}
+
+// P is in the XWA coord system:
+// X+: Right
+// Y-: Forwards
+// Z+: Up
+Vector4 OPTCoordsToSteamVR(Vector4 P)
+{
+	Vector4 Q;
+
+	float cockpitOriginX = *g_POV_X;
+	float cockpitOriginY = *g_POV_Y;
+	float cockpitOriginZ = *g_POV_Z;
 
 	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
-	Q.x = P.x + P.w * cockpitOriginX;
-	Q.y = P.z + P.w * cockpitOriginY; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
-	Q.z = P.y + P.w * cockpitOriginZ;
+	P.x = (Q.x - P.w * cockpitOriginX) * OPT_TO_METERS;
+	P.y = (Q.z - P.w * cockpitOriginZ) * OPT_TO_METERS; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
+	P.z = (Q.y - P.w * cockpitOriginY) * OPT_TO_METERS;
 	Q.w = P.w;
 
 	return Q;
@@ -7587,7 +7603,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	g_bACLastTriggerState = g_bACTriggerState;
 	// Update the display
-	g_LaserPointerBuffer.TriggerState = g_bACTriggerState || bPushButton;
+	g_LaserPointerBuffer.TriggerState = g_bACTriggerState || (buttonState == 1);
 	bPrevPushButton = bPushButton;
 
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);

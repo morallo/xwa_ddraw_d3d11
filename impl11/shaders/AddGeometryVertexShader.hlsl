@@ -9,20 +9,20 @@
 
 struct VertexShaderInput
 {
-	float4 pos		: POSITION;
-	float4 color		: COLOR0;
-	float4 normal   : COLOR1;
-	float2 tex		: TEXCOORD;
-	uint instId : SV_InstanceID;
+	float4 pos    : POSITION;
+	float4 color  : COLOR0;
+	float4 normal : COLOR1;
+	float2 tex    : TEXCOORD;
+	uint   instId : SV_InstanceID;
 };
 
 struct PixelShaderInput
 {
-	float4 pos		: SV_POSITION;
-	float4 color		: COLOR0;
-	float4 normal	: COLOR1;
-	float2 tex		: TEXCOORD;
-	uint viewId : SV_RenderTargetArrayIndex;
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float4 normal : COLOR1;
+	float2 tex    : TEXCOORD;
+	uint   viewId : SV_RenderTargetArrayIndex;
 };
 
 PixelShaderInput main(VertexShaderInput input)

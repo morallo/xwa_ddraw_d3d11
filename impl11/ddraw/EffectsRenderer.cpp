@@ -130,7 +130,9 @@ bool RayTriangleTest(const Intersection& inters);
 bool rayTriangleIntersect(
 	const Vector3& orig, const Vector3& dir,
 	const Vector3& v0, const Vector3& v1, const Vector3& v2,
-	float& t, Vector3& P, float& u, float& v);
+	float& t, Vector3& P, float& u, float& v, float margin);
+
+Vector4 SteamVRToOPTCoords(Vector4 P);
 
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
@@ -1457,12 +1459,242 @@ EffectsRenderer::EffectsRenderer() : D3dRenderer() {
 	_hangarShadowMapRotation.rotateX(180.0f);
 }
 
+// Based on Direct3DTexture::CreateSRVFromBuffer()
+// Yes, I know I shouldn't duplicate code, but this is a much simpler
+// way to load textures. The code in Direct3DTexture is loaded in a
+// deferred fashion and that's always been a bit cumbersome.
+HRESULT EffectsRenderer::CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv)
+{
+	auto& resources = this->_deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	auto& device = resources->_d3dDevice;
+
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	ComPtr<ID3D11Texture2D> texture2D;
+	*srv = NULL;
+
+	bool isBc7 = (BufferLength == Width * Height);
+	DXGI_FORMAT ColorFormat = (g_DATReaderVersion <= DAT_READER_VERSION_101 || g_config.FlipDATImages) ?
+		DXGI_FORMAT_R8G8B8A8_UNORM : // Original, to be used with DATReader 1.0.1. Needs channel swizzling.
+		DXGI_FORMAT_B8G8R8A8_UNORM;  // To be used with DATReader 1.0.2+. Enables Marshal.Copy(), no channel swizzling.
+	desc.Width = (UINT)Width;
+	desc.Height = (UINT)Height;
+	desc.Format = isBc7 ? DXGI_FORMAT_BC7_UNORM : ColorFormat;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = (void*)Buffer;
+	textureData.SysMemPitch = sizeof(uint8_t) * Width * 4;
+	textureData.SysMemSlicePitch = 0;
+
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &texture2D))) {
+		log_debug("[DBG] Failed when calling CreateTexture2D from Buffer, reason: 0x%x",
+			device->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+	if (FAILED(hr = device->CreateShaderResourceView(texture2D, &shaderResourceViewDesc, srv))) {
+		log_debug("[DBG] Failed when calling CreateShaderResourceView on texture2D, reason: 0x%x",
+			device->GetDeviceRemovedReason());
+		goto out;
+	}
+
+out:
+	return hr;
+}
+
+// Based on Direct3DTexture::LoadDATImage()
+// Yes, I know I shouldn't duplicate code... see CreateSRVFromBuffer() above
+int EffectsRenderer::LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
+	short* Width_out, short* Height_out)
+{
+	short Width = 0, Height = 0;
+	uint8_t Format = 0;
+	uint8_t* buf = nullptr;
+	int buf_len = 0;
+	// Initialize the output to null/failure by default:
+	HRESULT res = E_FAIL;
+	auto& resources = this->_deviceResources;
+	int index = -1;
+	*srv = nullptr;
+
+	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
+	{
+		log_debug("[DBG] InitDATReader() failed");
+		return -1;
+	}
+
+	if (!LoadDATFile(sDATFileName)) {
+		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);
+		return -1;
+	}
+
+	if (!GetDATImageMetadata(GroupId, ImageId, &Width, &Height, &Format)) {
+		log_debug("[DBG] [C++] DAT Image %d-%d not found", GroupId, ImageId);
+		return -1;
+	}
+
+	if (Width_out != nullptr) *Width_out = Width;
+	if (Height_out != nullptr) *Height_out = Height;
+
+	const bool isBc7 = (Format == 27);
+
+	if (isBc7 && (Width % 4 == 0) && (Height % 4 == 0))
+	{
+		buf_len = Width * Height;
+	}
+	else
+	{
+		buf_len = Width * Height * 4;
+	}
+
+	buf = new uint8_t[buf_len];
+	if (!isBc7 && g_config.FlipDATImages && ReadFlippedDATImageData != nullptr)
+	{
+		if (ReadFlippedDATImageData(buf, buf_len))
+			res = CreateSRVFromBuffer(buf, buf_len, Width, Height, srv);
+		else
+			log_debug("[DBG] [C++] Failed to read flipped image data");
+	}
+	else
+	{
+		if (ReadDATImageData(buf, buf_len))
+			res = CreateSRVFromBuffer(buf, buf_len, Width, Height, srv);
+		else
+			log_debug("[DBG] [C++] Failed to read image data");
+	}
+
+	if (buf != nullptr) delete[] buf;
+
+	if (FAILED(res))
+	{
+		log_debug("[DBG] [C++] Could not create SRV from image data");
+		return -1;
+	}
+
+	return S_OK;
+}
+
+constexpr int g_vrKeybNumTriangles = 2;
+constexpr int g_vrKeybMeshVerticesCount = 4;
+constexpr int g_vrKeybTextureCoordsCount = 4;
+D3dTriangle g_vrKeybTriangles[g_vrKeybNumTriangles];
+XwaVector3 g_vrKeybMeshVertices[g_vrKeybMeshVerticesCount];
+XwaTextureVertex g_vrKeybTextureCoords[g_vrKeybTextureCoordsCount];
+
+void EffectsRenderer::CreateVRMeshes()
+{
+	ID3D11Device* device = _deviceResources->_d3dDevice;
+
+	// The virtual keyboard only makes sense when AC is on
+	if (!g_bActiveCockpitEnabled)
+		return;
+
+	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
+	constexpr int numVertices = 4;
+	D3dVertex _vertices[numVertices];
+
+	// The OPT/D3dHook system uses an indexing scheme for some reason. I don't have
+	// an use for that right now, but I still need to provide indices for
+	// XwaD3dVertexShader. So here the indices are just an "identity function":
+	_vertices[0] = { 0, 0, 0, 0 };
+	_vertices[1] = { 1, 0, 1, 0 };
+	_vertices[2] = { 2, 0, 2, 0 };
+	_vertices[3] = { 3, 0, 3, 0 };
+
+	g_vrKeybTriangles[0] = { 0, 1, 2 };
+	g_vrKeybTriangles[1] = { 0, 2, 3 };
+
+	D3D11_SUBRESOURCE_DATA initialData;
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+
+	initialData.pSysMem = _vertices;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybVertexBuffer);
+
+	initialData.pSysMem = g_vrKeybTriangles;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybNumTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybIndexBuffer);
+
+	/*g_vrKeybMeshVertices[0] = { -10.0f, -25.0f, 30.0f };
+	g_vrKeybMeshVertices[1] = {  10.0f, -25.0f, 30.0f };
+	g_vrKeybMeshVertices[2] = {  10.0f, -25.0f, 18.0f };
+	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };*/
+	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
+	const float W = g_vrKeybState.fMetersWidth * METERS_TO_OPT, H = W / ratio;
+\
+	// Center the keyboard around the origin, but displaced upwards and a little bit forward.
+	// This makes the keyboard appear slightly above our hand and near the index finger.
+	const float dispY = -0.03f * METERS_TO_OPT;
+	const float dispZ = H / 2.0f;
+	g_vrKeybMeshVertices[0] = { -W / 2.0f, dispY,  H / 2.0f + dispZ };
+	g_vrKeybMeshVertices[1] = {  W / 2.0f, dispY,  H / 2.0f + dispZ };
+	g_vrKeybMeshVertices[2] = {  W / 2.0f, dispY, -H / 2.0f + dispZ };
+	g_vrKeybMeshVertices[3] = { -W / 2.0f, dispY, -H / 2.0f + dispZ };
+
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+	initialData.pSysMem = g_vrKeybMeshVertices;
+
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybMeshVerticesCount * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshVerticesBuffer);
+	device->CreateShaderResourceView(_vrKeybMeshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, g_vrKeybMeshVerticesCount), &_vrKeybMeshVerticesSRV);
+
+	// Create the UVs
+	g_vrKeybTextureCoords[0] = { 0, 0 };
+	g_vrKeybTextureCoords[1] = { 1, 0 };
+	g_vrKeybTextureCoords[2] = { 1, 1 };
+	g_vrKeybTextureCoords[3] = { 0, 1 };
+
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+	initialData.pSysMem = g_vrKeybTextureCoords;
+
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybTextureCoordsCount * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshTexCoordsBuffer);
+	device->CreateShaderResourceView(_vrKeybMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, g_vrKeybTextureCoordsCount), &_vrKeybMeshTexCoordsSRV);
+	//_vrKeybVertexBuffer->AddRef();
+	//_vrKeybIndexBuffer->AddRef();
+	//_vrKeybMeshVerticesBuffer->AddRef();
+	//_vrKeybMeshVerticesView->AddRef();
+	//_vrKeybMeshTextureCoordsBuffer->AddRef();
+	//_vrKeybMeshTextureCoordsView->AddRef();
+
+	int res = LoadDATImage(g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId, _vrKeybTextureSRV.GetAddressOf());
+	if (SUCCEEDED(res))
+	{
+		log_debug("[DBG] [AC] VR Keyboard texture successfully loaded!");
+	}
+	else
+	{
+		log_debug("[DBG] [AC] Could not load texture for VR Keyboard [%s]-[%d]-[%d]",
+			g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
+	}
+
+	// TODO: Check for memory leaks. Should I Release() these resources?
+
+	log_debug("[DBG] [AC] Virtual keyboard buffers CREATED");
+}
+
 void EffectsRenderer::CreateShaders() {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
 	D3dRenderer::CreateShaders();
 
 	//StartCascadedShadowMap();
+
+	CreateVRMeshes();
 }
 
 void ResetGimbalLockFix()
@@ -1757,6 +1989,47 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 				cameraAABB.max.x * OPT_TO_METERS, cameraAABB.max.y * OPT_TO_METERS, cameraAABB.max.z * OPT_TO_METERS);
 			*/
 			g_bRTCaptureCameraAABB = false;
+		}
+	}
+
+	// VR Keyboard
+	g_vrKeybState.bRendered = false;
+	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
+	{
+		const int contIdx = g_vrKeybState.iActivatorContIdx;
+		// Only update the position while the second button is pressed:
+		if (g_vrKeybState.bVisible && g_contStates[contIdx].buttons[g_vrKeybState.iActivatorButtonIdx])
+		{
+			const float cockpitOriginX = *g_POV_X;
+			const float cockpitOriginY = *g_POV_Y;
+			const float cockpitOriginZ = *g_POV_Z;
+
+			float m[16] = { 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 };
+			Matrix4 swap(m);
+			Matrix4 R, S;
+			//T.translate(-cockpitOriginX, -cockpitOriginY, -cockpitOriginZ);
+			S.scale(OPT_TO_METERS);
+			// The VR controllers are titled by about ~45-50 degrees, we need to compensate for that:
+			R.rotateX(50.0f);
+
+			Matrix4 Tinv, Sinv;
+			Tinv.translate(cockpitOriginX, cockpitOriginY, cockpitOriginZ);
+			Sinv.scale(METERS_TO_OPT);
+
+			// The keyboard is already centered at the origin, so we don't need to apply T:
+			//Matrix4 toSteamVR = swap * S * T;
+			Matrix4 toSteamVR = swap * S * R;
+			Matrix4 toOPT     = Tinv * Sinv * swap;
+
+			// This is the origin of the controller, in SteamVR coords:
+			//const float* m0 = g_contStates[thrIdx].pose.get();
+			//Vector4 P = Vector4(m0[12], m0[13], m0[14], 1.0f);
+
+			// Convert OPT to SteamVR coords, then apply the VR controller pose, finally revert
+			// everything and add the cockpit POV
+			g_vrKeybState.Transform = toOPT * g_contStates[contIdx].pose * toSteamVR;
+			// XwaD3dVertexShader does a post-multiplication, so we need to transpose this:
+			g_vrKeybState.Transform.transpose();
 		}
 	}
 
@@ -3148,6 +3421,78 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 
 	Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
 	Vector3 dir  = { ray.dir.x, ray.dir.y, ray.dir.z };
+	float margin = 0.01f;
+
+	// Test the VR keyboard first
+	if (g_vrKeybState.bVisible)
+	{
+		Matrix4 Transform = g_vrKeybState.Transform;
+		// We premultiply in the code below, so we need to transpose the matrix because
+		// the Vertex shader does a postmultiplication
+		Transform.transpose();
+
+		for (int i = 0; i < g_vrKeybNumTriangles; i++)
+		{
+			D3dTriangle t = g_vrKeybTriangles[i];
+
+			Vector4 p0 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
+			Vector4 p1 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
+			Vector4 p2 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
+
+			Vector3 v0 = Vector4ToVector3(p0);
+			Vector3 v1 = Vector4ToVector3(p1);
+			Vector3 v2 = Vector4ToVector3(p2);
+
+			// Find the intersection along the triangle's normal (the closest point on the triangle)
+			//Vector3 e10 = v1 - v0;
+			//Vector3 e20 = v2 - v0;
+			//Vector3 N = -1.0f * e10.cross(e20);
+			//float perpDist = FLT_MAX, perpU, perpV;
+			//Vector3 perpP;
+			//bool perpInters = false;
+			//N.normalize();
+			//N *= METERS_TO_OPT; // Everything is OPT scale here
+			//perpInters = rayTriangleIntersect(orig, N, v0, v1, v2, perpDist, perpP, perpU, perpV, margin);
+
+			Vector3 P;
+			float dist = FLT_MAX, u, v;
+			bool directedInters = false;
+			//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
+			//if (inters.T < bestInters.T && RayTriangleTest(inters))
+			directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
+			// If our controller is less that 2cm away from an element, we can assume we're going to touch it
+			/*if (perpInters && fabs(perpDist) < 0.02f)
+			{
+				u = perpU; v = perpV; P = perpP; dist = perpDist; directedInters = true;
+			}*/
+
+			// Allowing negative distances prevents phantom clicking when we "push" behind the
+			// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
+			// that means "1cm".
+			if (directedInters && dist > -0.01f)
+			{
+				g_fBestIntersectionDistance = dist;
+
+				const float baryU = u;
+				const float baryV = v;
+				const float baryW = 1.0f - baryU - baryV;
+
+				XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
+				XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
+				XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
+
+				g_LaserPointerBuffer.uv[0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+				g_LaserPointerBuffer.uv[1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+				g_iBestIntersTexIdx = g_iVRKeyboardSlot;
+
+				g_debug_v0 = v0;
+				g_debug_v1 = v1;
+				g_debug_v2 = v2;
+				g_LaserPointer3DIntersection = P;
+				return;
+			}
+		}
+	}
 
 	//IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx,
 	//	bIsActiveCockpit, orig, dir /*, debug */);
@@ -3164,6 +3509,11 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	float baryU = -FLT_MAX, baryV = -FLT_MAX;
 	XwaTextureVertex bestUV0, bestUV1, bestUV2;
 	int bestId = -1;
+	Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
+	// We premultiply in the code below, so we need to transpose the matrix because
+	// the Vertex shader does a postmultiplication
+	MeshTransform.transpose();
+	margin = 0.0001f;
 
 	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
 	{
@@ -3180,9 +3530,9 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				t.v2 = edge - 1;
 				t.v3 = edge;
 
-				Vector4 p0 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
-				Vector4 p1 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
-				Vector4 p2 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
+				Vector4 p0 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
+				Vector4 p1 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
+				Vector4 p2 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
 
 				Vector3 v0 = Vector4ToVector3(p0);
 				Vector3 v1 = Vector4ToVector3(p1);
@@ -3192,7 +3542,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				float dist, u, v;
 				//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
 				//if (inters.T < bestInters.T && RayTriangleTest(inters))
-				if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v))
+				if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
 				{
 					if (dist < g_fBestIntersectionDistance)
 					{
@@ -4819,6 +5169,14 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		// Add the command to the list of deferred commands
 		_TransparentDrawCommands.push_back(command);
 
+#ifdef DISABLED
+		if (!_vrKeyboardConstantsCaptured /* && _bIsCockpit */)
+		{
+			_vrKeybCommand = command;
+			_vrKeyboardConstantsCaptured = true;
+		}
+#endif
+
 		goto out;
 	}
 
@@ -5318,6 +5676,86 @@ void EffectsRenderer::RenderTransparency()
 	_TransparentDrawCommands.clear();
 	RestoreContext();
 
+	_deviceResources->EndAnnotatedEvent();
+}
+
+void EffectsRenderer::RenderVRGeometry()
+{
+	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
+	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || !g_vrKeybState.bVisible || !_bCockpitConstantsCaptured)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderVRGeometry");
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rastersize and depth stencil states for transparency
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	//_deviceResources->InitBlendState(_solidBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	// fSSAOAlphaMult ?
+	// fSSAOMaskVal ?
+	// fPosNormalAlpha ?
+	// fBloomStrength ?
+	// bInHyperspace ?
+
+	// Flags used in RenderScene():
+	_bIsCockpit   = true;
+	_bIsGunner    = false;
+	_bIsBlastMark = false;
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	g_OPTMeshTransformCB.MeshTransform = g_vrKeybState.Transform;
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+	// Set the textures
+	_deviceResources->InitPSShaderResourceView(_vrKeybTextureSRV.Get(), nullptr);
+
+	// Set the mesh buffers
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrKeybMeshVerticesSRV.Get(), nullptr, _vrKeybMeshTexCoordsSRV.Get(), nullptr};
+	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+	_deviceResources->InitVertexBuffer(_vrKeybVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(nullptr, true);
+	_deviceResources->InitIndexBuffer(_vrKeybIndexBuffer.Get(), true);
+
+	// Set the constants buffer
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	_trianglesCount = g_vrKeybNumTriangles;
+	//_deviceResources->InitPixelShader(_pixelShader);
+	// TODO: Provide a proper pixel shader for the VR Keyboard:
+	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
+
+	// Render the deferred commands
+	RenderScene();
+
+	// Decrease the refcount of the textures
+	/*for (int i = 0; i < 2; i++)
+		if (_vrKeybCommand.SRVs[i] != nullptr) _vrKeybCommand.SRVs[i]->Release();*/
+
+	// Restore the previous state
+	g_vrKeybState.bRendered = true;
+	RestoreContext();
 	_deviceResources->EndAnnotatedEvent();
 }
 
@@ -6016,5 +6454,6 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
+	RenderVRGeometry();
 	_deviceResources->EndAnnotatedEvent();
 }

@@ -122,10 +122,10 @@ void EmulMouseWithVRControllers()
 	if (bFirstTime)
 	{
 		char action1[] = "ESC";
-		TranslateACAction(escScanCodes, action1, nullptr);
+		TranslateACAction(escScanCodes, action1, nullptr, nullptr);
 
 		char action2[] = "PERIOD";
-		TranslateACAction(periodScanCodes, action2, nullptr);
+		TranslateACAction(periodScanCodes, action2, nullptr, nullptr);
 		bFirstTime = false;
 	}
 

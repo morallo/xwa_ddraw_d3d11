@@ -7,15 +7,20 @@
 
 
 // ACTIVE COCKPIT
-#define MAX_AC_COORDS_PER_TEXTURE 64
-#define MAX_AC_TEXTURES_PER_COCKPIT 16
+#define MAX_AC_COORDS_PER_TEXTURE 80
+#define MAX_AC_TEXTURES_PER_COCKPIT 32
 #define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
 #define AC_HOLOGRAM_FAKE_VK_CODE 0x01 // Internal AC code to toggle the holograms
+
 #define AC_JOYBUTTON1_FAKE_VK_CODE 0x02 // Internal AC code to emulate joystick button clicks
 #define AC_JOYBUTTON2_FAKE_VK_CODE 0x03
 #define AC_JOYBUTTON3_FAKE_VK_CODE 0x04
 #define AC_JOYBUTTON4_FAKE_VK_CODE 0x05
 #define AC_JOYBUTTON5_FAKE_VK_CODE 0x06
+
+#define AC_VRKEYB_TOGGLE_FAKE_VK_CODE 0x07
+#define AC_VRKEYB_ON_FAKE_VK_CODE     0x08
+#define AC_VRKEYB_OFF_FAKE_VK_CODE    0x09
 
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
@@ -45,7 +50,7 @@ extern int g_iBestIntersTexIdx; // The index into g_ACElements where the interse
 extern bool g_bFreePIEControllerButtonDataAvailable;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
 extern int g_iLaserDirSelector;
-extern int g_iNumACElements;
+extern int g_iNumACElements, g_iVRKeyboardSlot;
 extern bool g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
 extern bool g_bFreePIEInitialized, g_bFreePIEControllerButtonDataAvailable;
 extern float g_fLaserPointerLength;
@@ -118,8 +123,9 @@ extern float g_fLPdebugPointOffset;
 // DEBUG vars
 
 bool LoadIndividualACParams(char* sFileName);
+bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bool flip=true);
 void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
-void TranslateACAction(WORD* scanCodes, char* action, bool* bIsACActivator);
+void TranslateACAction(WORD* scanCodes, char* action, bool* bIsACActivator, bool* bIsVRKeybActivator);
 void DisplayACAction(WORD* scanCodes);
 int isInVector(char* name, ac_element* ac_elements, int num_elems);
 void ACRunAction(WORD* action, struct joyinfoex_tag* pji = nullptr);
