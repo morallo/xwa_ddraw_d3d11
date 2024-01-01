@@ -132,6 +132,8 @@ bool rayTriangleIntersect(
 	const Vector3& v0, const Vector3& v1, const Vector3& v2,
 	float& t, Vector3& P, float& u, float& v);
 
+Vector4 SteamVRToOPTCoords(Vector4 P);
+
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
 #ifdef DUMP_TLAS
@@ -1626,11 +1628,16 @@ void EffectsRenderer::CreateVRMeshes()
 	g_vrKeybMeshVertices[2] = {  10.0f, -25.0f, 18.0f };
 	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };*/
 	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
-	const float W = 0.5f * METERS_TO_OPT, H = W / ratio;
-	g_vrKeybMeshVertices[0] = { -W / 2.0f, -25.0f,  H / 2.0f + 25.0f };
-	g_vrKeybMeshVertices[1] = {  W / 2.0f, -25.0f,  H / 2.0f + 25.0f };
-	g_vrKeybMeshVertices[2] = {  W / 2.0f, -25.0f, -H / 2.0f + 25.0f };
-	g_vrKeybMeshVertices[3] = { -W / 2.0f, -25.0f, -H / 2.0f + 25.0f };
+	const float W = g_vrKeybState.fMetersWidth * METERS_TO_OPT, H = W / ratio;
+\
+	// Center the keyboard around the origin, but displaced upwards and a little bit forward.
+	// This makes the keyboard appear slightly above our hand and near the index finger.
+	const float dispY = -0.03f * METERS_TO_OPT;
+	const float dispZ = H / 2.0f;
+	g_vrKeybMeshVertices[0] = { -W / 2.0f, dispY,  H / 2.0f + dispZ };
+	g_vrKeybMeshVertices[1] = {  W / 2.0f, dispY,  H / 2.0f + dispZ };
+	g_vrKeybMeshVertices[2] = {  W / 2.0f, dispY, -H / 2.0f + dispZ };
+	g_vrKeybMeshVertices[3] = { -W / 2.0f, dispY, -H / 2.0f + dispZ };
 
 	initialData.SysMemPitch = 0;
 	initialData.SysMemSlicePitch = 0;
@@ -1657,7 +1664,6 @@ void EffectsRenderer::CreateVRMeshes()
 	//_vrKeybMeshVerticesView->AddRef();
 	//_vrKeybMeshTextureCoordsBuffer->AddRef();
 	//_vrKeybMeshTextureCoordsView->AddRef();
-
 
 	int res = LoadDATImage(".\\Effects\\ActiveCockpit.dat", 0, 0, _vrKeybTextureSRV.GetAddressOf());
 	if (SUCCEEDED(res))
@@ -1975,7 +1981,46 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		}
 	}
 
+	// VR Keyboard
 	g_vrKeybState.bRendered = false;
+	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
+	{
+		const int contIdx = g_vrKeybState.iActivatorContIdx;
+		// Only update the position while the second button is pressed:
+		if (g_vrKeybState.bVisible && g_contStates[contIdx].buttons[g_vrKeybState.iActivatorButtonIdx])
+		{
+			const float cockpitOriginX = *g_POV_X;
+			const float cockpitOriginY = *g_POV_Y;
+			const float cockpitOriginZ = *g_POV_Z;
+
+			float m[16] = { 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 };
+			Matrix4 swap(m);
+			Matrix4 R, S;
+			//T.translate(-cockpitOriginX, -cockpitOriginY, -cockpitOriginZ);
+			S.scale(OPT_TO_METERS);
+			// The VR controllers are titled by about ~45-50 degrees, we need to compensate for that:
+			R.rotateX(50.0f);
+
+			Matrix4 Tinv, Sinv;
+			Tinv.translate(cockpitOriginX, cockpitOriginY, cockpitOriginZ);
+			Sinv.scale(METERS_TO_OPT);
+
+			// The keyboard is already centered at the origin, so we don't need to apply T:
+			//Matrix4 toSteamVR = swap * S * T;
+			Matrix4 toSteamVR = swap * S * R;
+			Matrix4 toOPT     = Tinv * Sinv * swap;
+
+			// This is the origin of the controller, in SteamVR coords:
+			//const float* m0 = g_contStates[thrIdx].pose.get();
+			//Vector4 P = Vector4(m0[12], m0[13], m0[14], 1.0f);
+
+			// Convert OPT to SteamVR coords, then apply the VR controller pose, finally revert
+			// everything and add the cockpit POV
+			g_vrKeybState.Transform = toOPT * g_contStates[contIdx].pose * toSteamVR;
+			// XwaD3dVertexShader does a post-multiplication, so we need to transpose this:
+			g_vrKeybState.Transform.transpose();
+		}
+	}
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -3369,13 +3414,18 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	// Test the VR keyboard first
 	if (g_vrKeybState.bVisible)
 	{
+		Matrix4 Transform = g_vrKeybState.Transform;
+		// We premultiply in the code below, so we need to transpose the matrix because
+		// the Vertex shader does a postmultiplication
+		Transform.transpose();
+
 		for (int i = 0; i < g_vrKeybNumTriangles; i++)
 		{
 			D3dTriangle t = g_vrKeybTriangles[i];
 
-			Vector4 p0 = g_vrKeybState.Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
-			Vector4 p1 = g_vrKeybState.Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
-			Vector4 p2 = g_vrKeybState.Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
+			Vector4 p0 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
+			Vector4 p1 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
+			Vector4 p2 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
 
 			Vector3 v0 = Vector4ToVector3(p0);
 			Vector3 v1 = Vector4ToVector3(p1);
@@ -3431,6 +3481,10 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	float baryU = -FLT_MAX, baryV = -FLT_MAX;
 	XwaTextureVertex bestUV0, bestUV1, bestUV2;
 	int bestId = -1;
+	Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
+	// We premultiply in the code below, so we need to transpose the matrix because
+	// the Vertex shader does a postmultiplication
+	MeshTransform.transpose();
 
 	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
 	{
@@ -3447,9 +3501,9 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				t.v2 = edge - 1;
 				t.v3 = edge;
 
-				Vector4 p0 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
-				Vector4 p1 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
-				Vector4 p2 = g_OPTMeshTransformCB.MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
+				Vector4 p0 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
+				Vector4 p1 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
+				Vector4 p2 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
 
 				Vector3 v0 = Vector4ToVector3(p0);
 				Vector3 v1 = Vector4ToVector3(p1);
@@ -5612,10 +5666,10 @@ void EffectsRenderer::RenderVRGeometry()
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersize and depth stencil states for transparency
-	//_deviceResources->InitBlendState(_transparentBlendState, nullptr);
-	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	_deviceResources->InitBlendState(_solidBlendState, nullptr);
-	_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	//_deviceResources->InitBlendState(_solidBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -5640,9 +5694,8 @@ void EffectsRenderer::RenderVRGeometry()
 
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
-	g_OPTMeshTransformCB.MeshTransform.identity();
-	resources->InitVSConstantOPTMeshTransform(
-		resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+	g_OPTMeshTransformCB.MeshTransform = g_vrKeybState.Transform;
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 	// Set the textures
 	_deviceResources->InitPSShaderResourceView(_vrKeybTextureSRV.Get(), nullptr);

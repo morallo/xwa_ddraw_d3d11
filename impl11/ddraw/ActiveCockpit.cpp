@@ -156,7 +156,7 @@ void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 /*
  * Converts a string representation of a hotkey to a series of scan codes
  */
-void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
+void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator, bool* bIsVRKeybActivator) {
 	// XWA keyboard reference:
 	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
 	// Scan code tables:
@@ -169,6 +169,9 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 
 	if (bIsACActivator != nullptr)
 		*bIsACActivator = false;
+
+	if (bIsVRKeybActivator != nullptr)
+		*bIsVRKeybActivator = false;
 
 	// Translate to uppercase
 	for (i = 0; i < len; i++)
@@ -310,6 +313,8 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator) {
 		if (strstr(ptr, "VRKEYB_TOGGLE") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_VRKEYB_TOGGLE_FAKE_VK_CODE;
+			if (bIsVRKeybActivator != nullptr)
+				*bIsVRKeybActivator = true;
 			return;
 		}
 
@@ -445,9 +450,8 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bo
 			log_debug("[DBG] [DC] ERROR (skipping), expected at least 4 elements in '%s'", substr);
 		}
 		else {
-			bool dummy;
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
-			TranslateACAction(&(coords->action[idx][0]), action, &dummy);
+			TranslateACAction(&(coords->action[idx][0]), action, nullptr, nullptr);
 			//DisplayACAction(&(coords->action[idx][0]));
 
 			x0 /= width;

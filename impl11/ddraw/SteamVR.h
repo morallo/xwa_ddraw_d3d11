@@ -84,17 +84,31 @@ struct VRKeybState
 {
 	bool    bVisible;
 	bool    bRendered;
+	float   fMetersWidth;
 	float   fPixelWidth;
 	float   fPixelHeight;
 	Matrix4 Transform;
+	int     iActivatorContIdx;
+	int     iActivatorButtonIdx;
+	char    sImageName[128];
+	int     iGroupId;
+	int     iImageId;
 
 	VRKeybState()
 	{
-		bVisible  = false;
-		bRendered = false;
+		bVisible     = false;
+		bRendered    = false;
+		fMetersWidth = 0.30f;
 		fPixelWidth  = 1024;
 		fPixelHeight = 480;
 		Transform.identity();
+
+		iActivatorContIdx = 0;
+		iActivatorButtonIdx = VRButtons::BUTTON_2;
+
+		sprintf_s(sImageName, 128, "%s", ".\\Effects\\ActiveCockpit.dat");
+		iGroupId = 0;
+		iImageId = 0;
 	}
 };
 

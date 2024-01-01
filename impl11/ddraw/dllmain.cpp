@@ -682,6 +682,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'K':
 				g_vrKeybState.bVisible = !g_vrKeybState.bVisible;
+				log_debug("[DBG] [AC] VR Keyboard visible: %d", g_vrKeybState.bVisible);
 				return 0;
 			// Ctrl+Alt+E is used by the Custom OpenVR driver to toggle emulation modes
 			/*

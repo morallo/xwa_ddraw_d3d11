@@ -125,7 +125,7 @@ extern float g_fLPdebugPointOffset;
 bool LoadIndividualACParams(char* sFileName);
 bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bool flip=true);
 void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
-void TranslateACAction(WORD* scanCodes, char* action, bool* bIsACActivator);
+void TranslateACAction(WORD* scanCodes, char* action, bool* bIsACActivator, bool* bIsVRKeybActivator);
 void DisplayACAction(WORD* scanCodes);
 int isInVector(char* name, ac_element* ac_elements, int num_elems);
 void ACRunAction(WORD* action, struct joyinfoex_tag* pji = nullptr);

@@ -1603,14 +1603,19 @@ bool LoadDCParams() {
 
 void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
 {
-	bool bIsActivator = false;
-	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsActivator);
+	bool bIsActivator = false, bIsVRKeybActivator = false;
+	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsActivator, &bIsVRKeybActivator);
 	if (bIsActivator)
 	{
 		g_ACPointerData.contIdx = contIdx;
 		g_ACPointerData.button  = buttonId;
 		log_debug("[DBG] [AC] Controller %d, button %d is now the cursor",
 			contIdx, buttonId);
+	}
+	if (bIsVRKeybActivator)
+	{
+		g_vrKeybState.iActivatorContIdx = contIdx;
+		g_vrKeybState.iActivatorButtonIdx = buttonId;
 	}
 }
 
@@ -1845,7 +1850,7 @@ bool LoadACParams() {
 			if (_stricmp(param, "keyb_image") == 0) {
 				// TODO...
 			}
-			if (_stricmp(param, "keyb_texture_size") == 0) {
+			else if (_stricmp(param, "keyb_texture_size") == 0) {
 				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
 				LoadDCCoverTextureSize(buf, &keyb_tex_width, &keyb_tex_height);
 				//log_debug("[DBG] [AC] VRKeyb texture size: %0.3f, %0.3f", keyb_tex_width, keyb_tex_height);
@@ -1867,7 +1872,10 @@ bool LoadACParams() {
 					log_debug("[DBG] [AC] g_iVRKeyboardSlot: %d", g_iVRKeyboardSlot);
 				}
 			}
-			if (_stricmp(param, "action") == 0) {
+			else if (_stricmp(param, "keyb_width_cms") == 0) {
+				g_vrKeybState.fMetersWidth = fValue / 100.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "action") == 0) {
 				if (g_iVRKeyboardSlot == -1) {
 					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without defining a texture size first.", line);
 					continue;
