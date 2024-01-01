@@ -1407,7 +1407,7 @@ bool rayTriangleIntersect_old(
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
-	float &t, Vector3 &P, float &u, float &v)
+	float &t, Vector3 &P, float &u, float &v, float margin)
 {
 	// From: https://www.scratchapixel.com/code.php?id=9&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle
 #ifdef MOLLER_TRUMBORE 
@@ -1427,11 +1427,13 @@ bool rayTriangleIntersect(
 
 	Vector3 tvec = orig - v0;
 	u = tvec.dot(pvec) * invDet;
-	if (u < 0 || u > 1) return false;
+	//if (u < 0 || u > 1) return false;
+	if (u < 0.0f - margin || u > 1.0f + margin) return false;
 
 	Vector3 qvec = tvec.cross(v0v1);
 	v = dir.dot(qvec) * invDet;
-	if (v < 0 || u + v > 1) return false;
+	//if (v < 0 || u + v > 1) return false;
+	if (v < 0.0f - margin || u + v > 1.0f + margin) return false;
 
 	t = v0v2.dot(qvec) * invDet;
 	P = orig + t * dir;
@@ -2334,7 +2336,7 @@ bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT c
 
 		// Check the intersection with this triangle
 		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
-		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv))
+		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv, 0.0f))
 		{
 			//if (isACTex) tempt -= 0.01f; // Make AC elements a little more likely to be considered before other textures
 			//if (g_bDumpLaserPointerDebugInfo)

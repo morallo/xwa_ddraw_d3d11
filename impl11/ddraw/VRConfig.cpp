@@ -1847,8 +1847,17 @@ bool LoadACParams() {
 				g_fReleaseButtonThreshold = fValue / 100.0f; // Convert to meters
 			}
 
-			if (_stricmp(param, "keyb_image") == 0) {
-				// TODO...
+			if (_stricmp(param, "keyb_texture") == 0) {
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrKeybState.sImageName, 128, sDATFileName);
+					g_vrKeybState.iGroupId = GroupId;
+					g_vrKeybState.iImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for the VR Keyboard",
+						g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
+				}
 			}
 			else if (_stricmp(param, "keyb_texture_size") == 0) {
 				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)

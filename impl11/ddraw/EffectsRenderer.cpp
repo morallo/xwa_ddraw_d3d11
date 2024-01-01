@@ -130,7 +130,7 @@ bool RayTriangleTest(const Intersection& inters);
 bool rayTriangleIntersect(
 	const Vector3& orig, const Vector3& dir,
 	const Vector3& v0, const Vector3& v1, const Vector3& v2,
-	float& t, Vector3& P, float& u, float& v);
+	float& t, Vector3& P, float& u, float& v, float margin);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
 
@@ -1533,7 +1533,10 @@ int EffectsRenderer::LoadDATImage(char* sDATFileName, int GroupId, int ImageId, 
 	*srv = nullptr;
 
 	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
+	{
+		log_debug("[DBG] InitDATReader() failed");
 		return -1;
+	}
 
 	if (!LoadDATFile(sDATFileName)) {
 		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);
@@ -1541,7 +1544,7 @@ int EffectsRenderer::LoadDATImage(char* sDATFileName, int GroupId, int ImageId, 
 	}
 
 	if (!GetDATImageMetadata(GroupId, ImageId, &Width, &Height, &Format)) {
-		log_debug("[DBG] [C++] DAT Image not found");
+		log_debug("[DBG] [C++] DAT Image %d-%d not found", GroupId, ImageId);
 		return -1;
 	}
 
@@ -1578,7 +1581,10 @@ int EffectsRenderer::LoadDATImage(char* sDATFileName, int GroupId, int ImageId, 
 	if (buf != nullptr) delete[] buf;
 
 	if (FAILED(res))
+	{
+		log_debug("[DBG] [C++] Could not create SRV from image data");
 		return -1;
+	}
 
 	return S_OK;
 }
@@ -1665,10 +1671,15 @@ void EffectsRenderer::CreateVRMeshes()
 	//_vrKeybMeshTextureCoordsBuffer->AddRef();
 	//_vrKeybMeshTextureCoordsView->AddRef();
 
-	int res = LoadDATImage(".\\Effects\\ActiveCockpit.dat", 0, 0, _vrKeybTextureSRV.GetAddressOf());
+	int res = LoadDATImage(g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId, _vrKeybTextureSRV.GetAddressOf());
 	if (SUCCEEDED(res))
 	{
 		log_debug("[DBG] [AC] VR Keyboard texture successfully loaded!");
+	}
+	else
+	{
+		log_debug("[DBG] [AC] Could not load texture for VR Keyboard [%s]-[%d]-[%d]",
+			g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
 	}
 
 	// TODO: Check for memory leaks. Should I Release() these resources?
@@ -3410,6 +3421,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 
 	Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
 	Vector3 dir  = { ray.dir.x, ray.dir.y, ray.dir.z };
+	float margin = 0.01f;
 
 	// Test the VR keyboard first
 	if (g_vrKeybState.bVisible)
@@ -3431,37 +3443,53 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 			Vector3 v1 = Vector4ToVector3(p1);
 			Vector3 v2 = Vector4ToVector3(p2);
 
+			// Find the intersection along the triangle's normal (the closest point on the triangle)
+			//Vector3 e10 = v1 - v0;
+			//Vector3 e20 = v2 - v0;
+			//Vector3 N = -1.0f * e10.cross(e20);
+			//float perpDist = FLT_MAX, perpU, perpV;
+			//Vector3 perpP;
+			//bool perpInters = false;
+			//N.normalize();
+			//N *= METERS_TO_OPT; // Everything is OPT scale here
+			//perpInters = rayTriangleIntersect(orig, N, v0, v1, v2, perpDist, perpP, perpU, perpV, margin);
+
 			Vector3 P;
-			float dist, u, v;
+			float dist = FLT_MAX, u, v;
+			bool directedInters = false;
 			//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
 			//if (inters.T < bestInters.T && RayTriangleTest(inters))
-			if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v))
+			directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
+			// If our controller is less that 2cm away from an element, we can assume we're going to touch it
+			/*if (perpInters && fabs(perpDist) < 0.02f)
 			{
-				if (dist > 0.0f)
-				{
-					g_fBestIntersectionDistance = dist;
+				u = perpU; v = perpV; P = perpP; dist = perpDist; directedInters = true;
+			}*/
 
-					const float baryU = u;
-					const float baryV = v;
-					const float baryW = 1.0f - baryU - baryV;
+			// Allowing negative distances prevents phantom clicking when we "push" behind the
+			// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
+			// that means "1cm".
+			if (directedInters && dist > -0.01f)
+			{
+				g_fBestIntersectionDistance = dist;
 
-					XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
-					XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
-					XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
+				const float baryU = u;
+				const float baryV = v;
+				const float baryW = 1.0f - baryU - baryV;
 
-					const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
-					const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+				XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
+				XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
+				XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
 
-					g_LaserPointerBuffer.uv[0] = u;
-					g_LaserPointerBuffer.uv[1] = v;
-					g_iBestIntersTexIdx = g_iVRKeyboardSlot;
+				g_LaserPointerBuffer.uv[0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+				g_LaserPointerBuffer.uv[1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+				g_iBestIntersTexIdx = g_iVRKeyboardSlot;
 
-					g_debug_v0 = v0;
-					g_debug_v1 = v1;
-					g_debug_v2 = v2;
-					g_LaserPointer3DIntersection = P;
-					return;
-				}
+				g_debug_v0 = v0;
+				g_debug_v1 = v1;
+				g_debug_v2 = v2;
+				g_LaserPointer3DIntersection = P;
+				return;
 			}
 		}
 	}
@@ -3485,6 +3513,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	// We premultiply in the code below, so we need to transpose the matrix because
 	// the Vertex shader does a postmultiplication
 	MeshTransform.transpose();
+	margin = 0.0001f;
 
 	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
 	{
@@ -3513,7 +3542,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				float dist, u, v;
 				//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
 				//if (inters.T < bestInters.T && RayTriangleTest(inters))
-				if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v))
+				if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
 				{
 					if (dist < g_fBestIntersectionDistance)
 					{

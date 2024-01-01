@@ -7,7 +7,7 @@
 
 
 // ACTIVE COCKPIT
-#define MAX_AC_COORDS_PER_TEXTURE 64
+#define MAX_AC_COORDS_PER_TEXTURE 80
 #define MAX_AC_TEXTURES_PER_COCKPIT 32
 #define MAX_AC_ACTION_LEN 8 // WORDs (scan codes) used to specify an action
 #define AC_HOLOGRAM_FAKE_VK_CODE 0x01 // Internal AC code to toggle the holograms
