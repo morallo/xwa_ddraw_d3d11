@@ -1596,6 +1596,142 @@ D3dTriangle g_vrKeybTriangles[g_vrKeybNumTriangles];
 XwaVector3 g_vrKeybMeshVertices[g_vrKeybMeshVerticesCount];
 XwaTextureVertex g_vrKeybTextureCoords[g_vrKeybTextureCoordsCount];
 
+/// <summary>
+/// Loads and OBJ and returns the number of triangles read
+/// </summary>
+int EffectsRenderer::LoadOBJ(char* sFileName)
+{
+	FILE* file;
+	int error = 0;
+
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [AC] Could not load file %s", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [AC] Error %d when loading %s", error, sFileName);
+		return -1;
+	}
+
+	std::vector<XwaVector3> vertices;
+	std::vector<XwaVector3> normals;
+	std::vector<XwaTextureVertex> texCoords;
+	std::vector<D3dVertex> indices;
+	std::vector<D3dTriangle> triangles;
+	int indexCounter = 0;
+
+	char line[256];
+	while (!feof(file)) {
+		fgets(line, 256, file);
+		// fgets may fail because EOF has been reached, so we need to check
+		// again here.
+		if (feof(file))
+			break;
+
+		if (line[0] == '#')
+			continue;
+
+		if (line[0] == 'v' && line[1] == ' ')
+		{
+			XwaVector3 v;
+			// With the D3dRendererHook, we're going to use transform matrices that work on
+			// OPT coordinates, so we need to convert OBJ coords into OPT coords and we need
+			// to swap Y and Z coordinates:
+			sscanf_s(line, "v %f %f %f", &v.x, &v.z, &v.y);
+			// And now we add the 40.96 scale factor.
+			v.x *= METERS_TO_OPT;
+			v.y *= METERS_TO_OPT;
+			v.z *= METERS_TO_OPT;
+			vertices.push_back(v);
+		}
+		if (line[0] == 'v' && line[1] == 'n')
+		{
+			XwaVector3 n;
+			sscanf_s(line, "vn %f %f %f", &n.x, &n.y, &n.z);
+			n.normalize();
+			normals.push_back(n);
+		}
+		else if (line[0] == 'v' && line[1] == 't')
+		{
+			XwaTextureVertex t;
+			sscanf_s(line, "vt %f %f", &t.u, &t.v);
+			// UVs are flipped vertically.
+			t.v = 1.0f - t.v;
+			texCoords.push_back(t);
+		}
+		else if (line[0] == 'f')
+		{
+			D3dTriangle tri;
+			int vi, vj, vk;
+			int ti, tj, tk;
+			int ni, nj, nk;
+			// vertex/tex/normal
+			sscanf_s(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
+				&vi, &ti, &ni,
+				&vj, &tj, &nj,
+				&vk, &tk, &nk);
+
+			D3dVertex index;
+			index.iV = vi - 1;
+			index.iT = ti - 1;
+			index.iN = ni - 1;
+			index.c = 0;
+			tri.v1 = indices.size();
+			indices.push_back(index);
+
+			index.iV = vj - 1;
+			index.iT = tj - 1;
+			index.iN = nj - 1;
+			index.c = 0;
+			tri.v2 = indices.size();
+			indices.push_back(index);
+
+			index.iV = vk - 1;
+			index.iT = tk - 1;
+			index.iN = nk - 1;
+			index.c = 0;
+			tri.v3 = indices.size();
+			indices.push_back(index);
+
+			triangles.push_back(tri);
+		}
+	}
+	fclose(file);
+
+	log_debug("[DBG] [AC] Loaded %d vertices, %d normals, %d texcoords, %d indices, %d triangles",
+		vertices.size(), normals.size(), texCoords.size(), indices.size(), triangles.size());
+
+	ID3D11Device* device = _deviceResources->_d3dDevice;
+
+	D3D11_SUBRESOURCE_DATA initialData;
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+
+	// Create the index and triangle buffers
+	initialData.pSysMem = indices.data();
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(indices.size() * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRVertexBuffer);
+	initialData.pSysMem = triangles.data();
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(triangles.size() * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRIndexBuffer);
+
+	// Create the mesh buffers and SRVs
+	initialData.pSysMem = vertices.data();
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(vertices.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRMeshVerticesBuffer);
+	device->CreateShaderResourceView(_vrGloveRMeshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrGloveRMeshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, vertices.size()), &_vrGloveRMeshVerticesSRV);
+
+	initialData.pSysMem = normals.data();
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(normals.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRMeshNormalsBuffer);
+	device->CreateShaderResourceView(_vrGloveRMeshNormalsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrGloveRMeshNormalsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normals.size()), &_vrGloveRMeshNormalsSRV);
+
+	initialData.pSysMem = texCoords.data();
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoords.size() * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRMeshTexCoordsBuffer);
+	device->CreateShaderResourceView(_vrGloveRMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrGloveRMeshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoords.size()), &_vrGloveRMeshTexCoordsSRV);
+
+	return triangles.size();
+}
+
 void EffectsRenderer::CreateVRMeshes()
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
@@ -1608,9 +1744,9 @@ void EffectsRenderer::CreateVRMeshes()
 	constexpr int numVertices = 4;
 	D3dVertex _vertices[numVertices];
 
-	// The OPT/D3dHook system uses an indexing scheme for some reason. I don't have
-	// an use for that right now, but I still need to provide indices for
-	// XwaD3dVertexShader. So here the indices are just an "identity function":
+	// The OPT/D3dHook system uses an indexing scheme, but I don't need it
+	// here because the keyboard is just two triangles, so let's just use
+	// an "identity function":
 	_vertices[0] = { 0, 0, 0, 0 };
 	_vertices[1] = { 1, 0, 1, 0 };
 	_vertices[2] = { 2, 0, 2, 0 };
@@ -1635,7 +1771,7 @@ void EffectsRenderer::CreateVRMeshes()
 	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };*/
 	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
 	const float W = g_vrKeybState.fMetersWidth * METERS_TO_OPT, H = W / ratio;
-\
+
 	// Center the keyboard around the origin, but displaced upwards and a little bit forward.
 	// This makes the keyboard appear slightly above our hand and near the index finger.
 	const float dispY = -0.03f * METERS_TO_OPT;
@@ -1663,7 +1799,7 @@ void EffectsRenderer::CreateVRMeshes()
 	initialData.pSysMem = g_vrKeybTextureCoords;
 
 	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybTextureCoordsCount * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshTexCoordsBuffer);
-	device->CreateShaderResourceView(_vrKeybMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, g_vrKeybTextureCoordsCount), &_vrKeybMeshTexCoordsSRV);
+	device->CreateShaderResourceView(_vrKeybMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, g_vrKeybTextureCoordsCount), &_vrKeybMeshTexCoordsSRV);
 	//_vrKeybVertexBuffer->AddRef();
 	//_vrKeybIndexBuffer->AddRef();
 	//_vrKeybMeshVerticesBuffer->AddRef();
@@ -1681,10 +1817,32 @@ void EffectsRenderer::CreateVRMeshes()
 		log_debug("[DBG] [AC] Could not load texture for VR Keyboard [%s]-[%d]-[%d]",
 			g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
 	}
+	log_debug("[DBG] [AC] Virtual keyboard buffers CREATED");
+
+	// *************************************************
+	// Gloves
+	// *************************************************
+	char* sGloveRFileName = "Effects\\GlovedHandR.obj";
+	_vrGloveRNumTriangles = LoadOBJ(sGloveRFileName);
+	if (_vrGloveRNumTriangles > 0)
+	{
+		log_debug("[DBG] [AC] Loaded OBJ: %s", sGloveRFileName);
+	}
+
+	char* sGloveRTexture = "Effects\\ActiveCockpit.dat";
+	res = LoadDATImage(sGloveRTexture, 1, 0, _vrGloveRTextureSRV.GetAddressOf());
+	if (SUCCEEDED(res))
+	{
+		log_debug("[DBG] [AC] GloveR texture successfully loaded!");
+	}
+	else
+	{
+		log_debug("[DBG] [AC] Could not load texture for GloveR [%s]",
+			sGloveRTexture);
+	}
 
 	// TODO: Check for memory leaks. Should I Release() these resources?
-
-	log_debug("[DBG] [AC] Virtual keyboard buffers CREATED");
+	log_debug("[DBG] [AC] VR glove hand buffers CREATED");
 }
 
 void EffectsRenderer::CreateShaders() {
@@ -1994,6 +2152,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	// VR Keyboard
 	g_vrKeybState.bRendered = false;
+	g_vrGlovesState.bRendered = false;
+
 	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
 	{
 		const int contIdx = g_vrKeybState.iActivatorContIdx;
@@ -5681,6 +5841,8 @@ void EffectsRenderer::RenderTransparency()
 
 void EffectsRenderer::RenderVRGeometry()
 {
+	/*if (!g_bUseSteamVR)
+		return;*/
 	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
 	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || !g_vrKeybState.bVisible || !_bCockpitConstantsCaptured)
 		return;
@@ -5755,6 +5917,96 @@ void EffectsRenderer::RenderVRGeometry()
 
 	// Restore the previous state
 	g_vrKeybState.bRendered = true;
+	RestoreContext();
+	_deviceResources->EndAnnotatedEvent();
+}
+
+void EffectsRenderer::RenderVRGloves()
+{
+	/*if (!g_bUseSteamVR)
+		return;*/
+
+	// g_vrGlovesState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
+	if (!g_bActiveCockpitEnabled || _vrGloveRNumTriangles <= 0 || g_vrGlovesState.bRendered ||
+		!g_vrGlovesState.bVisible || !_bCockpitConstantsCaptured)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderVRGloves");
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rastersize and depth stencil states for transparency
+	_deviceResources->InitBlendState(_solidBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	// fSSAOAlphaMult ?
+	// fSSAOMaskVal ?
+	// fPosNormalAlpha ?
+	// fBloomStrength ?
+	// bInHyperspace ?
+
+	// Flags used in RenderScene():
+	_bIsCockpit = true;
+	_bIsGunner = false;
+	_bIsBlastMark = false;
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+	// DEBUG: Put the gloves in the center of the dashboard
+	Matrix4 T;
+	T.identity();
+	T.translate(0.0f, -20.0f, 20.0f);
+	T.transpose();
+	g_vrKeybState.Transform = T;
+
+	g_OPTMeshTransformCB.MeshTransform = g_vrKeybState.Transform;
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+	// Set the textures
+	_deviceResources->InitPSShaderResourceView(_vrGloveRTextureSRV.Get(), nullptr);
+
+	// Set the mesh buffers
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrGloveRMeshVerticesSRV.Get(), _vrGloveRMeshNormalsSRV.Get(), _vrGloveRMeshTexCoordsSRV.Get(), nullptr};
+	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+	_deviceResources->InitVertexBuffer(_vrGloveRVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(nullptr, true);
+	_deviceResources->InitIndexBuffer(_vrGloveRIndexBuffer.Get(), true);
+
+	// Set the constants buffer
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	_trianglesCount = _vrGloveRNumTriangles;
+	//_deviceResources->InitPixelShader(_pixelShader);
+	// TODO: Provide a proper pixel shader for the VR Keyboard:
+	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
+
+	// Render the deferred commands
+	RenderScene();
+
+	// Decrease the refcount of the textures
+	/*for (int i = 0; i < 2; i++)
+		if (_vrKeybCommand.SRVs[i] != nullptr) _vrKeybCommand.SRVs[i]->Release();*/
+
+	// Restore the previous state
+	g_vrGlovesState.bRendered = true;
 	RestoreContext();
 	_deviceResources->EndAnnotatedEvent();
 }
@@ -6454,6 +6706,7 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
-	RenderVRGeometry();
+	//RenderVRGeometry();
+	RenderVRGloves();
 	_deviceResources->EndAnnotatedEvent();
 }

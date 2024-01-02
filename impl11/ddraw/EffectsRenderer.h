@@ -100,6 +100,18 @@ protected:
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybTextureSRV;
 
+	// Gloved hands:
+	ComPtr<ID3D11Buffer> _vrGloveRVertexBuffer;
+	ComPtr<ID3D11Buffer> _vrGloveRIndexBuffer;
+	ComPtr<ID3D11Buffer> _vrGloveRMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _vrGloveRMeshNormalsBuffer;
+	ComPtr<ID3D11Buffer> _vrGloveRMeshTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _vrGloveRMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrGloveRMeshNormalsSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrGloveRMeshTexCoordsSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrGloveRTextureSRV;
+	int _vrGloveRNumTriangles;
+
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
 	FLOAT _oldBlendFactor[4];
@@ -127,6 +139,7 @@ protected:
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
 		short* Width_out=nullptr, short* Height_out=nullptr);
+	int LoadOBJ(char* sFileName);
 
 public:
 	bool _bCockpitConstantsCaptured;
@@ -184,6 +197,7 @@ public:
 	void RenderLasers();
 	void RenderTransparency();
 	void RenderVRGeometry();
+	void RenderVRGloves();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
 	void StartCascadedShadowMap();

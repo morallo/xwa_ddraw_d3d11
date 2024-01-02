@@ -114,6 +114,20 @@ struct VRKeybState
 
 extern VRKeybState g_vrKeybState;
 
+struct VRGlovesState
+{
+	bool bVisible;
+	bool bRendered;
+
+	VRGlovesState()
+	{
+		bVisible = true;
+		bRendered = false;
+	}
+};
+
+extern VRGlovesState g_vrGlovesState;
+
 /*
  *	SteamVR specific functions declarations
  */
