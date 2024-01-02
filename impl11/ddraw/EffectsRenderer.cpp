@@ -1623,6 +1623,11 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 		return -1;
 	}
 
+	float yMin = FLT_MAX;
+	// In XWA's coord sys, Y- is forwards, so we initialize to FLT_MAX to get the lowest point
+	// in the Y axis:
+	g_vrGlovesMeshes[gloveIdx].forwardPmeters = FLT_MAX;
+
 	std::vector<XwaVector3> vertices;
 	std::vector<XwaVector3> normals;
 	std::vector<XwaTextureVertex> texCoords;
@@ -1648,6 +1653,7 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 			// OPT coordinates, so we need to convert OBJ coords into OPT coords and we need
 			// to swap Y and Z coordinates:
 			sscanf_s(line, "v %f %f %f", &v.x, &v.z, &v.y);
+			if (v.y < g_vrGlovesMeshes[gloveIdx].forwardPmeters) g_vrGlovesMeshes[gloveIdx].forwardPmeters = v.y;
 			// And now we add the 40.96 scale factor.
 			v.x *= METERS_TO_OPT;
 			v.y *= METERS_TO_OPT;
@@ -1714,6 +1720,8 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 
 	log_debug("[DBG] [AC] Loaded %d vertices, %d normals, %d texcoords, %d indices, %d triangles",
 		vertices.size(), normals.size(), texCoords.size(), indices.size(), triangles.size());
+	g_vrGlovesMeshes[gloveIdx].forwardPmeters = fabs(g_vrGlovesMeshes[gloveIdx].forwardPmeters);
+	log_debug("[DBG] [AC] forwardPmeters: %0.3f", g_vrGlovesMeshes[gloveIdx].forwardPmeters);
 
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
@@ -2216,7 +2224,9 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			R.rotateX(55.0f);
 
 			Matrix4 Tinv, Sinv;
-			Tinv.translate(cockpitOriginX, cockpitOriginY, cockpitOriginZ);
+			Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
+			               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
+			               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 			Sinv.scale(METERS_TO_OPT);
 
 			// The keyboard is already centered at the origin, so we don't need to apply T:
@@ -3076,6 +3086,7 @@ void EffectsRenderer::SaveContext()
 
 	UINT NumRects = 1;
 	context->RSGetScissorRects(&NumRects, &_oldScissorRect);
+	_oldPose = g_OPTMeshTransformCB.MeshTransform;
 }
 
 void EffectsRenderer::RestoreContext()
@@ -3140,6 +3151,7 @@ void EffectsRenderer::RestoreContext()
 	_oldInputLayout.Release();
 	_oldVertexBuffer.Release();
 	_oldIndexBuffer.Release();
+	g_OPTMeshTransformCB.MeshTransform = _oldPose;
 }
 
 void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
@@ -3625,6 +3637,11 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
 	Vector3 dir  = { ray.dir.x, ray.dir.y, ray.dir.z };
 	float margin = 0.01f;
+	const int contIdx = g_ACPointerData.contIdx;
+	if (g_vrGlovesMeshes[contIdx].visible)
+	{
+		orig += g_vrGlovesMeshes[contIdx].forwardPmeters * dir;
+	}
 
 	// Test the VR keyboard first
 	if (g_vrKeybState.bVisible)
@@ -6014,7 +6031,9 @@ void EffectsRenderer::RenderVRGloves()
 	Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 	Matrix4 S, T, Sinv, Tinv;
 	S.scale(OPT_TO_METERS);
-	Tinv.translate(cockpitOriginX, cockpitOriginY, cockpitOriginZ);
+	Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
+	               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
+	               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 	Sinv.scale(METERS_TO_OPT);
 
 	Matrix4 toSteamVR = swap * S;
@@ -6031,7 +6050,7 @@ void EffectsRenderer::RenderVRGloves()
 	for (int i = 0; i < 2; i++)
 	{
 		// g_vrGlovesMeshes.rendered is set to false on SceneBegin() -- at the beginning of each frame
-		if (g_vrGlovesMeshes[i].numTriangles <= 0 || !g_vrGlovesMeshes[i].visible || g_vrGlovesMeshes[i].rendered)
+		if (g_vrGlovesMeshes[i].numTriangles <= 0 || !g_vrGlovesMeshes[i].visible || g_vrGlovesMeshes[i].rendered || !g_contStates[i].bIsValid)
 			continue;
 
 		// DEBUG: This translation puts an OBJ centered at the origin on top of the AwingCockpit dashboard
@@ -6042,9 +6061,6 @@ void EffectsRenderer::RenderVRGloves()
 		T.transpose();
 		g_vrGlovesMeshes[i].pose = T;
 		*/
-
-		if (!g_contStates[i].bIsValid)
-			continue;
 
 		g_vrGlovesMeshes[i].pose = toOPT * g_contStates[i].pose * toSteamVR;
 		g_vrGlovesMeshes[i].pose.transpose();

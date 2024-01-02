@@ -70,6 +70,7 @@ struct VRGlovesMesh
 	Matrix4 pose;
 	bool visible;
 	bool rendered;
+	float forwardPmeters; // The forward-most point in this mesh, in meters. Used to push buttons
 };
 
 extern VRGlovesMesh g_vrGlovesMeshes[2];
@@ -111,6 +112,7 @@ protected:
 	ComPtr<ID3D11BlendState> _oldBlendState;
 	ComPtr<ID3D11InputLayout> _oldInputLayout;
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+	Matrix4 _oldPose;
 
 	ComPtr<ID3D11Buffer> _vrKeybVertexBuffer;
 	ComPtr<ID3D11Buffer> _vrKeybIndexBuffer;

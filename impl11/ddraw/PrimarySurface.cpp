@@ -7408,10 +7408,14 @@ Vector4 SteamVRToOPTCoords(Vector4 P)
 	float cockpitOriginY = *g_POV_Y;
 	float cockpitOriginZ = *g_POV_Z;
 
+	float dispX = P.w * (cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor));
+	float dispY = P.w * (cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor));
+	float dispZ = P.w * (cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
+
 	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
-	Q.x = (P.x * METERS_TO_OPT) + P.w * cockpitOriginX;
-	Q.y = (P.z * METERS_TO_OPT) + P.w * cockpitOriginY; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
-	Q.z = (P.y * METERS_TO_OPT) + P.w * cockpitOriginZ;
+	Q.x = (P.x * METERS_TO_OPT) + dispX;
+	Q.y = (P.z * METERS_TO_OPT) + dispY; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
+	Q.z = (P.y * METERS_TO_OPT) + dispZ;
 	Q.w = P.w;
 
 	return Q;
@@ -7429,10 +7433,14 @@ Vector4 OPTCoordsToSteamVR(Vector4 P)
 	float cockpitOriginY = *g_POV_Y;
 	float cockpitOriginZ = *g_POV_Z;
 
+	float dispX = P.w * (cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor));
+	float dispY = P.w * (cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor));
+	float dispZ = P.w * (cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
+
 	// Swap Z-Y axes to match XWA's coord sys and move the origin to this cockpit's POV:
-	P.x = (Q.x - P.w * cockpitOriginX) * OPT_TO_METERS;
-	P.y = (Q.z - P.w * cockpitOriginZ) * OPT_TO_METERS; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
-	P.z = (Q.y - P.w * cockpitOriginY) * OPT_TO_METERS;
+	P.x = (Q.x - dispX) * OPT_TO_METERS;
+	P.y = (Q.z - dispY) * OPT_TO_METERS; // Y- is forwards in XWA and Z- is forwards in SteamVR, so we're even
+	P.z = (Q.y - dispZ) * OPT_TO_METERS;
 	Q.w = P.w;
 
 	return Q;
