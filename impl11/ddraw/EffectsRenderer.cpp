@@ -420,6 +420,11 @@ inline Vector3 XwaVector3ToVector3(const XwaVector3& V)
 	return Vector3(V.x, V.y, V.z);
 }
 
+inline XwaVector3 Vector4ToXwaVector3(const Vector4& V)
+{
+	return XwaVector3(V.x, V.y, V.z);
+}
+
 inline Vector3 Vector4ToVector3(const Vector4& V)
 {
 	return Vector3(V.x, V.y, V.z);
@@ -1601,7 +1606,7 @@ XwaTextureVertex g_vrKeybTextureCoords[g_vrKeybTextureCoordsCount];
 /// <summary>
 /// Loads and OBJ and returns the number of triangles read
 /// </summary>
-int EffectsRenderer::LoadOBJ(int gloveIdx, char* sFileName)
+int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 {
 	FILE* file;
 	int error = 0;
@@ -1647,14 +1652,18 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, char* sFileName)
 			v.x *= METERS_TO_OPT;
 			v.y *= METERS_TO_OPT;
 			v.z *= METERS_TO_OPT;
-			vertices.push_back(v);
+			Vector4 V = R * XwaVector3ToVector4(v);
+			vertices.push_back(Vector4ToXwaVector3(V));
 		}
 		if (line[0] == 'v' && line[1] == 'n')
 		{
 			XwaVector3 n;
-			sscanf_s(line, "vn %f %f %f", &n.x, &n.y, &n.z);
+			sscanf_s(line, "vn %f %f %f", &n.x, &n.z, &n.y);
 			n.normalize();
-			normals.push_back(n);
+			Vector4 N = XwaVector3ToVector4(n);
+			N.w = 0;
+			N = R * N;
+			normals.push_back(Vector4ToXwaVector3(N));
 		}
 		else if (line[0] == 'v' && line[1] == 't')
 		{
@@ -1843,24 +1852,31 @@ void EffectsRenderer::CreateVRMeshes()
 	// *************************************************
 	// Gloves
 	// *************************************************
-	for (int i = 0; i < 1; i++)
+	char *sGloveFileNames[2] = {
+		"Effects\\ActiveCockpit\\GloveL.obj",
+		"Effects\\ActiveCockpit\\GloveR.obj"
+	};
+
+	Matrix4 R;
+	R.identity();
+	R.rotateX(45.0f); // The VR controllers tilt the objects a bit
+	for (int i = 0; i < 2; i++)
 	{
-		char* sGloveRFileName = "Effects\\GlovedHandR.obj";
-		g_vrGlovesMeshes[i].numTriangles = LoadOBJ(i, sGloveRFileName);
+		g_vrGlovesMeshes[i].numTriangles = LoadOBJ(i, R, sGloveFileNames[i]);
 		if (g_vrGlovesMeshes[i].numTriangles > 0)
 		{
-			log_debug("[DBG] [AC] Loaded OBJ: %s", sGloveRFileName);
+			log_debug("[DBG] [AC] Loaded OBJ: %s", sGloveFileNames[i]);
 		}
 
 		char* sGloveRTexture = "Effects\\ActiveCockpit.dat";
 		res = LoadDATImage(sGloveRTexture, 1, 0, g_vrGlovesMeshes[i].textureSRV.GetAddressOf());
 		if (SUCCEEDED(res))
 		{
-			log_debug("[DBG] [AC] GloveR texture successfully loaded!");
+			log_debug("[DBG] [AC] Glove texture successfully loaded!");
 		}
 		else
 		{
-			log_debug("[DBG] [AC] Could not load texture for GloveR [%s]",
+			log_debug("[DBG] [AC] Could not load texture for Glove [%s]",
 				sGloveRTexture);
 		}
 		log_debug("[DBG] [AC] VR glove hand buffers CREATED");
@@ -2174,30 +2190,30 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		}
 	}
 
-	// VR Keyboard
+	// VR Keyboard and gloves
 	g_vrKeybState.bRendered = false;
 	g_vrGlovesMeshes[0].rendered = false;
-	g_vrGlovesMeshes[0].visible = true;
+	g_vrGlovesMeshes[0].visible  = true;
 	g_vrGlovesMeshes[1].rendered = false;
-	g_vrGlovesMeshes[1].visible = false;
+	g_vrGlovesMeshes[1].visible  = true;
 
 	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
 	{
+		const float cockpitOriginX = *g_POV_X;
+		const float cockpitOriginY = *g_POV_Y;
+		const float cockpitOriginZ = *g_POV_Z;
+
+		static Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+
 		const int contIdx = g_vrKeybState.iActivatorContIdx;
 		// Only update the position while the second button is pressed:
 		if (g_vrKeybState.bVisible && g_contStates[contIdx].buttons[g_vrKeybState.iActivatorButtonIdx])
 		{
-			const float cockpitOriginX = *g_POV_X;
-			const float cockpitOriginY = *g_POV_Y;
-			const float cockpitOriginZ = *g_POV_Z;
-
-			float m[16] = { 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 };
-			Matrix4 swap(m);
 			Matrix4 R, S;
 			//T.translate(-cockpitOriginX, -cockpitOriginY, -cockpitOriginZ);
 			S.scale(OPT_TO_METERS);
-			// The VR controllers are titled by about ~45-50 degrees, we need to compensate for that:
-			R.rotateX(50.0f);
+			// The VR controllers are titled by about ~45-55 degrees, we need to compensate for that:
+			R.rotateX(55.0f);
 
 			Matrix4 Tinv, Sinv;
 			Tinv.translate(cockpitOriginX, cockpitOriginY, cockpitOriginZ);
@@ -5868,8 +5884,9 @@ void EffectsRenderer::RenderTransparency()
 
 void EffectsRenderer::RenderVRGeometry()
 {
-	/*if (!g_bUseSteamVR)
-		return;*/
+	if (!g_bUseSteamVR)
+		return;
+
 	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
 	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || !g_vrKeybState.bVisible || !_bCockpitConstantsCaptured)
 		return;
@@ -5880,7 +5897,7 @@ void EffectsRenderer::RenderVRGeometry()
 	auto& context = resources->_d3dDeviceContext;
 
 	SaveContext();
-
+\
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersize and depth stencil states for transparency
@@ -5950,10 +5967,9 @@ void EffectsRenderer::RenderVRGeometry()
 
 void EffectsRenderer::RenderVRGloves()
 {
-	/*if (!g_bUseSteamVR)
-		return;*/
+	if (!g_bUseSteamVR)
+		return;
 
-	// g_vrGlovesState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
 	if (!g_bActiveCockpitEnabled || !_bCockpitConstantsCaptured)
 		return;
 
@@ -5991,24 +6007,49 @@ void EffectsRenderer::RenderVRGloves()
 	_bIsGunner = false;
 	_bIsBlastMark = false;
 
+	const float cockpitOriginX = *g_POV_X;
+	const float cockpitOriginY = *g_POV_Y;
+	const float cockpitOriginZ = *g_POV_Z;
+
+	Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+	Matrix4 S, T, Sinv, Tinv;
+	S.scale(OPT_TO_METERS);
+	Tinv.translate(cockpitOriginX, cockpitOriginY, cockpitOriginZ);
+	Sinv.scale(METERS_TO_OPT);
+
+	Matrix4 toSteamVR = swap * S;
+	Matrix4 toOPT     = Tinv * Sinv * swap;
+
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+	//_deviceResources->InitPixelShader(_pixelShader);
+	// TODO: Provide a proper pixel shader for the gloves
+	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
 
 	// Render both gloves (if they are enabled)
 	for (int i = 0; i < 2; i++)
 	{
+		// g_vrGlovesMeshes.rendered is set to false on SceneBegin() -- at the beginning of each frame
 		if (g_vrGlovesMeshes[i].numTriangles <= 0 || !g_vrGlovesMeshes[i].visible || g_vrGlovesMeshes[i].rendered)
 			continue;
 
-		// DEBUG: Put the gloves in the center of the dashboard
+		// DEBUG: This translation puts an OBJ centered at the origin on top of the AwingCockpit dashboard
+		/*
 		Matrix4 T;
 		T.identity();
 		T.translate(0.0f, -20.0f, 20.0f);
 		T.transpose();
-		g_vrKeybState.Transform = T;
+		g_vrGlovesMeshes[i].pose = T;
+		*/
 
-		// TODO: Replace g_vrKeybState with the proper glove-related state.
-		g_OPTMeshTransformCB.MeshTransform = g_vrKeybState.Transform;
+		if (!g_contStates[i].bIsValid)
+			continue;
+
+		g_vrGlovesMeshes[i].pose = toOPT * g_contStates[i].pose * toSteamVR;
+		g_vrGlovesMeshes[i].pose.transpose();
+
+		g_OPTMeshTransformCB.MeshTransform = g_vrGlovesMeshes[i].pose;
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 		// Set the textures
@@ -6031,9 +6072,6 @@ void EffectsRenderer::RenderVRGloves()
 		// Set the constants buffer
 		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
 		_trianglesCount = g_vrGlovesMeshes[i].numTriangles;
-		//_deviceResources->InitPixelShader(_pixelShader);
-		// TODO: Provide a proper pixel shader for the VR Keyboard:
-		_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
 
 		// Render the deferred commands
 		RenderScene();
@@ -6744,7 +6782,7 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
-	//RenderVRGeometry();
+	RenderVRGeometry();
 	RenderVRGloves();
 	_deviceResources->EndAnnotatedEvent();
 }

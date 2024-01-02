@@ -147,7 +147,7 @@ protected:
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
 		short* Width_out=nullptr, short* Height_out=nullptr);
-	int LoadOBJ(int gloveIdx, char* sFileName);
+	int LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName);
 
 public:
 	bool _bCockpitConstantsCaptured;
