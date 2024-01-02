@@ -44,7 +44,6 @@ float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 
 ControllerState g_prevContStates[2];
 ControllerState g_contStates[2];
 VRKeybState     g_vrKeybState;
-VRGlovesState   g_vrGlovesState;
 
 const char *VRButtonNames[VRButtons::MAX]
 {

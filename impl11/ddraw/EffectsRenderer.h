@@ -54,6 +54,26 @@ extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, float *v);
 Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
 
+struct VRGlovesMesh
+{
+	// Gloved hands:
+	ComPtr<ID3D11Buffer> vertexBuffer;
+	ComPtr<ID3D11Buffer> indexBuffer;
+	ComPtr<ID3D11Buffer> meshVerticesBuffer;
+	ComPtr<ID3D11Buffer> meshNormalsBuffer;
+	ComPtr<ID3D11Buffer> meshTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> meshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> meshNormalsSRV;
+	ComPtr<ID3D11ShaderResourceView> meshTexCoordsSRV;
+	ComPtr<ID3D11ShaderResourceView> textureSRV;
+	int numTriangles;
+	Matrix4 pose;
+	bool visible;
+	bool rendered;
+};
+
+extern VRGlovesMesh g_vrGlovesMeshes[2];
+
 class EffectsRenderer : public D3dRenderer
 {
 protected:
@@ -100,18 +120,6 @@ protected:
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybTextureSRV;
 
-	// Gloved hands:
-	ComPtr<ID3D11Buffer> _vrGloveRVertexBuffer;
-	ComPtr<ID3D11Buffer> _vrGloveRIndexBuffer;
-	ComPtr<ID3D11Buffer> _vrGloveRMeshVerticesBuffer;
-	ComPtr<ID3D11Buffer> _vrGloveRMeshNormalsBuffer;
-	ComPtr<ID3D11Buffer> _vrGloveRMeshTexCoordsBuffer;
-	ComPtr<ID3D11ShaderResourceView> _vrGloveRMeshVerticesSRV;
-	ComPtr<ID3D11ShaderResourceView> _vrGloveRMeshNormalsSRV;
-	ComPtr<ID3D11ShaderResourceView> _vrGloveRMeshTexCoordsSRV;
-	ComPtr<ID3D11ShaderResourceView> _vrGloveRTextureSRV;
-	int _vrGloveRNumTriangles;
-
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
 	FLOAT _oldBlendFactor[4];
@@ -139,7 +147,7 @@ protected:
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
 		short* Width_out=nullptr, short* Height_out=nullptr);
-	int LoadOBJ(char* sFileName);
+	int LoadOBJ(int gloveIdx, char* sFileName);
 
 public:
 	bool _bCockpitConstantsCaptured;

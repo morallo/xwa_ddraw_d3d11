@@ -95,6 +95,8 @@ std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
 // other stuff in the future)
 std::map<uint64_t, FixedInstanceData> g_fixedInstanceDataMap;
 
+VRGlovesMesh g_vrGlovesMeshes[2];
+
 EffectsRenderer *g_effects_renderer = nullptr;
 
 // Current turn rate. This will make the ship turn faster at 1/3 throttle.
@@ -1599,7 +1601,7 @@ XwaTextureVertex g_vrKeybTextureCoords[g_vrKeybTextureCoordsCount];
 /// <summary>
 /// Loads and OBJ and returns the number of triangles read
 /// </summary>
-int EffectsRenderer::LoadOBJ(char* sFileName)
+int EffectsRenderer::LoadOBJ(int gloveIdx, char* sFileName)
 {
 	FILE* file;
 	int error = 0;
@@ -1712,22 +1714,41 @@ int EffectsRenderer::LoadOBJ(char* sFileName)
 
 	// Create the index and triangle buffers
 	initialData.pSysMem = indices.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(indices.size() * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRVertexBuffer);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(indices.size() * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData,
+		&(g_vrGlovesMeshes[gloveIdx].vertexBuffer));
+		//&_vrGloveRVertexBuffer);
 	initialData.pSysMem = triangles.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(triangles.size() * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRIndexBuffer);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(triangles.size() * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData,
+		&(g_vrGlovesMeshes[gloveIdx].indexBuffer));
+		//&_vrGloveRIndexBuffer);
 
 	// Create the mesh buffers and SRVs
 	initialData.pSysMem = vertices.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(vertices.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRMeshVerticesBuffer);
-	device->CreateShaderResourceView(_vrGloveRMeshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrGloveRMeshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, vertices.size()), &_vrGloveRMeshVerticesSRV);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(vertices.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
+		&(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffer));
+		//&_vrGloveRMeshVerticesBuffer);
+	device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, vertices.size()),
+		&(g_vrGlovesMeshes[gloveIdx].meshVerticesSRV));
+		//&_vrGloveRMeshVerticesSRV);
 
 	initialData.pSysMem = normals.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(normals.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRMeshNormalsBuffer);
-	device->CreateShaderResourceView(_vrGloveRMeshNormalsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrGloveRMeshNormalsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normals.size()), &_vrGloveRMeshNormalsSRV);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(normals.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
+		&(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer));
+		//&_vrGloveRMeshNormalsBuffer);
+	device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normals.size()),
+		&(g_vrGlovesMeshes[gloveIdx].meshNormalsSRV));
+		//&_vrGloveRMeshNormalsSRV);
 
 	initialData.pSysMem = texCoords.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoords.size() * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrGloveRMeshTexCoordsBuffer);
-	device->CreateShaderResourceView(_vrGloveRMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrGloveRMeshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoords.size()), &_vrGloveRMeshTexCoordsSRV);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoords.size() * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
+		&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer));
+		//&_vrGloveRMeshTexCoordsBuffer);
+	device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoords.size()),
+		&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsSRV));
+		//&_vrGloveRMeshTexCoordsSRV);
 
 	return triangles.size();
 }
@@ -1822,27 +1843,30 @@ void EffectsRenderer::CreateVRMeshes()
 	// *************************************************
 	// Gloves
 	// *************************************************
-	char* sGloveRFileName = "Effects\\GlovedHandR.obj";
-	_vrGloveRNumTriangles = LoadOBJ(sGloveRFileName);
-	if (_vrGloveRNumTriangles > 0)
+	for (int i = 0; i < 1; i++)
 	{
-		log_debug("[DBG] [AC] Loaded OBJ: %s", sGloveRFileName);
-	}
+		char* sGloveRFileName = "Effects\\GlovedHandR.obj";
+		g_vrGlovesMeshes[i].numTriangles = LoadOBJ(i, sGloveRFileName);
+		if (g_vrGlovesMeshes[i].numTriangles > 0)
+		{
+			log_debug("[DBG] [AC] Loaded OBJ: %s", sGloveRFileName);
+		}
 
-	char* sGloveRTexture = "Effects\\ActiveCockpit.dat";
-	res = LoadDATImage(sGloveRTexture, 1, 0, _vrGloveRTextureSRV.GetAddressOf());
-	if (SUCCEEDED(res))
-	{
-		log_debug("[DBG] [AC] GloveR texture successfully loaded!");
-	}
-	else
-	{
-		log_debug("[DBG] [AC] Could not load texture for GloveR [%s]",
-			sGloveRTexture);
+		char* sGloveRTexture = "Effects\\ActiveCockpit.dat";
+		res = LoadDATImage(sGloveRTexture, 1, 0, g_vrGlovesMeshes[i].textureSRV.GetAddressOf());
+		if (SUCCEEDED(res))
+		{
+			log_debug("[DBG] [AC] GloveR texture successfully loaded!");
+		}
+		else
+		{
+			log_debug("[DBG] [AC] Could not load texture for GloveR [%s]",
+				sGloveRTexture);
+		}
+		log_debug("[DBG] [AC] VR glove hand buffers CREATED");
 	}
 
 	// TODO: Check for memory leaks. Should I Release() these resources?
-	log_debug("[DBG] [AC] VR glove hand buffers CREATED");
 }
 
 void EffectsRenderer::CreateShaders() {
@@ -2152,7 +2176,10 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 	// VR Keyboard
 	g_vrKeybState.bRendered = false;
-	g_vrGlovesState.bRendered = false;
+	g_vrGlovesMeshes[0].rendered = false;
+	g_vrGlovesMeshes[0].visible = true;
+	g_vrGlovesMeshes[1].rendered = false;
+	g_vrGlovesMeshes[1].visible = false;
 
 	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
 	{
@@ -5927,8 +5954,7 @@ void EffectsRenderer::RenderVRGloves()
 		return;*/
 
 	// g_vrGlovesState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
-	if (!g_bActiveCockpitEnabled || _vrGloveRNumTriangles <= 0 || g_vrGlovesState.bRendered ||
-		!g_vrGlovesState.bVisible || !_bCockpitConstantsCaptured)
+	if (!g_bActiveCockpitEnabled || !_bCockpitConstantsCaptured)
 		return;
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVRGloves");
@@ -5968,45 +5994,57 @@ void EffectsRenderer::RenderVRGloves()
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 
-	// DEBUG: Put the gloves in the center of the dashboard
-	Matrix4 T;
-	T.identity();
-	T.translate(0.0f, -20.0f, 20.0f);
-	T.transpose();
-	g_vrKeybState.Transform = T;
+	// Render both gloves (if they are enabled)
+	for (int i = 0; i < 2; i++)
+	{
+		if (g_vrGlovesMeshes[i].numTriangles <= 0 || !g_vrGlovesMeshes[i].visible || g_vrGlovesMeshes[i].rendered)
+			continue;
 
-	g_OPTMeshTransformCB.MeshTransform = g_vrKeybState.Transform;
-	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+		// DEBUG: Put the gloves in the center of the dashboard
+		Matrix4 T;
+		T.identity();
+		T.translate(0.0f, -20.0f, 20.0f);
+		T.transpose();
+		g_vrKeybState.Transform = T;
 
-	// Set the textures
-	_deviceResources->InitPSShaderResourceView(_vrGloveRTextureSRV.Get(), nullptr);
+		// TODO: Replace g_vrKeybState with the proper glove-related state.
+		g_OPTMeshTransformCB.MeshTransform = g_vrKeybState.Transform;
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
-	// Set the mesh buffers
-	ID3D11ShaderResourceView* vsSSRV[4] = { _vrGloveRMeshVerticesSRV.Get(), _vrGloveRMeshNormalsSRV.Get(), _vrGloveRMeshTexCoordsSRV.Get(), nullptr};
-	context->VSSetShaderResources(0, 4, vsSSRV);
+		// Set the textures
+		_deviceResources->InitPSShaderResourceView(g_vrGlovesMeshes[i].textureSRV.Get(), nullptr);
 
-	// Set the index and vertex buffers
-	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
-	_deviceResources->InitVertexBuffer(_vrGloveRVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
-	_deviceResources->InitIndexBuffer(nullptr, true);
-	_deviceResources->InitIndexBuffer(_vrGloveRIndexBuffer.Get(), true);
+		// Set the mesh buffers
+		ID3D11ShaderResourceView* vsSSRV[4] = {
+			g_vrGlovesMeshes[i].meshVerticesSRV.Get(),
+			g_vrGlovesMeshes[i].meshNormalsSRV.Get(),
+			g_vrGlovesMeshes[i].meshTexCoordsSRV.Get(),
+			nullptr };
+		context->VSSetShaderResources(0, 4, vsSSRV);
 
-	// Set the constants buffer
-	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
-	_trianglesCount = _vrGloveRNumTriangles;
-	//_deviceResources->InitPixelShader(_pixelShader);
-	// TODO: Provide a proper pixel shader for the VR Keyboard:
-	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
+		// Set the index and vertex buffers
+		_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+		_deviceResources->InitVertexBuffer(g_vrGlovesMeshes[i].vertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+		_deviceResources->InitIndexBuffer(nullptr, true);
+		_deviceResources->InitIndexBuffer(g_vrGlovesMeshes[i].indexBuffer.Get(), true);
 
-	// Render the deferred commands
-	RenderScene();
+		// Set the constants buffer
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+		_trianglesCount = g_vrGlovesMeshes[i].numTriangles;
+		//_deviceResources->InitPixelShader(_pixelShader);
+		// TODO: Provide a proper pixel shader for the VR Keyboard:
+		_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
 
-	// Decrease the refcount of the textures
-	/*for (int i = 0; i < 2; i++)
-		if (_vrKeybCommand.SRVs[i] != nullptr) _vrKeybCommand.SRVs[i]->Release();*/
+		// Render the deferred commands
+		RenderScene();
+
+		// Decrease the refcount of the textures
+		/*for (int i = 0; i < 2; i++)
+			if (_vrKeybCommand.SRVs[i] != nullptr) _vrKeybCommand.SRVs[i]->Release();*/
+		g_vrGlovesMeshes[i].rendered = true;
+	}
 
 	// Restore the previous state
-	g_vrGlovesState.bRendered = true;
 	RestoreContext();
 	_deviceResources->EndAnnotatedEvent();
 }
