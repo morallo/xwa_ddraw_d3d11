@@ -102,6 +102,7 @@
 #include "../Debug/RTShadowMaskPS_VR.h"
 #include "../Debug/PBRAdd.h"
 #include "../Debug/PBRAddVR.h"
+#include "../Debug/PixelShaderVRGeom.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainVertexShaderVR.h"
@@ -191,6 +192,7 @@
 #include "../Release/RTShadowMaskPS_VR.h"
 #include "../Release/PBRAdd.h"
 #include "../Release/PBRAddVR.h"
+#include "../Release/PixelShaderVRGeom.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -4424,6 +4426,9 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderVRGeom, sizeof(g_PixelShaderVRGeom), nullptr, &_pixelShaderVRGeom)))
 		return hr;
 
 	if (g_bEnableVR)

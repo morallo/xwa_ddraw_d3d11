@@ -5899,7 +5899,7 @@ void EffectsRenderer::RenderTransparency()
 	_deviceResources->EndAnnotatedEvent();
 }
 
-void EffectsRenderer::RenderVRGeometry()
+void EffectsRenderer::RenderVRKeyboard()
 {
 	if (!g_bUseSteamVR)
 		return;
@@ -5914,7 +5914,7 @@ void EffectsRenderer::RenderVRGeometry()
 	auto& context = resources->_d3dDeviceContext;
 
 	SaveContext();
-\
+
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersize and depth stencil states for transparency
@@ -5933,6 +5933,8 @@ void EffectsRenderer::RenderVRGeometry()
 	UINT vertexBufferOffset = 0;
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?
 	// fPosNormalAlpha ?
@@ -5965,9 +5967,7 @@ void EffectsRenderer::RenderVRGeometry()
 	// Set the constants buffer
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
 	_trianglesCount = g_vrKeybNumTriangles;
-	//_deviceResources->InitPixelShader(_pixelShader);
-	// TODO: Provide a proper pixel shader for the VR Keyboard:
-	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
+	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
 	// Render the deferred commands
 	RenderScene();
@@ -6041,10 +6041,7 @@ void EffectsRenderer::RenderVRGloves()
 
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
-
-	//_deviceResources->InitPixelShader(_pixelShader);
-	// TODO: Provide a proper pixel shader for the gloves
-	_deviceResources->InitPixelShader(resources->_pixelShaderEmptyDC);
+	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
 	// Render both gloves (if they are enabled)
 	for (int i = 0; i < 2; i++)
@@ -6798,7 +6795,7 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
-	RenderVRGeometry();
+	RenderVRKeyboard();
 	RenderVRGloves();
 	_deviceResources->EndAnnotatedEvent();
 }

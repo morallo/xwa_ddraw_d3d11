@@ -521,6 +521,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderAnim;
 	ComPtr<ID3D11PixelShader> _pixelShaderAnimDAT;
 	ComPtr<ID3D11PixelShader> _pixelShaderGreeble;
+	ComPtr<ID3D11PixelShader> _pixelShaderVRGeom;
 	ComPtr<ID3D11PixelShader> _levelsPS;
 	ComPtr<ID3D11PixelShader> _rtShadowMaskPS;
 	ComPtr<ID3D11PixelShader> _rtShadowMaskPS_VR;

@@ -206,7 +206,7 @@ public:
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();
-	void RenderVRGeometry();
+	void RenderVRKeyboard();
 	void RenderVRGloves();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
