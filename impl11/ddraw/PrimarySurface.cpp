@@ -7606,12 +7606,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 
 	// Detect triggers:
-	if (g_bACLastTriggerState && !g_bACTriggerState || bButtonTrigger)
+	if (g_bACLastTriggerState && !g_bACTriggerState) // || bButtonTrigger) // Push-button behavior is flaky. Needs better algorithms.
 		g_bACActionTriggered = true;
 
 	g_bACLastTriggerState = g_bACTriggerState;
 	// Update the display
-	g_LaserPointerBuffer.TriggerState = g_bACTriggerState || (buttonState == 1);
+	//g_LaserPointerBuffer.TriggerState = g_bACTriggerState || (buttonState == 1);
+	g_LaserPointerBuffer.TriggerState = g_bACTriggerState; // Push-button behavior is flaky. Needs better algorithms.
 	bPrevPushButton = bPushButton;
 
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
@@ -7711,6 +7712,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	}
 	g_LaserPointerBuffer.bContOrigin = bDisplayContOrigin;
 
+	g_fLaserIntersectionDistance = FLT_MAX;
 	float3 P;
 	if (inters.TriID != -1)
 	{
@@ -7725,6 +7727,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			P = ray.origin + inters.T * ray.dir;
 		}
 		g_LaserPointerBuffer.bIntersection = true;
+		Vector3 O = { ray.origin.x, ray.origin.y, ray.origin.z };
+		Vector3 D = { P.x, P.y, P.z };
+		g_fLaserIntersectionDistance = (D - O).length();
 	}
 	else // When there's no intersection, just draw a line pointing in the direction of the ray
 	{
@@ -7734,6 +7739,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_LaserPointerBuffer.bIntersection = false;
 	}
 
+	// Compute the size of the intersection point (P)
 	{
 		// P is in OPT coords, now we need to transform it to WorldView coords for the projection:
 		Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f);
@@ -10059,6 +10065,7 @@ HRESULT PrimarySurface::Flip(
 
 				// Reset the laser pointer intersection
 				if (g_bActiveCockpitEnabled) {
+					g_bPrevHoveringOnActiveElem = g_LaserPointerBuffer.bHoveringOnActiveElem;
 					g_LaserPointerBuffer.bIntersection = 0;
 					g_LaserPointerBuffer.bHoveringOnActiveElem = 0;
 					g_fBestIntersectionDistance = FLT_MAX;

@@ -1603,10 +1603,19 @@ D3dTriangle g_vrKeybTriangles[g_vrKeybNumTriangles];
 XwaVector3 g_vrKeybMeshVertices[g_vrKeybMeshVerticesCount];
 XwaTextureVertex g_vrKeybTextureCoords[g_vrKeybTextureCoordsCount];
 
+char* g_GlovesProfileNames[2][VRGlovesProfile::MAX] = {
+	{ "Effects\\ActiveCockpit\\LGloveNeutral.obj",
+	  "Effects\\ActiveCockpit\\LGlovePoint.obj",
+	  "Effects\\ActiveCockpit\\LGloveGrasp.obj" },
+	{ "Effects\\ActiveCockpit\\RGloveNeutral.obj",
+	  "Effects\\ActiveCockpit\\RGlovePoint.obj",
+	  "Effects\\ActiveCockpit\\RGloveGrasp.obj" },
+};
+
 /// <summary>
 /// Loads and OBJ and returns the number of triangles read
 /// </summary>
-int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
+int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profile)
 {
 	FILE* file;
 	int error = 0;
@@ -1626,7 +1635,7 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 	float yMin = FLT_MAX;
 	// In XWA's coord sys, Y- is forwards, so we initialize to FLT_MAX to get the lowest point
 	// in the Y axis:
-	g_vrGlovesMeshes[gloveIdx].forwardPmeters = FLT_MAX;
+	g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile] = FLT_MAX;
 
 	std::vector<XwaVector3> vertices;
 	std::vector<XwaVector3> normals;
@@ -1653,7 +1662,8 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 			// OPT coordinates, so we need to convert OBJ coords into OPT coords and we need
 			// to swap Y and Z coordinates:
 			sscanf_s(line, "v %f %f %f", &v.x, &v.z, &v.y);
-			if (v.y < g_vrGlovesMeshes[gloveIdx].forwardPmeters) g_vrGlovesMeshes[gloveIdx].forwardPmeters = v.y;
+			if (v.y < g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile])
+				g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile] = v.y;
 			// And now we add the 40.96 scale factor.
 			v.x *= METERS_TO_OPT;
 			v.y *= METERS_TO_OPT;
@@ -1720,8 +1730,8 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 
 	log_debug("[DBG] [AC] Loaded %d vertices, %d normals, %d texcoords, %d indices, %d triangles",
 		vertices.size(), normals.size(), texCoords.size(), indices.size(), triangles.size());
-	g_vrGlovesMeshes[gloveIdx].forwardPmeters = fabs(g_vrGlovesMeshes[gloveIdx].forwardPmeters);
-	log_debug("[DBG] [AC] forwardPmeters: %0.3f", g_vrGlovesMeshes[gloveIdx].forwardPmeters);
+	g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile] = fabs(g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile]);
+	log_debug("[DBG] [AC] forwardPmeters: %0.3f", g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile]);
 
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
@@ -1729,43 +1739,43 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName)
 	initialData.SysMemPitch = 0;
 	initialData.SysMemSlicePitch = 0;
 
-	// Create the index and triangle buffers
-	initialData.pSysMem = indices.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(indices.size() * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData,
-		&(g_vrGlovesMeshes[gloveIdx].vertexBuffer));
-		//&_vrGloveRVertexBuffer);
-	initialData.pSysMem = triangles.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(triangles.size() * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData,
-		&(g_vrGlovesMeshes[gloveIdx].indexBuffer));
-		//&_vrGloveRIndexBuffer);
+	if (profile == VRGlovesProfile::NEUTRAL)
+	{
+		// Create the index and triangle buffers
+		initialData.pSysMem = indices.data();
+		device->CreateBuffer(&CD3D11_BUFFER_DESC(indices.size() * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData,
+			                 &(g_vrGlovesMeshes[gloveIdx].vertexBuffer));
+		initialData.pSysMem = triangles.data();
+		device->CreateBuffer(&CD3D11_BUFFER_DESC(triangles.size() * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData,
+			                 &(g_vrGlovesMeshes[gloveIdx].indexBuffer));
+	}
 
 	// Create the mesh buffers and SRVs
 	initialData.pSysMem = vertices.data();
 	device->CreateBuffer(&CD3D11_BUFFER_DESC(vertices.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
-		&(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffer));
-		//&_vrGloveRMeshVerticesBuffer);
-	device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffer,
-		&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, vertices.size()),
-		&(g_vrGlovesMeshes[gloveIdx].meshVerticesSRV));
-		//&_vrGloveRMeshVerticesSRV);
+		&(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffers[profile]));
 
-	initialData.pSysMem = normals.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(normals.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
-		&(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer));
-		//&_vrGloveRMeshNormalsBuffer);
-	device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer,
-		&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normals.size()),
-		&(g_vrGlovesMeshes[gloveIdx].meshNormalsSRV));
-		//&_vrGloveRMeshNormalsSRV);
+	device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffers[profile],
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshVerticesBuffers[profile], DXGI_FORMAT_R32G32B32_FLOAT, 0, vertices.size()),
+		&(g_vrGlovesMeshes[gloveIdx].meshVerticesSRVs[profile]));
 
-	initialData.pSysMem = texCoords.data();
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoords.size() * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
-		&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer));
-		//&_vrGloveRMeshTexCoordsBuffer);
-	device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer,
-		&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoords.size()),
-		&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsSRV));
-		//&_vrGloveRMeshTexCoordsSRV);
+	if (profile == VRGlovesProfile::NEUTRAL)
+	{
+		initialData.pSysMem = normals.data();
+		device->CreateBuffer(&CD3D11_BUFFER_DESC(normals.size() * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
+			&(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer));
+
+		device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer,
+			&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normals.size()),
+			&(g_vrGlovesMeshes[gloveIdx].meshNormalsSRV));
+
+		initialData.pSysMem = texCoords.data();
+		device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoords.size() * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
+			&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer));
+		device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer,
+			&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoords.size()),
+			&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsSRV));
+	}
 
 	return triangles.size();
 }
@@ -1860,20 +1870,23 @@ void EffectsRenderer::CreateVRMeshes()
 	// *************************************************
 	// Gloves
 	// *************************************************
-	char *sGloveFileNames[2] = {
-		"Effects\\ActiveCockpit\\GloveL.obj",
-		"Effects\\ActiveCockpit\\GloveR.obj"
-	};
+	/*char* sGloveFileNames[2] = {
+		"Effects\\ActiveCockpit\\LGloveNeutral.obj",
+		"Effects\\ActiveCockpit\\RGloveNeutral.obj"
+	};*/
 
 	Matrix4 R;
 	R.identity();
 	R.rotateX(45.0f); // The VR controllers tilt the objects a bit
 	for (int i = 0; i < 2; i++)
 	{
-		g_vrGlovesMeshes[i].numTriangles = LoadOBJ(i, R, sGloveFileNames[i]);
-		if (g_vrGlovesMeshes[i].numTriangles > 0)
+		for (int profile = 0; profile < VRGlovesProfile::MAX; profile++)
 		{
-			log_debug("[DBG] [AC] Loaded OBJ: %s", sGloveFileNames[i]);
+			g_vrGlovesMeshes[i].numTriangles = LoadOBJ(i, R, g_GlovesProfileNames[i][profile], profile);
+			if (g_vrGlovesMeshes[i].numTriangles > 0)
+			{
+				log_debug("[DBG] [AC] Loaded OBJ: %s", g_GlovesProfileNames[i][profile]);
+			}
 		}
 
 		char* sGloveRTexture = "Effects\\ActiveCockpit.dat";
@@ -3640,7 +3653,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	const int contIdx = g_ACPointerData.contIdx;
 	if (g_vrGlovesMeshes[contIdx].visible)
 	{
-		orig += g_vrGlovesMeshes[contIdx].forwardPmeters * dir;
+		orig += g_vrGlovesMeshes[contIdx].forwardPmeters[VRGlovesProfile::POINT] * dir;
 	}
 
 	// Test the VR keyboard first
@@ -6068,9 +6081,17 @@ void EffectsRenderer::RenderVRGloves()
 		// Set the textures
 		_deviceResources->InitPSShaderResourceView(g_vrGlovesMeshes[i].textureSRV.Get(), nullptr);
 
+		int profile = VRGlovesProfile::NEUTRAL;
+		if (g_contStates[i].buttons[VRButtons::GRIP])
+			profile = VRGlovesProfile::GRASP;
+		if (g_contStates[i].buttons[VRButtons::TRIGGER] ||
+			(g_ACPointerData.contIdx == i && g_fLaserIntersectionDistance < 0.18f * METERS_TO_OPT))
+			profile = VRGlovesProfile::POINT;
+		//log_debug("[DBG] [AC] g_fLaserIntersectionDistance: %0.3f", g_fLaserIntersectionDistance);
+
 		// Set the mesh buffers
 		ID3D11ShaderResourceView* vsSSRV[4] = {
-			g_vrGlovesMeshes[i].meshVerticesSRV.Get(),
+			g_vrGlovesMeshes[i].meshVerticesSRVs[profile].Get(),
 			g_vrGlovesMeshes[i].meshNormalsSRV.Get(),
 			g_vrGlovesMeshes[i].meshTexCoordsSRV.Get(),
 			nullptr };

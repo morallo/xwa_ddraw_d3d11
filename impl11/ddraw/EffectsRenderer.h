@@ -54,15 +54,28 @@ extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, float *v);
 Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
 
+namespace VRGlovesProfile
+{
+	enum VRGlovesProfile
+	{
+		NEUTRAL = 0,
+		POINT,
+		GRASP,
+		MAX // Sentinel, do not remove
+	};
+};
+
 struct VRGlovesMesh
 {
 	// Gloved hands:
 	ComPtr<ID3D11Buffer> vertexBuffer;
 	ComPtr<ID3D11Buffer> indexBuffer;
-	ComPtr<ID3D11Buffer> meshVerticesBuffer;
+	//ComPtr<ID3D11Buffer> meshVerticesBuffer;
+	ComPtr<ID3D11Buffer> meshVerticesBuffers[VRGlovesProfile::MAX];
 	ComPtr<ID3D11Buffer> meshNormalsBuffer;
 	ComPtr<ID3D11Buffer> meshTexCoordsBuffer;
-	ComPtr<ID3D11ShaderResourceView> meshVerticesSRV;
+	//ComPtr<ID3D11ShaderResourceView> meshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> meshVerticesSRVs[VRGlovesProfile::MAX];
 	ComPtr<ID3D11ShaderResourceView> meshNormalsSRV;
 	ComPtr<ID3D11ShaderResourceView> meshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> textureSRV;
@@ -70,7 +83,7 @@ struct VRGlovesMesh
 	Matrix4 pose;
 	bool visible;
 	bool rendered;
-	float forwardPmeters; // The forward-most point in this mesh, in meters. Used to push buttons
+	float forwardPmeters[VRGlovesProfile::MAX]; // The forward-most point in this mesh, in meters. Used to push buttons
 };
 
 extern VRGlovesMesh g_vrGlovesMeshes[2];
@@ -149,7 +162,7 @@ protected:
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
 		short* Width_out=nullptr, short* Height_out=nullptr);
-	int LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName);
+	int LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profile);
 
 public:
 	bool _bCockpitConstantsCaptured;
