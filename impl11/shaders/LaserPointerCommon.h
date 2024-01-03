@@ -8,21 +8,22 @@
  // it's using different fields.
 cbuffer ConstantBuffer : register(b8)
 {
-	int    TriggerState;        // 1 = Pressed, 0 = Released
+	int    TriggerState;         // 1 = Pressed, 0 = Released
 	float  FOVScale;
 	float2 iResolution;
 	// 16 bytes
-	float2 p0, p1;              // Limits in uv-coords of the viewport
+	float2 p0, p1;               // Limits in uv-coords of the viewport
 	// 32 bytes
-	bool bContOrigin;           // True if contOrigin is valid (can be displayed)
-	bool bIntersection;         // True if there is an intersection to display
-	bool bHoveringOnActiveElem; // True if the cursor is hovering over an action element
-	int  DirectSBSEye;          // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
+	bool bContOrigin;            // True if contOrigin is valid (can be displayed)
+	bool bIntersection;          // True if there is an intersection to display
+	bool bHoveringOnActiveElem0; // True if the cursor is hovering over an action element
+	bool bHoveringOnActiveElem1; // True if the cursor is hovering over an action element
+	//int  DirectSBSEye;           // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
 	// 48 bytes
-	float4 contOrigin0;         // contOrigin.xy --> uv-coords, contOrigin.z --> metric depth
+	float4 contOrigin0;          // contOrigin.xy --> uv-coords, contOrigin.z --> metric depth
 	float4 contOrigin1;
 	// 80 bytes
-	float4 intersection0;       // intersection.xy --> uv-coords, intersection.z --> metric depth
+	float4 intersection0;        // intersection.xy --> uv-coords, intersection.z --> metric depth
 	float4 intersection1;
 	// 112 bytes
 	float2 v2, uv; // DEBUG
@@ -35,7 +36,8 @@ cbuffer ConstantBuffer : register(b8)
 	// 160 bytes
 	float inters_radius;
 	bool bDisplayLine;
-	float ac_unused2, ac_unused3;
+	float ac_unused2;
+	float ac_unused3;
 	// 176 bytes
 };
 
@@ -135,10 +137,10 @@ PixelShaderOutput main(PixelShaderInput input) {
 	vec3 color = 0.0;
 	output.color = 0.0;
 
-	if (DirectSBSEye == 1) // Left eye, modify the input uv
-		input.uv.x *= 0.5;
-	else if (DirectSBSEye == 2) // Right eye, modify input uv
-		input.uv.x = input.uv.x * 0.5 + 0.5;
+	//if (DirectSBSEye == 1) // Left eye, modify the input uv
+	//	input.uv.x *= 0.5;
+	//else if (DirectSBSEye == 2) // Right eye, modify input uv
+	//	input.uv.x = input.uv.x * 0.5 + 0.5;
 
 	// Early exit: avoid rendering outside the original viewport edges
 	if (any(input.uv < p0) || any(input.uv > p1))
@@ -180,7 +182,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// DEBUG
 
 	col = bgColor;
-	float3 dotcol = bHoveringOnActiveElem ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
+	float3 dotcol = bHoveringOnActiveElem0 ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
 	if (TriggerState)
 		dotcol = float3(0.0, 0.0, 1.0);
 
@@ -208,7 +210,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		d = sdCircle(lp_aspect_ratio * (p - intersection.xy), inters_radius);
 		v += smoothstep(0.0015, 0.0, abs(d));
 		// Add a second ring if we're hovering on an active element
-		if (bHoveringOnActiveElem) {
+		if (bHoveringOnActiveElem0) {
 			//d = sdCircle(p - intersection, cursor_radius + 0.005);
 			//v += smoothstep(0.0015, 0.0, abs(d - 0.005));
 			v += smoothstep(0.0015, 0.0, abs(d - 0.0025));

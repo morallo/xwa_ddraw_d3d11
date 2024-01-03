@@ -126,7 +126,7 @@ void ApplyYawPitchRoll(float yaw_deg, float pitch_deg, float roll_deg);
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 void ClearGlobalLBVHMap();
 
-void VRControllerToOPTCoords(Vector4& contOrigin, Vector4& contDir);
+void VRControllerToOPTCoords(Vector4 contOrigin[2], Vector4 contDir[2]);
 Intersection getIntersection(Ray ray, float3 A, float3 B, float3 C);
 bool RayTriangleTest(const Intersection& inters);
 bool rayTriangleIntersect(
@@ -3635,180 +3635,180 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 		SingleFileOBJDumpD3dVertices(scene, _trianglesCount, std::string(".\\AC-") + std::to_string(counter++) + ".obj");
 	}*/
 
-	// Intersect the current texture with the controller
-	Vector4 contOrigin, contDir;
-	VRControllerToOPTCoords(contOrigin, contDir);
-
-	Ray ray;
-	ray.origin   = float3(contOrigin);
-	//ray.dir      = { 0.0f, -1.0f, 0.0f }; // Forwards direction, in the OPT coord sys
-	ray.dir      = float3(contDir);
-	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
-
-	Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
-	Vector3 dir  = { ray.dir.x, ray.dir.y, ray.dir.z };
-	float margin = 0.01f;
-	const int contIdx = g_ACPointerData.contIdx;
-	if (g_vrGlovesMeshes[contIdx].visible)
-	{
-		orig += g_vrGlovesMeshes[contIdx].forwardPmeters[VRGlovesProfile::POINT] * dir;
-	}
-
-	// Test the VR keyboard first
-	if (g_vrKeybState.bVisible)
-	{
-		Matrix4 Transform = g_vrKeybState.Transform;
-		// We premultiply in the code below, so we need to transpose the matrix because
-		// the Vertex shader does a postmultiplication
-		Transform.transpose();
-
-		for (int i = 0; i < g_vrKeybNumTriangles; i++)
-		{
-			D3dTriangle t = g_vrKeybTriangles[i];
-
-			Vector4 p0 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
-			Vector4 p1 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
-			Vector4 p2 = Transform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
-
-			Vector3 v0 = Vector4ToVector3(p0);
-			Vector3 v1 = Vector4ToVector3(p1);
-			Vector3 v2 = Vector4ToVector3(p2);
-
-			// Find the intersection along the triangle's normal (the closest point on the triangle)
-			//Vector3 e10 = v1 - v0;
-			//Vector3 e20 = v2 - v0;
-			//Vector3 N = -1.0f * e10.cross(e20);
-			//float perpDist = FLT_MAX, perpU, perpV;
-			//Vector3 perpP;
-			//bool perpInters = false;
-			//N.normalize();
-			//N *= METERS_TO_OPT; // Everything is OPT scale here
-			//perpInters = rayTriangleIntersect(orig, N, v0, v1, v2, perpDist, perpP, perpU, perpV, margin);
-
-			Vector3 P;
-			float dist = FLT_MAX, u, v;
-			bool directedInters = false;
-			//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
-			//if (inters.T < bestInters.T && RayTriangleTest(inters))
-			directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
-			// If our controller is less that 2cm away from an element, we can assume we're going to touch it
-			/*if (perpInters && fabs(perpDist) < 0.02f)
-			{
-				u = perpU; v = perpV; P = perpP; dist = perpDist; directedInters = true;
-			}*/
-
-			// Allowing negative distances prevents phantom clicking when we "push" behind the
-			// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
-			// that means "1cm".
-			if (directedInters && dist > -0.01f)
-			{
-				g_fBestIntersectionDistance = dist;
-
-				const float baryU = u;
-				const float baryV = v;
-				const float baryW = 1.0f - baryU - baryV;
-
-				XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
-				XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
-				XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
-
-				g_LaserPointerBuffer.uv[0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
-				g_LaserPointerBuffer.uv[1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
-				g_iBestIntersTexIdx = g_iVRKeyboardSlot;
-
-				g_debug_v0 = v0;
-				g_debug_v1 = v1;
-				g_debug_v2 = v2;
-				g_LaserPointer3DIntersection = P;
-				return;
-			}
-		}
-	}
-
-	//IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx,
-	//	bIsActiveCockpit, orig, dir /*, debug */);
-
-	// TODO: Create a TLAS just for the cockpit so that we can quickly find the intersection of the
-	// ray coming from the cursor.
-
 	XwaVector3* MeshVertices = scene->MeshVertices;
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
 	XwaTextureVertex* MeshTextureVertices = scene->MeshTextureVertices;
 	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
-
-	Intersection bestInters;
-	float baryU = -FLT_MAX, baryV = -FLT_MAX;
-	XwaTextureVertex bestUV0, bestUV1, bestUV2;
-	int bestId = -1;
 	Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
 	// We premultiply in the code below, so we need to transpose the matrix because
 	// the Vertex shader does a postmultiplication
 	MeshTransform.transpose();
-	margin = 0.0001f;
 
-	for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+	Matrix4 KeybTransform = g_vrKeybState.Transform;
+	// We premultiply in the code below, so we need to transpose the matrix because
+	// the Vertex shader does a postmultiplication
+	KeybTransform.transpose();
+
+	// Intersect the current texture with the controller
+	Vector4 contOrigin[2], contDir[2];
+	VRControllerToOPTCoords(contOrigin, contDir);
+
+	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
-		OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
-		int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+		float margin = 0.01f;
 
-		// See BuildMultipleBLASFromCurrentBLASMap() too
-		for (int edge = 2; edge < edgesCount; edge++)
+		Ray ray;
+		ray.origin   = float3(contOrigin[contIdx]);
+		ray.dir      = float3(contDir[contIdx]);
+		ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
+
+		Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
+		Vector3 dir = { ray.dir.x, ray.dir.y, ray.dir.z };
+
+		if (g_vrGlovesMeshes[contIdx].visible)
 		{
-			for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
-			{
-				D3dTriangle t;
-				t.v1 = 0;
-				t.v2 = edge - 1;
-				t.v3 = edge;
+			orig += g_vrGlovesMeshes[contIdx].forwardPmeters[VRGlovesProfile::POINT] * dir;
+		}
 
-				Vector4 p0 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
-				Vector4 p1 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
-				Vector4 p2 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
+		// Test the VR keyboard first
+		if (g_vrKeybState.bVisible)
+		{
+			for (int i = 0; i < g_vrKeybNumTriangles; i++)
+			{
+				D3dTriangle t = g_vrKeybTriangles[i];
+
+				Vector4 p0 = KeybTransform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v1]);
+				Vector4 p1 = KeybTransform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v2]);
+				Vector4 p2 = KeybTransform * XwaVector3ToVector4(g_vrKeybMeshVertices[t.v3]);
 
 				Vector3 v0 = Vector4ToVector3(p0);
 				Vector3 v1 = Vector4ToVector3(p1);
 				Vector3 v2 = Vector4ToVector3(p2);
 
+				// Find the intersection along the triangle's normal (the closest point on the triangle)
+				//Vector3 e10 = v1 - v0;
+				//Vector3 e20 = v2 - v0;
+				//Vector3 N = -1.0f * e10.cross(e20);
+				//float perpDist = FLT_MAX, perpU, perpV;
+				//Vector3 perpP;
+				//bool perpInters = false;
+				//N.normalize();
+				//N *= METERS_TO_OPT; // Everything is OPT scale here
+				//perpInters = rayTriangleIntersect(orig, N, v0, v1, v2, perpDist, perpP, perpU, perpV, margin);
+
 				Vector3 P;
-				float dist, u, v;
+				float dist = FLT_MAX, u, v;
+				bool directedInters = false;
 				//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
 				//if (inters.T < bestInters.T && RayTriangleTest(inters))
-				if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
+				directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
+				// If our controller is less that 2cm away from an element, we can assume we're going to touch it
+				/*if (perpInters && fabs(perpDist) < 0.02f)
 				{
-					if (dist < g_fBestIntersectionDistance)
+					u = perpU; v = perpV; P = perpP; dist = perpDist; directedInters = true;
+				}*/
+
+				// Allowing negative distances prevents phantom clicking when we "push" behind the
+				// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
+				// that means "1cm".
+				if (directedInters && dist > -0.01f)
+				{
+					g_fBestIntersectionDistance[contIdx] = dist;
+
+					const float baryU = u;
+					const float baryV = v;
+					const float baryW = 1.0f - baryU - baryV;
+
+					XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
+					XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
+					XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
+
+					g_LaserPointerBuffer.uv[0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+					g_LaserPointerBuffer.uv[1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+					g_iBestIntersTexIdx[contIdx] = g_iVRKeyboardSlot;
+
+					g_debug_v0 = v0;
+					g_debug_v1 = v1;
+					g_debug_v2 = v2;
+					g_LaserPointer3DIntersection[contIdx] = P;
+					return;
+				}
+			}
+		}
+
+		// TODO: Create a TLAS just for the cockpit so that we can quickly find the intersection of the
+		// ray coming from the cursor.
+
+		Intersection bestInters;
+		int bestId = -1;
+		float baryU = -FLT_MAX, baryV = -FLT_MAX;
+		XwaTextureVertex bestUV0, bestUV1, bestUV2;
+		margin = 0.0001f;
+
+		for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
+		{
+			OptFaceDataNode_01_Data_Indices& faceData = scene->FaceIndices[faceIndex];
+			int edgesCount = faceData.Edge[3] == -1 ? 3 : 4;
+
+			// See BuildMultipleBLASFromCurrentBLASMap() too
+			for (int edge = 2; edge < edgesCount; edge++)
+			{
+				for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
+				{
+					D3dTriangle t;
+					t.v1 = 0;
+					t.v2 = edge - 1;
+					t.v3 = edge;
+
+					Vector4 p0 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v1]]);
+					Vector4 p1 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v2]]);
+					Vector4 p2 = MeshTransform * XwaVector3ToVector4(MeshVertices[faceData.Vertex[t.v3]]);
+
+					Vector3 v0 = Vector4ToVector3(p0);
+					Vector3 v1 = Vector4ToVector3(p1);
+					Vector3 v2 = Vector4ToVector3(p2);
+
+					Vector3 P;
+					float dist, u, v;
+					//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
+					//if (inters.T < bestInters.T && RayTriangleTest(inters))
+					if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
 					{
-						g_fBestIntersectionDistance = dist;
-						baryU   = u;
-						baryV   = v;
-						bestUV0 = scene->MeshTextureVertices[faceData.TextureVertex[t.v1]];
-						bestUV1 = scene->MeshTextureVertices[faceData.TextureVertex[t.v2]];
-						bestUV2 = scene->MeshTextureVertices[faceData.TextureVertex[t.v3]];
-						bestId  = faceIndex;
-						g_debug_v0 = v0;
-						g_debug_v1 = v1;
-						g_debug_v2 = v2;
-						g_LaserPointer3DIntersection = P;
+						if (dist < g_fBestIntersectionDistance[contIdx])
+						{
+							g_fBestIntersectionDistance[contIdx] = dist;
+							baryU      = u;
+							baryV      = v;
+							bestUV0    = scene->MeshTextureVertices[faceData.TextureVertex[t.v1]];
+							bestUV1    = scene->MeshTextureVertices[faceData.TextureVertex[t.v2]];
+							bestUV2    = scene->MeshTextureVertices[faceData.TextureVertex[t.v3]];
+							bestId     = faceIndex;
+							g_debug_v0 = v0;
+							g_debug_v1 = v1;
+							g_debug_v2 = v2;
+							g_LaserPointer3DIntersection[contIdx] = P;
+						}
 					}
 				}
 			}
 		}
-	}
 
-	//if (bestInters.TriID != -1)
-	if (bestId != -1)
-	{
-		// Interpolate the texture UV using the barycentric coords:
-		const float baryW = 1.0f - baryU - baryV;
-		const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
-		const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
-		g_LaserPointerBuffer.uv[0] = u;
-		g_LaserPointerBuffer.uv[1] = v;
-		g_iBestIntersTexIdx = _lastTextureSelected->ActiveCockpitIdx;
-		/*log_debug("[DBG] [AC] bestUV0: (%0.3f, %0.3f)", bestUV0.u, bestUV0.v);
-		log_debug("[DBG] [AC] bestUV1: (%0.3f, %0.3f)", bestUV1.u, bestUV1.v);
-		log_debug("[DBG] [AC] bestUV2: (%0.3f, %0.3f)", bestUV2.u, bestUV2.v);
-		log_debug("[DBG] [AC] baryPoint: (%0.3f, %0.3f, %0.3f), uv: %0.3f, %0.3f",
-			baryU, baryV, baryW, u, v);*/
+		//if (bestInters.TriID != -1)
+		if (bestId != -1)
+		{
+			// Interpolate the texture UV using the barycentric coords:
+			const float baryW = 1.0f - baryU - baryV;
+			const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+			const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+			g_LaserPointerBuffer.uv[0] = u;
+			g_LaserPointerBuffer.uv[1] = v;
+			g_iBestIntersTexIdx[contIdx] = _lastTextureSelected->ActiveCockpitIdx;
+			/*log_debug("[DBG] [AC] bestUV0: (%0.3f, %0.3f)", bestUV0.u, bestUV0.v);
+			log_debug("[DBG] [AC] bestUV1: (%0.3f, %0.3f)", bestUV1.u, bestUV1.v);
+			log_debug("[DBG] [AC] bestUV2: (%0.3f, %0.3f)", bestUV2.u, bestUV2.v);
+			log_debug("[DBG] [AC] baryPoint: (%0.3f, %0.3f, %0.3f), uv: %0.3f, %0.3f",
+				baryU, baryV, baryW, u, v);*/
+		}
 	}
 }
 
@@ -6073,15 +6073,15 @@ void EffectsRenderer::RenderVRGloves()
 		int profile = VRGlovesProfile::NEUTRAL;
 		if (g_contStates[i].buttons[VRButtons::GRIP])
 			profile = VRGlovesProfile::GRASP;
-		if (g_ACPointerData.contIdx == i && g_fLaserIntersectionDistance < 0.18f * METERS_TO_OPT && g_bPrevHoveringOnActiveElem)
+		if (g_fLaserIntersectionDistance[i] < 0.18f * METERS_TO_OPT && g_bPrevHoveringOnActiveElem[i])
 			profile = VRGlovesProfile::POINT;
 
 		// Translate the glove so that it clicks on objects when the trigger button is pressed.
 		Matrix4 gloveDisp;
 		if (profile == VRGlovesProfile::POINT && g_contStates[i].buttons[VRButtons::TRIGGER])
 		{
-			float disp = g_fLaserIntersectionDistance - (METERS_TO_OPT * g_vrGlovesMeshes[i].forwardPmeters[VRGlovesProfile::POINT]);
-			Vector4 dir = g_contDirWorldSpace;
+			float disp = g_fLaserIntersectionDistance[i] - (METERS_TO_OPT * g_vrGlovesMeshes[i].forwardPmeters[VRGlovesProfile::POINT]);
+			Vector4 dir = g_contDirWorldSpace[i];
 			dir.normalize();
 			dir *= disp;
 			gloveDisp.translate(dir.x, dir.z, dir.y);

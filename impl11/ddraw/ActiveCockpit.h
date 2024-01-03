@@ -39,19 +39,19 @@ typedef struct ac_element_struct {
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled;
-extern Vector4 g_contOriginWorldSpace; // This is the origin of the controller in 3D, in world-space coords
+extern Vector4 g_contOriginWorldSpace[2]; // This is the origin of the controller in 3D, in world-space coords
 extern Vector4 g_controllerForwardVector; // Forward direction in the controller's frame of reference
 extern Vector4 g_controllerUpVector;
-extern Vector4 g_contDirWorldSpace; // This is the direction in which the controller is pointing in world-space coords
-extern Vector3 g_LaserPointer3DIntersection;
-extern float g_fBestIntersectionDistance, g_fLaserIntersectionDistance;
+extern Vector4 g_contDirWorldSpace[2]; // This is the direction in which the controller is pointing in world-space coords
+extern Vector3 g_LaserPointer3DIntersection[2];
+extern float g_fBestIntersectionDistance[2], g_fLaserIntersectionDistance[2];
 extern float g_fPushButtonThreshold, g_fReleaseButtonThreshold;
-extern int g_iBestIntersTexIdx; // The index into g_ACElements where the intersection occurred
-extern bool g_bPrevHoveringOnActiveElem;
+extern int g_iBestIntersTexIdx[2]; // The index into g_ACElements where the intersection occurred
+extern bool g_bPrevHoveringOnActiveElem[2];
 extern bool g_bFreePIEControllerButtonDataAvailable;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
 extern int g_iNumACElements, g_iVRKeyboardSlot;
-extern bool g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
+extern bool g_bACActionTriggered[2], g_bACLastTriggerState[2], g_bACTriggerState[2];
 extern bool g_bFreePIEInitialized, g_bFreePIEControllerButtonDataAvailable;
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 
@@ -99,15 +99,11 @@ extern ACJoyMapping g_ACJoyMappings[2];
 // Used to tell which controller and button are used in VR for activating AC controls
 struct ACPointerData
 {
-	int contIdx;
-	int button;
 	float mouseSpeedX;
 	float mouseSpeedY;
 
 	ACPointerData()
 	{
-		contIdx = 0; // Left controller
-		button  = VRButtons::TRIGGER;
 		mouseSpeedX = 3.0f;
 		mouseSpeedY = 3.0f;
 	}
@@ -124,7 +120,7 @@ extern float g_fLPdebugPointOffset;
 bool LoadIndividualACParams(char* sFileName);
 bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bool flip=true);
 void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileNameSize);
-void TranslateACAction(WORD* scanCodes, char* action, bool* bIsACActivator, bool* bIsVRKeybActivator);
+void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator);
 void DisplayACAction(WORD* scanCodes);
 int isInVector(char* name, ac_element* ac_elements, int num_elems);
 void ACRunAction(WORD* action, struct joyinfoex_tag* pji = nullptr);

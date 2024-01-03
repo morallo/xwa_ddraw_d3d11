@@ -8,18 +8,28 @@
 
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOriginWorldSpace = Vector4(-0.15f, -0.05f, 0.3f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
+// This is the origin of the controller in 3D
+Vector4 g_contOriginWorldSpace[2] =
+{
+	{-0.15f, -0.05f, 0.3f, 1.0f},
+	{ 0.15f, -0.05f, 0.3f, 1.0f}
+};
+// This is the direction in which the controller is pointing.
+// Comes from transforming g_controllerForwardVector into viewspace coords.
+Vector4 g_contDirWorldSpace[2];
+
 Vector4 g_controllerForwardVector = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // Forward direction in the controller's frame of reference
 Vector4 g_controllerUpVector = Vector4(0.0f, 1.0f, 0.0f, 0.0f);
-// This is the direction in which the controller is pointing in world-space coords.
-// Comes from transforming g_controllerForwardVector into viewspace coords.
-Vector4 g_contDirWorldSpace;
-Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
-float g_fBestIntersectionDistance = FLT_MAX, g_fLaserIntersectionDistance = FLT_MAX;
+Vector3 g_LaserPointer3DIntersection[2] = { {0.0f, 0.0f, FLT_MAX}, {0.0f, 0.0f, FLT_MAX} };
+float g_fBestIntersectionDistance[2] = { FLT_MAX, FLT_MAX };
+float g_fLaserIntersectionDistance[2] = { FLT_MAX, FLT_MAX };
 float g_fPushButtonThreshold = 0.01f, g_fReleaseButtonThreshold = 0.018f;
-int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
-bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bPrevHoveringOnActiveElem = false;
+int g_iBestIntersTexIdx[2] = { -1, -1 }; // The index into g_ACElements where the intersection occurred
+bool g_bActiveCockpitEnabled = false;
+bool g_bACActionTriggered[2] = { false, false };
+bool g_bACLastTriggerState[2] = { false, false };
+bool g_bACTriggerState[2] = { false, false };
+bool g_bPrevHoveringOnActiveElem[2] = { false, false };
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0, g_iVRKeyboardSlot = -1;
@@ -157,7 +167,7 @@ void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 /*
  * Converts a string representation of a hotkey to a series of scan codes
  */
-void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator, bool* bIsVRKeybActivator) {
+void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) {
 	// XWA keyboard reference:
 	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
 	// Scan code tables:
@@ -167,9 +177,6 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator, bool
 	int len = strlen(action);
 	const char* ptr = action, *cursor;
 	int i, j;
-
-	if (bIsACActivator != nullptr)
-		*bIsACActivator = false;
 
 	if (bIsVRKeybActivator != nullptr)
 		*bIsVRKeybActivator = false;
@@ -297,11 +304,9 @@ void TranslateACAction(WORD* scanCodes, char* action, bool *bIsACActivator, bool
 			return;
 		}
 
-		if (strstr(ptr, "SPACE") != NULL || strstr(ptr, "ACTIVATE") != NULL) {
+		if (strstr(ptr, "SPACE") != NULL) {
 			scanCodes[j++] = 0x39;
 			scanCodes[j] = 0;
-			if (bIsACActivator != nullptr)
-				*bIsACActivator = true;
 			return;
 		}
 
@@ -452,7 +457,7 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bo
 		}
 		else {
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
-			TranslateACAction(&(coords->action[idx][0]), action, nullptr, nullptr);
+			TranslateACAction(&(coords->action[idx][0]), action, nullptr);
 			//DisplayACAction(&(coords->action[idx][0]));
 
 			x0 /= width;

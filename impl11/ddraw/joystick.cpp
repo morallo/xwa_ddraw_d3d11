@@ -114,7 +114,7 @@ void SendMouseEvent(float dx, float dy, bool bLeft, bool bRight)
 
 void EmulMouseWithVRControllers()
 {
-	const int ptrIdx = g_ACPointerData.contIdx;
+	const int ptrIdx = 0;
 	const int auxIdx = ptrIdx == 0 ? 1 : 0;
 	static bool bFirstTime = true;
 	static WORD escScanCodes[2];
@@ -122,10 +122,10 @@ void EmulMouseWithVRControllers()
 	if (bFirstTime)
 	{
 		char action1[] = "ESC";
-		TranslateACAction(escScanCodes, action1, nullptr, nullptr);
+		TranslateACAction(escScanCodes, action1, nullptr);
 
 		char action2[] = "PERIOD";
-		TranslateACAction(periodScanCodes, action2, nullptr, nullptr);
+		TranslateACAction(periodScanCodes, action2, nullptr);
 		bFirstTime = false;
 	}
 

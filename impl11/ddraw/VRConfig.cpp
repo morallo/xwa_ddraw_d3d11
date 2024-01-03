@@ -1603,15 +1603,15 @@ bool LoadDCParams() {
 
 void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
 {
-	bool bIsActivator = false, bIsVRKeybActivator = false;
-	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsActivator, &bIsVRKeybActivator);
-	if (bIsActivator)
+	bool bIsVRKeybActivator = false;
+	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsVRKeybActivator);
+	/*if (bIsActivator)
 	{
 		g_ACPointerData.contIdx = contIdx;
 		g_ACPointerData.button  = buttonId;
 		log_debug("[DBG] [AC] Controller %d, button %d is now the cursor",
 			contIdx, buttonId);
-	}
+	}*/
 	if (bIsVRKeybActivator)
 	{
 		g_vrKeybState.iActivatorContIdx = contIdx;
@@ -1788,10 +1788,10 @@ bool LoadACParams() {
 			{
 				TranslateACActionForVRController(0, VRButtons::PAD_CLICK, svalue);
 			}
-			if (_stricmp(param, "left_trigger") == 0)
+			/*if (_stricmp(param, "left_trigger") == 0)
 			{
 				TranslateACActionForVRController(0, VRButtons::TRIGGER, svalue);
-			}
+			}*/
 			if (_stricmp(param, "left_button_1") == 0)
 			{
 				TranslateACActionForVRController(0, VRButtons::BUTTON_1, svalue);
@@ -1821,10 +1821,10 @@ bool LoadACParams() {
 			{
 				TranslateACActionForVRController(1, VRButtons::PAD_CLICK, svalue);
 			}
-			if (_stricmp(param, "right_trigger") == 0)
+			/*if (_stricmp(param, "right_trigger") == 0)
 			{
 				TranslateACActionForVRController(1, VRButtons::TRIGGER, svalue);
-			}
+			}*/
 			if (_stricmp(param, "right_button_1") == 0)
 			{
 				TranslateACActionForVRController(1, VRButtons::BUTTON_1, svalue);
