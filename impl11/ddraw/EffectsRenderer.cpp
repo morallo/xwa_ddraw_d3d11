@@ -2214,9 +2214,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	// VR Keyboard and gloves
 	g_vrKeybState.bRendered = false;
 	g_vrGlovesMeshes[0].rendered = false;
-	g_vrGlovesMeshes[0].visible  = true;
 	g_vrGlovesMeshes[1].rendered = false;
-	g_vrGlovesMeshes[1].visible  = true;
 
 	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
 	{
@@ -6072,7 +6070,24 @@ void EffectsRenderer::RenderVRGloves()
 		g_vrGlovesMeshes[i].pose = T;
 		*/
 
-		g_vrGlovesMeshes[i].pose = toOPT * g_contStates[i].pose * toSteamVR;
+		int profile = VRGlovesProfile::NEUTRAL;
+		if (g_contStates[i].buttons[VRButtons::GRIP])
+			profile = VRGlovesProfile::GRASP;
+		if (g_ACPointerData.contIdx == i && g_fLaserIntersectionDistance < 0.18f * METERS_TO_OPT && g_bPrevHoveringOnActiveElem)
+			profile = VRGlovesProfile::POINT;
+
+		// Translate the glove so that it clicks on objects when the trigger button is pressed.
+		Matrix4 gloveDisp;
+		if (profile == VRGlovesProfile::POINT && g_contStates[i].buttons[VRButtons::TRIGGER])
+		{
+			float disp = g_fLaserIntersectionDistance - (METERS_TO_OPT * g_vrGlovesMeshes[i].forwardPmeters[VRGlovesProfile::POINT]);
+			Vector4 dir = g_contDirWorldSpace;
+			dir.normalize();
+			dir *= disp;
+			gloveDisp.translate(dir.x, dir.z, dir.y);
+		}
+
+		g_vrGlovesMeshes[i].pose = gloveDisp * toOPT * g_contStates[i].pose * toSteamVR;
 		g_vrGlovesMeshes[i].pose.transpose();
 
 		g_OPTMeshTransformCB.MeshTransform = g_vrGlovesMeshes[i].pose;
@@ -6080,14 +6095,6 @@ void EffectsRenderer::RenderVRGloves()
 
 		// Set the textures
 		_deviceResources->InitPSShaderResourceView(g_vrGlovesMeshes[i].textureSRV.Get(), nullptr);
-
-		int profile = VRGlovesProfile::NEUTRAL;
-		if (g_contStates[i].buttons[VRButtons::GRIP])
-			profile = VRGlovesProfile::GRASP;
-		if (g_contStates[i].buttons[VRButtons::TRIGGER] ||
-			(g_ACPointerData.contIdx == i && g_fLaserIntersectionDistance < 0.18f * METERS_TO_OPT))
-			profile = VRGlovesProfile::POINT;
-		//log_debug("[DBG] [AC] g_fLaserIntersectionDistance: %0.3f", g_fLaserIntersectionDistance);
 
 		// Set the mesh buffers
 		ID3D11ShaderResourceView* vsSSRV[4] = {

@@ -247,7 +247,9 @@ struct LaserPointerCBuffer {
 	// 144 bytes
 	float v0[2], v1[2]; // DEBUG
 	// 160 bytes
-	float inters_radius, ac_unused1, ac_unused2, ac_unused3;
+	float inters_radius;
+	bool bDisplayLine;
+	float ac_unused2, ac_unused3;
 	// 176 bytes
 };
 

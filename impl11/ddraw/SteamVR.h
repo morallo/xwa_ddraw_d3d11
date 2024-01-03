@@ -63,6 +63,7 @@ struct ControllerState
 	float    yaw, pitch, roll; // As reported by SteamVR
 	float    centerYaw, centerPitch, centerRoll;
 	uint32_t packetNum; // Internal, do not modify
+	bool     displayGlove;
 
 	ControllerState()
 	{
@@ -75,6 +76,7 @@ struct ControllerState
 		yaw = pitch = roll = 0;
 		centerYaw = centerPitch = centerRoll = 0;
 		packetNum = 0xFFFFFFFF;
+		displayGlove = true;
 	}
 };
 extern ControllerState g_prevContStates[2];

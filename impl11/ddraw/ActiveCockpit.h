@@ -50,11 +50,9 @@ extern int g_iBestIntersTexIdx; // The index into g_ACElements where the interse
 extern bool g_bPrevHoveringOnActiveElem;
 extern bool g_bFreePIEControllerButtonDataAvailable;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
-extern int g_iLaserDirSelector;
 extern int g_iNumACElements, g_iVRKeyboardSlot;
 extern bool g_bACActionTriggered, g_bACLastTriggerState, g_bACTriggerState;
 extern bool g_bFreePIEInitialized, g_bFreePIEControllerButtonDataAvailable;
-extern float g_fLaserPointerLength;
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 
 struct ACJoyEmulSettings

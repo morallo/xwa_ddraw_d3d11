@@ -33,7 +33,9 @@ cbuffer ConstantBuffer : register(b8)
 	// 144 bytes
 	float2 v0, v1; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
 	// 160 bytes
-	float inters_radius, ac_unused1, ac_unused2, ac_unused3;
+	float inters_radius;
+	bool bDisplayLine;
+	float ac_unused2, ac_unused3;
 	// 176 bytes
 };
 
@@ -191,7 +193,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	const float4 intersection = intersection0;
 #endif
 
-	if (bContOrigin)
+	if (bContOrigin && bDisplayLine)
 	{
 		d  = sdCircle(lp_aspect_ratio * (p - contOrigin.xy), cursor_radius);
 		//d += 0.005;
@@ -213,7 +215,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		}
 	}
 
-	if (bContOrigin)
+	if (bContOrigin && bDisplayLine)
 	{
 		d = sdLine(p, contOrigin.xy, intersection.xy);
 

@@ -1693,12 +1693,6 @@ bool LoadACParams() {
 			else if (_stricmp(param, "button_data_available") == 0) {
 				g_bFreePIEControllerButtonDataAvailable = (bool)fValue;
 			}
-			else if (_stricmp(param, "laser_pointer_length") == 0) {
-				g_fLaserPointerLength = fValue;
-			}
-			else if (_stricmp(param, "debug_laser_dir") == 0) {
-				g_iLaserDirSelector = (int)fValue;
-			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
 			}
@@ -1752,6 +1746,7 @@ bool LoadACParams() {
 			else if (_stricmp(param, "throttle_range") == 0) {
 				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
 			}
+			/*
 			else if (_stricmp(param, "joystick_yaw_range") == 0) {
 				g_ACJoyEmul.yawHalfRange = fValue / 2.0f;
 			}
@@ -1760,6 +1755,16 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "joystick_roll_range") == 0) {
 				g_ACJoyEmul.rollHalfRange = fValue / 2.0f;
+			}
+			*/
+
+			if (_stricmp(param, "display_left_glove") == 0)
+			{
+				g_vrGlovesMeshes[0].visible = (bool)fValue;
+			}
+			else if (_stricmp(param, "display_right_glove") == 0)
+			{
+				g_vrGlovesMeshes[1].visible = (bool)fValue;
 			}
 
 			// VR controller configuration

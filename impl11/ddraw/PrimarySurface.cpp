@@ -7579,6 +7579,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Let's fix the aspect ratio of the laser pointer in non-VR mode:
 	g_LaserPointerBuffer.lp_aspect_ratio[0] = g_bEnableVR ? 1.0f : g_MetricRecCBuffer.mr_screen_aspect_ratio;
 	g_LaserPointerBuffer.lp_aspect_ratio[1] = 1.0f;
+	g_LaserPointerBuffer.bDisplayLine = false;
+	const int contIdx = g_ACPointerData.contIdx;
+	if (!g_vrGlovesMeshes[contIdx].visible)
+		g_LaserPointerBuffer.bDisplayLine = true;
 
 	// Push button detection
 	static bool bPrevPushButton = false;

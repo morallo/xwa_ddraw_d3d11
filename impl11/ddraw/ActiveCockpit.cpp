@@ -15,14 +15,14 @@ Vector4 g_controllerUpVector = Vector4(0.0f, 1.0f, 0.0f, 0.0f);
 // Comes from transforming g_controllerForwardVector into viewspace coords.
 Vector4 g_contDirWorldSpace;
 Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
-float g_fBestIntersectionDistance = FLT_MAX, g_fLaserPointerLength = 0.0f, g_fLaserIntersectionDistance = FLT_MAX;
+float g_fBestIntersectionDistance = FLT_MAX, g_fLaserIntersectionDistance = FLT_MAX;
 float g_fPushButtonThreshold = 0.01f, g_fReleaseButtonThreshold = 0.018f;
 int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
 bool g_bPrevHoveringOnActiveElem = false;
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
-int g_iNumACElements = 0, g_iLaserDirSelector = 3, g_iVRKeyboardSlot = -1;
+int g_iNumACElements = 0, g_iVRKeyboardSlot = -1;
 // DEBUG vars
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
