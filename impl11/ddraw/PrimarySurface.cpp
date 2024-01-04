@@ -7696,7 +7696,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		Vector4 Q = contOriginDisplay[contIdx];
 		Q.x += (0.004f * METERS_TO_OPT);
 		OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &sX1, &screenY);
-		g_LaserPointerBuffer.cursor_radius = (sX1 - screenX);
+		g_LaserPointerBuffer.cursor_radius[contIdx] = (sX1 - screenX);
 	}
 	else
 	{
@@ -7716,7 +7716,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		Vector4 Q = contOriginDisplay[contIdx];
 		Q.x += (0.003f * METERS_TO_OPT);
 		OPTVertexToSteamVRPostProcCoords(Q, pos2D);
-		g_LaserPointerBuffer.cursor_radius = (pos2D[0].x - sX0);
+		g_LaserPointerBuffer.cursor_radius[contIdx] = (pos2D[0].x - sX0);
 	}
 
 	g_fLaserIntersectionDistance[contIdx] = FLT_MAX;

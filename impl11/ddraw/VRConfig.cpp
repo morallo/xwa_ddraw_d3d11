@@ -1658,7 +1658,8 @@ bool LoadACParams() {
 	}
 
 	g_LaserPointerBuffer.bDebugMode = 0;
-	g_LaserPointerBuffer.cursor_radius = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[0] = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[1] = 0.01f;
 
 	// VR keyboard AC elements
 	ac_element ac_elem;

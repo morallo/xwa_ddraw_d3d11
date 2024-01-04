@@ -242,8 +242,8 @@ struct LaserPointerCBuffer {
 	// 176 bytes
 	float v2[2], uv[2]; // DEBUG
 	// 192 bytes
-	int bDebugMode;
-	float cursor_radius, lp_aspect_ratio[2];
+	int bDebugMode, unused0;
+	float cursor_radius[2];
 	// 208 bytes
 	float v0[2], v1[2]; // DEBUG
 	// 224 bytes
@@ -251,7 +251,7 @@ struct LaserPointerCBuffer {
 	int bDisplayLine[2];
 	// 240 bytes
 	int bIntersection[2];
-	int unused0, unused1;
+	float lp_aspect_ratio[2];
 	// 256 bytes
 };
 
