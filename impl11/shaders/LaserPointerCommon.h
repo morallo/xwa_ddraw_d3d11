@@ -8,37 +8,46 @@
  // it's using different fields.
 cbuffer ConstantBuffer : register(b8)
 {
-	int    TriggerState;         // 1 = Pressed, 0 = Released
-	float  FOVScale;
+	int TriggerState0;           // 1 = Pressed, 0 = Released
+	int TriggerState1;
 	float2 iResolution;
 	// 16 bytes
 	float2 p0, p1;               // Limits in uv-coords of the viewport
 	// 32 bytes
-	bool bContOrigin;            // True if contOrigin is valid (can be displayed)
-	bool bIntersection;          // True if there is an intersection to display
-	bool bHoveringOnActiveElem0; // True if the cursor is hovering over an action element
-	bool bHoveringOnActiveElem1; // True if the cursor is hovering over an action element
-	//int  DirectSBSEye;           // if -1, then we're rendering without VR, 1 = Left Eye, 2 = Right Eye in DirectSBS mode
+	bool bContOrigin0;           // True if contOrigin is valid (can be displayed)
+	bool bContOrigin1;
+	bool bHoveringOnActiveElem0; // True if cursor0 is hovering over an action element
+	bool bHoveringOnActiveElem1; // True if cursor1 is hovering over an action element
 	// 48 bytes
-	float4 contOrigin0;          // contOrigin.xy --> uv-coords, contOrigin.z --> metric depth
-	float4 contOrigin1;
+	float4 contOriginL0;         // contIdx:0, contOrigin.xy --> uv-coords, contOrigin.z --> metric depth
+	float4 contOriginR0;
 	// 80 bytes
-	float4 intersection0;        // intersection.xy --> uv-coords, intersection.z --> metric depth
-	float4 intersection1;
+	float4 contOriginL1;         // contIdx:1,  contOrigin.xy --> uv-coords, contOrigin.z --> metric depth
+	float4 contOriginR1;
 	// 112 bytes
+	float4 intersectionL0;       // contIdx:0, intersection.xy --> uv-coords, intersection.z --> metric depth
+	float4 intersectionR0;       // contIdx:0
+	// 144 bytes
+	float4 intersectionL1;       // contIdx:1, intersection.xy --> uv-coords, intersection.z --> metric depth
+	float4 intersectionR1;       // contIdx:1
+	// 176 bytes
 	float2 v2, uv; // DEBUG
-	// 128 bytes
+	// 192 bytes
 	bool   bDebugMode;
 	float  cursor_radius;
 	float2 lp_aspect_ratio;
-	// 144 bytes
+	// 208 bytes
 	float2 v0, v1; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
-	// 160 bytes
-	float inters_radius;
-	bool bDisplayLine;
-	float ac_unused2;
-	float ac_unused3;
-	// 176 bytes
+	// 224 bytes
+	float inters_radius0;
+	float inters_radius1;
+	bool bDisplayLine0;
+	bool bDisplayLine1;
+	// 240 bytes
+	bool bIntersection0; // True if there is an intersection to display
+	bool bIntersection1;
+	int ac_unused0, ac_unused1;
+	// 256 bytes
 };
 
 #ifdef INSTANCED_RENDERING
@@ -181,21 +190,28 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//return output;
 	// DEBUG
 
+//#ifdef INSTANCED_RENDERING
+//	const bool bHoveringOnActiveElem = input.viewId == 0 ? bHoveringOnActiveElem0 : bHoveringOnActiveElem1;
+//	const int TriggerState = input.viewId == 0 ? TriggerState0 : TriggerState1;
+//#else
+	const bool bHoveringOnActiveElem = bHoveringOnActiveElem0;
+	const int TriggerState = TriggerState0;
+//#endif
 	col = bgColor;
-	float3 dotcol = bHoveringOnActiveElem0 ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
+	float3 dotcol = bHoveringOnActiveElem ? float3(0.0, 1.0, 0.0) : float3(0.7, 0.7, 0.7);
 	if (TriggerState)
 		dotcol = float3(0.0, 0.0, 1.0);
 
 	float v = 0.0, d = 10000.0;
 #ifdef INSTANCED_RENDERING
-	const float4 contOrigin   = input.viewId == 0 ? contOrigin0   : contOrigin1;
-	const float4 intersection = input.viewId == 0 ? intersection0 : intersection1;
+	const float4 contOrigin   = input.viewId == 0 ? contOriginL0  : contOriginR0;
+	const float4 intersection = input.viewId == 0 ? intersectionL0 : intersectionR0;
 #else
-	const float4 contOrigin   = contOrigin0;
-	const float4 intersection = intersection0;
+	const float4 contOrigin   = contOriginL0;
+	const float4 intersection = intersectionL0;
 #endif
 
-	if (bContOrigin && bDisplayLine)
+	if (bContOrigin0 && bDisplayLine0)
 	{
 		d  = sdCircle(lp_aspect_ratio * (p - contOrigin.xy), cursor_radius);
 		//d += 0.005;
@@ -203,11 +219,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 		v += smoothstep(0.0015, 0.0, abs(d));
 	}
 
-	if (bIntersection &&
+	if (bIntersection0 &&
 		// Do not display the intersection if it's occluded
 		intersection.z <= pos3D.z + 0.01)
 	{
-		d = sdCircle(lp_aspect_ratio * (p - intersection.xy), inters_radius);
+		d = sdCircle(lp_aspect_ratio * (p - intersection.xy), inters_radius0);
 		v += smoothstep(0.0015, 0.0, abs(d));
 		// Add a second ring if we're hovering on an active element
 		if (bHoveringOnActiveElem0) {
@@ -217,7 +233,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		}
 	}
 
-	if (bContOrigin && bDisplayLine)
+	if (bContOrigin0 && bDisplayLine0)
 	{
 		d = sdLine(p, contOrigin.xy, intersection.xy);
 
@@ -234,7 +250,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		// Find the depth for the point q on the line:
 		const float lineZ = lerp(contOrigin.z, intersection.z, dist);
 		// Interpolate the cursor radius at point q
-		const float lineRadius = lerp(cursor_radius, inters_radius, dist);
+		const float lineRadius = lerp(cursor_radius, inters_radius0, dist);
 		// Display the original line, with depth occlusion:
 		if (lineZ <= pos3D.z + 0.01)
 		{
@@ -245,7 +261,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			v += smoothstep(lineRadius + 0.0015, lineRadius, abs(d));
 		}
 		// v controls the blending, so we can apply transparency by modulating it:
-		if (!bIntersection)
+		if (!bIntersection0)
 			v *= (1.0 - dist);
 	}
 
@@ -253,7 +269,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	v *= 0.7;
 
 	//v = clamp(1.2 * v, 0.0, 1.0);
-	const float3 pointer_col = bIntersection ? dotcol : 0.7;
+	const float3 pointer_col = bIntersection0 ? dotcol : 1.0;
 	col = lerp(bgColor, pointer_col, v);
 
 #ifdef LASER_VR_DEBUG

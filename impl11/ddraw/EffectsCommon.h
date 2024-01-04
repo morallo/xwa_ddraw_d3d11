@@ -229,28 +229,30 @@ typedef struct OPTMeshTransformCBufferStruct {
 // so that we can reuse the same CB slot -- after all, we can't manipulate
 // anything while travelling through hyperspace anyway...
 struct LaserPointerCBuffer {
-	int TriggerState; // 0 = Not pressed, 1 = Pressed
-	float FOVscale, iResolution[2];
+	int TriggerState[2]; // 0 = Not pressed, 1 = Pressed
+	float iResolution[2];
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	int bContOrigin, bIntersection, bHoveringOnActiveElem[2];
+	int bContOrigin[2], bHoveringOnActiveElem[2];
 	// 48 bytes
-	float4 contOrigin[2];
-	// 80 bytes
-	float4 intersection[2];
+	float4 contOrigin[2][2];
 	// 112 bytes
+	float4 intersection[2][2];
+	// 176 bytes
 	float v2[2], uv[2]; // DEBUG
-	// 128
+	// 192 bytes
 	int bDebugMode;
 	float cursor_radius, lp_aspect_ratio[2];
-	// 144 bytes
+	// 208 bytes
 	float v0[2], v1[2]; // DEBUG
-	// 160 bytes
-	float inters_radius;
-	bool bDisplayLine;
-	int ac_unused2, ac_unused3;
-	// 176 bytes
+	// 224 bytes
+	float inters_radius[2];
+	int bDisplayLine[2];
+	// 240 bytes
+	int bIntersection[2];
+	int unused0, unused1;
+	// 256 bytes
 };
 
 /* 3D Constant Buffers */
