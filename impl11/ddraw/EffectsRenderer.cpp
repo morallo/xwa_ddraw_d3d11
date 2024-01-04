@@ -1870,11 +1870,6 @@ void EffectsRenderer::CreateVRMeshes()
 	// *************************************************
 	// Gloves
 	// *************************************************
-	/*char* sGloveFileNames[2] = {
-		"Effects\\ActiveCockpit\\LGloveNeutral.obj",
-		"Effects\\ActiveCockpit\\RGloveNeutral.obj"
-	};*/
-
 	Matrix4 R;
 	R.identity();
 	R.rotateX(45.0f); // The VR controllers tilt the objects a bit
@@ -1889,16 +1884,18 @@ void EffectsRenderer::CreateVRMeshes()
 			}
 		}
 
-		char* sGloveRTexture = "Effects\\ActiveCockpit.dat";
-		res = LoadDATImage(sGloveRTexture, 1, 0, g_vrGlovesMeshes[i].textureSRV.GetAddressOf());
+		res = LoadDATImage(g_vrGlovesMeshes[i].texName,
+			g_vrGlovesMeshes[i].texGroupId,
+			g_vrGlovesMeshes[i].texImageId,
+			g_vrGlovesMeshes[i].textureSRV.GetAddressOf());
 		if (SUCCEEDED(res))
 		{
 			log_debug("[DBG] [AC] Glove texture successfully loaded!");
 		}
 		else
 		{
-			log_debug("[DBG] [AC] Could not load texture for Glove [%s]",
-				sGloveRTexture);
+			log_debug("[DBG] [AC] Could not load texture for Glove %d: [%s]-%d-%d",
+				i, g_vrGlovesMeshes[i].texName, g_vrGlovesMeshes[i].texGroupId, g_vrGlovesMeshes[i].texImageId);
 		}
 		log_debug("[DBG] [AC] VR glove hand buffers CREATED");
 	}

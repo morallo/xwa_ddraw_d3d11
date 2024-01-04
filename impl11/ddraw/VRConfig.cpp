@@ -1767,6 +1767,32 @@ bool LoadACParams() {
 			{
 				g_vrGlovesMeshes[1].visible = (bool)fValue;
 			}
+			else if (_stricmp(param, "left_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[0].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[0].texGroupId = GroupId;
+					g_vrGlovesMeshes[0].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 0",
+						g_vrGlovesMeshes[0].texName, g_vrGlovesMeshes[0].texGroupId, g_vrGlovesMeshes[0].texImageId);
+				}
+			}
+			else if (_stricmp(param, "right_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[1].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[1].texGroupId = GroupId;
+					g_vrGlovesMeshes[1].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 1",
+						g_vrGlovesMeshes[1].texName, g_vrGlovesMeshes[1].texGroupId, g_vrGlovesMeshes[1].texImageId);
+				}
+			}
 
 			// VR controller configuration
 			if (_stricmp(param, "leftpad_up") == 0)

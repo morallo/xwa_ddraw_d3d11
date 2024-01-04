@@ -84,6 +84,8 @@ struct VRGlovesMesh
 	bool visible;
 	bool rendered;
 	float forwardPmeters[VRGlovesProfile::MAX]; // The forward-most point in this mesh, in meters. Used to push buttons
+	char texName[128];
+	int texGroupId, texImageId;
 };
 
 extern VRGlovesMesh g_vrGlovesMeshes[2];
