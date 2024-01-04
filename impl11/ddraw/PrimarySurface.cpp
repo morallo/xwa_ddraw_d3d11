@@ -7587,289 +7587,293 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	g_LaserPointerBuffer.bDisplayLine[0] = false;
 	g_LaserPointerBuffer.bDisplayLine[1] = false;
 
-	const int contIdx = 0;
-	if (!g_vrGlovesMeshes[contIdx].visible)
-		g_LaserPointerBuffer.bDisplayLine[contIdx] = true;
-
-	// Push button detection
-	static bool bPrevPushButton = false;
-	static int buttonState = 0;
-	bool bPushButton    = (g_iBestIntersTexIdx[contIdx] != -1) && (g_fBestIntersectionDistance[contIdx] <= g_fPushButtonThreshold);
-	bool bReleaseButton = (g_iBestIntersTexIdx[contIdx] == -1) || (g_fBestIntersectionDistance[contIdx] >  g_fReleaseButtonThreshold);
-	bool bButtonTrigger = false;
-
-	// Small FSM to better control button behavior. Makes it more difficult to trigger a button multiple times
-	switch (buttonState)
-	{
-	case 0:
-		if (!bPrevPushButton && bPushButton)
-		{
-			bButtonTrigger = true;
-			buttonState = 1;
-		}
-		break;
-	case 1:
-		bButtonTrigger = false; // Only trigger the button action once
-		// Only go back to "unpushed" if the distance is big enough:
-		if (bReleaseButton)
-			buttonState = 0;
-		break;
-	}
-
-	// Detect triggers:
-	if (g_bACLastTriggerState[contIdx] && !g_bACTriggerState[contIdx]) // || bButtonTrigger) // Push-button behavior is flaky. Needs better algorithms.
-		g_bACActionTriggered[contIdx] = true;
-
-	g_bACLastTriggerState[contIdx] = g_bACTriggerState[contIdx];
-	// Update the display
-	//g_LaserPointerBuffer.TriggerState = g_bACTriggerState || (buttonState == 1);
-	g_LaserPointerBuffer.TriggerState[contIdx] = g_bACTriggerState[contIdx]; // Push-button behavior is flaky. Needs better algorithms.
-	bPrevPushButton = bPushButton;
-
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
-
-	// Regular transform chain: OPT to in-game screen coords.
-	/*contOriginDisplay = Vector4(0.0f, -1.0f, 0.5f, 1.0f);
-	contOriginDisplay *= METERS_TO_OPT;
-	contOriginDisplay.w = 1.0f;
-	contOriginDisplay = W * contOriginDisplay;*/
-
-	// contOriginDisplay is now in OPT coords. We can now use g_ACTLASTree to find the closest hit
-	// OPT coord system:
-	//    X+ --> right
-	//    Y+ --> backwards
-	//    Z+ --> up
-	Ray ray;
-	ray.origin   = float3(contOriginDisplay[contIdx]);
-	ray.dir      = float3(contDirDisplay[contIdx]);
-	ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
-
-	//Intersection inters = TLASTraceRaySimpleHit(ray);
-	Intersection inters;
-	// The intersection was already found with an active element in EffectsRenderer:ApplyActiveCockpit()
-	// There's no need to traverse the BVH again here
-	if (g_iBestIntersTexIdx[contIdx] != -1)
+	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
-		inters.T = g_fBestIntersectionDistance[contIdx];
-		inters.TriID = g_iBestIntersTexIdx[contIdx];
-	}
-	else
-	{
-		// Find the ray-geometry intersection by iterating over all the BLASes
-		for (const auto& leaf : g_ACtlasLeaves)
+		if (!g_vrGlovesMeshes[contIdx].visible)
+			g_LaserPointerBuffer.bDisplayLine[contIdx] = true;
+
+		// Push button detection
+		static bool bPrevPushButton = false;
+		static int buttonState = 0;
+		bool bPushButton    = (g_iBestIntersTexIdx[contIdx] != -1) && (g_fBestIntersectionDistance[contIdx] <= g_fPushButtonThreshold);
+		bool bReleaseButton = (g_iBestIntersTexIdx[contIdx] == -1) || (g_fBestIntersectionDistance[contIdx] >  g_fReleaseButtonThreshold);
+		bool bButtonTrigger = false;
+
+		// Small FSM to better control button behavior. Makes it more difficult to trigger a button multiple times
+		switch (buttonState)
 		{
-			auto it = g_BLASMap.find(leaf.PrimID);
-			if (it != g_BLASMap.end())
+		case 0:
+			if (!bPrevPushButton && bPushButton)
 			{
-				BLASData blasData = it->second;
-				LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
-				if (bvh != nullptr)
+				bButtonTrigger = true;
+				buttonState = 1;
+			}
+			break;
+		case 1:
+			bButtonTrigger = false; // Only trigger the button action once
+			// Only go back to "unpushed" if the distance is big enough:
+			if (bReleaseButton)
+				buttonState = 0;
+			break;
+		}
+
+		// Detect triggers:
+		if (g_bACLastTriggerState[contIdx] && !g_bACTriggerState[contIdx]) // || bButtonTrigger) // Push-button behavior is flaky. Needs better algorithms.
+			g_bACActionTriggered[contIdx] = true;
+
+		g_bACLastTriggerState[contIdx] = g_bACTriggerState[contIdx];
+		// Update the display
+		//g_LaserPointerBuffer.TriggerState = g_bACTriggerState || (buttonState == 1);
+		g_LaserPointerBuffer.TriggerState[contIdx] = g_bACTriggerState[contIdx]; // Push-button behavior is flaky. Needs better algorithms.
+		bPrevPushButton = bPushButton;
+
+		// Regular transform chain: OPT to in-game screen coords.
+		/*contOriginDisplay = Vector4(0.0f, -1.0f, 0.5f, 1.0f);
+		contOriginDisplay *= METERS_TO_OPT;
+		contOriginDisplay.w = 1.0f;
+		contOriginDisplay = W * contOriginDisplay;*/
+
+		// contOriginDisplay is now in OPT coords. We can now use g_ACTLASTree to find the closest hit
+		// OPT coord system:
+		//    X+ --> right
+		//    Y+ --> backwards
+		//    Z+ --> up
+		Ray ray;
+		ray.origin = float3(contOriginDisplay[contIdx]);
+		ray.dir = float3(contDirDisplay[contIdx]);
+		ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
+
+		Intersection inters;
+		// The intersection was already found with an active element in EffectsRenderer:ApplyActiveCockpit()
+		// There's no need to traverse the BVH again here
+		if (g_iBestIntersTexIdx[contIdx] != -1)
+		{
+			inters.T     = g_fBestIntersectionDistance[contIdx];
+			inters.TriID = g_iBestIntersTexIdx[contIdx];
+		}
+		else
+		{
+			//inters = TLASTraceRaySimpleHit(ray);
+			// Find the ray-geometry intersection by iterating over all the BLASes
+			for (const auto& leaf : g_ACtlasLeaves)
+			{
+				auto it = g_BLASMap.find(leaf.PrimID);
+				if (it != g_BLASMap.end())
 				{
-					Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
-					if (tempInters.TriID != -1 && // There was an intersection
-						tempInters.T > 0.0f &&    // It's not behind the ray's origin
-						tempInters.T < inters.T)  // It's better than the best intersection so far
+					BLASData blasData = it->second;
+					LBVH* bvh = (LBVH*)BLASGetBVH(blasData);
+					if (bvh != nullptr)
 					{
-						inters = tempInters;
+						Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
+						if (tempInters.TriID != -1 && // There was an intersection
+							tempInters.T > 0.0f &&    // It's not behind the ray's origin
+							tempInters.T < inters.T)  // It's better than the best intersection so far
+						{
+							inters = tempInters;
+						}
 					}
 				}
 			}
 		}
-	}
 
-	contOriginDisplay[contIdx] = W * contOriginDisplay[contIdx];
-	// contOriginDisplay is now in Worldview coords
-	g_LaserPointerBuffer.bContOrigin[contIdx] = (contOriginDisplay[contIdx].z > 0.01f); // Don't display the cursor if it's behind the camera
+		contOriginDisplay[contIdx] = W * contOriginDisplay[contIdx];
+		// contOriginDisplay is now in Worldview coords
+		g_LaserPointerBuffer.bContOrigin[contIdx] = (contOriginDisplay[contIdx].z > 0.01f); // Don't display the cursor if it's behind the camera
 
-	float screenX, screenY;
-	Vector4 pos2D[2];
+		float screenX, screenY;
+		Vector4 pos2D[2];
 
-	if (!g_bUseSteamVR)
-	{
-		OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, contOriginDisplay[contIdx], &screenX, &screenY);
-		g_LaserPointerBuffer.contOrigin[contIdx][0].x = screenX;
-		g_LaserPointerBuffer.contOrigin[contIdx][0].y = screenY;
-		g_LaserPointerBuffer.contOrigin[contIdx][0].z = contOriginDisplay[contIdx].z * OPT_TO_METERS;
-
-		// Project a point 4mm to the right of contOriginDisplay to get the proper radius
-		float sX1;
-		Vector4 Q = contOriginDisplay[contIdx];
-		Q.x += (0.004f * METERS_TO_OPT);
-		OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &sX1, &screenY);
-		g_LaserPointerBuffer.cursor_radius[contIdx] = (sX1 - screenX);
-	}
-	else
-	{
-		OPTVertexToSteamVRPostProcCoords(contOriginDisplay[contIdx], pos2D);
-		// Left eye cursor
-		g_LaserPointerBuffer.contOrigin[contIdx][0].x = pos2D[0].x;
-		g_LaserPointerBuffer.contOrigin[contIdx][0].y = pos2D[0].y;
-		g_LaserPointerBuffer.contOrigin[contIdx][0].z = contOriginDisplay[contIdx].z * OPT_TO_METERS;
-
-		// Right eye cursor
-		g_LaserPointerBuffer.contOrigin[contIdx][1].x = pos2D[1].x;
-		g_LaserPointerBuffer.contOrigin[contIdx][1].y = pos2D[1].y;
-		g_LaserPointerBuffer.contOrigin[contIdx][1].z = contOriginDisplay[contIdx].z * OPT_TO_METERS;
-
-		// Project a point 3mm to the right of contOriginDisplay to get the proper radius
-		float sX0 = pos2D[0].x;
-		Vector4 Q = contOriginDisplay[contIdx];
-		Q.x += (0.003f * METERS_TO_OPT);
-		OPTVertexToSteamVRPostProcCoords(Q, pos2D);
-		g_LaserPointerBuffer.cursor_radius[contIdx] = (pos2D[0].x - sX0);
-	}
-
-	g_fLaserIntersectionDistance[contIdx] = FLT_MAX;
-	float3 P;
-	if (inters.TriID != -1)
-	{
-		if (g_iBestIntersTexIdx[contIdx] != -1)
+		// Compute the correct radius of the projected cursor origin
+		if (!g_bUseSteamVR)
 		{
-			P.x = g_LaserPointer3DIntersection[contIdx].x;
-			P.y = g_LaserPointer3DIntersection[contIdx].y;
-			P.z = g_LaserPointer3DIntersection[contIdx].z;
+			OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, contOriginDisplay[contIdx], &screenX, &screenY);
+			g_LaserPointerBuffer.contOrigin[contIdx][0].x = screenX;
+			g_LaserPointerBuffer.contOrigin[contIdx][0].y = screenY;
+			g_LaserPointerBuffer.contOrigin[contIdx][0].z = contOriginDisplay[contIdx].z * OPT_TO_METERS;
+
+			// Project a point 4mm to the right of contOriginDisplay to get the proper radius
+			float sX1;
+			Vector4 Q = contOriginDisplay[contIdx];
+			Q.x += (0.004f * METERS_TO_OPT);
+			OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &sX1, &screenY);
+			g_LaserPointerBuffer.cursor_radius[contIdx] = (sX1 - screenX);
 		}
 		else
 		{
-			P = ray.origin + inters.T * ray.dir;
+			OPTVertexToSteamVRPostProcCoords(contOriginDisplay[contIdx], pos2D);
+			// Left eye cursor
+			g_LaserPointerBuffer.contOrigin[contIdx][0].x = pos2D[0].x;
+			g_LaserPointerBuffer.contOrigin[contIdx][0].y = pos2D[0].y;
+			g_LaserPointerBuffer.contOrigin[contIdx][0].z = contOriginDisplay[contIdx].z * OPT_TO_METERS;
+
+			// Right eye cursor
+			g_LaserPointerBuffer.contOrigin[contIdx][1].x = pos2D[1].x;
+			g_LaserPointerBuffer.contOrigin[contIdx][1].y = pos2D[1].y;
+			g_LaserPointerBuffer.contOrigin[contIdx][1].z = contOriginDisplay[contIdx].z * OPT_TO_METERS;
+
+			// Project a point 3mm to the right of contOriginDisplay to get the proper radius
+			float sX0 = pos2D[0].x;
+			Vector4 Q = contOriginDisplay[contIdx];
+			Q.x += (0.003f * METERS_TO_OPT);
+			OPTVertexToSteamVRPostProcCoords(Q, pos2D);
+			g_LaserPointerBuffer.cursor_radius[contIdx] = (pos2D[0].x - sX0);
 		}
-		g_LaserPointerBuffer.bIntersection[contIdx] = true;
-		Vector3 O = { ray.origin.x, ray.origin.y, ray.origin.z };
-		Vector3 D = { P.x, P.y, P.z };
-		g_fLaserIntersectionDistance[contIdx] = (D - O).length();
-	}
-	else // When there's no intersection, just draw a line pointing in the direction of the ray
-	{
-		// ray.dir is already in OPT metric (i.e. its length is 40.96), so the following line is equivalent to:
-		// 0.5f * METERS_TO_OPT * normalize(ray.dir)
-		P = ray.origin + 0.5f * ray.dir;
-		g_LaserPointerBuffer.bIntersection[contIdx] = false;
-	}
 
-	// Compute the projected size of the intersection point (P)
-	{
-		// P is in OPT coords, now we need to transform it to WorldView coords for the projection:
-		Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f);
-		Q = W * Q;
-		if (Q.z > 0.01f) // Don't display the intersection if it's behind the camera
+		g_fLaserIntersectionDistance[contIdx] = FLT_MAX;
+		float3 P;
+		if (inters.TriID != -1)
 		{
-			if (!g_bUseSteamVR)
+			if (g_iBestIntersTexIdx[contIdx] != -1)
 			{
-				OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &screenX, &screenY);
-				if (contIdx == 0)
-				{
-					g_LaserPointerBuffer.intersection[contIdx][0][0] = screenX;
-					g_LaserPointerBuffer.intersection[contIdx][0][1] = screenY;
-					g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
-				}
-
-				// Project a point 2.5mm to the right of Q to get the proper 3D radius
-				float sX1;
-				Q.x += (0.0025f * METERS_TO_OPT);
-				OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &sX1, &screenY);
-				g_LaserPointerBuffer.inters_radius[contIdx] = (sX1 - screenX);
+				P.x = g_LaserPointer3DIntersection[contIdx].x;
+				P.y = g_LaserPointer3DIntersection[contIdx].y;
+				P.z = g_LaserPointer3DIntersection[contIdx].z;
 			}
 			else
 			{
-				OPTVertexToSteamVRPostProcCoords(Q, pos2D);
-				// Left eye
-				g_LaserPointerBuffer.intersection[contIdx][0][0] = pos2D[0].x;
-				g_LaserPointerBuffer.intersection[contIdx][0][1] = pos2D[0].y;
-				g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
-
-				// Right eye
-				g_LaserPointerBuffer.intersection[contIdx][1][0] = pos2D[1].x;
-				g_LaserPointerBuffer.intersection[contIdx][1][1] = pos2D[1].y;
-				g_LaserPointerBuffer.intersection[contIdx][1][2] = Q.z * OPT_TO_METERS;
-
-				// Project a point 1.5mm to the right of Q to get the proper 3D radius
-				float sX0 = pos2D[0].x;
-				Q.x += (0.0015f * METERS_TO_OPT);
-				OPTVertexToSteamVRPostProcCoords(Q, pos2D);
-				g_LaserPointerBuffer.inters_radius[contIdx] = (pos2D[0].x - sX0);
+				P = ray.origin + inters.T * ray.dir;
 			}
-
-			// DEBUG
-#ifdef DISABLED
-			{
-				float screenX, screenY;
-				Vector4 tmp;
-				float4 pos2D;
-
-				tmp.x = g_debug_v0.x; tmp.y = g_debug_v0.y; tmp.z = g_debug_v0.z; tmp.w = 1.0f;
-				tmp = W * tmp;
-				pos2D = TransformProjectionScreen(float3(tmp));
-				InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
-				g_LaserPointerBuffer.v0[0] = screenX / g_fCurScreenWidth;
-				g_LaserPointerBuffer.v0[1] = screenY / g_fCurScreenHeight;
-
-				tmp.x = g_debug_v1.x; tmp.y = g_debug_v1.y; tmp.z = g_debug_v1.z; tmp.w = 1.0f;
-				tmp = W * tmp;
-				pos2D = TransformProjectionScreen(float3(tmp));
-				InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
-				g_LaserPointerBuffer.v1[0] = screenX / g_fCurScreenWidth;
-				g_LaserPointerBuffer.v1[1] = screenY / g_fCurScreenHeight;
-
-				tmp.x = g_debug_v2.x; tmp.y = g_debug_v2.y; tmp.z = g_debug_v2.z; tmp.w = 1.0f;
-				tmp = W * tmp;
-				pos2D = TransformProjectionScreen(float3(tmp));
-				InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
-				g_LaserPointerBuffer.v2[0] = screenX / g_fCurScreenWidth;
-				g_LaserPointerBuffer.v2[1] = screenY / g_fCurScreenHeight;
-			}
-#endif
+			g_LaserPointerBuffer.bIntersection[contIdx] = true;
+			Vector3 O = { ray.origin.x, ray.origin.y, ray.origin.z };
+			Vector3 D = { P.x, P.y, P.z };
+			g_fLaserIntersectionDistance[contIdx] = (D - O).length();
 		}
-	}
+		else // When there's no intersection, just draw a line pointing in the direction of the ray
+		{
+			// ray.dir is already in OPT metric (i.e. its length is 40.96), so the following line is equivalent to:
+			// 0.5f * METERS_TO_OPT * normalize(ray.dir)
+			P = ray.origin + 0.5f * ray.dir;
+			g_LaserPointerBuffer.bIntersection[contIdx] = false;
+		}
 
-	// If there was an intersection, find the action and execute it.
-	// (I don't think this code needs to be here; but I put it here with the rest of the render function)
-	if (g_LaserPointerBuffer.bIntersection && g_iBestIntersTexIdx[contIdx] > -1 && g_iBestIntersTexIdx[contIdx] < g_iNumACElements)
-	{
-		ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx[contIdx]].coords);
-		// g_iBestIntersTexIdx and g_LaserPointerBuffer.uv are populated in EffectsRenderer.cpp:ApplyActiveCockpit()
-		float u = g_LaserPointerBuffer.uv[0];
-		float v = g_LaserPointerBuffer.uv[1];
-		float u0 = u, v0 = v;
-
-		// Fix negative UVs (yes, some OPTs may have negative UVs)
-		while (u < 0.0f) u += 1.0f;
-		while (v < 0.0f) v += 1.0f;
-		// Fix UVs beyond 1
-		while (u > 1.0f) u -= 1.0f;
-		while (v > 1.0f) v -= 1.0f;
-
-		for (int i = 0; i < coords->numCoords; i++) {
-			if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
-				coords->area[i].y0 <= v && v <= coords->area[i].y1)
+		// Compute the projected size of the intersection point (P)
+		{
+			// P is in OPT coords, now we need to transform it to WorldView coords for the projection:
+			Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f);
+			Q = W * Q;
+			if (Q.z > 0.01f) // Don't display the intersection if it's behind the camera
 			{
-				g_LaserPointerBuffer.bHoveringOnActiveElem[contIdx] = 1;
-				if (g_bACActionTriggered[contIdx]) {
-					short width = g_ACElements[g_iBestIntersTexIdx[contIdx]].width;
-					short height = g_ACElements[g_iBestIntersTexIdx[contIdx]].height;
+				if (!g_bUseSteamVR)
+				{
+					OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &screenX, &screenY);
+					if (contIdx == 0)
+					{
+						g_LaserPointerBuffer.intersection[contIdx][0][0] = screenX;
+						g_LaserPointerBuffer.intersection[contIdx][0][1] = screenY;
+						g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
+					}
 
-					/*
-					log_debug("[DBG} [AC] *************");
-					log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
-					log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
-					log_debug("[DBG] [AC] numCoords: %d", g_ACElements[g_iBestIntersTexIdx].coords.numCoords);
-					log_debug("[DBG] [AC] Running action: [%s]", coords->action_name[i]);
-					log_debug("[DBG] [AC] uv coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
-						coords->area[i].x0, coords->area[i].y0,
-						coords->area[i].x1, coords->area[i].y1);
-					log_debug("[DBG] [AC] laser uv (raw): (%0.3f, %0.3f)", u0, v0);
-					log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
-						u, v, (short)(width * u), (short)(height * v));
-					*/
-
-					// Run the action itself
-					ACRunAction(coords->action[i]);
-					//log_debug("[DBG} [AC] *************");
+					// Project a point 2.5mm to the right of Q to get the proper 3D radius
+					float sX1;
+					Q.x += (0.0025f * METERS_TO_OPT);
+					OPTVertexToPostProcCoords(renderer->_CockpitConstants.viewportScale, Q, &sX1, &screenY);
+					g_LaserPointerBuffer.inters_radius[contIdx] = (sX1 - screenX);
 				}
-				break;
+				else
+				{
+					OPTVertexToSteamVRPostProcCoords(Q, pos2D);
+					// Left eye
+					g_LaserPointerBuffer.intersection[contIdx][0][0] = pos2D[0].x;
+					g_LaserPointerBuffer.intersection[contIdx][0][1] = pos2D[0].y;
+					g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
+
+					// Right eye
+					g_LaserPointerBuffer.intersection[contIdx][1][0] = pos2D[1].x;
+					g_LaserPointerBuffer.intersection[contIdx][1][1] = pos2D[1].y;
+					g_LaserPointerBuffer.intersection[contIdx][1][2] = Q.z * OPT_TO_METERS;
+
+					// Project a point 1.5mm to the right of Q to get the proper 3D radius
+					float sX0 = pos2D[0].x;
+					Q.x += (0.0015f * METERS_TO_OPT);
+					OPTVertexToSteamVRPostProcCoords(Q, pos2D);
+					g_LaserPointerBuffer.inters_radius[contIdx] = (pos2D[0].x - sX0);
+				}
+
+				// DEBUG
+	#ifdef DISABLED
+				{
+					float screenX, screenY;
+					Vector4 tmp;
+					float4 pos2D;
+
+					tmp.x = g_debug_v0.x; tmp.y = g_debug_v0.y; tmp.z = g_debug_v0.z; tmp.w = 1.0f;
+					tmp = W * tmp;
+					pos2D = TransformProjectionScreen(float3(tmp));
+					InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
+					g_LaserPointerBuffer.v0[0] = screenX / g_fCurScreenWidth;
+					g_LaserPointerBuffer.v0[1] = screenY / g_fCurScreenHeight;
+
+					tmp.x = g_debug_v1.x; tmp.y = g_debug_v1.y; tmp.z = g_debug_v1.z; tmp.w = 1.0f;
+					tmp = W * tmp;
+					pos2D = TransformProjectionScreen(float3(tmp));
+					InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
+					g_LaserPointerBuffer.v1[0] = screenX / g_fCurScreenWidth;
+					g_LaserPointerBuffer.v1[1] = screenY / g_fCurScreenHeight;
+
+					tmp.x = g_debug_v2.x; tmp.y = g_debug_v2.y; tmp.z = g_debug_v2.z; tmp.w = 1.0f;
+					tmp = W * tmp;
+					pos2D = TransformProjectionScreen(float3(tmp));
+					InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
+					g_LaserPointerBuffer.v2[0] = screenX / g_fCurScreenWidth;
+					g_LaserPointerBuffer.v2[1] = screenY / g_fCurScreenHeight;
+				}
+	#endif
 			}
 		}
+
+		// If there was an intersection, find the action and execute it.
+		// (I don't think this code needs to be here; but I put it here with the rest of the render function)
+		if (g_LaserPointerBuffer.bIntersection[contIdx] &&
+			g_iBestIntersTexIdx[contIdx] > -1 &&
+			g_iBestIntersTexIdx[contIdx] < g_iNumACElements)
+		{
+			ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx[contIdx]].coords);
+			// g_iBestIntersTexIdx and g_LaserPointerBuffer.uv are populated in EffectsRenderer.cpp:ApplyActiveCockpit()
+			float u = g_LaserPointerBuffer.uv[contIdx][0];
+			float v = g_LaserPointerBuffer.uv[contIdx][1];
+			float u0 = u, v0 = v;
+
+			// Fix negative UVs (yes, some OPTs may have negative UVs)
+			while (u < 0.0f) u += 1.0f;
+			while (v < 0.0f) v += 1.0f;
+			// Fix UVs beyond 1
+			while (u > 1.0f) u -= 1.0f;
+			while (v > 1.0f) v -= 1.0f;
+
+			for (int i = 0; i < coords->numCoords; i++) {
+				if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
+					coords->area[i].y0 <= v && v <= coords->area[i].y1)
+				{
+					g_LaserPointerBuffer.bHoveringOnActiveElem[contIdx] = 1;
+					if (g_bACActionTriggered[contIdx]) {
+						short width  = g_ACElements[g_iBestIntersTexIdx[contIdx]].width;
+						short height = g_ACElements[g_iBestIntersTexIdx[contIdx]].height;
+
+						/*
+						log_debug("[DBG} [AC] *************");
+						log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
+						log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
+						log_debug("[DBG] [AC] numCoords: %d", g_ACElements[g_iBestIntersTexIdx].coords.numCoords);
+						log_debug("[DBG] [AC] Running action: [%s]", coords->action_name[i]);
+						log_debug("[DBG] [AC] uv coords: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+							coords->area[i].x0, coords->area[i].y0,
+							coords->area[i].x1, coords->area[i].y1);
+						log_debug("[DBG] [AC] laser uv (raw): (%0.3f, %0.3f)", u0, v0);
+						log_debug("[DBG] [AC] laser uv: (%0.3f, %0.3f)-(%d, %d)",
+							u, v, (short)(width * u), (short)(height * v));
+						*/
+
+						// Run the action itself
+						ACRunAction(coords->action[i]);
+						//log_debug("[DBG} [AC] *************");
+					}
+					break;
+				}
+			}
+		}
+		g_bACActionTriggered[contIdx] = false;
 	}
-	g_bACActionTriggered[contIdx] = false;
 
 	// Temporarily disable ZWrite: we won't need it for post-proc
 	D3D11_DEPTH_STENCIL_DESC desc;

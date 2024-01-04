@@ -31,7 +31,8 @@ cbuffer ConstantBuffer : register(b8)
 	float4 intersectionL1;       // contIdx:1, intersection.xy --> uv-coords, intersection.z --> metric depth
 	float4 intersectionR1;       // contIdx:1
 	// 176 bytes
-	float2 v2, uv; // DEBUG
+	float2 uv0;
+	float2 uv1;
 	// 192 bytes
 	bool   bDebugMode;
 	int    ac_unused0;
@@ -49,6 +50,9 @@ cbuffer ConstantBuffer : register(b8)
 	bool bIntersection1;
 	float2 lp_aspect_ratio;
 	// 256 bytes
+	float2 v2; // DEBUG
+	float ac_unused1, ac_unused2;
+	// 272 bytes
 };
 
 #ifdef INSTANCED_RENDERING
@@ -141,28 +145,22 @@ float map(in vec2 p)
 }
 */
 
-vec4 RenderCursor(
-	const vec3 bgColor,
-	const vec3 pos3D,
-	const vec2 p,
-	const int TriggerState,
-	const bool bHoveringOnActiveElem,
-	const bool bContOrigin,
-	const bool bDisplayLine,
-	const bool bIntersection,
+void RenderCursor(
+	const vec3   bgColor,
+	const vec3   pos3D,
+	const vec2   p,
+	const int    TriggerState,
+	const bool   bHoveringOnActiveElem,
+	const bool   bContOrigin,
+	const bool   bDisplayLine,
+	const bool   bIntersection,
 	const float4 contOrigin,
 	const float4 intersection,
-	const float cursor_radius,
-	const float inters_radius)
+	const float  cursor_radius,
+	const float  inters_radius,
+	out   float3 pointer_col,
+	out   float  blend)
 {
-	vec3 col = 0.0;
-
-	// DEBUG
-	//output.color = float4(p, 0, 1);
-	//return output;
-	// DEBUG
-
-	col = bgColor;
 	float3 dotcol = bHoveringOnActiveElem ? float3(0.0, 1.0, 0.0) : 1.0;
 	if (TriggerState)
 		dotcol = float3(0.1, 0.1, 1.0);
@@ -227,8 +225,8 @@ vec4 RenderCursor(
 	v *= 0.7;
 
 	//v = clamp(1.2 * v, 0.0, 1.0);
-	const float3 pointer_col = bIntersection ? dotcol : 1.0;
-	col = lerp(bgColor, pointer_col, v);
+	pointer_col = bIntersection ? dotcol : 1.0;
+	blend = v;
 
 #ifdef LASER_VR_DEBUG
 	// Draw the triangle uv-color-coded
@@ -241,8 +239,6 @@ vec4 RenderCursor(
 			col = 1;
 	}
 #endif
-
-	return vec4(col, 1.0);
 }
 
 PixelShaderOutput main(PixelShaderInput input) {
@@ -269,6 +265,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//output.color = float4(input.uv, 0.5, 1);
 	//return output;
 
+	// DEBUG
+	//output.color = float4(p, 0, 1);
+	//return output;
+	// DEBUG
+
 #ifdef INSTANCED_RENDERING
 	float3 bgColor = colorTex.Sample(colorSampler, float3(input.uv, input.viewId)).xyz;
 	float3 pos3D   = texPos.Sample(colorSampler,   float3(input.uv, input.viewId)).xyz;
@@ -289,10 +290,23 @@ PixelShaderOutput main(PixelShaderInput input) {
 	const float4 intersection1 = intersectionL1;
 #endif
 
-	output.color = RenderCursor(bgColor, pos3D, input.uv,
-	                            TriggerState0, bHoveringOnActiveElem0,
-	                            bContOrigin0, bDisplayLine0, bIntersection0,
-	                            contOrigin0, intersection0,
-	                            cursor_radius0, inters_radius0);
+	float3 pointer_col;
+	float blend;
+	RenderCursor(bgColor, pos3D, input.uv,
+	             TriggerState0, bHoveringOnActiveElem0,
+	             bContOrigin0, bDisplayLine0, bIntersection0,
+	             contOrigin0, intersection0,
+	             cursor_radius0, inters_radius0,
+	             pointer_col, blend);
+	output.color.rgb = lerp(bgColor, pointer_col, blend);
+
+	RenderCursor(bgColor, pos3D, input.uv,
+	             TriggerState1, bHoveringOnActiveElem1,
+	             bContOrigin1, bDisplayLine1, bIntersection1,
+	             contOrigin1, intersection1,
+	             cursor_radius1, inters_radius1,
+	             pointer_col, blend);
+	output.color.rgb = lerp(output.color.rgb, pointer_col, blend);
+	output.color.a = 1;
 	return output;
 }

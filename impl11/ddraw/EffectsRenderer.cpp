@@ -2229,10 +2229,10 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		if (g_vrKeybState.bVisible && g_contStates[contIdx].buttons[g_vrKeybState.iActivatorButtonIdx])
 		{
 			Matrix4 R, S;
-			//T.translate(-cockpitOriginX, -cockpitOriginY, -cockpitOriginZ);
 			S.scale(OPT_TO_METERS);
-			// The VR controllers are titled by about ~45-55 degrees, we need to compensate for that:
-			R.rotateX(55.0f);
+			// The VR controllers are titled by about ~45 degrees, we need to compensate for that, and then
+			// add a little more tilt to be able to type on the keyboard comfortably:
+			R.rotateX(65.0f);
 
 			Matrix4 Tinv, Sinv;
 			Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
@@ -2240,8 +2240,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 			Sinv.scale(METERS_TO_OPT);
 
-			// The keyboard is already centered at the origin, so we don't need to apply T:
-			//Matrix4 toSteamVR = swap * S * T;
 			Matrix4 toSteamVR = swap * S * R;
 			Matrix4 toOPT     = Tinv * Sinv * swap;
 
@@ -3663,7 +3661,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 		ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
 
 		Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
-		Vector3 dir = { ray.dir.x, ray.dir.y, ray.dir.z };
+		Vector3 dir  = { ray.dir.x,    ray.dir.y,    ray.dir.z };
 
 		if (g_vrGlovesMeshes[contIdx].visible)
 		{
@@ -3723,15 +3721,15 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 					XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
 					XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
 
-					g_LaserPointerBuffer.uv[0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
-					g_LaserPointerBuffer.uv[1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+					g_LaserPointerBuffer.uv[contIdx][0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+					g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
 					g_iBestIntersTexIdx[contIdx] = g_iVRKeyboardSlot;
 
 					g_debug_v0 = v0;
 					g_debug_v1 = v1;
 					g_debug_v2 = v2;
 					g_LaserPointer3DIntersection[contIdx] = P;
-					return;
+					continue;
 				}
 			}
 		}
@@ -3800,8 +3798,8 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 			const float baryW = 1.0f - baryU - baryV;
 			const float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
 			const float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
-			g_LaserPointerBuffer.uv[0] = u;
-			g_LaserPointerBuffer.uv[1] = v;
+			g_LaserPointerBuffer.uv[contIdx][0] = u;
+			g_LaserPointerBuffer.uv[contIdx][1] = v;
 			g_iBestIntersTexIdx[contIdx] = _lastTextureSelected->ActiveCockpitIdx;
 			/*log_debug("[DBG] [AC] bestUV0: (%0.3f, %0.3f)", bestUV0.u, bestUV0.v);
 			log_debug("[DBG] [AC] bestUV1: (%0.3f, %0.3f)", bestUV1.u, bestUV1.v);

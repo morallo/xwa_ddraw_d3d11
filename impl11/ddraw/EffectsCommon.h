@@ -240,7 +240,7 @@ struct LaserPointerCBuffer {
 	// 112 bytes
 	float4 intersection[2][2];
 	// 176 bytes
-	float v2[2], uv[2]; // DEBUG
+	float uv[2][2];
 	// 192 bytes
 	int bDebugMode, unused0;
 	float cursor_radius[2];
@@ -253,6 +253,9 @@ struct LaserPointerCBuffer {
 	int bIntersection[2];
 	float lp_aspect_ratio[2];
 	// 256 bytes
+	float v2[2]; // DEBUG
+	float unused1, unused2;
+	// 272 bytes
 };
 
 /* 3D Constant Buffers */
