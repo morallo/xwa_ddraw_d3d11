@@ -7747,6 +7747,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_LaserPointerBuffer.bIntersection[contIdx] = false;
 		}
 
+		// If we're gripping either the throttle or the joystick, don't display the intersections -- looks weird
+		if (g_contStates[contIdx].buttons[VRButtons::GRIP])
+			g_LaserPointerBuffer.bIntersection[contIdx] = false;
+
 		// Compute the projected size of the intersection point (P)
 		{
 			// P is in OPT coords, now we need to transform it to WorldView coords for the projection:
