@@ -115,7 +115,7 @@ void SendMouseEvent(float dx, float dy, bool bLeft, bool bRight)
 void EmulMouseWithVRControllers()
 {
 	const int ptrIdx = 0;
-	const int auxIdx = ptrIdx == 0 ? 1 : 0;
+	const int auxIdx = (ptrIdx == 0) ? 1 : 0;
 	static bool bFirstTime = true;
 	static WORD escScanCodes[2];
 	static WORD periodScanCodes[2];
@@ -680,6 +680,24 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
 					}
 				}
+
+				// Trigger the fire button on its own (it can only be triggered when pressing grip at the same time)
+				if (g_config.JoystickEmul == 3 && contIdx == g_ACJoyEmul.joyHandIdx)
+				{
+					static bool bFirstTime = true;
+					static WORD joyButton1ScanCodes[2];
+					if (bFirstTime)
+					{
+						char action[] = "JOYBUTTON1";
+						TranslateACAction(joyButton1ScanCodes, action, nullptr);
+						bFirstTime = false;
+					}
+
+					if (g_contStates[contIdx].buttons[VRButtons::TRIGGER] &&
+						g_contStates[contIdx].buttons[VRButtons::GRIP])
+						ACRunAction(joyButton1ScanCodes, pji);
+				}
+
 				// Actions have been processed, we can update the previous state now
 				g_prevContStates[contIdx] = g_contStates[contIdx];
 			}
