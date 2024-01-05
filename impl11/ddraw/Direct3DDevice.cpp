@@ -503,7 +503,7 @@ void GetCraftViewMatrix(Matrix4 *result);
 
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(UINT index, Vector3 *P);
-inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 float3 InverseTransformProjectionScreen(float4 pos);
 
@@ -1602,7 +1602,7 @@ inline void InverseTransformProjectionScreen(UINT index, Vector3 *P, bool invert
  *		(regular and VR paths): post-proc UV coords. (Confirmed by rendering the XWA lights
  *		in the external HUD shader).
  */
-inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
 	Vector3 P, temp = pos3D;
 
 	if (!bForceNonVR && g_bEnableVR) {
@@ -2249,135 +2249,6 @@ bool Direct3DDevice::ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curInd
 // DEBUG
 //FILE *colorFile = NULL, *lightFile = NULL;
 // DEBUG
-
-bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex,
-	Vector3 orig, Vector3 dir, bool debug)
-{
-	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	D3DTLVERTEX vert;
-	uint32_t index;
-	UINT idx = curIndex;
-	float u, v, U0, V0, U1, V1, U2, V2; // , dx, dy;
-	float best_t = 10000.0f;
-	bool bIntersection = false;
-
-	Vector3 tempv0, tempv1, tempv2, tempP;
-	float tempt, tu, tv;
-
-	/*
-	FILE *outFile = NULL;
-	if (g_bDumpSSAOBuffers) {
-		if (colorFile == NULL)
-			fopen_s(&colorFile, "./colorVertices.obj", "wt");
-		if (lightFile == NULL)
-			fopen_s(&lightFile, "./lightVertices.obj", "wt");
-		outFile = texture->is_LightTexture ? lightFile : colorFile;
-	}
-	*/
-
-	if (debug)
-		log_debug("[DBG] START Geom");
-
-	for (WORD i = 0; i < instruction->wCount; i++)
-	{
-		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
-		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
-		backProjectMetric(index, &tempv0);
-		/* if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
-			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
-			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		} */
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = projectMetric(tempv0, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f/vert.rhw, 
-				tempv0.x, tempv0.y, tempv0.z,
-				q.x, q.y, 1.0f/q.z /*, dx, dy */);
-		}
-
-		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
-		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
-		backProjectMetric(index, &tempv1);
-		/* if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
-			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
-			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		} */
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = projectMetric(tempv1, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f/vert.rhw, 
-				tempv1.x, tempv1.y, tempv1.z,
-				q.x, q.y, 1.0f/q.z /*, dx, dy */);
-		}
-
-		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
-		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
-		backProjectMetric(index, &tempv2);
-		/* if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
-			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
-			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		} */
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = projectMetric(tempv2, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f/vert.rhw,
-				tempv2.x, tempv2.y, tempv2.z,
-				q.x, q.y, 1.0f/q.z /*, dx, dy */);
-		}
-
-		// Check the intersection with this triangle
-		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
-		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv, 0.0f))
-		{
-			//if (isACTex) tempt -= 0.01f; // Make AC elements a little more likely to be considered before other textures
-			//if (g_bDumpLaserPointerDebugInfo)
-			//	log_debug("[DBG] [AC] %s intersected, idx: %d, t: %0.6f", texName, textureIdx, tempt);
-			if (tempt < g_fBestIntersectionDistance)
-			{
-				//if (g_bDumpLaserPointerDebugInfo)
-				//	log_debug("[DBG] [AC] %s is best intersection with idx: %d, t: %0.6f", texName, textureIdx, tempt);
-				// Update the best intersection so far
-				g_fBestIntersectionDistance = tempt;
-				g_LaserPointer3DIntersection = tempP;
-				g_iBestIntersTexIdx = textureIdx;
-				g_debug_v0 = tempv0;
-				g_debug_v1 = tempv1;
-				g_debug_v2 = tempv2;
-
-				//float v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
-				//*P = tempP;
-
-				// Interpolate the texture UV using the barycentric (tu, tv) coords:
-				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
-				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-
-				g_LaserPointerBuffer.uv[0] = u;
-				g_LaserPointerBuffer.uv[1] = v;
-
-				bIntersection = true;
-				g_LaserPointerBuffer.bIntersection = 1;
-			}
-		}
-		/*else {
-			if (g_bDumpLaserPointerDebugInfo && strstr(texName, "AwingCockpit.opt,TEX00080,color") != NULL)
-				log_debug("[DBG] [AC] %s considered; but no intersection found!", texName);
-		}*/
-		if (!g_config.D3dHookExists) triangle++;
-	}
-
-	if (debug)
-		log_debug("[DBG] END Geom");
-	return bIntersection;
-}
 
 void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
 {
@@ -4512,81 +4383,6 @@ HRESULT Direct3DDevice::Execute(
 						// DEBUG
 					}
 				}
-
-				// TODO: This path is probably not used anymore
-				// Active Cockpit: Intersect the current texture with the controller
-#ifdef DISABLED
-				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
-					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest && !bIsHologram))
-				{
-					Vector3 orig, dir, v0, v1, v2, P;
-					//bool debug = false;
-					//bool bIntersection;
-					//log_debug("[DBG] [AC] Testing for intersection...");
-					//if (bIsActiveCockpit) log_debug("[DBG] [AC] Testing %s", lastTextureSelected->_surface->_name);
-					
-					// DEBUG
-					/*
-					if (strstr(lastTextureSelected->_surface->_name, "TEX00061") != NULL &&
-						strstr(lastTextureSelected->_surface->_name, "AwingCockpit") != NULL) {
-						debug = g_bDumpSSAOBuffers;
-						if (debug)
-							log_debug("[DBG] [AC] %s is being tested for inters", lastTextureSelected->_surface->_name);
-					}
-					*/
-					// DEBUG
-
-					orig.x = g_contOriginViewSpace.x;
-					orig.y = g_contOriginViewSpace.y;
-					orig.z = g_contOriginViewSpace.z;
-
-					dir.x = g_contDirViewSpace.x;
-					dir.y = g_contDirViewSpace.y;
-					dir.z = g_contDirViewSpace.z;
-
-					//bool debug = g_bDumpLaserPointerDebugInfo && (strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL);
-					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, 
-						bIsActiveCockpit, orig, dir /*, debug */);
-
-					// Commented block follows (debug block for LaserPointer):
-					{
-						//if (bIntersection) {
-							//Vector3 pos2D;
-
-							//if (t < g_fBestIntersectionDistance)
-							//{
-
-								//g_fBestIntersectionDistance = t;
-								//g_LaserPointer3DIntersection = P;
-								// Project to 2D
-								//pos2D = project(g_LaserPointer3DIntersection);
-								//g_LaserPointerBuffer.intersection[0] = pos2D.x;
-								//g_LaserPointerBuffer.intersection[1] = pos2D.y;
-								//g_LaserPointerBuffer.uv[0] = u;
-								//g_LaserPointerBuffer.uv[1] = v;
-								//g_LaserPointerBuffer.bIntersection = 1;
-								//g_debug_v0 = v0;
-								//g_debug_v1 = v1;
-								//g_debug_v2 = v2;
-
-								// DEBUG
-								//{
-									/*Vector3 q;
-									q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-									q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-									q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
-									/*
-									log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
-										g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
-										pos2D.x, pos2D.y);
-									*/
-									//}
-									// DEBUG
-								//}
-							//}
-					}
-				}
-#endif
 
 				// Skip specific draw calls for debugging purposes.
 #ifdef DBG_VR

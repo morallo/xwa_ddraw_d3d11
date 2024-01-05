@@ -79,8 +79,8 @@ extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 
 // ACTIVE COCKPIT
-extern Vector4 g_contOriginWorldSpace; //, g_contOriginViewSpace;
-extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
+extern Vector4 g_contOriginWorldSpace[2];
+extern bool g_bActiveCockpitEnabled, g_bACActionTriggered[2], g_bACTriggerState[2];
 
 extern Vector3 g_LaserPointDebug;
 
@@ -287,7 +287,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
 				case 11:
-					g_contOriginWorldSpace.z += 0.02f;
+					g_contOriginWorldSpace[0].z += 0.02f;
 					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
 						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
 					break;
@@ -370,7 +370,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
 				case 11:
-					g_contOriginWorldSpace.z -= 0.02f;
+					g_contOriginWorldSpace[0].z -= 0.02f;
 					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
 						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
 					break;
@@ -972,7 +972,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				case 11:
-					g_contOriginWorldSpace.y += 0.01f;
+					g_contOriginWorldSpace[0].y += 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
@@ -1014,7 +1014,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				case 11:
-					g_contOriginWorldSpace.y -= 0.01f;
+					g_contOriginWorldSpace[0].y -= 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
@@ -1025,7 +1025,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					break;
 				case 11:
-					g_contOriginWorldSpace.x -= 0.01f;
+					g_contOriginWorldSpace[0].x -= 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
@@ -1036,7 +1036,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					break;
 				case 11:
-					g_contOriginWorldSpace.x += 0.01f;
+					g_contOriginWorldSpace[0].x += 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
@@ -1166,7 +1166,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Use the spacebar to activate the cursor on the current active element
 				if (g_bActiveCockpitEnabled) {
 					//g_bACActionTriggered = true;
-					g_bACTriggerState = false;
+					g_bACTriggerState[0] = false;
+					g_bACTriggerState[1] = false;
 				}
 
 				// Custom HUD color. Turns out that pressing H followed by the Spacebar restarts
@@ -1225,7 +1226,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			switch (wParam) {
 			case VK_SPACE:
 				if (g_bActiveCockpitEnabled)
-					g_bACTriggerState = true;
+				{
+					g_bACTriggerState[0] = true;
+					g_bACTriggerState[1] = true;
+				}
 				return 0;
 			}
 

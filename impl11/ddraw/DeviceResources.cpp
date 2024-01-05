@@ -102,6 +102,7 @@
 #include "../Debug/RTShadowMaskPS_VR.h"
 #include "../Debug/PBRAdd.h"
 #include "../Debug/PBRAddVR.h"
+#include "../Debug/PixelShaderVRGeom.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainVertexShaderVR.h"
@@ -191,6 +192,7 @@
 #include "../Release/RTShadowMaskPS_VR.h"
 #include "../Release/PBRAdd.h"
 #include "../Release/PBRAddVR.h"
+#include "../Release/PixelShaderVRGeom.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -1605,6 +1607,7 @@ void DeviceResources::ResetActiveCockpit() {
 			ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
 			//g_iNumACElements = 0;
 		}
+		g_vrKeybState.bVisible = false;
 	}
 }
 
@@ -4426,6 +4429,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderVRGeom, sizeof(g_PixelShaderVRGeom), nullptr, &_pixelShaderVRGeom)))
+		return hr;
+
 	if (g_bEnableVR)
 	{
 		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
@@ -4762,8 +4768,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Laser Pointer (Active Cockpit) constant buffer
-	constantBufferDesc.ByteWidth = 176;
-	static_assert(sizeof(LaserPointerCBuffer) == 176, "sizeof(LaserPointerCBuffer) must be 176");
+	constantBufferDesc.ByteWidth = 272;
+	static_assert(sizeof(LaserPointerCBuffer) == 272, "sizeof(LaserPointerCBuffer) must be 272");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 

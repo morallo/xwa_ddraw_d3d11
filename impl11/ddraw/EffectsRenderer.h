@@ -91,6 +91,7 @@ protected:
 	ComPtr<ID3D11BlendState> _oldBlendState;
 	ComPtr<ID3D11InputLayout> _oldInputLayout;
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+	Matrix4 _oldPose;
 
 	ComPtr<ID3D11Buffer> _vrKeybVertexBuffer;
 	ComPtr<ID3D11Buffer> _vrKeybIndexBuffer;
@@ -127,6 +128,7 @@ protected:
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
 		short* Width_out=nullptr, short* Height_out=nullptr);
+	int LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profile);
 
 public:
 	bool _bCockpitConstantsCaptured;
@@ -183,7 +185,8 @@ public:
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();
-	void RenderVRGeometry();
+	void RenderVRKeyboard();
+	void RenderVRGloves();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
 	void StartCascadedShadowMap();

@@ -1603,15 +1603,15 @@ bool LoadDCParams() {
 
 void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
 {
-	bool bIsActivator = false, bIsVRKeybActivator = false;
-	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsActivator, &bIsVRKeybActivator);
-	if (bIsActivator)
+	bool bIsVRKeybActivator = false;
+	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsVRKeybActivator);
+	/*if (bIsActivator)
 	{
 		g_ACPointerData.contIdx = contIdx;
 		g_ACPointerData.button  = buttonId;
 		log_debug("[DBG] [AC] Controller %d, button %d is now the cursor",
 			contIdx, buttonId);
-	}
+	}*/
 	if (bIsVRKeybActivator)
 	{
 		g_vrKeybState.iActivatorContIdx = contIdx;
@@ -1658,7 +1658,8 @@ bool LoadACParams() {
 	}
 
 	g_LaserPointerBuffer.bDebugMode = 0;
-	g_LaserPointerBuffer.cursor_radius = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[0] = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[1] = 0.01f;
 
 	// VR keyboard AC elements
 	ac_element ac_elem;
@@ -1692,12 +1693,6 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "button_data_available") == 0) {
 				g_bFreePIEControllerButtonDataAvailable = (bool)fValue;
-			}
-			else if (_stricmp(param, "laser_pointer_length") == 0) {
-				g_fLaserPointerLength = fValue;
-			}
-			else if (_stricmp(param, "debug_laser_dir") == 0) {
-				g_iLaserDirSelector = (int)fValue;
 			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
@@ -1752,6 +1747,7 @@ bool LoadACParams() {
 			else if (_stricmp(param, "throttle_range") == 0) {
 				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
 			}
+			/*
 			else if (_stricmp(param, "joystick_yaw_range") == 0) {
 				g_ACJoyEmul.yawHalfRange = fValue / 2.0f;
 			}
@@ -1760,6 +1756,42 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "joystick_roll_range") == 0) {
 				g_ACJoyEmul.rollHalfRange = fValue / 2.0f;
+			}
+			*/
+
+			if (_stricmp(param, "display_left_glove") == 0)
+			{
+				g_vrGlovesMeshes[0].visible = (bool)fValue;
+			}
+			else if (_stricmp(param, "display_right_glove") == 0)
+			{
+				g_vrGlovesMeshes[1].visible = (bool)fValue;
+			}
+			else if (_stricmp(param, "left_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[0].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[0].texGroupId = GroupId;
+					g_vrGlovesMeshes[0].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 0",
+						g_vrGlovesMeshes[0].texName, g_vrGlovesMeshes[0].texGroupId, g_vrGlovesMeshes[0].texImageId);
+				}
+			}
+			else if (_stricmp(param, "right_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[1].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[1].texGroupId = GroupId;
+					g_vrGlovesMeshes[1].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 1",
+						g_vrGlovesMeshes[1].texName, g_vrGlovesMeshes[1].texGroupId, g_vrGlovesMeshes[1].texImageId);
+				}
 			}
 
 			// VR controller configuration
@@ -1783,10 +1815,10 @@ bool LoadACParams() {
 			{
 				TranslateACActionForVRController(0, VRButtons::PAD_CLICK, svalue);
 			}
-			if (_stricmp(param, "left_trigger") == 0)
+			/*if (_stricmp(param, "left_trigger") == 0)
 			{
 				TranslateACActionForVRController(0, VRButtons::TRIGGER, svalue);
-			}
+			}*/
 			if (_stricmp(param, "left_button_1") == 0)
 			{
 				TranslateACActionForVRController(0, VRButtons::BUTTON_1, svalue);
@@ -1816,10 +1848,10 @@ bool LoadACParams() {
 			{
 				TranslateACActionForVRController(1, VRButtons::PAD_CLICK, svalue);
 			}
-			if (_stricmp(param, "right_trigger") == 0)
+			/*if (_stricmp(param, "right_trigger") == 0)
 			{
 				TranslateACActionForVRController(1, VRButtons::TRIGGER, svalue);
-			}
+			}*/
 			if (_stricmp(param, "right_button_1") == 0)
 			{
 				TranslateACActionForVRController(1, VRButtons::BUTTON_1, svalue);

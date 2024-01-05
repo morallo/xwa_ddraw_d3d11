@@ -110,6 +110,7 @@
     <FxCompile Include="SSDO\SSDODirectVR.hlsl" />
     <FxCompile Include="SunFlareShaderVR.hlsl" />
     <FxCompile Include="LaserPointer.hlsl" />
+    <FxCompile Include="PixelShaderVRGeom.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
