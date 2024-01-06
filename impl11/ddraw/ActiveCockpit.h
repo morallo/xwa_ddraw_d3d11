@@ -51,6 +51,7 @@ extern bool g_bPrevHoveringOnActiveElem[2];
 extern bool g_bFreePIEControllerButtonDataAvailable;
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
 extern int g_iNumACElements, g_iVRKeyboardSlot;
+extern int g_iVRGloveSlot[2];
 extern bool g_bACActionTriggered[2], g_bACLastTriggerState[2], g_bACTriggerState[2];
 extern bool g_bFreePIEInitialized, g_bFreePIEControllerButtonDataAvailable;
 extern int g_iFreePIESlot, g_iFreePIEControllerSlot;

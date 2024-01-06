@@ -30,8 +30,6 @@
 extern D3dRenderer* g_current_renderer;
 extern LBVH* g_ACTLASTree;
 
-extern bool g_bHit;
-
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 
@@ -7764,15 +7762,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 		g_fLaserIntersectionDistance[contIdx] = FLT_MAX;
 		float3 P;
-		if (g_iBestIntersTexIdx[contIdx] >= 1024)
-		{
-			P = g_LaserPointer3DIntersection[contIdx];
-			g_LaserPointerBuffer.bIntersection[contIdx] = true;
-			g_iBestIntersTexIdx[contIdx] = -1;
-			g_LaserPointerBuffer.bDisplayLine[contIdx] = g_bHit;
-			g_LaserPointerBuffer.bHoveringOnActiveElem[contIdx] = g_bHit;
-		}
-		else if (inters.TriID != -1)
+		if (inters.TriID != -1)
 		{
 			if (g_iBestIntersTexIdx[contIdx] != -1)
 			{
@@ -7919,6 +7909,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		g_bACActionTriggered[contIdx] = false;
 	}
 
+	// Render the laser pointer and intersections
 	// Temporarily disable ZWrite: we won't need it for post-proc
 	D3D11_DEPTH_STENCIL_DESC desc;
 	ComPtr<ID3D11DepthStencilState> depthState;

@@ -1513,10 +1513,21 @@ void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 
 void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size) {
 	ac_element vrKeybElem;
+	ac_element vrGloveElements[2];
+
 	// Save the VR Keyboard slot
 	if (g_iVRKeyboardSlot != -1)
 	{
 		vrKeybElem = g_ACElements[g_iVRKeyboardSlot];
+	}
+
+	// Save the VR Gloves slots
+	for (int i = 0; i < 2; i++)
+	{
+		if (g_iVRGloveSlot[i] != -1)
+		{
+			vrGloveElements[i] = g_ACElements[g_iVRGloveSlot[i]];
+		}
 	}
 
 	for (int i = 0; i < size; i++) {
@@ -1535,6 +1546,16 @@ void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size
 	{
 		g_iVRKeyboardSlot = g_iNumACElements++;
 		g_ACElements[g_iVRKeyboardSlot] = vrKeybElem;
+	}
+
+	// Restore the VR Gloves slots
+	for (int i = 0; i < 2; i++)
+	{
+		if (g_iVRGloveSlot[i] != -1)
+		{
+			g_iVRGloveSlot[i] = g_iNumACElements++;
+			g_ACElements[g_iVRGloveSlot[i]] = vrGloveElements[i];
+		}
 	}
 }
 

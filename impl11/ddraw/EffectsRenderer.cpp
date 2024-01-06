@@ -96,7 +96,6 @@ std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
 std::map<uint64_t, FixedInstanceData> g_fixedInstanceDataMap;
 
 VRGlovesMesh g_vrGlovesMeshes[2];
-bool g_bHit = false;
 
 EffectsRenderer *g_effects_renderer = nullptr;
 
@@ -3671,7 +3670,7 @@ void EffectsRenderer::IntersectVRGeometry()
 		}
 
 		// Test the VR gloves -- but only the opposing hand!
-		if (g_vrGlovesMeshes[auxIdx].visible)
+		if (g_vrGlovesMeshes[auxIdx].visible && g_iVRGloveSlot[auxIdx] != -1)
 		{
 			Intersection inters;
 			Matrix4 pose = g_vrGlovesMeshes[auxIdx].pose;
@@ -3697,7 +3696,6 @@ void EffectsRenderer::IntersectVRGeometry()
 				inters = tempInters;
 			}
 
-			g_bHit = false;
 			if (inters.TriID != -1)
 			{
 				g_fBestIntersectionDistance[contIdx] = inters.T;
@@ -3719,11 +3717,10 @@ void EffectsRenderer::IntersectVRGeometry()
 				g_LaserPointerBuffer.uv[contIdx][0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
 				g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
 				// TODO: Secure AC slots for the gloves and save/restore them when AC is reset
-				g_iBestIntersTexIdx[contIdx] = 1024 + auxIdx;
+				g_iBestIntersTexIdx[contIdx] = g_iVRGloveSlot[auxIdx];
 
 				float texU = g_LaserPointerBuffer.uv[contIdx][0];
 				float texV = g_LaserPointerBuffer.uv[contIdx][1];
-				g_bHit = (texU >= 0.72656f) && (texU <= 0.75195f) && (texV >= 0.23046f) && (texV <= 0.25781f);
 
 				// P is in the OPT coord sys...
 				float3 P = ray.origin + inters.T * ray.dir;
@@ -3732,6 +3729,7 @@ void EffectsRenderer::IntersectVRGeometry()
 				Q = pose0 * Q;
 
 				g_LaserPointer3DIntersection[contIdx] = { Q.x, Q.y, Q.z };
+				continue;
 			}
 		}
 

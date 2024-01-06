@@ -1663,8 +1663,18 @@ bool LoadACParams() {
 
 	// VR keyboard AC elements
 	ac_element ac_elem;
-	float keyb_tex_width = -1.0f, keyb_tex_height = -1.0f;
+	float ac_tex_width = -1.0f, ac_tex_height = -1.0f;
 	g_iVRKeyboardSlot = -1;
+	g_iVRGloveSlot[0] = -1;
+	g_iVRGloveSlot[2] = -1;
+
+	enum ActionParse
+	{
+		NONE,
+		KEYB,
+		GLOVE0,
+		GLOVE1,
+	} actionFSM = NONE;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1780,6 +1790,23 @@ bool LoadACParams() {
 						g_vrGlovesMeshes[0].texName, g_vrGlovesMeshes[0].texGroupId, g_vrGlovesMeshes[0].texImageId);
 				}
 			}
+			else if (_stricmp(param, "left_glove_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = GLOVE0;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRGloveSlot[0] = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRGloveSlot[0]].name, MAX_TEXTURE_NAME - 1, "_LGlove");
+					log_debug("[DBG] [AC] g_iVRGloveSlot[0]: %d", g_iVRGloveSlot[0]);
+				}
+			}
 			else if (_stricmp(param, "right_glove_texture") == 0)
 			{
 				char sDATFileName[128];
@@ -1791,6 +1818,23 @@ bool LoadACParams() {
 					g_vrGlovesMeshes[1].texImageId = ImageId;
 					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 1",
 						g_vrGlovesMeshes[1].texName, g_vrGlovesMeshes[1].texGroupId, g_vrGlovesMeshes[1].texImageId);
+				}
+			}
+			else if (_stricmp(param, "right_glove_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = GLOVE1;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRGloveSlot[1] = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRGloveSlot[1]].name, MAX_TEXTURE_NAME - 1, "_RGlove");
+					log_debug("[DBG] [AC] g_iVRGloveSlot[1]: %d", g_iVRGloveSlot[1]);
 				}
 			}
 
@@ -1893,10 +1937,11 @@ bool LoadACParams() {
 			}
 			else if (_stricmp(param, "keyb_texture_size") == 0) {
 				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
-				LoadDCCoverTextureSize(buf, &keyb_tex_width, &keyb_tex_height);
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = KEYB;
 				//log_debug("[DBG] [AC] VRKeyb texture size: %0.3f, %0.3f", keyb_tex_width, keyb_tex_height);
-				g_vrKeybState.fPixelWidth  = keyb_tex_width;
-				g_vrKeybState.fPixelHeight = keyb_tex_height;
+				g_vrKeybState.fPixelWidth  = ac_tex_width;
+				g_vrKeybState.fPixelHeight = ac_tex_height;
 				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
 				{
 					//log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
@@ -1917,27 +1962,34 @@ bool LoadACParams() {
 				g_vrKeybState.fMetersWidth = fValue / 100.0f; // Convert to meters
 			}
 			else if (_stricmp(param, "action") == 0) {
-				if (g_iVRKeyboardSlot == -1) {
+				if (actionFSM == NONE) {
 					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without defining a texture size first.", line);
 					continue;
 				}
-				//log_debug("[DBG] [AC] VRKeyboard. Loading action for: [%s]", g_ACElements[g_iVRKeyboardSlot].name);
-				LoadACAction(buf, keyb_tex_width, keyb_tex_height, &(g_ACElements[g_iVRKeyboardSlot].coords), false);
-				int lastIdx = g_ACElements[g_iVRKeyboardSlot].coords.numCoords - 1;
-				// The y coordinate in the UVs must be mirrored:
-				/*float y;
-				y = g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y0;
-				g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y0 = 1.0f - y;
-				y = g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y1;
-				g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y1 = 1.0f - y;*/
 
-				/*log_debug("[DBG] [AC] numCoords: %d, [%s], (%0.2f, %0.2f)-(%0.2f, %0.2f)",
-					g_ACElements[g_iVRKeyboardSlot].coords.numCoords,
-					g_ACElements[g_iVRKeyboardSlot].coords.action_name[lastIdx],
-					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].x0,
-					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y0,
-					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].x1,
-					g_ACElements[g_iVRKeyboardSlot].coords.area[lastIdx].y1);*/
+				int curSlot = -1;
+				switch (actionFSM)
+				{
+					case KEYB:   curSlot = g_iVRKeyboardSlot; break;
+					case GLOVE0: curSlot = g_iVRGloveSlot[0]; break;
+					case GLOVE1: curSlot = g_iVRGloveSlot[1]; break;
+				}
+
+				if (curSlot != -1)
+				{
+					/*log_debug("[DBG] [AC] Loading action for: [%s], W,H: %0.1f, %0.1f",
+						g_ACElements[curSlot].name, ac_tex_width, ac_tex_height);*/
+					LoadACAction(buf, ac_tex_width, ac_tex_height, &(g_ACElements[curSlot].coords), false);
+
+					/*int lastIdx = g_ACElements[curSlot].coords.numCoords - 1;
+					log_debug("[DBG] [AC] numCoords: %d, [%s], (%0.2f, %0.2f)-(%0.2f, %0.2f)",
+						g_ACElements[curSlot].coords.numCoords,
+						g_ACElements[curSlot].coords.action_name[lastIdx],
+						g_ACElements[curSlot].coords.area[lastIdx].x0,
+						g_ACElements[curSlot].coords.area[lastIdx].y0,
+						g_ACElements[curSlot].coords.area[lastIdx].x1,
+						g_ACElements[curSlot].coords.area[lastIdx].y1);*/
+				}
 			}
 		}
 	}
