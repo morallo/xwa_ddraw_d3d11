@@ -51,6 +51,13 @@ struct float3 {
 		this->z = P[2];
 	}
 
+	float3(const Vector3& P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+		this->z = P[2];
+	}
+
 	float3 xyz()
 	{
 		return float3(x, y, z);

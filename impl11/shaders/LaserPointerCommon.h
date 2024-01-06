@@ -229,14 +229,20 @@ void RenderCursor(
 	blend = v;
 
 #ifdef LASER_VR_DEBUG
-	// Draw the triangle uv-color-coded
+	// Draw the triangle, uv-color-coded
 	//if (bDebugMode && bIntersection && debug_map(p) < 0.001)
-	if (bIntersection)
+	if (bDebugMode)
 	{
 		if (debug_map(p) <= 0.0)
-			col = lerp(col, float3(uv, 0.0), 0.5);
+		{
+			pointer_col = float3(1, 0, 0);
+			blend = 0.8f;
+		}
 		else if (debug_map(p) < 0.001)
-			col = 1;
+		{
+			pointer_col = 1;
+			blend = 1.0f;
+		}
 	}
 #endif
 }

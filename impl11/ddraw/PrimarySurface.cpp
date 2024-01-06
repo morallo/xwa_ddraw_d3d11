@@ -30,6 +30,8 @@
 extern D3dRenderer* g_current_renderer;
 extern LBVH* g_ACTLASTree;
 
+extern bool g_bHit;
+
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 
@@ -43,6 +45,8 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR);
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
+void ComputeBaryCoords(const Vector3& v0, const Vector3& v1, const Vector3& v2, const Vector3& P,
+	float& u, float& v);
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
@@ -7099,10 +7103,10 @@ float dot(const float3& A, const float3& B)
 	return A.x * B.x + A.y * B.y + A.z * B.z;
 }
 
-// ------------------------------------------
-// Gets the current ray intersection
-// ------------------------------------------
-Intersection getIntersection(Ray ray, float3 A, float3 B, float3 C)
+// --------------------------------------------
+// The vertices of the triangle are A, B and C
+// --------------------------------------------
+Intersection RayTriangleIntersection(Ray ray, float3 A, float3 B, float3 C)
 {
 	Intersection inters;
 	inters.TriID = -1;
@@ -7133,6 +7137,40 @@ bool RayTriangleTest(const Intersection& inters)
             (inters.T > 0.0f)
            );
 }
+
+/// <summary>
+/// Given a triangle defined by vertices v0, v1, v2, and a point P inside this
+/// triangle. This code will compute the barycentric coordinates (u, v) for P.
+/// (u, v, 1 - (u + v)) can then be used to interpolate other attributes at point P,
+/// such as texture coordinates.
+/// This code is also part of Direct3DDevice::rayTriangleIntersect()
+/// </summary>
+void ComputeBaryCoords(float3 v0, float3 v1, float3 v2, float3 P,
+	float& u, float& v)
+{
+	float3 v0v1 = v1 - v0;
+	float3 v0v2 = v2 - v0;
+
+	// Compute u-v again to make them consistent with tex coords
+	float3 N = cross(v0v1, v0v2);
+	float3 C;
+	// edge 1
+	float3 edge1 = v2 - v1;
+	float3 vp1 = P - v1;
+	C = cross(edge1, vp1);
+	u = dot(N, C);
+
+	// edge 2
+	float3 edge2 = v0 - v2;
+	float3 vp2 = P - v2;
+	C = cross(edge2, vp2);
+	v = dot(N, C);
+
+	float denom = dot(N, N);
+	u /= denom;
+	v /= denom;
+}
+
 
 // ------------------------------------------
 // Checks if the ray hits the node's AABB
@@ -7218,10 +7256,14 @@ Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset)
 				fchildren[1],
 				fchildren[2]);
 
-			Intersection inters = getIntersection(ray, A, B, C);
+			Intersection inters = RayTriangleIntersection(ray, A, B, C);
 			if (RayTriangleTest(inters) && inters.T < best_inters.T)
 			{
 				inters.TriID = TriID;
+				// Compute the barycentric coords for the intersection:
+				float3 P = ray.origin + inters.T * ray.dir;
+				ComputeBaryCoords(A, B, C, P, inters.U, inters.V);
+
 				best_inters = inters;
 				// return best_inters; // Don't terminate early, keep searching the tree until we find the best intersection
 			}
@@ -7640,8 +7682,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		//    Y+ --> backwards
 		//    Z+ --> up
 		Ray ray;
-		ray.origin = float3(contOriginDisplay[contIdx]);
-		ray.dir = float3(contDirDisplay[contIdx]);
+		ray.origin   = float3(contOriginDisplay[contIdx]);
+		ray.dir      = float3(contDirDisplay[contIdx]);
 		ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
 
 		Intersection inters;
@@ -7722,7 +7764,15 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 		g_fLaserIntersectionDistance[contIdx] = FLT_MAX;
 		float3 P;
-		if (inters.TriID != -1)
+		if (g_iBestIntersTexIdx[contIdx] >= 1024)
+		{
+			P = g_LaserPointer3DIntersection[contIdx];
+			g_LaserPointerBuffer.bIntersection[contIdx] = true;
+			g_iBestIntersTexIdx[contIdx] = -1;
+			g_LaserPointerBuffer.bDisplayLine[contIdx] = g_bHit;
+			g_LaserPointerBuffer.bHoveringOnActiveElem[contIdx] = g_bHit;
+		}
+		else if (inters.TriID != -1)
 		{
 			if (g_iBestIntersTexIdx[contIdx] != -1)
 			{
@@ -7795,34 +7845,24 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				}
 
 				// DEBUG
-	#ifdef DISABLED
+#ifdef DISABLED
 				{
-					float screenX, screenY;
-					Vector4 tmp;
-					float4 pos2D;
+					Vector4 pos2D[2];
+					g_LaserPointerBuffer.bDebugMode = 1;
 
-					tmp.x = g_debug_v0.x; tmp.y = g_debug_v0.y; tmp.z = g_debug_v0.z; tmp.w = 1.0f;
-					tmp = W * tmp;
-					pos2D = TransformProjectionScreen(float3(tmp));
-					InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
-					g_LaserPointerBuffer.v0[0] = screenX / g_fCurScreenWidth;
-					g_LaserPointerBuffer.v0[1] = screenY / g_fCurScreenHeight;
+					OPTVertexToSteamVRPostProcCoords(Vector4(g_debug_v0.x, g_debug_v0.y, g_debug_v0.z, 1.0f), pos2D);
+					g_LaserPointerBuffer.v0[0] = pos2D[0].x;
+					g_LaserPointerBuffer.v0[1] = pos2D[0].y;
 
-					tmp.x = g_debug_v1.x; tmp.y = g_debug_v1.y; tmp.z = g_debug_v1.z; tmp.w = 1.0f;
-					tmp = W * tmp;
-					pos2D = TransformProjectionScreen(float3(tmp));
-					InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
-					g_LaserPointerBuffer.v1[0] = screenX / g_fCurScreenWidth;
-					g_LaserPointerBuffer.v1[1] = screenY / g_fCurScreenHeight;
+					OPTVertexToSteamVRPostProcCoords(Vector4(g_debug_v1.x, g_debug_v1.y, g_debug_v1.z, 1.0f), pos2D);
+					g_LaserPointerBuffer.v1[0] = pos2D[0].x;
+					g_LaserPointerBuffer.v1[1] = pos2D[0].y;
 
-					tmp.x = g_debug_v2.x; tmp.y = g_debug_v2.y; tmp.z = g_debug_v2.z; tmp.w = 1.0f;
-					tmp = W * tmp;
-					pos2D = TransformProjectionScreen(float3(tmp));
-					InGameToScreenCoords(left, top, width, height, pos2D.x, pos2D.y, &screenX, &screenY);
-					g_LaserPointerBuffer.v2[0] = screenX / g_fCurScreenWidth;
-					g_LaserPointerBuffer.v2[1] = screenY / g_fCurScreenHeight;
+					OPTVertexToSteamVRPostProcCoords(Vector4(g_debug_v2.x, g_debug_v2.y, g_debug_v2.z, 1.0f), pos2D);
+					g_LaserPointerBuffer.v2[0] = pos2D[0].x;
+					g_LaserPointerBuffer.v2[1] = pos2D[0].y;
 				}
-	#endif
+#endif
 			}
 		}
 

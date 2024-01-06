@@ -96,6 +96,7 @@ std::map<uint64_t, InstanceEvent> g_objectIdToInstanceEvent;
 std::map<uint64_t, FixedInstanceData> g_fixedInstanceDataMap;
 
 VRGlovesMesh g_vrGlovesMeshes[2];
+bool g_bHit = false;
 
 EffectsRenderer *g_effects_renderer = nullptr;
 
@@ -133,6 +134,7 @@ bool rayTriangleIntersect(
 	const Vector3& orig, const Vector3& dir,
 	const Vector3& v0, const Vector3& v1, const Vector3& v2,
 	float& t, Vector3& P, float& u, float& v, float margin);
+Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
 
@@ -1615,7 +1617,7 @@ char* g_GlovesProfileNames[2][VRGlovesProfile::MAX] = {
 /// <summary>
 /// Loads and OBJ and returns the number of triangles read
 /// </summary>
-int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profile)
+int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profile, bool buildBVH)
 {
 	FILE* file;
 	int error = 0;
@@ -1639,9 +1641,9 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 
 	std::vector<XwaVector3> vertices;
 	std::vector<XwaVector3> normals;
-	std::vector<XwaTextureVertex> texCoords;
 	std::vector<D3dVertex> indices;
 	std::vector<D3dTriangle> triangles;
+	std::vector<int> bvhIndices;
 	int indexCounter = 0;
 
 	char line[256];
@@ -1687,7 +1689,7 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 			sscanf_s(line, "vt %f %f", &t.u, &t.v);
 			// UVs are flipped vertically.
 			t.v = 1.0f - t.v;
-			texCoords.push_back(t);
+			g_vrGlovesMeshes[gloveIdx].texCoords.push_back(t);
 		}
 		else if (line[0] == 'f')
 		{
@@ -1724,12 +1726,23 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 			indices.push_back(index);
 
 			triangles.push_back(tri);
+
+			if (buildBVH)
+			{
+				bvhIndices.push_back(vi - 1);
+				bvhIndices.push_back(vj - 1);
+				bvhIndices.push_back(vk - 1);
+
+				g_vrGlovesMeshes[gloveIdx].texIndices.push_back(ti - 1);
+				g_vrGlovesMeshes[gloveIdx].texIndices.push_back(tj - 1);
+				g_vrGlovesMeshes[gloveIdx].texIndices.push_back(tk - 1);
+			}
 		}
 	}
 	fclose(file);
 
-	log_debug("[DBG] [AC] Loaded %d vertices, %d normals, %d texcoords, %d indices, %d triangles",
-		vertices.size(), normals.size(), texCoords.size(), indices.size(), triangles.size());
+	log_debug("[DBG] [AC] Loaded %d vertices, %d normals, %d indices, %d triangles",
+		vertices.size(), normals.size(), indices.size(), triangles.size());
 	g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile] = fabs(g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile]);
 	log_debug("[DBG] [AC] forwardPmeters: %0.3f", g_vrGlovesMeshes[gloveIdx].forwardPmeters[profile]);
 
@@ -1748,6 +1761,9 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 		initialData.pSysMem = triangles.data();
 		device->CreateBuffer(&CD3D11_BUFFER_DESC(triangles.size() * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData,
 			                 &(g_vrGlovesMeshes[gloveIdx].indexBuffer));
+
+		if (buildBVH)
+			g_vrGlovesMeshes[gloveIdx].bvh = BuildBVH(vertices, bvhIndices);
 	}
 
 	// Create the mesh buffers and SRVs
@@ -1769,12 +1785,12 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 			&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshNormalsBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, normals.size()),
 			&(g_vrGlovesMeshes[gloveIdx].meshNormalsSRV));
 
-		initialData.pSysMem = texCoords.data();
-		device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoords.size() * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData,
-			&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer));
+		initialData.pSysMem = g_vrGlovesMeshes[gloveIdx].texCoords.data();
+		device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrGlovesMeshes[gloveIdx].texCoords.size() * sizeof(XwaTextureVertex),
+			D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer));
 		device->CreateShaderResourceView(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer,
-			&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoords.size()),
-			&(g_vrGlovesMeshes[gloveIdx].meshTexCoordsSRV));
+			&CD3D11_SHADER_RESOURCE_VIEW_DESC(g_vrGlovesMeshes[gloveIdx].meshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0,
+			g_vrGlovesMeshes[gloveIdx].texCoords.size()), &(g_vrGlovesMeshes[gloveIdx].meshTexCoordsSRV));
 	}
 
 	return triangles.size();
@@ -1877,7 +1893,7 @@ void EffectsRenderer::CreateVRMeshes()
 	{
 		for (int profile = 0; profile < VRGlovesProfile::MAX; profile++)
 		{
-			g_vrGlovesMeshes[i].numTriangles = LoadOBJ(i, R, g_GlovesProfileNames[i][profile], profile);
+			g_vrGlovesMeshes[i].numTriangles = LoadOBJ(i, R, g_GlovesProfileNames[i][profile], profile, true);
 			if (g_vrGlovesMeshes[i].numTriangles > 0)
 			{
 				log_debug("[DBG] [AC] Loaded OBJ: %s", g_GlovesProfileNames[i][profile]);
@@ -2963,6 +2979,12 @@ void EffectsRenderer::SceneEnd()
 		}
 	}
 
+	if (g_bActiveCockpitEnabled)
+	{
+		// Test additional geometry (VR Keyboard, gloves)
+		IntersectVRGeometry();
+	}
+
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled && g_bRTEnabled)
 	{
 #ifdef DUMP_TLAS
@@ -3615,42 +3637,25 @@ void EffectsRenderer::ApplyMeshTransform()
 }
 
 /// <summary>
-/// If the current texture is ActiveCockpit-enabled, then this code will check for intersections
+/// Test for intersections with additional VR geometry (VR keyboard, gloves...)
 /// </summary>
-void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
+void EffectsRenderer::IntersectVRGeometry()
 {
-	if (!g_bActiveCockpitEnabled || !_bLastTextureSelectedNotNULL || !_bIsActiveCockpit || _bIsHologram)
+	if (!g_bRendering3D)
 		return;
-
-	// DEBUG: Dump the mesh associated with the current texture
-	/*if (g_bDumpSSAOBuffers)
-	{
-		static int counter = 0;
-		log_debug("[DBG] [AC] Dumping vertices with AC-enabled textures");
-		SingleFileOBJDumpD3dVertices(scene, _trianglesCount, std::string(".\\AC-") + std::to_string(counter++) + ".obj");
-	}*/
-
-	XwaVector3* MeshVertices = scene->MeshVertices;
-	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
-	XwaTextureVertex* MeshTextureVertices = scene->MeshTextureVertices;
-	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
-	Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
-	// We premultiply in the code below, so we need to transpose the matrix because
-	// the Vertex shader does a postmultiplication
-	MeshTransform.transpose();
 
 	Matrix4 KeybTransform = g_vrKeybState.Transform;
 	// We premultiply in the code below, so we need to transpose the matrix because
 	// the Vertex shader does a postmultiplication
 	KeybTransform.transpose();
 
-	// Intersect the current texture with the controller
 	Vector4 contOrigin[2], contDir[2];
 	VRControllerToOPTCoords(contOrigin, contDir);
+	const float margin = 0.01f;
 
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
-		float margin = 0.01f;
+		const int auxIdx = (contIdx + 1) % 2;
 
 		Ray ray;
 		ray.origin   = float3(contOrigin[contIdx]);
@@ -3665,7 +3670,72 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 			orig += g_vrGlovesMeshes[contIdx].forwardPmeters[VRGlovesProfile::POINT] * dir;
 		}
 
-		// Test the VR keyboard first
+		// Test the VR gloves -- but only the opposing hand!
+		if (g_vrGlovesMeshes[auxIdx].visible)
+		{
+			Intersection inters;
+			Matrix4 pose = g_vrGlovesMeshes[auxIdx].pose;
+			Matrix4 pose0;
+			pose.transpose(); // Enable pre-multiplication again
+			pose0 = pose;
+			pose.invert();    // We're going from Cockpit coords to Glove OPT coords
+
+			// Transform the ray into the OPT coord sys
+			Vector4 O = { orig.x, orig.y, orig.z, 1.0f };
+			Vector4 D = { dir.x,  dir.y,  dir.z,  0.0f };
+			O = pose * O;
+			D = pose * D;
+			ray.origin = { O.x, O.y, O.z };
+			ray.dir    = { D.x, D.y, D.z };
+
+			// Find the closest intersection with the Glove OPT
+			LBVH* bvh = (LBVH*)g_vrGlovesMeshes[auxIdx].bvh;
+			Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
+			if (tempInters.TriID != -1 && // There was an intersection
+				tempInters.T > 0.0f)
+			{
+				inters = tempInters;
+			}
+
+			g_bHit = false;
+			if (inters.TriID != -1)
+			{
+				g_fBestIntersectionDistance[contIdx] = inters.T;
+
+				const float baryU = inters.U;
+				const float baryV = inters.V;
+				const float baryW = 1.0f - baryU - baryV;
+
+				const int index0 = inters.TriID * 3;
+
+				const int t0Idx = g_vrGlovesMeshes[auxIdx].texIndices[index0 + 0];
+				const int t1Idx = g_vrGlovesMeshes[auxIdx].texIndices[index0 + 1];
+				const int t2Idx = g_vrGlovesMeshes[auxIdx].texIndices[index0 + 2];
+
+				XwaTextureVertex bestUV0 = g_vrGlovesMeshes[auxIdx].texCoords[t0Idx];
+				XwaTextureVertex bestUV1 = g_vrGlovesMeshes[auxIdx].texCoords[t1Idx];
+				XwaTextureVertex bestUV2 = g_vrGlovesMeshes[auxIdx].texCoords[t2Idx];
+
+				g_LaserPointerBuffer.uv[contIdx][0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+				g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+				// TODO: Secure AC slots for the gloves and save/restore them when AC is reset
+				g_iBestIntersTexIdx[contIdx] = 1024 + auxIdx;
+
+				float texU = g_LaserPointerBuffer.uv[contIdx][0];
+				float texV = g_LaserPointerBuffer.uv[contIdx][1];
+				g_bHit = (texU >= 0.72656f) && (texU <= 0.75195f) && (texV >= 0.23046f) && (texV <= 0.25781f);
+
+				// P is in the OPT coord sys...
+				float3 P = ray.origin + inters.T * ray.dir;
+				Vector4 Q = { P.x, P.y, P.z, 1.0f };
+				// ... so we need to transform it into Viewspace coords:
+				Q = pose0 * Q;
+
+				g_LaserPointer3DIntersection[contIdx] = { Q.x, Q.y, Q.z };
+			}
+		}
+
+		// Test the VR keyboard
 		if (g_vrKeybState.bVisible)
 		{
 			for (int i = 0; i < g_vrKeybNumTriangles; i++)
@@ -3730,6 +3800,53 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 				}
 			}
 		}
+	} // for contIdx
+}
+
+/// <summary>
+/// If the current texture is ActiveCockpit-enabled, then this code will check for intersections
+/// </summary>
+void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
+{
+	if (!g_bActiveCockpitEnabled || !_bLastTextureSelectedNotNULL || !_bIsActiveCockpit || _bIsHologram)
+		return;
+
+	// DEBUG: Dump the mesh associated with the current texture
+	/*if (g_bDumpSSAOBuffers)
+	{
+		static int counter = 0;
+		log_debug("[DBG] [AC] Dumping vertices with AC-enabled textures");
+		SingleFileOBJDumpD3dVertices(scene, _trianglesCount, std::string(".\\AC-") + std::to_string(counter++) + ".obj");
+	}*/
+
+	XwaVector3* MeshVertices = scene->MeshVertices;
+	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
+	XwaTextureVertex* MeshTextureVertices = scene->MeshTextureVertices;
+	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
+	Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
+	// We premultiply in the code below, so we need to transpose the matrix because
+	// the Vertex shader does a postmultiplication
+	MeshTransform.transpose();
+
+	// Intersect the current texture with the controller
+	Vector4 contOrigin[2], contDir[2];
+	VRControllerToOPTCoords(contOrigin, contDir);
+	const float margin = 0.0001f;
+
+	for (int contIdx = 0; contIdx < 2; contIdx++)
+	{
+		Ray ray;
+		ray.origin   = float3(contOrigin[contIdx]);
+		ray.dir      = float3(contDir[contIdx]);
+		ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
+
+		Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
+		Vector3 dir  = { ray.dir.x,    ray.dir.y,    ray.dir.z };
+
+		if (g_vrGlovesMeshes[contIdx].visible)
+		{
+			orig += g_vrGlovesMeshes[contIdx].forwardPmeters[VRGlovesProfile::POINT] * dir;
+		}
 
 		// TODO: Create a TLAS just for the cockpit so that we can quickly find the intersection of the
 		// ray coming from the cursor.
@@ -3738,7 +3855,6 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 		int bestId = -1;
 		float baryU = -FLT_MAX, baryV = -FLT_MAX;
 		XwaTextureVertex bestUV0, bestUV1, bestUV2;
-		margin = 0.0001f;
 
 		for (int faceIndex = 0; faceIndex < scene->FacesCount; faceIndex++)
 		{

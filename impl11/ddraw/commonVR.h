@@ -12,6 +12,7 @@
 #include "FreePIE.h"
 #include "Vectors.h"
 #include "Matrices.h"
+#include "xwa_structures.h"
 
 const float MAX_BRIGHTNESS = 1.0f;
 extern const float RAD_TO_DEG;
@@ -86,6 +87,9 @@ struct VRGlovesMesh
 	float forwardPmeters[VRGlovesProfile::MAX]; // The forward-most point in this mesh, in meters. Used to push buttons
 	char texName[128];
 	int texGroupId, texImageId;
+	void* bvh;
+	std::vector<XwaTextureVertex> texCoords;
+	std::vector<int> texIndices;
 };
 
 extern VRGlovesMesh g_vrGlovesMeshes[2];

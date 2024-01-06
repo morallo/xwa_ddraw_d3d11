@@ -1454,8 +1454,8 @@ int EncodeLeafNode(BVHNode* buffer, const std::vector<LeafItem>& leafItems, int 
 		v2 = vertices[indices[idx + 2]];
 	}
 	// Encode the current primitive into the QBVH buffer, in the leaf section
-	//ubuffer[EncodeOfs++] = TriID;
-	ubuffer[EncodeOfs++] = leafIdx;
+	ubuffer[EncodeOfs++] = TriID;
+	//ubuffer[EncodeOfs++] = leafIdx; // Used for the DirectBVH
 	ubuffer[EncodeOfs++] = -1; // parent
 	ubuffer[EncodeOfs++] =  0; // rootIdx
 	ubuffer[EncodeOfs++] =  0; // numChildren
