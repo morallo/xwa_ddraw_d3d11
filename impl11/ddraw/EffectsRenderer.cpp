@@ -1693,48 +1693,53 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 		else if (line[0] == 'f')
 		{
 			D3dTriangle tri;
-			int vi, vj, vk;
-			int ti, tj, tk;
-			int ni, nj, nk;
+			int v[4], t[4], n[4];
 			// vertex/tex/normal
-			sscanf_s(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
-				&vi, &ti, &ni,
-				&vj, &tj, &nj,
-				&vk, &tk, &nk);
+			int items = sscanf_s(line, "f %d/%d/%d %d/%d/%d %d/%d/%d %d/%d/%d",
+				&v[0], &t[0], &n[0],
+				&v[1], &t[1], &n[1],
+				&v[2], &t[2], &n[2],
+				&v[3], &t[3], &n[3]);
+			int edgesCount = items / 3;
 
-			D3dVertex index;
-			index.iV = vi - 1;
-			index.iT = ti - 1;
-			index.iN = ni - 1;
-			index.c = 0;
-			tri.v1 = indices.size();
-			indices.push_back(index);
-
-			index.iV = vj - 1;
-			index.iT = tj - 1;
-			index.iN = nj - 1;
-			index.c = 0;
-			tri.v2 = indices.size();
-			indices.push_back(index);
-
-			index.iV = vk - 1;
-			index.iT = tk - 1;
-			index.iN = nk - 1;
-			index.c = 0;
-			tri.v3 = indices.size();
-			indices.push_back(index);
-
-			triangles.push_back(tri);
-
-			if (buildBVH)
+			for (int edge = 2; edge < edgesCount; edge++)
 			{
-				bvhIndices.push_back(vi - 1);
-				bvhIndices.push_back(vj - 1);
-				bvhIndices.push_back(vk - 1);
+				// edge = 2 --> 0, 1, 2
+				// edge = 3 --> 0, 2, 3
+				D3dVertex index;
+				index.iV = v[0] - 1;
+				index.iT = t[0] - 1;
+				index.iN = n[0] - 1;
+				index.c = 0;
+				tri.v1 = indices.size();
+				indices.push_back(index);
 
-				g_vrGlovesMeshes[gloveIdx].texIndices.push_back(ti - 1);
-				g_vrGlovesMeshes[gloveIdx].texIndices.push_back(tj - 1);
-				g_vrGlovesMeshes[gloveIdx].texIndices.push_back(tk - 1);
+				index.iV = v[edge - 1] - 1;
+				index.iT = t[edge - 1] - 1;
+				index.iN = n[edge - 1] - 1;
+				index.c = 0;
+				tri.v2 = indices.size();
+				indices.push_back(index);
+
+				index.iV = v[edge] - 1;
+				index.iT = t[edge] - 1;
+				index.iN = n[edge] - 1;
+				index.c = 0;
+				tri.v3 = indices.size();
+				indices.push_back(index);
+
+				triangles.push_back(tri);
+
+				if (buildBVH)
+				{
+					bvhIndices.push_back(v[0] - 1);
+					bvhIndices.push_back(v[edge - 1] - 1);
+					bvhIndices.push_back(v[edge] - 1);
+
+					g_vrGlovesMeshes[gloveIdx].texIndices.push_back(t[0] - 1);
+					g_vrGlovesMeshes[gloveIdx].texIndices.push_back(t[edge - 1] - 1);
+					g_vrGlovesMeshes[gloveIdx].texIndices.push_back(t[edge] - 1);
+				}
 			}
 		}
 	}
