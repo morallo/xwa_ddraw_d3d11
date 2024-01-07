@@ -68,7 +68,10 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
 	INPUT input[MAX_AC_ACTION_LEN];
 	bool bEscapedAction = (action[0] == 0xe0);
-	const int auxIdx = (contIdx + 1) % 2;
+	const int auxContIdx = (contIdx + 1) % 2;
+	static bool holdCtrl = false;
+	static bool holdShift = false;
+	static bool holdAlt = false;
 
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
@@ -84,19 +87,19 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 			g_bDCHologramsVisible = !g_bDCHologramsVisible;
 			return;
 		case AC_VRKEYB_TOGGLE_FAKE_VK_CODE:
-			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.iHoverContIdx = auxContIdx;
 			g_vrKeybState.ToggleState();
 			return;
 		case AC_VRKEYB_HOVER_FAKE_VK_CODE:
-			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.iHoverContIdx = auxContIdx;
 			g_vrKeybState.state = KBState::HOVER;
 			return;
 		case AC_VRKEYB_PLACE_FAKE_VK_CODE:
-			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.iHoverContIdx = auxContIdx;
 			g_vrKeybState.state = KBState::STATIC;
 			return;
 		case AC_VRKEYB_OFF_FAKE_VK_CODE:
-			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.iHoverContIdx = auxContIdx;
 			g_vrKeybState.state = KBState::OFF;
 			return;
 		case AC_JOYBUTTON1_FAKE_VK_CODE:
@@ -129,6 +132,16 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 				pji->dwButtonNumber = max(pji->dwButtonNumber, 5);
 			}
 			return;
+
+		case AC_HOLD_CTRL_FAKE_VK_CODE:
+			holdCtrl = true;
+			return;
+		case AC_HOLD_ALT_FAKE_VK_CODE:
+			holdAlt = true;
+			return;
+		case AC_HOLD_SHIFT_FAKE_VK_CODE:
+			holdShift = true;
+			return;
 		}
 		return;
 	}
@@ -139,7 +152,51 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 	//DisplayACAction(action);
 
 	// Copy & initialize the scan codes
-	int i = 0, j = bEscapedAction ? 1 : 0;
+	int i = 0, j;
+
+	// ***********************************************
+	// Add Ctrl, Alt, Shift if these keys were held
+	// ***********************************************
+	if (holdCtrl)
+	{
+		input[i].ki.wScan = 0x1D;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdAlt)
+	{
+		input[i].ki.wScan = 0x38;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdShift)
+	{
+		input[i].ki.wScan = 0x2A;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	// ***********************************************
+	// Send the regular key codes
+	// ***********************************************
+	j = bEscapedAction ? 1 : 0;
 	while (action[j] && j < MAX_AC_ACTION_LEN) {
 		input[i].ki.wScan = action[j];
 		input[i].type = INPUT_KEYBOARD;
@@ -169,6 +226,48 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 		i++; j++;
 	}
 
+	// ************************************************
+	// Release Ctrl, Alt, Shift if these keys were held
+	// ************************************************
+	if (holdCtrl)
+	{
+		input[i].ki.wScan = 0x1D;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdAlt)
+	{
+		input[i].ki.wScan = 0x38;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdShift)
+	{
+		input[i].ki.wScan = 0x2A;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	holdCtrl = false;
+	holdAlt = false;
+	holdShift = false;
 	// Send keydown/keyup events in one go: (this is the only way I found to enable the arrow/escaped keys)
 	SendInput(i, input, sizeof(INPUT));
 }
@@ -202,20 +301,28 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 		return;
 	}
 
-	j = 0;
-	/*
-	// Function keys must be handled separately because SHIFT+Fn have unique
-	// scan codes
-	if (strstr("F1", action) != NULL) {
-		if      (strstr(action, "SHIFT") != NULL)	scanCodes[j] = 0x54;
-		else if (strstr(action, "CTRL") != NULL)	scanCodes[j] = 0x5E;
-		else if (strstr(action, "ALT") != NULL)		scanCodes[j] = 0x68;
-		else										scanCodes[j] = 0x3B;
+	if (strstr(action, "HOLD_CTRL") != NULL)
+	{
+		scanCodes[0] = 0xFF;
+		scanCodes[1] = AC_HOLD_CTRL_FAKE_VK_CODE;
 		return;
 	}
-	// End of function keys
-	*/
 
+	if (strstr(action, "HOLD_ALT") != NULL)
+	{
+		scanCodes[0] = 0xFF;
+		scanCodes[1] = AC_HOLD_ALT_FAKE_VK_CODE;
+		return;
+	}
+
+	if (strstr(action, "HOLD_SHIFT") != NULL)
+	{
+		scanCodes[0] = 0xFF;
+		scanCodes[1] = AC_HOLD_SHIFT_FAKE_VK_CODE;
+		return;
+	}
+
+	j = 0;
 	// Composite keys, allow combinations like CTRL+SHIFT+ALT+*
 	ptr = action;
 	if ((cursor = strstr(ptr, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
