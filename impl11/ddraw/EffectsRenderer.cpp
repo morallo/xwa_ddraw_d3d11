@@ -3659,7 +3659,7 @@ void EffectsRenderer::IntersectVRGeometry()
 
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
-		const int auxIdx = (contIdx + 1) % 2;
+		const int auxContIdx = (contIdx + 1) % 2;
 
 		Ray ray;
 		ray.origin   = float3(contOrigin[contIdx]);
@@ -3675,10 +3675,10 @@ void EffectsRenderer::IntersectVRGeometry()
 		}
 
 		// Test the VR gloves -- but only the opposing hand!
-		if (g_vrGlovesMeshes[auxIdx].visible && g_iVRGloveSlot[auxIdx] != -1)
+		if (g_vrGlovesMeshes[auxContIdx].visible && g_contStates[auxContIdx].bIsValid && g_iVRGloveSlot[auxContIdx] != -1)
 		{
 			Intersection inters;
-			Matrix4 pose = g_vrGlovesMeshes[auxIdx].pose;
+			Matrix4 pose = g_vrGlovesMeshes[auxContIdx].pose;
 			Matrix4 pose0;
 			pose.transpose(); // Enable pre-multiplication again
 			pose0 = pose;
@@ -3693,7 +3693,7 @@ void EffectsRenderer::IntersectVRGeometry()
 			ray.dir    = { D.x, D.y, D.z };
 
 			// Find the closest intersection with the Glove OPT
-			LBVH* bvh = (LBVH*)g_vrGlovesMeshes[auxIdx].bvh;
+			LBVH* bvh = (LBVH*)g_vrGlovesMeshes[auxContIdx].bvh;
 			Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
 			if (tempInters.TriID != -1 && // There was an intersection
 				tempInters.T > 0.0f)
@@ -3711,17 +3711,17 @@ void EffectsRenderer::IntersectVRGeometry()
 
 				const int index0 = inters.TriID * 3;
 
-				const int t0Idx = g_vrGlovesMeshes[auxIdx].texIndices[index0 + 0];
-				const int t1Idx = g_vrGlovesMeshes[auxIdx].texIndices[index0 + 1];
-				const int t2Idx = g_vrGlovesMeshes[auxIdx].texIndices[index0 + 2];
+				const int t0Idx = g_vrGlovesMeshes[auxContIdx].texIndices[index0 + 0];
+				const int t1Idx = g_vrGlovesMeshes[auxContIdx].texIndices[index0 + 1];
+				const int t2Idx = g_vrGlovesMeshes[auxContIdx].texIndices[index0 + 2];
 
-				XwaTextureVertex bestUV0 = g_vrGlovesMeshes[auxIdx].texCoords[t0Idx];
-				XwaTextureVertex bestUV1 = g_vrGlovesMeshes[auxIdx].texCoords[t1Idx];
-				XwaTextureVertex bestUV2 = g_vrGlovesMeshes[auxIdx].texCoords[t2Idx];
+				XwaTextureVertex bestUV0 = g_vrGlovesMeshes[auxContIdx].texCoords[t0Idx];
+				XwaTextureVertex bestUV1 = g_vrGlovesMeshes[auxContIdx].texCoords[t1Idx];
+				XwaTextureVertex bestUV2 = g_vrGlovesMeshes[auxContIdx].texCoords[t2Idx];
 
 				g_LaserPointerBuffer.uv[contIdx][0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
 				g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
-				g_iBestIntersTexIdx[contIdx] = g_iVRGloveSlot[auxIdx];
+				g_iBestIntersTexIdx[contIdx] = g_iVRGloveSlot[auxContIdx];
 
 				float texU = g_LaserPointerBuffer.uv[contIdx][0];
 				float texV = g_LaserPointerBuffer.uv[contIdx][1];
@@ -6062,7 +6062,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	// Set the proper rastersize and depth stencil states for transparency
+	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
 
@@ -6085,6 +6085,9 @@ void EffectsRenderer::RenderVRKeyboard()
 	// fBloomStrength ?
 	// bInHyperspace ?
 
+	//g_VRGeometryCBuffer.numRegions = 1;
+	//g_VRGeometryCBuffer.regions[0] = float4(0.15625f, 0.82514f, 0.29071f, 0.97642f);
+
 	// Flags used in RenderScene():
 	_bIsCockpit   = true;
 	_bIsGunner    = false;
@@ -6092,6 +6095,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 	g_OPTMeshTransformCB.MeshTransform = g_vrKeybState.Transform;
 	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
@@ -6143,7 +6147,7 @@ void EffectsRenderer::RenderVRGloves()
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	// Set the proper rastersize and depth stencil states for transparency
+	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_solidBlendState, nullptr);
 	_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 
@@ -6162,6 +6166,8 @@ void EffectsRenderer::RenderVRGloves()
 	// fPosNormalAlpha ?
 	// fBloomStrength ?
 	// bInHyperspace ?
+
+	g_VRGeometryCBuffer.numRegions = 0;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = true;
@@ -6185,6 +6191,7 @@ void EffectsRenderer::RenderVRGloves()
 
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
 	// Render both gloves (if they are enabled)

@@ -4823,6 +4823,15 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
 		return hr;
 
+	// Create the constant buffer for the VR Geometry
+	if (g_bUseSteamVR)
+	{
+		constantBufferDesc.ByteWidth = 80;
+		static_assert(sizeof(VRGeometryCBuffer) == 80, "sizeof(VRGeometryCBuffer) must be 80");
+		if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_VRGeometryCBuffer)))
+			return hr;
+	}
+
 	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
 	InitOPTnames();
 	InitCraftMaterials();
@@ -5115,6 +5124,15 @@ void DeviceResources::InitPSRTConstantsBuffer(ID3D11Buffer **buffer, const RTCon
 	{
 		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 		_d3dDeviceContext->PSSetConstantBuffers(10, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
+}
+
+void DeviceResources::InitVRGeometryCBuffer(ID3D11Buffer** buffer, const VRGeometryCBuffer* psConstants)
+{
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+		_d3dDeviceContext->PSSetConstantBuffers(11, 1, buffer);
 		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
 	}
 }

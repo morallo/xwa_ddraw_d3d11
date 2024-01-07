@@ -74,6 +74,7 @@ extern ShadertoyCBuffer         g_ShadertoyBuffer;
 extern LaserPointerCBuffer      g_LaserPointerBuffer;
 extern OPTMeshTransformCBuffer  g_OPTMeshTransformCB;
 extern RTConstantsBuffer        g_RTConstantsBuffer;
+extern VRGeometryCBuffer        g_VRGeometryCBuffer;
 
 extern D3DTLVERTEX* g_OrigVerts;
 extern uint32_t* g_OrigIndex;

@@ -5,13 +5,14 @@
 #include "VRConfig.h"
 
 // Main Pixel Shader constant buffer
-MainShadersCBuffer			g_MSCBuffer;
+MainShadersCBuffer      g_MSCBuffer;
 // Constant Buffers
-BloomPixelShaderCBuffer		g_BloomPSCBuffer;
-PSShadingSystemCB			g_ShadingSys_PSBuffer;
-SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
-OPTMeshTransformCBuffer		g_OPTMeshTransformCB;
-RTConstantsBuffer			g_RTConstantsBuffer;
+BloomPixelShaderCBuffer g_BloomPSCBuffer;
+PSShadingSystemCB       g_ShadingSys_PSBuffer;
+SSAOPixelShaderCBuffer  g_SSAO_PSCBuffer;
+OPTMeshTransformCBuffer g_OPTMeshTransformCB;
+RTConstantsBuffer       g_RTConstantsBuffer;
+VRGeometryCBuffer       g_VRGeometryCBuffer;
 
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must

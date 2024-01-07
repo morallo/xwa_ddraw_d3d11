@@ -1605,13 +1605,7 @@ void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
 {
 	bool bIsVRKeybActivator = false;
 	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsVRKeybActivator);
-	/*if (bIsActivator)
-	{
-		g_ACPointerData.contIdx = contIdx;
-		g_ACPointerData.button  = buttonId;
-		log_debug("[DBG] [AC] Controller %d, button %d is now the cursor",
-			contIdx, buttonId);
-	}*/
+
 	if (bIsVRKeybActivator)
 	{
 		g_vrKeybState.iHoverContIdx = contIdx;

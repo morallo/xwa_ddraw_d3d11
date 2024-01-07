@@ -110,6 +110,22 @@ struct float4 {
 		x = y = z = w = 0.0f;
 	}
 
+	float4(float x, float y, float z)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+		this->w = 1.0f;
+	}
+
+	float4(float x, float y, float z, float w)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+		this->w = w;
+	}
+
 	float4(float3 P, float w)
 	{
 		this->x = P.x;
@@ -341,6 +357,16 @@ typedef struct RTConstantsBufferStruct {
 	float    RTUnused1[2];
 	// 48 bytes
 } RTConstantsBuffer;
+
+struct VRGeometryCBuffer {
+	uint32_t numRegions;
+	uint32_t unused0;
+	uint32_t unused1;
+	uint32_t unused2;
+	// 16 bytes
+	float4   regions[4];
+	// 80 bytes
+};
 
 typedef struct {
 	/* Exclusive Flags. Only one flag can be set at the same time */

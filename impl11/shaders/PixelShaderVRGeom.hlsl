@@ -16,6 +16,18 @@ SamplerState sampler0 : register(s0);
 // texture0 == regular texture
 // texture1 == ??? illumination texture?
 
+// VRGeometryCBuffer
+cbuffer ConstantBuffer : register(b11)
+{
+	uint vrNumRegions;
+	uint vr_unused0;
+	uint vr_unused1;
+	uint vr_unused2;
+	// 16 bytes
+	float4 vrRegions[4];
+	// 80 bytes
+};
+
 // New PixelShaderInput needed for the D3DRendererHook
 struct PixelShaderInput
 {
@@ -66,14 +78,25 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	const float4 texelColor = texture0.Sample(sampler0, input.tex);
 	const float  alpha      = texelColor.w;
+	const float2 uv         = input.tex;
 	if (alpha < 0.75)
 		discard;
 
 	output.color = texelColor;
-	//output.color = float4(N, texelColor.a);
-
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
+
+	for (uint i = 0; i < vrNumRegions; i++)
+	{
+		const float4 region = vrRegions[i];
+		if (uv.x >= region.x && uv.x <= region.z &&
+			uv.y >= region.y && uv.y <= region.w)
+		{
+			output.bloom.rgb = output.color.rgb;
+			output.bloom.a = 0.5;
+			output.color.r += 0.3;
+		}
+	}
 
 	float3 P = input.pos3D.xyz;
 	output.pos3D = float4(P, 1);

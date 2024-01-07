@@ -66,12 +66,16 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 	// How to send extended scan codes
 	// https://stackoverflow.com/questions/36972524/winapi-extended-keyboard-scan-codes/36976260#36976260
 	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
-	INPUT input[MAX_AC_ACTION_LEN];
-	bool bEscapedAction = (action[0] == 0xe0);
-	const int auxContIdx = (contIdx + 1) % 2;
 	static bool holdCtrl = false;
 	static bool holdShift = false;
 	static bool holdAlt = false;
+
+	INPUT input[MAX_AC_ACTION_LEN];
+	bool bEscapedAction = (action[0] == 0xe0);
+
+	int auxContIdx = (contIdx + 1) % 2;
+	if (!g_contStates[auxContIdx].bIsValid)
+		auxContIdx = contIdx;
 
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
