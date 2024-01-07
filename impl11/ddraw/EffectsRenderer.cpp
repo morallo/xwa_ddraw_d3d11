@@ -6030,11 +6030,30 @@ void EffectsRenderer::RenderVRKeyboard()
 	if (!g_bUseSteamVR)
 		return;
 
+	static KBState prevState = KBState::OFF;
+	static float fadeIn, fadeInIncr;
+	if (prevState != KBState::HOVER && g_vrKeybState.state == KBState::HOVER)
+	{
+		fadeIn = 1.0f;
+		fadeInIncr = 2.0f;
+	}
+
+	fadeIn += fadeInIncr * g_HiResTimer.elapsed_s;
+	if (fadeIn > 2.0f) {
+		fadeIn = 0.0f;
+		fadeInIncr = 0.0f;
+	}
+	if (fadeIn < 1.0f) {
+		fadeIn = 0.0f;
+		fadeInIncr = 0.0f;
+	}
+	prevState = g_vrKeybState.state;
+
 	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
 	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || g_vrKeybState.state == KBState::OFF || !_bCockpitConstantsCaptured)
 		return;
 
-	_deviceResources->BeginAnnotatedEvent(L"RenderVRGeometry");
+	_deviceResources->BeginAnnotatedEvent(L"RenderVRKeyboard");
 
 	auto& resources = _deviceResources;
 	auto& context = resources->_d3dDeviceContext;
@@ -6059,6 +6078,7 @@ void EffectsRenderer::RenderVRKeyboard()
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
 	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	g_PSCBuffer.rand0 = fadeIn;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?
 	// fPosNormalAlpha ?

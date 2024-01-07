@@ -36,6 +36,30 @@ struct PixelShaderOutput
 	float4 ssMask   : SV_TARGET5;
 };
 
+// Noise from https://www.shadertoy.com/view/4sfGzS
+float hash(float3 p)  // replace this by something better
+{
+	p = frac(p * 0.3183099 + .1);
+	p *= 17.0;
+	return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float noise(in float3 x)
+{
+	float3 i = floor(x);
+	float3 f = frac(x);
+	f = f * f * (3.0 - 2.0 * f);
+
+	return lerp(lerp(lerp(hash(i + float3(0, 0, 0)),
+		hash(i + float3(1, 0, 0)), f.x),
+		lerp(hash(i + float3(0, 1, 0)),
+			hash(i + float3(1, 1, 0)), f.x), f.y),
+		lerp(lerp(hash(i + float3(0, 0, 1)),
+			hash(i + float3(1, 0, 1)), f.x),
+			lerp(hash(i + float3(0, 1, 1)),
+				hash(i + float3(1, 1, 1)), f.x), f.y), f.z);
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -67,6 +91,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
 	//output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
 	output.ssMask = float4(0, 0, 0, 0);
+
+	// Black-noise fade in/out -- this part will be played when turning the VR keyboard
+	// on and off.
+	const float fadeIn = rand0 - 1.0; // fadeIn is in the range 1..2
+	if (rand0 > 0) // The effect is only applied if rand0 is not zero
+	{
+		const float size = 10.0 + 30.0 * fadeIn;
+		float speckle_noise = 3.0 * (noise(size * float3(input.tex, 20.0 * fadeIn)) - 0.5);
+		float4 nvideo = output.color * lerp(speckle_noise, 1.0, fadeIn);
+		output.color = lerp(0.0, nvideo, clamp(fadeIn * 3.0, 0.0, 1.0));
+		output.bloom = lerp(0.0, 2.0 * nvideo, clamp(fadeIn, 0.0, 1.0));
+		output.ssMask.a = min(output.ssMask.a, output.color.a);
+	}
 
 	return output;
 }
