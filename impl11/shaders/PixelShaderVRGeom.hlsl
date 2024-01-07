@@ -35,7 +35,6 @@ struct PixelShaderInput
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
 	float2 tex    : TEXCOORD;
-	//float4 color  : COLOR0;
 };
 
 struct PixelShaderOutput
@@ -92,9 +91,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		if (uv.x >= region.x && uv.x <= region.z &&
 			uv.y >= region.y && uv.y <= region.w)
 		{
+			output.color.rgb = 1 - output.color.rgb;
 			output.bloom.rgb = output.color.rgb;
-			output.bloom.a = 0.5;
-			output.color.r += 0.3;
+			output.bloom.a   = 0.75;
+			//output.color.r += 0.3;
 		}
 	}
 

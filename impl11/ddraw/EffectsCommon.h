@@ -18,9 +18,9 @@ const float RAD2DEG = 180.0f / PI;
 
 class Direct3DTexture;
 
-typedef struct uvfloat4_struct {
+struct uvfloat4 {
 	float x0, y0, x1, y1;
-} uvfloat4;
+};
 
 struct float3 {
 	float x, y, z;
@@ -132,6 +132,14 @@ struct float4 {
 		this->y = P.y;
 		this->z = P.z;
 		this->w = w;
+	}
+
+	float4(uvfloat4 P)
+	{
+		x = P.x0;
+		y = P.y0;
+		z = P.x1;
+		w = P.y1;
 	}
 };
 
@@ -364,7 +372,7 @@ struct VRGeometryCBuffer {
 	uint32_t unused1;
 	uint32_t unused2;
 	// 16 bytes
-	float4   regions[4];
+	float4   regions[MAX_VRKEYB_REGIONS];
 	// 80 bytes
 };
 

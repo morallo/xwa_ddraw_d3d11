@@ -7899,7 +7899,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 						*/
 
 						// Run the action itself
-						ACRunAction(coords->action[i], contIdx);
+						ACRunAction(coords->action[i], coords->area[i], contIdx);
 						//log_debug("[DBG} [AC] *************");
 					}
 					break;

@@ -116,6 +116,7 @@ void EmulMouseWithVRControllers()
 {
 	const int ptrIdx = 0;
 	const int auxIdx = (ptrIdx == 0) ? 1 : 0;
+	const uvfloat4 coords = { 0 };
 	static bool bFirstTime = true;
 	static WORD escScanCodes[2];
 	static WORD periodScanCodes[2];
@@ -137,11 +138,11 @@ void EmulMouseWithVRControllers()
 
 	// Send the ESC command
 	if (!g_prevContStates[ptrIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[ptrIdx].buttons[VRButtons::PAD_CLICK])
-		ACRunAction(escScanCodes, ptrIdx, nullptr);
+		ACRunAction(escScanCodes, coords, ptrIdx, nullptr);
 
 	// Send the PERIOD command
 	if (!g_prevContStates[auxIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[auxIdx].buttons[VRButtons::PAD_CLICK])
-		ACRunAction(periodScanCodes, ptrIdx, nullptr);
+		ACRunAction(periodScanCodes, coords, ptrIdx, nullptr);
 
 	// Actions have been processed, we can update the previous state now
 	for (int i = 0; i < 2; i++)
@@ -664,6 +665,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 		else if (g_bActiveCockpitEnabled)
 		{
+			const uvfloat4 coords = { 0 };
 			// Synthesize joystick button clicks and run AC actions associated with VR buttons
 			for (int contIdx = 0; contIdx < 2; contIdx++)
 			{
@@ -672,12 +674,12 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 					if (IsContinousAction(g_ACJoyMappings[contIdx].action[buttonIdx]))
 					{
 						if (g_contStates[contIdx].buttons[buttonIdx])
-							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], contIdx, pji);
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], coords, contIdx, pji);
 					}
 					else
 					{
 						if (!g_prevContStates[contIdx].buttons[buttonIdx] && g_contStates[contIdx].buttons[buttonIdx])
-							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], contIdx, pji);
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], coords, contIdx, pji);
 					}
 				}
 
@@ -695,7 +697,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 					if (g_contStates[contIdx].buttons[VRButtons::TRIGGER] &&
 						g_contStates[contIdx].buttons[VRButtons::GRIP])
-						ACRunAction(joyButton1ScanCodes, contIdx, pji);
+						ACRunAction(joyButton1ScanCodes, coords, contIdx, pji);
 				}
 
 				// Actions have been processed, we can update the previous state now

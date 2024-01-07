@@ -109,4 +109,6 @@ OPTMeshTransformCBuffer       : register(b8)
 // The screen texture is active and should be mixed with the lightmap buffer
 #define OVERLAY_ILLUM_CTRL_SCREEN 0x8
 
+// Maximum number of highlighted regions for the VR Keyboard.
+#define MAX_VRKEYB_REGIONS 4
 #endif

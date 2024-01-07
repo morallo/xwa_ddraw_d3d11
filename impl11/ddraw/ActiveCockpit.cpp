@@ -58,7 +58,7 @@ bool IsContinousAction(WORD* action)
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
+void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyinfoex_tag* pji) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
@@ -66,9 +66,12 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 	// How to send extended scan codes
 	// https://stackoverflow.com/questions/36972524/winapi-extended-keyboard-scan-codes/36976260#36976260
 	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
-	static bool holdCtrl = false;
+	static bool holdCtrl  = false;
 	static bool holdShift = false;
-	static bool holdAlt = false;
+	static bool holdAlt   = false;
+	static uvfloat4 ctrlRegion  = { 0 };
+	static uvfloat4 altRegion   = { 0 };
+	static uvfloat4 shiftRegion = { 0 };
 
 	INPUT input[MAX_AC_ACTION_LEN];
 	bool bEscapedAction = (action[0] == 0xe0);
@@ -138,13 +141,31 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 			return;
 
 		case AC_HOLD_CTRL_FAKE_VK_CODE:
-			holdCtrl = true;
+			holdCtrl = !holdCtrl;
+			ctrlRegion = coords;
+
+			g_vrKeybState.ClearRegions();
+			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
+			if (holdAlt) g_vrKeybState.AddLitRegion(altRegion);
+			if (holdShift) g_vrKeybState.AddLitRegion(shiftRegion);
 			return;
 		case AC_HOLD_ALT_FAKE_VK_CODE:
-			holdAlt = true;
+			holdAlt = !holdAlt;
+			altRegion = coords;
+
+			g_vrKeybState.ClearRegions();
+			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
+			if (holdAlt) g_vrKeybState.AddLitRegion(altRegion);
+			if (holdShift) g_vrKeybState.AddLitRegion(shiftRegion);
 			return;
 		case AC_HOLD_SHIFT_FAKE_VK_CODE:
-			holdShift = true;
+			holdShift = !holdShift;
+			shiftRegion = coords;
+
+			g_vrKeybState.ClearRegions();
+			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
+			if (holdAlt) g_vrKeybState.AddLitRegion(altRegion);
+			if (holdShift) g_vrKeybState.AddLitRegion(shiftRegion);
 			return;
 		}
 		return;
@@ -269,9 +290,10 @@ void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 		i++;
 	}
 
-	holdCtrl = false;
-	holdAlt = false;
+	holdCtrl  = false;
+	holdAlt   = false;
 	holdShift = false;
+	g_vrKeybState.ClearRegions();
 	// Send keydown/keyup events in one go: (this is the only way I found to enable the arrow/escaped keys)
 	SendInput(i, input, sizeof(INPUT));
 }

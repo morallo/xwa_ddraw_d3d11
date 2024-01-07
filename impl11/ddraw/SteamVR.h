@@ -5,6 +5,7 @@
 #include "Vectors.h"
 #include "Matrices.h"
 #include "config.h"
+#include "EffectsCommon.h"
 #include <openvr.h>
 
 constexpr float DEFAULT_STEAMVR_OVERLAY_WIDTH = 5.0f;
@@ -102,6 +103,10 @@ struct VRKeybState
 	int     iGroupId;
 	int     iImageId;
 
+	// Region highlighting
+	int      iNumRegions;
+	uvfloat4 regions[MAX_VRKEYB_REGIONS];
+
 	VRKeybState()
 	{
 		state        = KBState::OFF;
@@ -110,7 +115,9 @@ struct VRKeybState
 		fPixelWidth  = 1024;
 		fPixelHeight = 480;
 		Transform.identity();
+
 		iHoverContIdx = 0;
+		iNumRegions   = 0;
 
 		sprintf_s(sImageName, 128, "%s", ".\\Effects\\ActiveCockpit.dat");
 		iGroupId = 0;
@@ -125,6 +132,19 @@ struct VRKeybState
 		case KBState::HOVER:  state = KBState::STATIC; break;
 		case KBState::STATIC: state = KBState::OFF;    break;
 		}
+	}
+
+	void AddLitRegion(const uvfloat4& coords)
+	{
+		if (iNumRegions < MAX_VRKEYB_REGIONS)
+		{
+			regions[iNumRegions++] = coords;
+		}
+	}
+
+	void ClearRegions()
+	{
+		iNumRegions = 0;
 	}
 };
 

@@ -6085,8 +6085,11 @@ void EffectsRenderer::RenderVRKeyboard()
 	// fBloomStrength ?
 	// bInHyperspace ?
 
-	//g_VRGeometryCBuffer.numRegions = 1;
-	//g_VRGeometryCBuffer.regions[0] = float4(0.15625f, 0.82514f, 0.29071f, 0.97642f);
+	for (int i = 0; i < g_vrKeybState.iNumRegions; i++)
+	{
+		g_VRGeometryCBuffer.regions[i] = g_vrKeybState.regions[i];
+	}
+	g_VRGeometryCBuffer.numRegions = g_vrKeybState.iNumRegions;
 
 	// Flags used in RenderScene():
 	_bIsCockpit   = true;
