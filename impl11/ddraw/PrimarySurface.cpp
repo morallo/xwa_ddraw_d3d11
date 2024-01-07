@@ -7899,7 +7899,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 						*/
 
 						// Run the action itself
-						ACRunAction(coords->action[i]);
+						ACRunAction(coords->action[i], contIdx);
 						//log_debug("[DBG} [AC] *************");
 					}
 					break;
@@ -8053,70 +8053,6 @@ out:
 
 	this->_deviceResources->EndAnnotatedEvent();
 }
-
-#ifdef DISABLED
-void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed) {
-	static uint32_t lastButtonsPressed = 0x0;
-	WORD events[6];
-
-	/*
-	Vertical Axis: 
-	Axis0: Up --> -1, Down --> 1
-	Up --> 0, Down --> 254, Center --> 127
-
-	Horizontal Axis:
-	Axis1: Right --> -1, Left --> 1
-	Right --> 0, Left --> 254, Center --> 127
-	*/
-	//if (axis0 != 127) log_debug("[DBG] axis0: %d", axis0); 
-	//if (axis1 != 127) log_debug("[DBG] axis1: %d", axis1);
-
-	// Gamepad Joystick Up: Increase speed
-	if (axis0 < 100) { 
-		// Send a [+] keypress for as long as this key is depressed
-		events[0] = 0x0D;
-		events[1] = 0x0;
-		ACRunAction(events);
-	} 
-
-	// Gamepad Joystick Down: Decrease speed
-	if (axis0 > 130) { 
-		// Send a [-] keypress for as long as this key is depressed
-		events[0] = 0x0C;
-		events[1] = 0x0;
-		ACRunAction(events);
-	}
-	
-	// Down button: reset view (period key)
-	if (!(buttonsPressed & 0x02) && (lastButtonsPressed & 0x02)) {
-		events[0] = 0x34; // period key
-		events[1] = 0x0;
-		ACRunAction(events);
-	}
-	
-	// Up Button: Trigger
-	if (buttonsPressed & 0x04) 
-		g_bACTriggerState = true;
-	else
-		g_bACTriggerState = false;
-
-	// Left button: 1/3 thrust "[" key
-	if (!(buttonsPressed & 0x01) && (lastButtonsPressed & 0x01)) {
-		events[0] = 0x1A;
-		events[1] = 0x0;
-		ACRunAction(events);
-	}
-
-	// Right: Match speed with target [Enter]
-	if (!(buttonsPressed & 0x08) && (lastButtonsPressed & 0x08)) {
-		events[0] = 0x1C;
-		events[1] = 0x0;
-		ACRunAction(events);
-	}
-
-	lastButtonsPressed = buttonsPressed;
-}
-#endif
 
 /*
  * Compute the current view matrices from SteamVR or FreePIE and store them in

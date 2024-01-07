@@ -19,8 +19,9 @@
 #define AC_JOYBUTTON5_FAKE_VK_CODE 0x06
 
 #define AC_VRKEYB_TOGGLE_FAKE_VK_CODE 0x07
-#define AC_VRKEYB_ON_FAKE_VK_CODE     0x08
-#define AC_VRKEYB_OFF_FAKE_VK_CODE    0x09
+#define AC_VRKEYB_HOVER_FAKE_VK_CODE  0x08
+#define AC_VRKEYB_PLACE_FAKE_VK_CODE  0x09
+#define AC_VRKEYB_OFF_FAKE_VK_CODE    0x0A
 
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];
@@ -124,5 +125,5 @@ void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileName
 void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator);
 void DisplayACAction(WORD* scanCodes);
 int isInVector(char* name, ac_element* ac_elements, int num_elems);
-void ACRunAction(WORD* action, struct joyinfoex_tag* pji = nullptr);
+void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji = nullptr);
 bool IsContinousAction(WORD* action);

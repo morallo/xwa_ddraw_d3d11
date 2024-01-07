@@ -1628,7 +1628,7 @@ void DeviceResources::ResetActiveCockpit() {
 			ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
 			//g_iNumACElements = 0;
 		}
-		g_vrKeybState.bVisible = false;
+		g_vrKeybState.state = KBState::OFF;
 	}
 }
 

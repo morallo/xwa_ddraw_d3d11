@@ -2233,6 +2233,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	g_vrGlovesMeshes[0].rendered = false;
 	g_vrGlovesMeshes[1].rendered = false;
 
+	// Update the position of the keyboard
 	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
 	{
 		const float cockpitOriginX = *g_POV_X;
@@ -2241,9 +2242,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 		static Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 
-		const int contIdx = g_vrKeybState.iActivatorContIdx;
-		// Only update the position while the second button is pressed:
-		if (g_vrKeybState.bVisible && g_contStates[contIdx].buttons[g_vrKeybState.iActivatorButtonIdx])
+		// Only update the position while the keyboard is hovering
+		if (g_vrKeybState.state == KBState::HOVER)
 		{
 			Matrix4 R, S;
 			S.scale(OPT_TO_METERS);
@@ -2266,7 +2266,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 
 			// Convert OPT to SteamVR coords, then apply the VR controller pose, finally revert
 			// everything and add the cockpit POV
-			g_vrKeybState.Transform = toOPT * g_contStates[contIdx].pose * toSteamVR;
+			g_vrKeybState.Transform = toOPT * g_contStates[g_vrKeybState.iHoverContIdx].pose * toSteamVR;
 			// XwaD3dVertexShader does a post-multiplication, so we need to transpose this:
 			g_vrKeybState.Transform.transpose();
 		}
@@ -3721,7 +3721,6 @@ void EffectsRenderer::IntersectVRGeometry()
 
 				g_LaserPointerBuffer.uv[contIdx][0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
 				g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
-				// TODO: Secure AC slots for the gloves and save/restore them when AC is reset
 				g_iBestIntersTexIdx[contIdx] = g_iVRGloveSlot[auxIdx];
 
 				float texU = g_LaserPointerBuffer.uv[contIdx][0];
@@ -3739,7 +3738,7 @@ void EffectsRenderer::IntersectVRGeometry()
 		}
 
 		// Test the VR keyboard
-		if (g_vrKeybState.bVisible)
+		if (g_vrKeybState.state != KBState::OFF)
 		{
 			for (int i = 0; i < g_vrKeybNumTriangles; i++)
 			{
@@ -3826,6 +3825,8 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	int MeshVerticesCount = *(int*)((int)scene->MeshVertices - 8);
 	XwaTextureVertex* MeshTextureVertices = scene->MeshTextureVertices;
 	int MeshTextureVerticesCount = *(int*)((int)scene->MeshTextureVertices - 8);
+	XwaVector3* MeshNormals = scene->MeshVertexNormals;
+	int MeshNormalsCount = *(int*)((int)MeshNormals - 8);
 	Matrix4 MeshTransform = g_OPTMeshTransformCB.MeshTransform;
 	// We premultiply in the code below, so we need to transpose the matrix because
 	// the Vertex shader does a postmultiplication
@@ -6030,7 +6031,7 @@ void EffectsRenderer::RenderVRKeyboard()
 		return;
 
 	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
-	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || !g_vrKeybState.bVisible || !_bCockpitConstantsCaptured)
+	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || g_vrKeybState.state == KBState::OFF || !_bCockpitConstantsCaptured)
 		return;
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVRGeometry");
@@ -6045,8 +6046,6 @@ void EffectsRenderer::RenderVRKeyboard()
 	// Set the proper rastersize and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	//_deviceResources->InitBlendState(_solidBlendState, nullptr);
-	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

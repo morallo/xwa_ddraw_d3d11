@@ -137,11 +137,11 @@ void EmulMouseWithVRControllers()
 
 	// Send the ESC command
 	if (!g_prevContStates[ptrIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[ptrIdx].buttons[VRButtons::PAD_CLICK])
-		ACRunAction(escScanCodes, nullptr);
+		ACRunAction(escScanCodes, ptrIdx, nullptr);
 
 	// Send the PERIOD command
 	if (!g_prevContStates[auxIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[auxIdx].buttons[VRButtons::PAD_CLICK])
-		ACRunAction(periodScanCodes, nullptr);
+		ACRunAction(periodScanCodes, ptrIdx, nullptr);
 
 	// Actions have been processed, we can update the previous state now
 	for (int i = 0; i < 2; i++)
@@ -672,12 +672,12 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 					if (IsContinousAction(g_ACJoyMappings[contIdx].action[buttonIdx]))
 					{
 						if (g_contStates[contIdx].buttons[buttonIdx])
-							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], contIdx, pji);
 					}
 					else
 					{
 						if (!g_prevContStates[contIdx].buttons[buttonIdx] && g_contStates[contIdx].buttons[buttonIdx])
-							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], pji);
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], contIdx, pji);
 					}
 				}
 
@@ -695,7 +695,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 					if (g_contStates[contIdx].buttons[VRButtons::TRIGGER] &&
 						g_contStates[contIdx].buttons[VRButtons::GRIP])
-						ACRunAction(joyButton1ScanCodes, pji);
+						ACRunAction(joyButton1ScanCodes, contIdx, pji);
 				}
 
 				// Actions have been processed, we can update the previous state now

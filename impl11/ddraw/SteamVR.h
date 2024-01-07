@@ -82,35 +82,49 @@ struct ControllerState
 extern ControllerState g_prevContStates[2];
 extern ControllerState g_contStates[2];
 
+enum class KBState
+{
+	OFF,
+	HOVER,
+	STATIC,
+};
+
 struct VRKeybState
 {
-	bool    bVisible;
+	KBState state;
 	bool    bRendered;
 	float   fMetersWidth;
 	float   fPixelWidth;
 	float   fPixelHeight;
 	Matrix4 Transform;
-	int     iActivatorContIdx;
-	int     iActivatorButtonIdx;
+	int     iHoverContIdx;
 	char    sImageName[128];
 	int     iGroupId;
 	int     iImageId;
 
 	VRKeybState()
 	{
-		bVisible     = false;
+		state        = KBState::OFF;
 		bRendered    = false;
 		fMetersWidth = 0.30f;
 		fPixelWidth  = 1024;
 		fPixelHeight = 480;
 		Transform.identity();
-
-		iActivatorContIdx = 0;
-		iActivatorButtonIdx = VRButtons::BUTTON_2;
+		iHoverContIdx = 0;
 
 		sprintf_s(sImageName, 128, "%s", ".\\Effects\\ActiveCockpit.dat");
 		iGroupId = 0;
 		iImageId = 0;
+	}
+
+	void ToggleState()
+	{
+		switch (state)
+		{
+		case KBState::OFF:    state = KBState::HOVER;  break;
+		case KBState::HOVER:  state = KBState::STATIC; break;
+		case KBState::STATIC: state = KBState::OFF;    break;
+		}
 	}
 };
 

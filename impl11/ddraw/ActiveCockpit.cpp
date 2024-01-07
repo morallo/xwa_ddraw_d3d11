@@ -58,7 +58,7 @@ bool IsContinousAction(WORD* action)
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
+void ACRunAction(WORD* action, int contIdx, struct joyinfoex_tag* pji) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
@@ -68,6 +68,7 @@ void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
 	INPUT input[MAX_AC_ACTION_LEN];
 	bool bEscapedAction = (action[0] == 0xe0);
+	const int auxIdx = (contIdx + 1) % 2;
 
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
@@ -83,13 +84,20 @@ void ACRunAction(WORD* action, struct joyinfoex_tag* pji) {
 			g_bDCHologramsVisible = !g_bDCHologramsVisible;
 			return;
 		case AC_VRKEYB_TOGGLE_FAKE_VK_CODE:
-			g_vrKeybState.bVisible = !g_vrKeybState.bVisible;
+			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.ToggleState();
 			return;
-		case AC_VRKEYB_ON_FAKE_VK_CODE:
-			g_vrKeybState.bVisible = true;
+		case AC_VRKEYB_HOVER_FAKE_VK_CODE:
+			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.state = KBState::HOVER;
+			return;
+		case AC_VRKEYB_PLACE_FAKE_VK_CODE:
+			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.state = KBState::STATIC;
 			return;
 		case AC_VRKEYB_OFF_FAKE_VK_CODE:
-			g_vrKeybState.bVisible = false;
+			g_vrKeybState.iHoverContIdx = auxIdx;
+			g_vrKeybState.state = KBState::OFF;
 			return;
 		case AC_JOYBUTTON1_FAKE_VK_CODE:
 			if (pji != nullptr) {
@@ -327,7 +335,13 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 
 		if (strstr(ptr, "VRKEYB_ON") != NULL) {
 			scanCodes[0] = 0xFF;
-			scanCodes[1] = AC_VRKEYB_ON_FAKE_VK_CODE;
+			scanCodes[1] = AC_VRKEYB_HOVER_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_PLACE") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_PLACE_FAKE_VK_CODE;
 			return;
 		}
 

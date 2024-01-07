@@ -1614,8 +1614,7 @@ void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
 	}*/
 	if (bIsVRKeybActivator)
 	{
-		g_vrKeybState.iActivatorContIdx = contIdx;
-		g_vrKeybState.iActivatorButtonIdx = buttonId;
+		g_vrKeybState.iHoverContIdx = contIdx;
 	}
 }
 
