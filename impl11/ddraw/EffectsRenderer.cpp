@@ -6085,11 +6085,19 @@ void EffectsRenderer::RenderVRKeyboard()
 	// fBloomStrength ?
 	// bInHyperspace ?
 
-	for (int i = 0; i < g_vrKeybState.iNumRegions; i++)
+	// Highlight the sticky keys
+	for (int i = 0; i < g_vrKeybState.iNumStickyRegions; i++)
 	{
-		g_VRGeometryCBuffer.regions[i] = g_vrKeybState.regions[i];
+		g_VRGeometryCBuffer.stickyRegions[i] = g_vrKeybState.stickyRegions[i];
 	}
-	g_VRGeometryCBuffer.numRegions = g_vrKeybState.iNumRegions;
+	g_VRGeometryCBuffer.numStickyRegions = g_vrKeybState.iNumStickyRegions;
+
+	// Highlight regular clicks
+	for (int i = 0; i < 2; i++)
+	{
+		g_VRGeometryCBuffer.clicked[i] = g_LaserPointerBuffer.TriggerState[i];
+		g_VRGeometryCBuffer.clickRegions[i] = g_vrKeybState.clickRegions[i];
+	}
 
 	// Flags used in RenderScene():
 	_bIsCockpit   = true;
@@ -6170,7 +6178,10 @@ void EffectsRenderer::RenderVRGloves()
 	// fBloomStrength ?
 	// bInHyperspace ?
 
-	g_VRGeometryCBuffer.numRegions = 0;
+	g_VRGeometryCBuffer.numStickyRegions = 0;
+	// Disable region highlighting on the gloves for now...
+	g_VRGeometryCBuffer.clicked[0] = false;
+	g_VRGeometryCBuffer.clicked[1] = false;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = true;
@@ -6966,7 +6977,7 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderHangarShadowMap();
 	RenderLasers();
 	RenderTransparency();
-	RenderVRKeyboard();
 	RenderVRGloves();
+	RenderVRKeyboard();
 	_deviceResources->EndAnnotatedEvent();
 }

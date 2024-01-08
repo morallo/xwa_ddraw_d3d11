@@ -129,5 +129,5 @@ void CockpitNameToACParamsFile(char* CockpitName, char* sFileName, int iFileName
 void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator);
 void DisplayACAction(WORD* scanCodes);
 int isInVector(char* name, ac_element* ac_elements, int num_elems);
-void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyinfoex_tag* pji = nullptr);
+void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, struct joyinfoex_tag* pji = nullptr);
 bool IsContinousAction(WORD* action);

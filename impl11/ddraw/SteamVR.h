@@ -103,9 +103,12 @@ struct VRKeybState
 	int     iGroupId;
 	int     iImageId;
 
-	// Region highlighting
-	int      iNumRegions;
-	uvfloat4 regions[MAX_VRKEYB_REGIONS];
+	// Region highlighting, sticky keys
+	int      iNumStickyRegions;
+	uvfloat4 stickyRegions[MAX_VRKEYB_REGIONS];
+
+	// Region highlighting, regular clicks
+	uvfloat4 clickRegions[2];
 
 	VRKeybState()
 	{
@@ -117,7 +120,7 @@ struct VRKeybState
 		Transform.identity();
 
 		iHoverContIdx = 0;
-		iNumRegions   = 0;
+		ClearRegions();
 
 		sprintf_s(sImageName, 128, "%s", ".\\Effects\\ActiveCockpit.dat");
 		iGroupId = 0;
@@ -136,15 +139,15 @@ struct VRKeybState
 
 	void AddLitRegion(const uvfloat4& coords)
 	{
-		if (iNumRegions < MAX_VRKEYB_REGIONS)
+		if (iNumStickyRegions < MAX_VRKEYB_REGIONS)
 		{
-			regions[iNumRegions++] = coords;
+			stickyRegions[iNumStickyRegions++] = coords;
 		}
 	}
 
-	void ClearRegions()
+	inline void ClearRegions()
 	{
-		iNumRegions = 0;
+		iNumStickyRegions = 0;
 	}
 };
 

@@ -58,7 +58,7 @@ bool IsContinousAction(WORD* action)
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyinfoex_tag* pji) {
+void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, struct joyinfoex_tag* pji) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
@@ -72,6 +72,7 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyin
 	static uvfloat4 ctrlRegion  = { 0 };
 	static uvfloat4 altRegion   = { 0 };
 	static uvfloat4 shiftRegion = { 0 };
+	const bool vrKeybClick = (ACSlot == g_iVRKeyboardSlot);
 
 	INPUT input[MAX_AC_ACTION_LEN];
 	bool bEscapedAction = (action[0] == 0xe0);
@@ -143,6 +144,8 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyin
 		case AC_HOLD_CTRL_FAKE_VK_CODE:
 			holdCtrl = !holdCtrl;
 			ctrlRegion = coords;
+			// If we're clicking a sticky key, we can't be clicking anything else
+			g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
 
 			g_vrKeybState.ClearRegions();
 			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
@@ -152,6 +155,8 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyin
 		case AC_HOLD_ALT_FAKE_VK_CODE:
 			holdAlt = !holdAlt;
 			altRegion = coords;
+			// If we're clicking a sticky key, we can't be clicking anything else
+			g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
 
 			g_vrKeybState.ClearRegions();
 			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
@@ -161,6 +166,8 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyin
 		case AC_HOLD_SHIFT_FAKE_VK_CODE:
 			holdShift = !holdShift;
 			shiftRegion = coords;
+			// If we're clicking a sticky key, we can't be clicking anything else
+			g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
 
 			g_vrKeybState.ClearRegions();
 			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
@@ -294,6 +301,10 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int contIdx, struct joyin
 	holdAlt   = false;
 	holdShift = false;
 	g_vrKeybState.ClearRegions();
+
+	if (vrKeybClick)
+		g_vrKeybState.clickRegions[contIdx] = coords;
+
 	// Send keydown/keyup events in one go: (this is the only way I found to enable the arrow/escaped keys)
 	SendInput(i, input, sizeof(INPUT));
 }

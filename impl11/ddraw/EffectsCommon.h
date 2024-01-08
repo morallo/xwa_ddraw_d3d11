@@ -367,13 +367,14 @@ typedef struct RTConstantsBufferStruct {
 } RTConstantsBuffer;
 
 struct VRGeometryCBuffer {
-	uint32_t numRegions;
-	uint32_t unused0;
+	uint32_t numStickyRegions;
+	uint32_t clicked[2];
 	uint32_t unused1;
-	uint32_t unused2;
 	// 16 bytes
-	float4   regions[MAX_VRKEYB_REGIONS];
+	float4   stickyRegions[MAX_VRKEYB_REGIONS];
 	// 80 bytes
+	float4   clickRegions[2];
+	// 112 bytes
 };
 
 typedef struct {

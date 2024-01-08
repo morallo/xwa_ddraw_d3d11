@@ -19,13 +19,14 @@ SamplerState sampler0 : register(s0);
 // VRGeometryCBuffer
 cbuffer ConstantBuffer : register(b11)
 {
-	uint vrNumRegions;
-	uint vr_unused0;
-	uint vr_unused1;
-	uint vr_unused2;
+	uint  numStickyRegions;
+	uint2 clicked;
+	uint  vr_unused0;
 	// 16 bytes
-	float4 vrRegions[4];
+	float4 stickyRegions[4];
 	// 80 bytes
+	float4 clickRegions[2];
+	// 112 bytes
 };
 
 // New PixelShaderInput needed for the D3DRendererHook
@@ -84,17 +85,33 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = texelColor;
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
+	uint i;
 
-	for (uint i = 0; i < vrNumRegions; i++)
+	for (i = 0; i < numStickyRegions; i++)
 	{
-		const float4 region = vrRegions[i];
+		const float4 region = stickyRegions[i];
 		if (uv.x >= region.x && uv.x <= region.z &&
-			uv.y >= region.y && uv.y <= region.w)
+		    uv.y >= region.y && uv.y <= region.w)
 		{
 			output.color.rgb = 1 - output.color.rgb;
 			output.bloom.rgb = output.color.rgb;
 			output.bloom.a   = 0.75;
 			//output.color.r += 0.3;
+		}
+	}
+
+	for (i = 0; i < 2; i++)
+	{
+		if (clicked[i])
+		{
+			const float4 region = clickRegions[i];
+			if (uv.x >= region.x && uv.x <= region.z &&
+			    uv.y >= region.y && uv.y <= region.w)
+			{
+				output.color.rgb = 1 - output.color.rgb;
+				output.bloom.rgb = output.color.rgb;
+				output.bloom.a   = 0.75;
+			}
 		}
 	}
 

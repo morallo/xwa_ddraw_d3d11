@@ -7659,7 +7659,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		}
 
 		// Detect triggers:
-		if (g_bACLastTriggerState[contIdx] && !g_bACTriggerState[contIdx]) // || bButtonTrigger) // Push-button behavior is flaky. Needs better algorithms.
+		//if (g_bACLastTriggerState[contIdx] && !g_bACTriggerState[contIdx]) // || bButtonTrigger) // Push-button behavior is flaky. Needs better algorithms.
+		if (!g_bACLastTriggerState[contIdx] && g_bACTriggerState[contIdx])
 			g_bACActionTriggered[contIdx] = true;
 
 		g_bACLastTriggerState[contIdx] = g_bACTriggerState[contIdx];
@@ -7862,6 +7863,11 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_iBestIntersTexIdx[contIdx] > -1 &&
 			g_iBestIntersTexIdx[contIdx] < g_iNumACElements)
 		{
+			// A click has happened, pre-emptively erase the clickRegion for this controller.
+			// If the click happened on an active region, it will get re-populated below.
+			if (g_bACActionTriggered[contIdx])
+				g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
+
 			ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx[contIdx]].coords);
 			// g_iBestIntersTexIdx and g_LaserPointerBuffer.uv are populated in EffectsRenderer.cpp:ApplyActiveCockpit()
 			float u = g_LaserPointerBuffer.uv[contIdx][0];
@@ -7875,16 +7881,17 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			while (u > 1.0f) u -= 1.0f;
 			while (v > 1.0f) v -= 1.0f;
 
-			for (int i = 0; i < coords->numCoords; i++) {
+			for (int i = 0; i < coords->numCoords; i++)
+			{
 				if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
 					coords->area[i].y0 <= v && v <= coords->area[i].y1)
 				{
 					g_LaserPointerBuffer.bHoveringOnActiveElem[contIdx] = 1;
 					if (g_bACActionTriggered[contIdx]) {
+						/*
 						short width  = g_ACElements[g_iBestIntersTexIdx[contIdx]].width;
 						short height = g_ACElements[g_iBestIntersTexIdx[contIdx]].height;
 
-						/*
 						log_debug("[DBG} [AC] *************");
 						log_debug("[DBG] [AC] g_iBestIntersTexIdx: %d", g_iBestIntersTexIdx);
 						log_debug("[DBG] [AC] Texture name: %s", g_ACElements[g_iBestIntersTexIdx].name);
@@ -7899,7 +7906,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 						*/
 
 						// Run the action itself
-						ACRunAction(coords->action[i], coords->area[i], contIdx);
+						ACRunAction(coords->action[i], coords->area[i], g_iBestIntersTexIdx[contIdx], contIdx);
 						//log_debug("[DBG} [AC] *************");
 					}
 					break;
