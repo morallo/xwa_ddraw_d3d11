@@ -2243,13 +2243,13 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		static Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 
 		// Only update the position while the keyboard is hovering
-		if (g_vrKeybState.state == KBState::HOVER)
+		if (g_vrKeybState.state == KBState::HOVER && g_contStates[g_vrKeybState.iHoverContIdx].bIsValid)
 		{
 			Matrix4 R, S;
 			S.scale(OPT_TO_METERS);
-			// The VR controllers are titled by about ~45 degrees, we need to compensate for that, and then
-			// add a little more tilt to be able to type on the keyboard comfortably:
-			R.rotateX(65.0f);
+			// The InitialTransform below ensures that the keyboard is always vertical when displayed, however,
+			// we'd still like to tilt it a little bit to make it easier to type things
+			R.rotateX(25.0f);
 
 			Matrix4 Tinv, Sinv;
 			Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
@@ -2264,12 +2264,28 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			//const float* m0 = g_contStates[thrIdx].pose.get();
 			//Vector4 P = Vector4(m0[12], m0[13], m0[14], 1.0f);
 
-			// Convert OPT to SteamVR coords, then apply the VR controller pose, finally revert
-			// everything and add the cockpit POV
-			g_vrKeybState.Transform = toOPT * g_contStates[g_vrKeybState.iHoverContIdx].pose * toSteamVR;
+			// g_vrKeybState.state is HOVER because of the if above. So this is the transition
+			// where the keyboard is initially displayed.
+			if (g_vrKeybState.prevState != KBState::HOVER)
+			{
+				g_vrKeybState.InitialTransform = g_contStates[g_vrKeybState.iHoverContIdx].pose;
+				const float *m0 = g_vrKeybState.InitialTransform.get();
+				float m[16];
+				for (int i = 0; i < 16; i++) m[i] = m0[i];
+				// Erase the translation
+				m[12] = m[13] = m[14] = 0;
+				g_vrKeybState.InitialTransform.set(m);
+				// Invert the rotation
+				g_vrKeybState.InitialTransform.invert();
+			}
+			// Convert OPT to SteamVR coords, then invert the initial pose so that the keyboard is
+			// always shown upright, then apply the current VR controller pose, and finally move
+			// everything back to cockpit (viewpsace) coords.
+			g_vrKeybState.Transform = toOPT * g_contStates[g_vrKeybState.iHoverContIdx].pose * g_vrKeybState.InitialTransform * toSteamVR;
 			// XwaD3dVertexShader does a post-multiplication, so we need to transpose this:
 			g_vrKeybState.Transform.transpose();
 		}
+		g_vrKeybState.prevState = g_vrKeybState.state;
 	}
 
 	// Initialize the OBJ dump file for the current frame
