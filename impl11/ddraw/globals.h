@@ -120,6 +120,7 @@ extern Vector2 g_TriangleCentroid;
 extern float g_fTrianglePointerDist;
 
 // DEBUG vars
+extern bool g_enable_ac_debug;
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;

@@ -35,6 +35,7 @@ ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0, g_iVRKeyboardSlot = -1;
 int g_iVRGloveSlot[2] = { -1, -1 };
 // DEBUG vars
+bool g_enable_ac_debug = false;
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;

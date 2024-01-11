@@ -4789,8 +4789,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Laser Pointer (Active Cockpit) constant buffer
-	constantBufferDesc.ByteWidth = 272;
-	static_assert(sizeof(LaserPointerCBuffer) == 272, "sizeof(LaserPointerCBuffer) must be 272");
+	constantBufferDesc.ByteWidth = 288;
+	static_assert(sizeof(LaserPointerCBuffer) == 288, "sizeof(LaserPointerCBuffer) must be 288");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 

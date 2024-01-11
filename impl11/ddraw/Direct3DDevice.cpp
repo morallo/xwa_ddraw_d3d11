@@ -661,6 +661,8 @@ int g_iNumLaserCannons = 0, g_iNumIonCannons = 0;
 float4 g_SunColors[MAX_SUN_FLARES];
 int g_iSunFlareCount = 0;
 
+float clamp(float val, float min, float max);
+
 /*
  * Converts a metric (OPT-scale?) depth value to in-game (sz, rhw) values, copying the behavior of the game.
  * This is the old formula. Jeremy modified it to improve the precision, but it's still a good reference
@@ -1436,6 +1438,9 @@ bool rayTriangleIntersect(
 	if (v < 0.0f - margin || u + v > 1.0f + margin) return false;
 
 	t = v0v2.dot(qvec) * invDet;
+	// Prevent intersections behind the origin
+	if (t < 0.0f) return false;
+
 	P = orig + t * dir;
 
 	// Compute u-v again to make them consistent with tex coords
@@ -1509,6 +1514,105 @@ bool rayTriangleIntersect(
 
 	return true; // this ray hits the triangle 
 #endif 
+}
+
+// Given segment AB and Point P, compute the closest point Q
+// on segment AB. Also return t where Q = A + t * (B - A)
+// from: https://gdbooks.gitbooks.io/3dcollisions/content/Chapter1/closest_point_on_line.html
+inline Vector3 ClosestPointOnLine(const Vector3& a, const Vector3& b, Vector3 P, float& t)
+{
+	Vector3 ab = b - a;
+	// Project c onto ab, computing the paramaterized position
+	// d(t) = a + t * (b - a)
+	t = (P - a).dot(ab) / ab.dot(ab);
+
+	// Clamp T to a 0-1 range. If t was < 0 or > 1
+	// then the closest point was outside the line!
+	t = clamp(t, 0.0f, 1.0f);
+
+	// Compute the projected position from the clamped t
+	return a + t * ab;
+}
+
+/// <summary>
+/// Variation of rayTriangleIntersect. This code will find the closest point on the triangle
+/// to point orig and return its distance
+/// </summary>
+float ClosestPointOnTriangle(
+	const Vector3& orig, const Vector3& v0, const Vector3& v1, const Vector3& v2,
+	Vector3& P, float& u, float& v, float margin)
+{
+	// Variation of rayTriangleIntersect. This code will find the closest point on the triangle
+	// to point orig and return its distance
+	// From: https://www.scratchapixel.com/code.php?id=9&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	// Compute the normal
+	Vector3 dir = v0v1.cross(v0v2);
+	Vector3 pvec = dir.cross(v0v2);
+	float det = v0v1.dot(pvec);
+	// ray and triangle are parallel if det is close to 0
+	if (fabs(det) < 0.00001f /* kEpsilon */) return FLT_MAX;
+
+	bool inside = true;
+	float t;
+	float invDet = 1.0f / det;
+
+	Vector3 tvec = orig - v0;
+	u = tvec.dot(pvec) * invDet;
+	//if (u < 0 || u > 1) return false;
+	if (u < 0.0f - margin || u > 1.0f + margin) inside = false;
+
+	Vector3 qvec = tvec.cross(v0v1);
+	v = dir.dot(qvec) * invDet;
+	//if (v < 0 || u + v > 1) return false;
+	if (v < 0.0f - margin || u + v > 1.0f + margin) inside = false;
+
+	t = v0v2.dot(qvec) * invDet;
+	// Prevent intersections behind the origin
+	//if (t < 0.0f) return false;
+	P = orig + t * dir;
+
+	if (!inside)
+	{
+		// The intersection is outside the triangle. Compute the distance between
+		// P and all the line segments making up the triangle and return the closest
+		// one to P.
+		const Vector3 P01 = ClosestPointOnLine(v0, v1, P, t);
+		const Vector3 P12 = ClosestPointOnLine(v1, v2, P, t);
+		const Vector3 P20 = ClosestPointOnLine(v2, v0, P, t);
+		const float d01 = (P - P01).length();
+		const float d12 = (P - P12).length();
+		const float d20 = (P - P20).length();
+		const float d = min(d01, min(d12, d20));
+		if (d == d01)
+			P = P01;
+		else if (d == d12)
+			P = P12;
+		else
+			P = P20;
+	}
+
+	// P is now inside the triangle or on one of its edges. Let's compute its
+	// barycentric coords
+	Vector3 C;
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	u = dir.dot(C);
+
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	v = dir.dot(C);
+
+	float denom = dir.dot(dir);
+	u /= denom;
+	v /= denom;
+
+	return (orig - P).length();
 }
 
 /*

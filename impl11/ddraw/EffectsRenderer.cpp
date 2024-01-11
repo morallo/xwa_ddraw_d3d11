@@ -2,6 +2,8 @@
 #include "EffectsRenderer.h"
 #include <algorithm>
 
+constexpr float GLOVE_NEAR_THRESHOLD_METERS = 0.05f;
+
 // DEBUG vars
 int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCounterSkipLo = -1;
 
@@ -133,6 +135,9 @@ bool rayTriangleIntersect(
 	const Vector3& orig, const Vector3& dir,
 	const Vector3& v0, const Vector3& v1, const Vector3& v2,
 	float& t, Vector3& P, float& u, float& v, float margin);
+float ClosestPointOnTriangle(
+	const Vector3& orig, const Vector3& v0, const Vector3& v1, const Vector3& v2,
+	Vector3& P, float& u, float& v, float margin);
 Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
@@ -3672,6 +3677,7 @@ void EffectsRenderer::IntersectVRGeometry()
 	Vector4 contOrigin[2], contDir[2];
 	VRControllerToOPTCoords(contOrigin, contDir);
 	const float margin = 0.01f;
+	float bestDist = FLT_MAX;
 
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
@@ -3684,11 +3690,6 @@ void EffectsRenderer::IntersectVRGeometry()
 
 		Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
 		Vector3 dir  = { ray.dir.x,    ray.dir.y,    ray.dir.z };
-
-		if (g_vrGlovesMeshes[contIdx].visible)
-		{
-			orig += g_vrGlovesMeshes[contIdx].forwardPmeters[VRGlovesProfile::POINT] * dir;
-		}
 
 		// Test the VR gloves -- but only the opposing hand!
 		if (g_vrGlovesMeshes[auxContIdx].visible && g_contStates[auxContIdx].bIsValid && g_iVRGloveSlot[auxContIdx] != -1)
@@ -3749,6 +3750,7 @@ void EffectsRenderer::IntersectVRGeometry()
 				Q = pose0 * Q;
 
 				g_LaserPointer3DIntersection[contIdx] = { Q.x, Q.y, Q.z };
+				// Skip to the next contIdx/glove
 				continue;
 			}
 		}
@@ -3769,33 +3771,38 @@ void EffectsRenderer::IntersectVRGeometry()
 				Vector3 v2 = Vector4ToVector3(p2);
 
 				// Find the intersection along the triangle's normal (the closest point on the triangle)
-				//Vector3 e10 = v1 - v0;
-				//Vector3 e20 = v2 - v0;
-				//Vector3 N = -1.0f * e10.cross(e20);
-				//float perpDist = FLT_MAX, perpU, perpV;
-				//Vector3 perpP;
-				//bool perpInters = false;
-				//N.normalize();
-				//N *= METERS_TO_OPT; // Everything is OPT scale here
-				//perpInters = rayTriangleIntersect(orig, N, v0, v1, v2, perpDist, perpP, perpU, perpV, margin);
+				Vector3 e10 = v1 - v0;
+				Vector3 e20 = v2 - v0;
+				Vector3 N = -1.0f * e10.cross(e20);
+				float perpDist = FLT_MAX, perpU, perpV;
+				Vector3 perpP;
+				bool perpInters = false;
+				N.normalize();
+				N *= METERS_TO_OPT; // Everything is OPT scale here
+				perpInters = rayTriangleIntersect(orig, N, v0, v1, v2, perpDist, perpP, perpU, perpV, margin);
 
 				Vector3 P;
 				float dist = FLT_MAX, u, v;
 				bool directedInters = false;
-				//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
-				//if (inters.T < bestInters.T && RayTriangleTest(inters))
-				directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
-				// If our controller is less that 2cm away from an element, we can assume we're going to touch it
-				/*if (perpInters && fabs(perpDist) < 0.02f)
+				//directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
+				// If our controller is less that 5cm away from an element, we can assume we're going to touch it
+				//if (perpInters && fabs(perpDist) < 0.05f)
 				{
-					u = perpU; v = perpV; P = perpP; dist = perpDist; directedInters = true;
-				}*/
+					directedInters = perpInters;
+					u = perpU;
+					v = perpV;
+					P = perpP;
+					dist = perpDist;
+				}
 
 				// Allowing negative distances prevents phantom clicking when we "push" behind the
 				// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
 				// that means "1cm".
-				if (directedInters && dist > -0.01f)
+				// GLOVE_NEAR_THRESHOLD_METERS rejects intersections that are too far away from the target
+				// (more than 5cms)
+				if (directedInters && dist > -0.01f && dist < bestDist && dist < GLOVE_NEAR_THRESHOLD_METERS)
 				{
+					bestDist = dist;
 					g_fBestIntersectionDistance[contIdx] = dist;
 
 					const float baryU = u;
@@ -3810,11 +3817,15 @@ void EffectsRenderer::IntersectVRGeometry()
 					g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
 					g_iBestIntersTexIdx[contIdx] = g_iVRKeyboardSlot;
 
-					g_debug_v0 = v0;
-					g_debug_v1 = v1;
-					g_debug_v2 = v2;
+					if (contIdx == 0)
+					{
+						g_enable_ac_debug = true;
+						g_debug_v0 = v0;
+						g_debug_v1 = v1;
+						g_debug_v2 = v2;
+					}
+
 					g_LaserPointer3DIntersection[contIdx] = P;
-					continue;
 				}
 			}
 		}
@@ -3851,22 +3862,15 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 	// Intersect the current texture with the controller
 	Vector4 contOrigin[2], contDir[2];
 	VRControllerToOPTCoords(contOrigin, contDir);
-	const float margin = 0.0001f;
 
+	const float margin = 0.0001f;
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
-		Ray ray;
-		ray.origin   = float3(contOrigin[contIdx]);
-		ray.dir      = float3(contDir[contIdx]);
-		ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
+		const bool gloveVisible = g_vrGlovesMeshes[contIdx].visible;
+		//const float margin = gloveVisible ? 0.1f : 0.0001f;
 
-		Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
-		Vector3 dir  = { ray.dir.x,    ray.dir.y,    ray.dir.z };
-
-		if (g_vrGlovesMeshes[contIdx].visible)
-		{
-			orig += g_vrGlovesMeshes[contIdx].forwardPmeters[VRGlovesProfile::POINT] * dir;
-		}
+		Vector3 orig = Vector4ToVector3(contOrigin[contIdx]);
+		Vector3 dir  = Vector4ToVector3(contDir[contIdx]);
 
 		// TODO: Create a TLAS just for the cockpit so that we can quickly find the intersection of the
 		// ray coming from the cursor.
@@ -3899,24 +3903,49 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 					Vector3 v1 = Vector4ToVector3(p1);
 					Vector3 v2 = Vector4ToVector3(p2);
 
-					Vector3 P;
-					float dist, u, v;
-					//Intersection inters = getIntersection(ray, float3(v0), float3(v1), float3(v2));
-					//if (inters.T < bestInters.T && RayTriangleTest(inters))
-					if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
+					bool validDir = true;
+					if (gloveVisible)
 					{
-						if (dist < g_fBestIntersectionDistance[contIdx])
+						// When the gloves are visible, we want to find the closest point. So the ray direction
+						// is along the normal of the current surface.
+						Vector3 e10 = v1 - v0;
+						Vector3 e20 = v2 - v0;
+						dir = e10.cross(e20);
+						float L = dir.length();
+						if (L < 0.0001f)
+						{
+							validDir = false;
+						}
+						else
+						{
+							validDir = true;
+							dir = dir * (1.0f / L);
+							dir *= METERS_TO_OPT;
+						}
+					}
+
+					Vector3 P;
+					float dist = FLT_MAX, u, v;
+					//if (validDir && rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
+					dist = ClosestPointOnTriangle(orig, v0, v1, v2, P, u, v, margin);
+					{
+						if (dist > -0.01f && dist < g_fBestIntersectionDistance[contIdx] && dist < GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT)
 						{
 							g_fBestIntersectionDistance[contIdx] = dist;
-							baryU      = u;
-							baryV      = v;
-							bestUV0    = scene->MeshTextureVertices[faceData.TextureVertex[t.v1]];
-							bestUV1    = scene->MeshTextureVertices[faceData.TextureVertex[t.v2]];
-							bestUV2    = scene->MeshTextureVertices[faceData.TextureVertex[t.v3]];
-							bestId     = faceIndex;
-							g_debug_v0 = v0;
-							g_debug_v1 = v1;
-							g_debug_v2 = v2;
+
+							baryU   = u;
+							baryV   = v;
+							bestUV0 = scene->MeshTextureVertices[faceData.TextureVertex[t.v1]];
+							bestUV1 = scene->MeshTextureVertices[faceData.TextureVertex[t.v2]];
+							bestUV2 = scene->MeshTextureVertices[faceData.TextureVertex[t.v3]];
+							bestId  = faceIndex;
+							if (contIdx == 0)
+							{
+								g_debug_v0 = v0;
+								g_debug_v1 = v1;
+								g_debug_v2 = v2;
+								g_enable_ac_debug = true;
+							}
 							g_LaserPointer3DIntersection[contIdx] = P;
 						}
 					}
@@ -6224,6 +6253,10 @@ void EffectsRenderer::RenderVRGloves()
 	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
+	Vector4 contOrigin[2];
+	Vector4 contDir[2];
+	VRControllerToOPTCoords(contOrigin, contDir);
+
 	// Render both gloves (if they are enabled)
 	for (int i = 0; i < 2; i++)
 	{
@@ -6250,11 +6283,20 @@ void EffectsRenderer::RenderVRGloves()
 		Matrix4 gloveDisp;
 		if (profile == VRGlovesProfile::POINT && g_contStates[i].buttons[VRButtons::TRIGGER])
 		{
-			float disp = g_fLaserIntersectionDistance[i] - (METERS_TO_OPT * g_vrGlovesMeshes[i].forwardPmeters[VRGlovesProfile::POINT]);
+			/*float disp = g_fLaserIntersectionDistance[i] - (METERS_TO_OPT * g_vrGlovesMeshes[i].forwardPmeters[VRGlovesProfile::POINT]);
 			Vector4 dir = g_contDirWorldSpace[i];
 			dir.normalize();
 			dir *= disp;
-			gloveDisp.translate(dir.x, dir.z, dir.y);
+			gloveDisp.translate(dir.x, dir.z, dir.y);*/
+
+			// Just move the finger (i.e. the origin) to the intersection point. That should work
+			// regardless of the direction the controller is facing.
+			// Coordinates here are OPT-Viewspace.
+			Vector4 I = Vector4(g_LaserPointer3DIntersection[i]);
+			Vector4 dir = I - contOrigin[i];
+			// Only displace the glove if it's close enough to the target:
+			if (dir.length() < GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT)
+				gloveDisp.translate(dir.x, dir.y, dir.z);
 		}
 
 		g_vrGlovesMeshes[i].pose = gloveDisp * toOPT * g_contStates[i].pose * toSteamVR;

@@ -146,6 +146,28 @@ struct float4 {
 struct float2 {
 	float x, y;
 
+	float2()
+	{
+	}
+
+	float2(float x, float y)
+	{
+		this->x = x;
+		this->y = y;
+	}
+
+	float2(float* P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+	}
+
+	float2(Vector4 P)
+	{
+		this->x = P.x;
+		this->y = P.y;
+	}
+
 	inline float& operator[] (uint32_t index) { return (&x)[index]; }
 };
 
@@ -276,17 +298,18 @@ struct LaserPointerCBuffer {
 	int bDebugMode, unused0;
 	float cursor_radius[2];
 	// 208 bytes
-	float v0[2], v1[2]; // DEBUG
-	// 224 bytes
 	float inters_radius[2];
 	int bDisplayLine[2];
-	// 240 bytes
+	// 224 bytes
 	int bIntersection[2];
 	float lp_aspect_ratio[2];
+	// 240 bytes
+	float2 v0L, v1L; // DEBUG
 	// 256 bytes
-	float v2[2]; // DEBUG
-	float unused1, unused2;
+	float2 v2L, v0R;
 	// 272 bytes
+	float2 v1R, v2R;
+	// 288 bytes
 };
 
 /* 3D Constant Buffers */

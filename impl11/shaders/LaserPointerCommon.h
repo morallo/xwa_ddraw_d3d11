@@ -39,20 +39,20 @@ cbuffer ConstantBuffer : register(b8)
 	float  cursor_radius0;
 	float  cursor_radius1;
 	// 208 bytes
-	float2 v0, v1; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
-	// 224 bytes
 	float inters_radius0;
 	float inters_radius1;
 	bool bDisplayLine0;
 	bool bDisplayLine1;
-	// 240 bytes
+	// 224 bytes
 	bool bIntersection0; // True if there is an intersection to display
 	bool bIntersection1;
 	float2 lp_aspect_ratio;
+	// 240 bytes
+	float2 v0L, v1L; // DEBUG (v0, v1, v2) are the vertices of the triangle where the intersection was found
 	// 256 bytes
-	float2 v2; // DEBUG
-	float ac_unused1, ac_unused2;
-	// 272 bytes
+	float2 v2L, v0R; // DEBUG
+	float2 v1R, v2R;
+	// 288 bytes
 };
 
 #ifdef INSTANCED_RENDERING
@@ -105,7 +105,7 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b)
 	return length(pa - ba * h);
 }
 
-#undef LASER_VR_DEBUG
+#define LASER_VR_DEBUG
 #ifdef LASER_VR_DEBUG
 float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 {
@@ -121,7 +121,7 @@ float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 	return -sqrt(d.x) * sign(d.y);
 }
 
-float debug_map(in vec2 p)
+float debug_map(in vec2 p, in float2 v0, in float2 v1, in float2 v2)
 {
 	return sdTriangle(p, v0, v1, v2);
 }
@@ -158,6 +158,7 @@ void RenderCursor(
 	const float4 intersection,
 	const float  cursor_radius,
 	const float  inters_radius,
+	const uint   viewId,
 	out   float3 pointer_col,
 	out   float  blend)
 {
@@ -233,15 +234,19 @@ void RenderCursor(
 	//if (bDebugMode && bIntersection && debug_map(p) < 0.001)
 	if (bDebugMode)
 	{
-		if (debug_map(p) <= 0.0)
+		const float2 v0 = (viewId == 0) ? v0L : v0R;
+		const float2 v1 = (viewId == 0) ? v1L : v1R;
+		const float2 v2 = (viewId == 0) ? v2L : v2R;
+
+		if (debug_map(p, v0, v1, v2) <= 0.0)
 		{
-			pointer_col = float3(1, 0, 0);
-			blend = 0.8f;
+			pointer_col += float3(0.5, 0, 0);
+			blend = 0.3f;
 		}
-		else if (debug_map(p) < 0.001)
+		else if (debug_map(p, v0, v1, v2) < 0.001)
 		{
-			pointer_col = 1;
-			blend = 1.0f;
+			pointer_col += 1;
+			blend = 0.5f;
 		}
 	}
 #endif
@@ -285,6 +290,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	const float4 contOrigin1   = input.viewId == 0 ? contOriginL1   : contOriginR1;
 	const float4 intersection1 = input.viewId == 0 ? intersectionL1 : intersectionR1;
+	const uint   viewId        = input.viewId;
 #else
 	float3 bgColor = colorTex.Sample(colorSampler, input.uv).xyz;
 	float3 pos3D   = texPos.Sample(colorSampler,   input.uv).xyz;
@@ -294,6 +300,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 
 	const float4 contOrigin1   = contOriginL1;
 	const float4 intersection1 = intersectionL1;
+	const uint   viewId        = 0;
 #endif
 
 	float3 pointer_col;
@@ -302,7 +309,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	             TriggerState0, bHoveringOnActiveElem0,
 	             bContOrigin0, bDisplayLine0, bIntersection0,
 	             contOrigin0, intersection0,
-	             cursor_radius0, inters_radius0,
+	             cursor_radius0, inters_radius0, viewId,
 	             pointer_col, blend);
 	output.color.rgb = lerp(bgColor, pointer_col, blend);
 
@@ -310,7 +317,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	             TriggerState1, bHoveringOnActiveElem1,
 	             bContOrigin1, bDisplayLine1, bIntersection1,
 	             contOrigin1, intersection1,
-	             cursor_radius1, inters_radius1,
+	             cursor_radius1, inters_radius1, viewId,
 	             pointer_col, blend);
 	output.color.rgb = lerp(output.color.rgb, pointer_col, blend);
 	output.color.a = 1;

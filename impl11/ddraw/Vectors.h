@@ -120,6 +120,7 @@ struct Vector4
     // ctors
     Vector4() : x(0), y(0), z(0), w(0) {};
     Vector4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {};
+    Vector4(Vector3 P) : x(P.x), y(P.y), z(P.z), w(1.0f) {};
 
     // utils functions
     void        set(float x, float y, float z, float w);

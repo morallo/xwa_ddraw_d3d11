@@ -7624,13 +7624,19 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// Let's fix the aspect ratio of the laser pointer in non-VR mode:
 	g_LaserPointerBuffer.lp_aspect_ratio[0] = g_bEnableVR ? 1.0f : g_MetricRecCBuffer.mr_screen_aspect_ratio;
 	g_LaserPointerBuffer.lp_aspect_ratio[1] = 1.0f;
+	g_LaserPointerBuffer.bDebugMode = 0;
+
 	g_LaserPointerBuffer.bDisplayLine[0] = false;
 	g_LaserPointerBuffer.bDisplayLine[1] = false;
+	/*g_LaserPointerBuffer.bDisplayLine[0] = true;
+	g_LaserPointerBuffer.bDisplayLine[1] = true;*/
 
+	// TODO: Don't allow intersections with negative distances!
 	Matrix4 W = XwaTransformToMatrix4(renderer->_CockpitWorldView);
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
-		if (!g_vrGlovesMeshes[contIdx].visible)
+		const bool gloveVisible = g_vrGlovesMeshes[contIdx].visible;
+		if (!gloveVisible)
 			g_LaserPointerBuffer.bDisplayLine[contIdx] = true;
 
 		// Push button detection
@@ -7692,6 +7698,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		{
 			inters.T     = g_fBestIntersectionDistance[contIdx];
 			inters.TriID = g_iBestIntersTexIdx[contIdx];
+			//g_LaserPointerBuffer.bDebugMode = g_enable_ac_debug;
 		}
 		else
 		{
@@ -7742,6 +7749,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		}
 		else
 		{
+			// contOriginDisplay is now in ViewSpace coords (it was multiplied by W above).
 			OPTVertexToSteamVRPostProcCoords(contOriginDisplay[contIdx], pos2D);
 			// Left eye cursor
 			g_LaserPointerBuffer.contOrigin[contIdx][0].x = pos2D[0].x;
@@ -7775,10 +7783,34 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			{
 				P = ray.origin + inters.T * ray.dir;
 			}
+
 			g_LaserPointerBuffer.bIntersection[contIdx] = true;
 			Vector3 O = { ray.origin.x, ray.origin.y, ray.origin.z };
 			Vector3 D = { P.x, P.y, P.z };
 			g_fLaserIntersectionDistance[contIdx] = (D - O).length();
+
+			// DEBUG
+#ifndef DISABLED
+			{
+				Vector4 pos2D[2];
+				Vector4 P;
+
+				P = W * Vector4(g_debug_v0.x, g_debug_v0.y, g_debug_v0.z, 1.0f);
+				OPTVertexToSteamVRPostProcCoords(P, pos2D);
+				g_LaserPointerBuffer.v0L = pos2D[0];
+				g_LaserPointerBuffer.v0R = pos2D[1];
+
+				P = W * Vector4(g_debug_v1.x, g_debug_v1.y, g_debug_v1.z, 1.0f);
+				OPTVertexToSteamVRPostProcCoords(P, pos2D);
+				g_LaserPointerBuffer.v1L = pos2D[0];
+				g_LaserPointerBuffer.v1R = pos2D[1];
+
+				P = W * Vector4(g_debug_v2.x, g_debug_v2.y, g_debug_v2.z, 1.0f);
+				OPTVertexToSteamVRPostProcCoords(P, pos2D);
+				g_LaserPointerBuffer.v2L = pos2D[0];
+				g_LaserPointerBuffer.v2R = pos2D[1];
+			}
+#endif
 		}
 		else // When there's no intersection, just draw a line pointing in the direction of the ray
 		{
@@ -7834,26 +7866,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 					OPTVertexToSteamVRPostProcCoords(Q, pos2D);
 					g_LaserPointerBuffer.inters_radius[contIdx] = (pos2D[0].x - sX0);
 				}
-
-				// DEBUG
-#ifdef DISABLED
-				{
-					Vector4 pos2D[2];
-					g_LaserPointerBuffer.bDebugMode = 1;
-
-					OPTVertexToSteamVRPostProcCoords(Vector4(g_debug_v0.x, g_debug_v0.y, g_debug_v0.z, 1.0f), pos2D);
-					g_LaserPointerBuffer.v0[0] = pos2D[0].x;
-					g_LaserPointerBuffer.v0[1] = pos2D[0].y;
-
-					OPTVertexToSteamVRPostProcCoords(Vector4(g_debug_v1.x, g_debug_v1.y, g_debug_v1.z, 1.0f), pos2D);
-					g_LaserPointerBuffer.v1[0] = pos2D[0].x;
-					g_LaserPointerBuffer.v1[1] = pos2D[0].y;
-
-					OPTVertexToSteamVRPostProcCoords(Vector4(g_debug_v2.x, g_debug_v2.y, g_debug_v2.z, 1.0f), pos2D);
-					g_LaserPointerBuffer.v2[0] = pos2D[0].x;
-					g_LaserPointerBuffer.v2[1] = pos2D[0].y;
-				}
-#endif
 			}
 		}
 
@@ -8106,7 +8118,10 @@ void UpdateViewMatrix()
 
 		for (int i = 0; i < 2; i++)
 		{
-			g_contOriginWorldSpace[i]   = g_contStates[i].pose * Vector4(0, 0, 0, 1);
+			float disp = g_vrGlovesMeshes[i].visible ?
+			             g_vrGlovesMeshes[i].forwardPmeters[VRGlovesProfile::POINT] : 0.0f;
+			// Displace the origin so that it's at the tip of the pointing finger
+			g_contOriginWorldSpace[i]   = g_contStates[i].pose * (Vector4(0, 0, 0, 1) + disp * g_controllerForwardVector);
 			g_contOriginWorldSpace[i].w = 1.0f;
 			g_contDirWorldSpace[i]      = g_contStates[i].pose * g_controllerForwardVector;
 			g_contDirWorldSpace[i].w    = 0.0f;
@@ -10084,6 +10099,7 @@ HRESULT PrimarySurface::Flip(
 					g_fBestIntersectionDistance[1] = FLT_MAX;
 					g_iBestIntersTexIdx[0] = -1;
 					g_iBestIntersTexIdx[1] = -1;
+					g_enable_ac_debug = false;
 				}
 
 				// Clear the laser list for the next frame
