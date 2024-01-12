@@ -43,12 +43,15 @@ inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR);
 inline Vector3 projectToInGameCoords(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
-void ComputeBaryCoords(const Vector3& v0, const Vector3& v1, const Vector3& v2, const Vector3& P,
-	float& u, float& v);
+//void ComputeBaryCoords(const Vector3& v0, const Vector3& v1, const Vector3& v2, const Vector3& P,
+//	float& u, float& v);
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
 	float &t, Vector3 &P, float &u, float &v, float margin);
+float ClosestPointOnTriangle(
+	const Vector3& orig, const Vector3& v0, const Vector3& v1, const Vector3& v2,
+	Vector3& P, float& u, float& v, float margin);
 void ResetXWALightInfo();
 void DumpHyperspaceVertexBuffer(float width, float height);
 inline Matrix4 XwaTransformToMatrix4(const XwaTransform& M);
@@ -7202,6 +7205,29 @@ float2 BVHIntersectBox(const BVHNode* BVH, const float3 start, const float3 inv_
 	return _BVHIntersectBox(box_min, box_max, start, inv_dir);
 }
 
+float3 ClosestPointOnBox(const BVHNode* BVH, const float3& origin, const int node)
+{
+	const float3 box_min(BVH[node].min);
+	const float3 box_max(BVH[node].max);
+
+	// Clamp origin to the box, that's the closest point:
+	float3 P = origin;
+	if (P.x < box_min.x) P.x = box_min.x;
+	if (P.y < box_min.y) P.y = box_min.y;
+	if (P.z < box_min.z) P.z = box_min.z;
+
+	if (P.x > box_max.x) P.x = box_max.x;
+	if (P.y > box_max.y) P.y = box_max.y;
+	if (P.z > box_max.z) P.z = box_max.z;
+
+	return P;
+}
+
+inline float length(float3 P)
+{
+	return sqrt(P.x * P.x + P.y * P.y + P.z * P.z);
+}
+
 // Ray traversal, Embedded Geometry version
 Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset)
 {
@@ -7264,6 +7290,86 @@ Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset)
 
 				best_inters = inters;
 				// return best_inters; // Don't terminate early, keep searching the tree until we find the best intersection
+			}
+		}
+	}
+
+	return best_inters;
+}
+
+// Similar to _TraceRaySimpleHit, but finds the closest point on the BVH, from the given.
+Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out)
+{
+	int stack[MAX_RT_STACK];
+	int stack_top = 0;
+	int curnode = -1;
+	Intersection best_inters;
+
+	// Read the padding from the first BVHNode. It will contain the location of the root
+	int root = g_BVH[Offset].rootIdx + Offset;
+
+	stack[stack_top++] = root; // Push the root on the stack
+	while (stack_top > 0) {
+		// Pop a node from the stack
+		curnode = stack[--stack_top];
+		BVHNode node = g_BVH[curnode];
+		const int TriID = node.ref;
+
+		if (TriID == -1)
+		{
+			// This node is a box. Find the closest point on the box
+			float3 P = ClosestPointOnBox(g_BVH, origin, curnode);
+
+			// If origin is inside the box, then P == origin, otherwise, P will be on the
+			// surface of the box and it will be the closest point to origin.
+			float dist = length(P - origin);
+
+			// The sphere around origin intersects this box, let's recurse:
+			if (dist < GLOVE_NEAR_THRESHOLD_OPTSCALE)
+			{
+				// Ray intersects the box
+				// Inner node: push the children of this node on the stack
+				if (stack_top + 4 < MAX_RT_STACK) {
+					// Push the valid children of this node into the stack
+					for (int i = 0; i < 4; i++) {
+						int child = node.children[i];
+						if (child == -1) break;
+						stack[stack_top++] = child + Offset;
+					}
+				}
+			}
+		}
+		else
+		{
+			// This node is a triangle. Find the closest point on the triangle
+			float3 A = float3(node.min);
+			float3 B = float3(node.max);
+			const float* fchildren = (float*)node.children;
+			const float3 C = float3(
+				fchildren[0],
+				fchildren[1],
+				fchildren[2]);
+
+			//Intersection inters = RayTriangleIntersection(ray, A, B, C);
+			/*Vector3* O = (Vector3*)&origin;
+			Vector3* v0 = (Vector3*)&A;
+			Vector3* v1 = (Vector3*)&B;
+			Vector3* v2 = (Vector3*)&C;*/
+			Vector3 O = { origin.x, origin.y, origin.z };
+			Vector3 v0 = { A.x, A.y, A.z };
+			Vector3 v1 = { B.x, B.y, B.z };
+			Vector3 v2 = { C.x, C.y, C.z };
+			Vector3 P;
+			float u, v;
+			float dist = ClosestPointOnTriangle(O, v0, v1, v2, P, u, v, 0.001f);
+			if (dist < best_inters.T)
+			{
+				best_inters.TriID = TriID;
+				best_inters.T = dist;
+				best_inters.U = u;
+				best_inters.V = v;
+				P_out = { P.x, P.y, P.z };
+				// Don't terminate early, keep searching the tree until we find the best intersection
 			}
 		}
 	}
@@ -7702,6 +7808,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		{
 			inters.T     = g_fBestIntersectionDistance[contIdx];
 			inters.TriID = g_iBestIntersTexIdx[contIdx];
+			// Enable the following line and LASER_VR_DEBUG in LaserPointerCommon.h to display
+			// the geometry behind the AC elements:
 			//g_LaserPointerBuffer.bDebugMode = g_enable_ac_debug;
 		}
 		else

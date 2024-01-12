@@ -226,6 +226,9 @@ extern int g_iD3DExecuteCounter;
 constexpr float OPT_TO_METERS = 1.0f / 40.96f;
 constexpr float METERS_TO_OPT = 40.96f;
 
+constexpr float GLOVE_NEAR_THRESHOLD_METERS = 0.05f;
+constexpr float GLOVE_NEAR_THRESHOLD_OPTSCALE = GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT;
+
 // Raytracing
 enum class BLASBuilderType
 {

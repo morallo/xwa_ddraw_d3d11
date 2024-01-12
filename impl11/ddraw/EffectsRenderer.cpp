@@ -2,8 +2,6 @@
 #include "EffectsRenderer.h"
 #include <algorithm>
 
-constexpr float GLOVE_NEAR_THRESHOLD_METERS = 0.05f;
-
 // DEBUG vars
 int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCounterSkipLo = -1;
 
@@ -139,6 +137,7 @@ float ClosestPointOnTriangle(
 	const Vector3& orig, const Vector3& v0, const Vector3& v1, const Vector3& v2,
 	Vector3& P, float& u, float& v, float margin);
 Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset);
+Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
 
@@ -3710,15 +3709,17 @@ void EffectsRenderer::IntersectVRGeometry()
 			ray.dir    = { D.x, D.y, D.z };
 
 			// Find the closest intersection with the Glove OPT
+			float3 P;
 			LBVH* bvh = (LBVH*)g_vrGlovesMeshes[auxContIdx].bvh;
-			Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
+			//Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
+			Intersection tempInters = ClosestHit(bvh->nodes, ray.origin, 0, P);
 			if (tempInters.TriID != -1 && // There was an intersection
 				tempInters.T > 0.0f)
 			{
 				inters = tempInters;
 			}
 
-			if (inters.TriID != -1)
+			if (inters.TriID != -1 && inters.T < g_fBestIntersectionDistance[contIdx])
 			{
 				g_fBestIntersectionDistance[contIdx] = inters.T;
 
@@ -3744,7 +3745,7 @@ void EffectsRenderer::IntersectVRGeometry()
 				float texV = g_LaserPointerBuffer.uv[contIdx][1];
 
 				// P is in the OPT coord sys...
-				float3 P = ray.origin + inters.T * ray.dir;
+				//float3 P = ray.origin + inters.T * ray.dir;
 				Vector4 Q = { P.x, P.y, P.z, 1.0f };
 				// ... so we need to transform it into Viewspace coords:
 				Q = pose0 * Q;
@@ -3770,30 +3771,17 @@ void EffectsRenderer::IntersectVRGeometry()
 				Vector3 v1 = Vector4ToVector3(p1);
 				Vector3 v2 = Vector4ToVector3(p2);
 
+				Vector3 P;
+				float dist = FLT_MAX, u, v;
+
 				// Find the intersection along the triangle's normal (the closest point on the triangle)
 				Vector3 e10 = v1 - v0;
 				Vector3 e20 = v2 - v0;
 				Vector3 N = -1.0f * e10.cross(e20);
-				float perpDist = FLT_MAX, perpU, perpV;
-				Vector3 perpP;
-				bool perpInters = false;
 				N.normalize();
 				N *= METERS_TO_OPT; // Everything is OPT scale here
-				perpInters = rayTriangleIntersect(orig, N, v0, v1, v2, perpDist, perpP, perpU, perpV, margin);
-
-				Vector3 P;
-				float dist = FLT_MAX, u, v;
-				bool directedInters = false;
+				const bool directedInters = rayTriangleIntersect(orig, N, v0, v1, v2, dist, P, u, v, margin);
 				//directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
-				// If our controller is less that 5cm away from an element, we can assume we're going to touch it
-				//if (perpInters && fabs(perpDist) < 0.05f)
-				{
-					directedInters = perpInters;
-					u = perpU;
-					v = perpV;
-					P = perpP;
-					dist = perpDist;
-				}
 
 				// Allowing negative distances prevents phantom clicking when we "push" behind the
 				// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
