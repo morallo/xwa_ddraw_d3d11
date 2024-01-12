@@ -7669,6 +7669,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		if (!g_bACLastTriggerState[contIdx] && g_bACTriggerState[contIdx])
 			g_bACActionTriggered[contIdx] = true;
 
+		// The trigger button was released. Erase the clickRegion for this controller.
+		if (g_bACLastTriggerState[contIdx] && !g_bACTriggerState[contIdx])
+			g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
+
 		g_bACLastTriggerState[contIdx] = g_bACTriggerState[contIdx];
 		// Update the display
 		//g_LaserPointerBuffer.TriggerState = g_bACTriggerState || (buttonState == 1);
@@ -7875,11 +7879,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_iBestIntersTexIdx[contIdx] > -1 &&
 			g_iBestIntersTexIdx[contIdx] < g_iNumACElements)
 		{
-			// A click has happened, pre-emptively erase the clickRegion for this controller.
-			// If the click happened on an active region, it will get re-populated below.
-			if (g_bACActionTriggered[contIdx])
-				g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
-
 			ac_uv_coords *coords = &(g_ACElements[g_iBestIntersTexIdx[contIdx]].coords);
 			// g_iBestIntersTexIdx and g_LaserPointerBuffer.uv are populated in EffectsRenderer.cpp:ApplyActiveCockpit()
 			float u = g_LaserPointerBuffer.uv[contIdx][0];

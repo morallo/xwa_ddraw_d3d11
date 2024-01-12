@@ -105,7 +105,7 @@ float sdLine(in vec2 p, in vec2 a, in vec2 b)
 	return length(pa - ba * h);
 }
 
-#define LASER_VR_DEBUG
+#undef LASER_VR_DEBUG
 #ifdef LASER_VR_DEBUG
 float sdTriangle(in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2)
 {
