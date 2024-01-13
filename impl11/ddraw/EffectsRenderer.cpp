@@ -137,7 +137,8 @@ float ClosestPointOnTriangle(
 	const Vector3& orig, const Vector3& v0, const Vector3& v1, const Vector3& v2,
 	Vector3& P, float& u, float& v, float margin);
 Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset);
-Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out);
+Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out,
+	ac_uv_coords* coords, int contIdx);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
 
@@ -3676,7 +3677,6 @@ void EffectsRenderer::IntersectVRGeometry()
 	Vector4 contOrigin[2], contDir[2];
 	VRControllerToOPTCoords(contOrigin, contDir);
 	const float margin = 0.01f;
-	float bestDist = FLT_MAX;
 
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
@@ -3694,6 +3694,9 @@ void EffectsRenderer::IntersectVRGeometry()
 		if (g_vrGlovesMeshes[auxContIdx].visible && g_contStates[auxContIdx].bIsValid && g_iVRGloveSlot[auxContIdx] != -1)
 		{
 			Intersection inters;
+			const int acGloveSlot = g_iVRGloveSlot[auxContIdx];
+			ac_uv_coords* coords = &(g_ACElements[acGloveSlot].coords);
+
 			Matrix4 pose = g_vrGlovesMeshes[auxContIdx].pose;
 			Matrix4 pose0;
 			pose.transpose(); // Enable pre-multiplication again
@@ -3711,8 +3714,7 @@ void EffectsRenderer::IntersectVRGeometry()
 			// Find the closest intersection with the Glove OPT
 			float3 P;
 			LBVH* bvh = (LBVH*)g_vrGlovesMeshes[auxContIdx].bvh;
-			//Intersection tempInters = _TraceRaySimpleHit(bvh->nodes, ray, 0);
-			Intersection tempInters = ClosestHit(bvh->nodes, ray.origin, 0, P);
+			Intersection tempInters = ClosestHit(bvh->nodes, ray.origin, 0, P, coords, auxContIdx);
 			if (tempInters.TriID != -1 && // There was an intersection
 				tempInters.T > 0.0f)
 			{
@@ -3741,9 +3743,6 @@ void EffectsRenderer::IntersectVRGeometry()
 				g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
 				g_iBestIntersTexIdx[contIdx] = g_iVRGloveSlot[auxContIdx];
 
-				float texU = g_LaserPointerBuffer.uv[contIdx][0];
-				float texV = g_LaserPointerBuffer.uv[contIdx][1];
-
 				// P is in the OPT coord sys...
 				//float3 P = ray.origin + inters.T * ray.dir;
 				Vector4 Q = { P.x, P.y, P.z, 1.0f };
@@ -3751,13 +3750,13 @@ void EffectsRenderer::IntersectVRGeometry()
 				Q = pose0 * Q;
 
 				g_LaserPointer3DIntersection[contIdx] = { Q.x, Q.y, Q.z };
-				// Skip to the next contIdx/glove
-				continue;
+				// Skip to the next contIdx/glove?
+				//continue;
 			}
 		}
 
 		// Test the VR keyboard
-		if (g_vrKeybState.state != KBState::OFF)
+		if (g_vrKeybState.state == KBState::HOVER || g_vrKeybState.state == KBState::STATIC)
 		{
 			for (int i = 0; i < g_vrKeybNumTriangles; i++)
 			{
@@ -3788,9 +3787,9 @@ void EffectsRenderer::IntersectVRGeometry()
 				// that means "1cm".
 				// GLOVE_NEAR_THRESHOLD_METERS rejects intersections that are too far away from the target
 				// (more than 5cms)
-				if (directedInters && dist > -0.01f && dist < bestDist && dist < GLOVE_NEAR_THRESHOLD_METERS)
+				if (directedInters && dist > -0.01f && dist < GLOVE_NEAR_THRESHOLD_METERS &&
+					dist < g_fBestIntersectionDistance[contIdx])
 				{
-					bestDist = dist;
 					g_fBestIntersectionDistance[contIdx] = dist;
 
 					const float baryU = u;
@@ -3891,6 +3890,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 					Vector3 v1 = Vector4ToVector3(p1);
 					Vector3 v2 = Vector4ToVector3(p2);
 
+					// TODO: This block needs to be refactored: "dir" is not used anymore
 					bool validDir = true;
 					if (gloveVisible)
 					{

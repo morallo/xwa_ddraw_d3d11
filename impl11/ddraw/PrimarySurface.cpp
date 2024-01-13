@@ -7298,7 +7298,8 @@ Intersection _TraceRaySimpleHit(BVHNode* g_BVH, Ray ray, int Offset)
 }
 
 // Similar to _TraceRaySimpleHit, but finds the closest point on the BVH, from the given.
-Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out)
+Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out,
+	ac_uv_coords* coords, int contIdx)
 {
 	int stack[MAX_RT_STACK];
 	int stack_top = 0;
@@ -7350,26 +7351,54 @@ Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out
 				fchildren[1],
 				fchildren[2]);
 
-			//Intersection inters = RayTriangleIntersection(ray, A, B, C);
-			/*Vector3* O = (Vector3*)&origin;
+			Vector3* O  = (Vector3*)&origin;
 			Vector3* v0 = (Vector3*)&A;
 			Vector3* v1 = (Vector3*)&B;
-			Vector3* v2 = (Vector3*)&C;*/
-			Vector3 O = { origin.x, origin.y, origin.z };
-			Vector3 v0 = { A.x, A.y, A.z };
-			Vector3 v1 = { B.x, B.y, B.z };
-			Vector3 v2 = { C.x, C.y, C.z };
+			Vector3* v2 = (Vector3*)&C;
 			Vector3 P;
 			float u, v;
-			float dist = ClosestPointOnTriangle(O, v0, v1, v2, P, u, v, 0.001f);
+			float dist = ClosestPointOnTriangle(*O, *v0, *v1, *v2, P, u, v, 0.001f);
 			if (dist < best_inters.T)
 			{
-				best_inters.TriID = TriID;
-				best_inters.T = dist;
-				best_inters.U = u;
-				best_inters.V = v;
-				P_out = { P.x, P.y, P.z };
-				// Don't terminate early, keep searching the tree until we find the best intersection
+				bool match = true;
+				if (coords != nullptr)
+				{
+					match = false;
+
+					const float w = 1.0f - u - v;
+					const int index0 = TriID * 3;
+
+					const int t0Idx = g_vrGlovesMeshes[contIdx].texIndices[index0 + 0];
+					const int t1Idx = g_vrGlovesMeshes[contIdx].texIndices[index0 + 1];
+					const int t2Idx = g_vrGlovesMeshes[contIdx].texIndices[index0 + 2];
+
+					XwaTextureVertex bestUV0 = g_vrGlovesMeshes[contIdx].texCoords[t0Idx];
+					XwaTextureVertex bestUV1 = g_vrGlovesMeshes[contIdx].texCoords[t1Idx];
+					XwaTextureVertex bestUV2 = g_vrGlovesMeshes[contIdx].texCoords[t2Idx];
+
+					float texU = u * bestUV0.u + v * bestUV1.u + w * bestUV2.u;
+					float texV = u * bestUV0.v + v * bestUV1.v + w * bestUV2.v;
+
+					for (int i = 0; i < coords->numCoords; i++)
+					{
+						if (coords->area[i].x0 <= texU && texU <= coords->area[i].x1 &&
+							coords->area[i].y0 <= texV && texV <= coords->area[i].y1)
+						{
+							match = true;
+							break;
+						}
+					}
+				}
+
+				if (match) // dist is already better than best_inters.T
+				{
+					best_inters.TriID = TriID;
+					best_inters.T = dist;
+					best_inters.U = u;
+					best_inters.V = v;
+					P_out = { P.x, P.y, P.z };
+					// Don't terminate early, keep searching the tree until we find the best intersection
+				}
 			}
 		}
 	}
