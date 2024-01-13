@@ -3682,14 +3682,6 @@ void EffectsRenderer::IntersectVRGeometry()
 	{
 		const int auxContIdx = (contIdx + 1) % 2;
 
-		Ray ray;
-		ray.origin   = float3(contOrigin[contIdx]);
-		ray.dir      = float3(contDir[contIdx]);
-		ray.max_dist = RT_MAX_DIST * METERS_TO_OPT;
-
-		Vector3 orig = { ray.origin.x, ray.origin.y, ray.origin.z };
-		Vector3 dir  = { ray.dir.x,    ray.dir.y,    ray.dir.z };
-
 		// Test the VR gloves -- but only the opposing hand!
 		if (g_vrGlovesMeshes[auxContIdx].visible && g_contStates[auxContIdx].bIsValid && g_iVRGloveSlot[auxContIdx] != -1)
 		{
@@ -3704,17 +3696,13 @@ void EffectsRenderer::IntersectVRGeometry()
 			pose.invert();    // We're going from Cockpit coords to Glove OPT coords
 
 			// Transform the ray into the OPT coord sys
-			Vector4 O = { orig.x, orig.y, orig.z, 1.0f };
-			Vector4 D = { dir.x,  dir.y,  dir.z,  0.0f };
-			O = pose * O;
-			D = pose * D;
-			ray.origin = { O.x, O.y, O.z };
-			ray.dir    = { D.x, D.y, D.z };
+			Vector4 O = pose * contOrigin[contIdx];
+			Vector4 D = pose * contDir[contIdx];
 
 			// Find the closest intersection with the Glove OPT
 			float3 P;
 			LBVH* bvh = (LBVH*)g_vrGlovesMeshes[auxContIdx].bvh;
-			Intersection tempInters = ClosestHit(bvh->nodes, ray.origin, 0, P, coords, auxContIdx);
+			Intersection tempInters = ClosestHit(bvh->nodes, { O.x, O.y, O.z }, 0, P, coords, auxContIdx);
 			if (tempInters.TriID != -1 && // There was an intersection
 				tempInters.T > 0.0f)
 			{
@@ -3744,7 +3732,6 @@ void EffectsRenderer::IntersectVRGeometry()
 				g_iBestIntersTexIdx[contIdx] = g_iVRGloveSlot[auxContIdx];
 
 				// P is in the OPT coord sys...
-				//float3 P = ray.origin + inters.T * ray.dir;
 				Vector4 Q = { P.x, P.y, P.z, 1.0f };
 				// ... so we need to transform it into Viewspace coords:
 				Q = pose0 * Q;
@@ -3779,8 +3766,8 @@ void EffectsRenderer::IntersectVRGeometry()
 				Vector3 N = -1.0f * e10.cross(e20);
 				N.normalize();
 				N *= METERS_TO_OPT; // Everything is OPT scale here
-				const bool directedInters = rayTriangleIntersect(orig, N, v0, v1, v2, dist, P, u, v, margin);
-				//directedInters = rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin);
+				Vector3 O = Vector4ToVector3(contOrigin[contIdx]);
+				const bool directedInters = rayTriangleIntersect(O, N, v0, v1, v2, dist, P, u, v, margin);
 
 				// Allowing negative distances prevents phantom clicking when we "push" behind the
 				// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
