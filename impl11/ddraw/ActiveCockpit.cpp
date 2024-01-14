@@ -109,7 +109,7 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, 
 			return;
 		case AC_VRKEYB_OFF_FAKE_VK_CODE:
 			g_vrKeybState.iHoverContIdx = auxContIdx;
-			g_vrKeybState.state = KBState::OFF;
+			g_vrKeybState.state = KBState::CLOSING;
 			return;
 		case AC_JOYBUTTON1_FAKE_VK_CODE:
 			if (pji != nullptr) {

@@ -88,6 +88,8 @@ enum class KBState
 	OFF,
 	HOVER,
 	STATIC,
+	CLOSING,
+	MAX,
 };
 
 struct VRKeybState
@@ -132,12 +134,7 @@ struct VRKeybState
 
 	void ToggleState()
 	{
-		switch (state)
-		{
-			case KBState::OFF:    state = KBState::HOVER;  break;
-			case KBState::HOVER:  state = KBState::STATIC; break;
-			case KBState::STATIC: state = KBState::OFF;    break;
-		}
+		state = (KBState)(((int)state + 1) % (int)KBState::MAX);
 	}
 
 	void AddLitRegion(const uvfloat4& coords)

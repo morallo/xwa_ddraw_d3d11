@@ -6057,15 +6057,20 @@ void EffectsRenderer::RenderVRKeyboard()
 		fadeIn = 1.0f;
 		fadeInIncr = 2.0f;
 	}
+	else if (prevState == KBState::STATIC && g_vrKeybState.state != KBState::STATIC)
+	{
+		fadeIn = 2.0f;
+		fadeInIncr = -2.0f;
+	}
 
 	fadeIn += fadeInIncr * g_HiResTimer.elapsed_s;
 	if (fadeIn > 2.0f) {
 		fadeIn = 0.0f;
 		fadeInIncr = 0.0f;
-	}
-	if (fadeIn < 1.0f) {
+	} else if (g_vrKeybState.state == KBState::CLOSING && fadeIn < 1.0f) {
 		fadeIn = 0.0f;
 		fadeInIncr = 0.0f;
+		g_vrKeybState.state = KBState::OFF;
 	}
 	prevState = g_vrKeybState.state;
 
