@@ -7346,10 +7346,7 @@ Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out
 			float3 A = float3(node.min);
 			float3 B = float3(node.max);
 			const float* fchildren = (float*)node.children;
-			const float3 C = float3(
-				fchildren[0],
-				fchildren[1],
-				fchildren[2]);
+			const float3 C = float3(fchildren[0], fchildren[1], fchildren[2]);
 
 			Vector3* O  = (Vector3*)&origin;
 			Vector3* v0 = (Vector3*)&A;
@@ -7372,12 +7369,12 @@ Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out
 					const int t1Idx = g_vrGlovesMeshes[contIdx].texIndices[index0 + 1];
 					const int t2Idx = g_vrGlovesMeshes[contIdx].texIndices[index0 + 2];
 
-					XwaTextureVertex bestUV0 = g_vrGlovesMeshes[contIdx].texCoords[t0Idx];
-					XwaTextureVertex bestUV1 = g_vrGlovesMeshes[contIdx].texCoords[t1Idx];
-					XwaTextureVertex bestUV2 = g_vrGlovesMeshes[contIdx].texCoords[t2Idx];
+					const XwaTextureVertex bestUV0 = g_vrGlovesMeshes[contIdx].texCoords[t0Idx];
+					const XwaTextureVertex bestUV1 = g_vrGlovesMeshes[contIdx].texCoords[t1Idx];
+					const XwaTextureVertex bestUV2 = g_vrGlovesMeshes[contIdx].texCoords[t2Idx];
 
-					float texU = u * bestUV0.u + v * bestUV1.u + w * bestUV2.u;
-					float texV = u * bestUV0.v + v * bestUV1.v + w * bestUV2.v;
+					const float texU = u * bestUV0.u + v * bestUV1.u + w * bestUV2.u;
+					const float texV = u * bestUV0.v + v * bestUV1.v + w * bestUV2.v;
 
 					for (int i = 0; i < coords->numCoords; i++)
 					{
@@ -7841,7 +7838,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			// the geometry behind the AC elements:
 			//g_LaserPointerBuffer.bDebugMode = g_enable_ac_debug;
 		}
-		else
+		// I don't think we need these intersection markers when the gloves are visible
+		else if (!g_vrGlovesMeshes[contIdx].visible)
 		{
 			//inters = TLASTraceRaySimpleHit(ray);
 			// Find the ray-geometry intersection by iterating over all the BLASes

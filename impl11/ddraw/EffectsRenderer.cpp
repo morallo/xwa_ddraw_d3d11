@@ -3876,32 +3876,9 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 					Vector3 v0 = Vector4ToVector3(p0);
 					Vector3 v1 = Vector4ToVector3(p1);
 					Vector3 v2 = Vector4ToVector3(p2);
-
-					// TODO: This block needs to be refactored: "dir" is not used anymore
-					bool validDir = true;
-					if (gloveVisible)
-					{
-						// When the gloves are visible, we want to find the closest point. So the ray direction
-						// is along the normal of the current surface.
-						Vector3 e10 = v1 - v0;
-						Vector3 e20 = v2 - v0;
-						dir = e10.cross(e20);
-						float L = dir.length();
-						if (L < 0.0001f)
-						{
-							validDir = false;
-						}
-						else
-						{
-							validDir = true;
-							dir = dir * (1.0f / L);
-							dir *= METERS_TO_OPT;
-						}
-					}
-
 					Vector3 P;
 					float dist = FLT_MAX, u, v;
-					//if (validDir && rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
+					//if (rayTriangleIntersect(orig, dir, v0, v1, v2, dist, P, u, v, margin))
 					dist = ClosestPointOnTriangle(orig, v0, v1, v2, P, u, v, margin);
 					{
 						if (dist > -0.01f && dist < g_fBestIntersectionDistance[contIdx] && dist < GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT)
