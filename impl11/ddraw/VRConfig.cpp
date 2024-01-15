@@ -1690,6 +1690,9 @@ bool LoadACParams() {
 					return false;
 				}
 			}
+			else if (_stricmp(param, "enable_vr_pointer_in_concourse") == 0) {
+				g_bEnableVRPointerInConcourse = (bool)fValue;
+			}
 			else if (_stricmp(param, "freepie_controller_slot") == 0) {
 				g_iFreePIEControllerSlot = (int)fValue;
 				InitFreePIE();

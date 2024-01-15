@@ -26,6 +26,7 @@ float g_fLaserIntersectionDistance[2] = { FLT_MAX, FLT_MAX };
 float g_fPushButtonThreshold = 0.01f, g_fReleaseButtonThreshold = 0.018f;
 int g_iBestIntersTexIdx[2] = { -1, -1 }; // The index into g_ACElements where the intersection occurred
 bool g_bActiveCockpitEnabled = false;
+bool g_bEnableVRPointerInConcourse = true;
 bool g_bACActionTriggered[2] = { false, false };
 bool g_bACLastTriggerState[2] = { false, false };
 bool g_bACTriggerState[2] = { false, false };

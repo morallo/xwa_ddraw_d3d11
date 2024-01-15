@@ -1309,8 +1309,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	{
 		if (!g_bRendering3D) // Only render for 2D content, no need to waste resources in 3D
 		{
-			aspect_ratio = g_fConcourseAspectRatio * (1.0f/ steamVR_aspect_ratio);
-			scale = 1.0f/aspect_ratio;
+			aspect_ratio = g_fConcourseAspectRatio * (1.0f / steamVR_aspect_ratio);
+			scale = 1.0f / aspect_ratio;
 			resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 				0.0f, aspect_ratio, scale, 1.0f, 1.0f);
 			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
@@ -1330,8 +1330,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	{
 		if (!g_bRendering3D) // Only render for 2D content, no need to waste resources in 3D
 		{
-			aspect_ratio = g_fConcourseAspectRatio * (1.0f/ steamVR_aspect_ratio);
-			scale = 1.0f/aspect_ratio;
+			aspect_ratio = g_fConcourseAspectRatio * (1.0f / steamVR_aspect_ratio);
+			scale = 1.0f / aspect_ratio;
 			resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 				0.0f, aspect_ratio, scale, 1.0f, 1.0f);
 			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
@@ -8868,7 +8868,7 @@ HRESULT PrimarySurface::Flip(
 			g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
 			// Let's make movies larger than the regular 2D overlay:
 			//g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
-			g_pVROverlay->ShowOverlay(g_VR2Doverlay);
+			g_pVROverlay->ShowOverlay(g_VR2Doverlay); // Display VR movies
 		}
 	}
 
@@ -9177,7 +9177,7 @@ HRESULT PrimarySurface::Flip(
 								g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
 								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
 								g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, DEFAULT_STEAMVR_OVERLAY_WIDTH);
-								g_pVROverlay->ShowOverlay(g_VR2Doverlay);
+								g_pVROverlay->ShowOverlay(g_VR2Doverlay); // Present 2D
 							}
 
 							resizeForSteamVR(0, true);
@@ -11011,7 +11011,7 @@ HRESULT PrimarySurface::UpdateOverlayDisplay(
 			g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
 			// Let's make movies larger than the regular 2D overlay:
 			//g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
-			g_pVROverlay->ShowOverlay(g_VR2Doverlay);
+			g_pVROverlay->ShowOverlay(g_VR2Doverlay); // Movies (?)
 		}
 		return DD_OK;
 	}		

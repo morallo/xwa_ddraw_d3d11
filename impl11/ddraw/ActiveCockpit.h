@@ -44,6 +44,7 @@ typedef struct ac_element_struct {
 
 // ACTIVE COCKPIT
 extern bool g_bActiveCockpitEnabled;
+extern bool g_bEnableVRPointerInConcourse;
 extern Vector4 g_contOriginWorldSpace[2]; // This is the origin of the controller in 3D, in world-space coords
 extern Vector4 g_controllerForwardVector; // Forward direction in the controller's frame of reference
 extern Vector4 g_controllerUpVector;

@@ -49,6 +49,8 @@ constexpr int MAX_RAW_INPUT_ENTRIES = 128;
 RAWINPUT rawInputBuffer[MAX_RAW_INPUT_ENTRIES];
 
 extern bool g_bRendering3D;
+extern D3D11_VIEWPORT g_concourseViewport;
+extern int g_WindowWidth, g_WindowHeight;
 
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
@@ -112,6 +114,57 @@ void SendMouseEvent(float dx, float dy, bool bLeft, bool bRight)
 	SendInput(i, input, sizeof(INPUT));
 }
 
+void VREventPump(WORD* escScanCodes, WORD *periodScanCodes)
+{
+	const int ptrIdx = 0;
+	const uvfloat4 coords = { -1, -1, -1, -1 };
+
+	vr::VREvent_t vrEvent;
+	while (vr::VROverlay()->PollNextOverlayEvent(g_VR2Doverlay, &vrEvent, sizeof(vrEvent)))
+	{
+		switch (vrEvent.eventType)
+		{
+			case vr::VREvent_MouseMove:
+			{
+				float left   = g_concourseViewport.TopLeftX;
+				float top    = g_concourseViewport.TopLeftY;
+				float width  = g_concourseViewport.Width;
+				float height = g_concourseViewport.Height;
+
+				// The mouse coords go from (0,0) = (left, bottom) to (1,1) = (right, top).
+				// In pixels, the range of the mouse is (0,0)-(g_steamVRWidth, g_steamVRHeight)
+				// because that's the size of the overlay texture. We need to invert the Y axis
+				// because the regular mouse coords have (0,0) at the top-left corner of the
+				// screen.
+				float x = g_steamVRWidth * vrEvent.data.mouse.x;
+				float y = g_steamVRHeight * (1.0f - vrEvent.data.mouse.y);
+
+				float scaleX = g_fCurInGameWidth / width;
+				// TODO: I don't understand why, but the VR pointer and the cursor are not
+				// perfectly aligned. This is more evident near the bottom of the screen.
+				// To try and help the vertical alignment, I'm doing "height + 20" here instead
+				// of the more logical "height". I wish I knew why this is happening, but for
+				// now, it's time to move on.
+				float scaleY = g_fCurInGameHeight / (height + 20);
+				x = (x - left) * scaleX;
+				y = (y - top) * scaleY;
+
+				SetCursorPos((int)x, (int)y);
+				break;
+			}
+			case vr::VREvent_MouseButtonDown:
+				SendMouseEvent(0, 0, true, false);
+				break;
+			case vr::VREvent_ButtonPress:
+				if ((vrEvent.data.controller.button & 0x01) != 0)
+					ACRunAction(periodScanCodes, coords, -1, ptrIdx, nullptr);
+				else if ((vrEvent.data.controller.button & 0x02) != 0)
+					ACRunAction(escScanCodes, coords, -1, ptrIdx, nullptr);
+				break;
+		}
+	}
+}
+
 void EmulMouseWithVRControllers()
 {
 	const int ptrIdx = 0;
@@ -143,6 +196,9 @@ void EmulMouseWithVRControllers()
 	// Send the PERIOD command
 	if (!g_prevContStates[auxIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[auxIdx].buttons[VRButtons::PAD_CLICK])
 		ACRunAction(periodScanCodes, coords, -1, ptrIdx, nullptr);
+
+	if (g_bEnableVRPointerInConcourse)
+		VREventPump(escScanCodes, periodScanCodes);
 
 	// Actions have been processed, we can update the previous state now
 	for (int i = 0; i < 2; i++)

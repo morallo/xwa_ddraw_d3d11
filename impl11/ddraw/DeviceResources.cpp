@@ -291,6 +291,8 @@ void ClearGlobalLBVHMap();
 std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;
 #endif
 
+D3D11_VIEWPORT g_concourseViewport;
+
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
 	PS_CONSTANT_BUFFER_NONE,
@@ -5306,17 +5308,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	BeginAnnotatedEvent(L"RenderMain");
 
-	/*
-	if (g_bUseSteamVR) {
-		// Process SteamVR events
-		vr::VREvent_t event;
-		while (g_pHMD->PollNextEvent(&event, sizeof(event)))
-		{
-			ProcessVREvent(event);
-		}
-	}
-	*/
-
 	const bool bMapMode = PlayerDataTable[*g_playerIndex].mapState != 0;
 
 	if (SUCCEEDED(hr))
@@ -5629,7 +5620,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			//g_fConcourseAspectRatio = 2.0f * actual_aspect / original_aspect;
 		}
 	}
-	//if (g_bUseSteamVR) g_fConcourseAspectRatio = 1.0f;
 
 	UINT left = (this->_backbufferWidth - w) / 2;
 	UINT top = (this->_backbufferHeight - h) / 2;
@@ -5654,6 +5644,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	this->InitViewport(&viewport);
+	g_concourseViewport = viewport;
 
 	if (SUCCEEDED(hr))
 	{
