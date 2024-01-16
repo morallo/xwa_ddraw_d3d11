@@ -176,7 +176,9 @@ float g_fYCenter = 0.0f, g_fFOVscale = 0.75f;
 Vector2 g_ReticleCentroid(-1.0f, -1.0f);
 bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
 
-float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
+float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1;
+float g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
+float g_fCurInGame2DWidth = -1, g_fCurInGame2DHeight = -1;
 FOVtype g_CurrentFOVType = GLOBAL_FOV;
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians

@@ -9248,6 +9248,12 @@ HRESULT PrimarySurface::Flip(
 							g_bDumpSSAOBuffers = true;
 					}
 
+					if (g_fCurInGame2DWidth < 0)
+					{
+						g_fCurInGame2DWidth = g_fCurInGameWidth;
+						g_fCurInGame2DHeight = g_fCurInGameHeight;
+					}
+
 					//g_HyperspacePhaseFSM = HS_INIT_ST; // Resetting the hyperspace state when presenting a 2D image messes up the state
 					// This is because the user can press [ESC] to display the menu while in hyperspace and that's a 2D present.
 					// Present 2D

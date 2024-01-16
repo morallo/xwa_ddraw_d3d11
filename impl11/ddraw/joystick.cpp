@@ -51,6 +51,7 @@ RAWINPUT rawInputBuffer[MAX_RAW_INPUT_ENTRIES];
 extern bool g_bRendering3D;
 extern D3D11_VIEWPORT g_concourseViewport;
 extern int g_WindowWidth, g_WindowHeight;
+extern float g_fCurInGame2DWidth, g_fCurInGame2DHeight;
 
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
@@ -139,13 +140,13 @@ void VREventPump(WORD* escScanCodes, WORD *periodScanCodes)
 				float x = g_steamVRWidth * vrEvent.data.mouse.x;
 				float y = g_steamVRHeight * (1.0f - vrEvent.data.mouse.y);
 
-				float scaleX = g_fCurInGameWidth / width;
+				float scaleX = g_fCurInGame2DWidth / width;
 				// TODO: I don't understand why, but the VR pointer and the cursor are not
 				// perfectly aligned. This is more evident near the bottom of the screen.
 				// To try and help the vertical alignment, I'm doing "height + 20" here instead
 				// of the more logical "height". I wish I knew why this is happening, but for
 				// now, it's time to move on.
-				float scaleY = g_fCurInGameHeight / (height + 20);
+				float scaleY = g_fCurInGame2DHeight / (height + 20);
 				x = (x - left) * scaleX;
 				y = (y - top) * scaleY;
 

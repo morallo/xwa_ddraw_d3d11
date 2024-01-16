@@ -239,7 +239,8 @@ extern int g_iNumACElements;
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
 extern float g_fHUDDepth;
-extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio;
+extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 

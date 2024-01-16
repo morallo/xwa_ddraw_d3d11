@@ -23,6 +23,7 @@ extern int g_iDelayedDumpDebugBuffers;
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
 // objects cover the brackets. In this way, we avoid visual contention from the brackets.
+extern float g_fCurInGame2DWidth, g_fCurInGame2DHeight;
 
 extern bool g_bZoomOut, g_bZoomOutInitialState;
 
