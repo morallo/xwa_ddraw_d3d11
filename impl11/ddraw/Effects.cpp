@@ -5,13 +5,14 @@
 #include "VRConfig.h"
 
 // Main Pixel Shader constant buffer
-MainShadersCBuffer			g_MSCBuffer;
+MainShadersCBuffer      g_MSCBuffer;
 // Constant Buffers
-BloomPixelShaderCBuffer		g_BloomPSCBuffer;
-PSShadingSystemCB			g_ShadingSys_PSBuffer;
-SSAOPixelShaderCBuffer		g_SSAO_PSCBuffer;
-OPTMeshTransformCBuffer		g_OPTMeshTransformCB;
-RTConstantsBuffer			g_RTConstantsBuffer;
+BloomPixelShaderCBuffer g_BloomPSCBuffer;
+PSShadingSystemCB       g_ShadingSys_PSBuffer;
+SSAOPixelShaderCBuffer  g_SSAO_PSCBuffer;
+OPTMeshTransformCBuffer g_OPTMeshTransformCB;
+RTConstantsBuffer       g_RTConstantsBuffer;
+VRGeometryCBuffer       g_VRGeometryCBuffer;
 
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
@@ -175,7 +176,9 @@ float g_fYCenter = 0.0f, g_fFOVscale = 0.75f;
 Vector2 g_ReticleCentroid(-1.0f, -1.0f);
 bool g_bTriggerReticleCapture = false, g_bYCenterHasBeenFixed = false;
 
-float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1, g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
+float g_fCurInGameWidth = 1, g_fCurInGameHeight = 1, g_fCurInGameAspectRatio = 1;
+float g_fCurScreenWidth = 1, g_fCurScreenHeight = 1, g_fCurScreenWidthRcp = 1, g_fCurScreenHeightRcp = 1;
+float g_fCurInGame2DWidth = -1, g_fCurInGame2DHeight = -1;
 FOVtype g_CurrentFOVType = GLOBAL_FOV;
 float g_fRealHorzFOV = 0.0f; // The real Horizontal FOV, in radians
 float g_fRealVertFOV = 0.0f; // The real Vertical FOV, in radians
@@ -666,7 +669,7 @@ bool SavePOVOffsetToIniFile()
 			else {
 				if (fsm == IN_TAG_ST) {
 					fsm = OUT_OF_TAG_ST;
-					fprintf(out_file, "[CockpitPOVOffset]\n");
+					fprintf(out_file, "\n[CockpitPOVOffset]\n");
 					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
 					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
 					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);

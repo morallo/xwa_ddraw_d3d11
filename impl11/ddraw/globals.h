@@ -23,6 +23,7 @@ extern int g_iDelayedDumpDebugBuffers;
 extern bool g_bRendering3D; // Used to distinguish between 2D (Concourse/Menus) and 3D rendering (main in-flight game)
 // g_fZOverride is activated when it's greater than -0.9f, and it's used for bracket rendering so that 
 // objects cover the brackets. In this way, we avoid visual contention from the brackets.
+extern float g_fCurInGame2DWidth, g_fCurInGame2DHeight;
 
 extern bool g_bZoomOut, g_bZoomOutInitialState;
 
@@ -120,6 +121,7 @@ extern Vector2 g_TriangleCentroid;
 extern float g_fTrianglePointerDist;
 
 // DEBUG vars
+extern bool g_enable_ac_debug;
 extern Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 extern bool g_bDumpLaserPointerDebugInfo;
 extern Vector3 g_LPdebugPoint;
@@ -224,6 +226,9 @@ extern int g_iSunFlareCount;
 extern int g_iD3DExecuteCounter;
 constexpr float OPT_TO_METERS = 1.0f / 40.96f;
 constexpr float METERS_TO_OPT = 40.96f;
+
+constexpr float GLOVE_NEAR_THRESHOLD_METERS = 0.05f;
+constexpr float GLOVE_NEAR_THRESHOLD_OPTSCALE = GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT;
 
 // Raytracing
 enum class BLASBuilderType

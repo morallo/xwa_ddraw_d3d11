@@ -13,7 +13,6 @@ Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool inve
 Matrix4 GetCurrentHeadingViewMatrix();
 void UpdateViewMatrix();
 void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
-void ACRunAction(WORD* action);
 
 class PrimarySurface : public IDirectDrawSurface
 {
@@ -155,9 +154,9 @@ public:
 
 	void ProjectCentroidToPostProc(Vector3 Centroid, float *u, float *v);
 
-	void FixViewport();
-
 	void RenderSunFlare();
+
+	void OPTVertexToSteamVRPostProcCoords(Vector4 P, Vector4 pos2D[2]);
 
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
 

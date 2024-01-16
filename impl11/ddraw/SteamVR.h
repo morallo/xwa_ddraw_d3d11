@@ -5,6 +5,7 @@
 #include "Vectors.h"
 #include "Matrices.h"
 #include "config.h"
+#include "EffectsCommon.h"
 #include <openvr.h>
 
 constexpr float DEFAULT_STEAMVR_OVERLAY_WIDTH = 5.0f;
@@ -34,6 +35,123 @@ extern float g_fOBJ_Z_MetricMult, g_fOBJGlobalMetricMult, g_fOBJCurMetricScale;
 extern void* g_pSurface;
 extern bool g_bTogglePostPresentHandoff;
 extern bool g_bSteamVRMirrorWindowLeftEye;
+
+namespace VRButtons
+{
+	enum VRButtons
+	{
+		TRIGGER = 0,
+		GRIP,
+		BUTTON_1,
+		BUTTON_2,
+
+		PAD_LEFT,
+		PAD_RIGHT,
+		PAD_UP,
+		PAD_DOWN,
+		PAD_CLICK,
+
+		MAX // Sentinel, do not remove
+	};
+};
+
+struct ControllerState
+{
+	Matrix4  pose;
+	bool     bIsValid;
+	bool     buttons[VRButtons::MAX];
+	float    trackPadX, trackPadY;
+	float    yaw, pitch, roll; // As reported by SteamVR
+	float    centerYaw, centerPitch, centerRoll;
+	uint32_t packetNum; // Internal, do not modify
+	bool     displayGlove;
+
+	ControllerState()
+	{
+		pose.identity();
+		for (int i = 0; i < VRButtons::MAX; i++)
+			buttons[i] = false;
+		bIsValid  = false;
+		trackPadX = 0;
+		trackPadY = 0;
+		yaw = pitch = roll = 0;
+		centerYaw = centerPitch = centerRoll = 0;
+		packetNum = 0xFFFFFFFF;
+		displayGlove = true;
+	}
+};
+extern ControllerState g_prevContStates[2];
+extern ControllerState g_contStates[2];
+
+enum class KBState
+{
+	OFF,
+	HOVER,
+	STATIC,
+	CLOSING,
+	MAX,
+};
+
+struct VRKeybState
+{
+	KBState state;
+	KBState prevState;
+	bool    bRendered;
+	float   fMetersWidth;
+	float   fPixelWidth;
+	float   fPixelHeight;
+	Matrix4 Transform; // Used to place the keyboard mesh inside a cockpit
+	Matrix4 InitialTransform; // Captured when the keyb is initially turned on
+	int     iHoverContIdx;
+	char    sImageName[128];
+	int     iGroupId;
+	int     iImageId;
+
+	// Region highlighting, sticky keys
+	int      iNumStickyRegions;
+	uvfloat4 stickyRegions[MAX_VRKEYB_REGIONS];
+
+	// Region highlighting, regular clicks
+	uvfloat4 clickRegions[2];
+
+	VRKeybState()
+	{
+		state        = KBState::OFF;
+		prevState    = KBState::OFF;
+		bRendered    = false;
+		fMetersWidth = 0.30f;
+		fPixelWidth  = 1024;
+		fPixelHeight = 480;
+		Transform.identity();
+
+		iHoverContIdx = 0;
+		ClearRegions();
+
+		sprintf_s(sImageName, 128, "%s", ".\\Effects\\ActiveCockpit.dat");
+		iGroupId = 0;
+		iImageId = 0;
+	}
+
+	void ToggleState()
+	{
+		state = (KBState)(((int)state + 1) % (int)KBState::MAX);
+	}
+
+	void AddLitRegion(const uvfloat4& coords)
+	{
+		if (iNumStickyRegions < MAX_VRKEYB_REGIONS)
+		{
+			stickyRegions[iNumStickyRegions++] = coords;
+		}
+	}
+
+	inline void ClearRegions()
+	{
+		iNumStickyRegions = 0;
+	}
+};
+
+extern VRKeybState g_vrKeybState;
 
 /*
  *	SteamVR specific functions declarations

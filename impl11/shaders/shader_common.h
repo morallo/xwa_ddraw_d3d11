@@ -5,25 +5,27 @@
 
 PS Constant Buffer Registers
 
-Several buffers : register(b0)
+Several buffers         : register(b0)
 BloomPixelShaderCBuffer : register(b2)
-SSAOPixelShaderCBuffer : register(b3)
-PSShadingSystemCB : register(b4)
-MetricReconstructionCB : register(b6)
-ShadertoyCBuffer : register(b7)
-LaserPointerCBuffer : register(b8)
-PixelShaderCBuffer : register(b9) (Used to be b0, but the D3DRendererHook is using that now)
+SSAOPixelShaderCBuffer  : register(b3)
+PSShadingSystemCB       : register(b4)
+MetricReconstructionCB  : register(b6)
+ShadertoyCBuffer        : register(b7)
+LaserPointerCBuffer     : register(b8)
+PixelShaderCBuffer      : register(b9) (Used to be b0, but the D3DRendererHook is using that now)
+RTConstantsBuffer       : register(b10)
+VRGeometryCBuffer       : register(b11)
 
 VS Constant Buffer Registers
 
-D3dConstants : register(b0)
-VertexShaderCBuffer : register(b1)
-VertexShaderMatrixCB : register(b2)
-MainShadersCBStruct : register(b3)
+D3dConstants                  : register(b0)
+VertexShaderCBuffer           : register(b1)
+VertexShaderMatrixCB          : register(b2)
+MainShadersCBStruct           : register(b3)
 ShadowMapVertexShaderMatrixCB : register(b5)
-MetricReconstructionCB : register(b6)
-ShadertoyCBuffer : register(b7)
-OPTMeshTransformCBuffer : register(b8)
+MetricReconstructionCB        : register(b6)
+ShadertoyCBuffer              : register(b7)
+OPTMeshTransformCBuffer       : register(b8)
 
 */
 
@@ -107,4 +109,6 @@ OPTMeshTransformCBuffer : register(b8)
 // The screen texture is active and should be mixed with the lightmap buffer
 #define OVERLAY_ILLUM_CTRL_SCREEN 0x8
 
+// Maximum number of highlighted regions for the VR Keyboard.
+#define MAX_VRKEYB_REGIONS 4
 #endif

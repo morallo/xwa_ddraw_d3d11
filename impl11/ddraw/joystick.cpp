@@ -11,6 +11,8 @@
 #include "SharedMem.h"
 #include "joystick.h"
 #include "HiResTimer.h"
+#include "SteamVR.h"
+#include "ActiveCockpit.h"
 
 extern PlayerDataEntry *PlayerDataTable;
 extern uint32_t *g_playerIndex;
@@ -47,6 +49,9 @@ constexpr int MAX_RAW_INPUT_ENTRIES = 128;
 RAWINPUT rawInputBuffer[MAX_RAW_INPUT_ENTRIES];
 
 extern bool g_bRendering3D;
+extern D3D11_VIEWPORT g_concourseViewport;
+extern int g_WindowWidth, g_WindowHeight;
+extern float g_fCurInGame2DWidth, g_fCurInGame2DHeight;
 
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
@@ -67,6 +72,10 @@ inline float clamp(float val, float min, float max)
 	return val;
 }
 
+inline float lerp(float x, float y, float s) {
+	return x + s * (y - x);
+}
+
 float SignedReduceClamp(float val, float delta, float abs_min, float abs_max)
 {
 	float s = sign(val);
@@ -75,6 +84,126 @@ float SignedReduceClamp(float val, float delta, float abs_min, float abs_max)
 	if (val < abs_min) val = abs_min;
 	if (val > abs_max) val = abs_max;
 	return s * val;
+}
+
+void SendMouseEvent(float dx, float dy, bool bLeft, bool bRight)
+{
+	constexpr int MAX_ACTION_LEN = 12;
+	INPUT input[MAX_ACTION_LEN];
+
+	int i = 0;
+	input[i].ki.wScan = 0;
+	input[i].type = INPUT_MOUSE;
+	input[i].mi.dx = (LONG)dx;
+	input[i].mi.dy = (LONG)dy;
+	input[i].mi.dwFlags = MOUSEEVENTF_MOVE | (bLeft ? MOUSEEVENTF_LEFTDOWN : 0) | (bLeft ? MOUSEEVENTF_RIGHTDOWN : 0);
+	input[i].mi.mouseData = 0;
+	input[i].mi.dwExtraInfo = NULL;
+	input[i].mi.time = 0;
+	i++;
+
+	input[i].ki.wScan = 0;
+	input[i].type = INPUT_MOUSE;
+	input[i].mi.dx = 0;
+	input[i].mi.dy = 0;
+	input[i].mi.dwFlags = (bLeft ? MOUSEEVENTF_LEFTUP : 0) | (bLeft ? MOUSEEVENTF_RIGHTUP : 0);
+	input[i].mi.mouseData = 0;
+	input[i].mi.dwExtraInfo = NULL;
+	input[i].mi.time = 0;
+	i++;
+
+	SendInput(i, input, sizeof(INPUT));
+}
+
+void VREventPump(WORD* escScanCodes, WORD *periodScanCodes)
+{
+	const int ptrIdx = 0;
+	const uvfloat4 coords = { -1, -1, -1, -1 };
+
+	vr::VREvent_t vrEvent;
+	while (vr::VROverlay()->PollNextOverlayEvent(g_VR2Doverlay, &vrEvent, sizeof(vrEvent)))
+	{
+		switch (vrEvent.eventType)
+		{
+			case vr::VREvent_MouseMove:
+			{
+				float left   = g_concourseViewport.TopLeftX;
+				float top    = g_concourseViewport.TopLeftY;
+				float width  = g_concourseViewport.Width;
+				float height = g_concourseViewport.Height;
+
+				// The mouse coords go from (0,0) = (left, bottom) to (1,1) = (right, top).
+				// In pixels, the range of the mouse is (0,0)-(g_steamVRWidth, g_steamVRHeight)
+				// because that's the size of the overlay texture. We need to invert the Y axis
+				// because the regular mouse coords have (0,0) at the top-left corner of the
+				// screen.
+				float x = g_steamVRWidth * vrEvent.data.mouse.x;
+				float y = g_steamVRHeight * (1.0f - vrEvent.data.mouse.y);
+
+				float scaleX = g_fCurInGame2DWidth / width;
+				// TODO: I don't understand why, but the VR pointer and the cursor are not
+				// perfectly aligned. This is more evident near the bottom of the screen.
+				// To try and help the vertical alignment, I'm doing "height + 20" here instead
+				// of the more logical "height". I wish I knew why this is happening, but for
+				// now, it's time to move on.
+				float scaleY = g_fCurInGame2DHeight / (height + 20);
+				x = (x - left) * scaleX;
+				y = (y - top) * scaleY;
+
+				SetCursorPos((int)x, (int)y);
+				break;
+			}
+			case vr::VREvent_MouseButtonDown:
+				SendMouseEvent(0, 0, true, false);
+				break;
+			case vr::VREvent_ButtonPress:
+				if ((vrEvent.data.controller.button & 0x01) != 0)
+					ACRunAction(periodScanCodes, coords, -1, ptrIdx, nullptr);
+				else if ((vrEvent.data.controller.button & 0x02) != 0)
+					ACRunAction(escScanCodes, coords, -1, ptrIdx, nullptr);
+				break;
+		}
+	}
+}
+
+void EmulMouseWithVRControllers()
+{
+	const int ptrIdx = 0;
+	const int auxIdx = (ptrIdx == 0) ? 1 : 0;
+	const uvfloat4 coords = { -1, -1, -1, -1 };
+	static bool bFirstTime = true;
+	static WORD escScanCodes[2];
+	static WORD periodScanCodes[2];
+	if (bFirstTime)
+	{
+		char action1[] = "ESC";
+		TranslateACAction(escScanCodes, action1, nullptr);
+
+		char action2[] = "PERIOD";
+		TranslateACAction(periodScanCodes, action2, nullptr);
+		bFirstTime = false;
+	}
+
+	const float dx =  g_contStates[ptrIdx].trackPadX * g_ACPointerData.mouseSpeedX;
+	const float dy = -g_contStates[ptrIdx].trackPadY * g_ACPointerData.mouseSpeedY;
+	const bool  bLeftClick = (!g_prevContStates[ptrIdx].buttons[VRButtons::TRIGGER] && g_contStates[ptrIdx].buttons[VRButtons::TRIGGER]);
+
+	SendMouseEvent(dx, dy, bLeftClick, false);
+
+	// Send the ESC command
+	if (!g_prevContStates[ptrIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[ptrIdx].buttons[VRButtons::PAD_CLICK])
+		ACRunAction(escScanCodes, coords, -1, ptrIdx, nullptr);
+
+	// Send the PERIOD command
+	if (!g_prevContStates[auxIdx].buttons[VRButtons::PAD_CLICK] && g_contStates[auxIdx].buttons[VRButtons::PAD_CLICK])
+		ACRunAction(periodScanCodes, coords, -1, ptrIdx, nullptr);
+
+	if (g_bEnableVRPointerInConcourse)
+		VREventPump(escScanCodes, periodScanCodes);
+
+	// Actions have been processed, we can update the previous state now
+	for (int i = 0; i < 2; i++)
+		g_prevContStates[i] = g_contStates[i];
 }
 
 // timeGetTime emulation.
@@ -180,14 +309,18 @@ UINT WINAPI emulJoyGetDevCaps(UINT_PTR joy, struct tagJOYCAPSA *pjc, UINT size)
 	}
 	pjc->wXmax = 512;
 	pjc->wYmax = 512;
-	pjc->wZmax = 512;
+	// VR controllers can be used to emulate the throttle, so the emulated range must match
+	// the range used in a real joystick. That way we can have both a real joystick with a
+	// throttle and an emulated throttle from a VR controller.
+	pjc->wZmax = 65536;
 	pjc->wRmax = 512;
 	pjc->wNumButtons = 5;
 	pjc->wMaxButtons = 5;
 	// wNumAxes should probably stay at 2 here because needsJoyEmul() compares against
 	// 2 num axes to decide whether or not to use XInput.
-	pjc->wNumAxes = 2;
-	pjc->wMaxAxes = 2;
+	pjc->wNumAxes = 6;
+	pjc->wMaxAxes = 6;
+	pjc->wCaps = JOYCAPS_HASZ | JOYCAPS_HASR;
 	return JOYERR_NOERROR;
 }
 
@@ -273,15 +406,52 @@ void ResetRawMouseInput()
 }
 #endif
 
+/// <summary>
+/// Computes the yaw, pitch, roll for the emulated joystick and returns normalized values
+/// </summary>
+void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, float *roll)
+{
+	// yaw: left: 40, right: -40
+	// pitch: forward: -40, backward: 40
+	// roll : left : 40, right : -40
+	const int joyIdx = g_ACJoyEmul.joyHandIdx;
+	Matrix4 pose = g_contStates[joyIdx].pose;
+	if (bResetCenter)
+	{
+		g_contStates[joyIdx].centerYaw   = g_contStates[joyIdx].yaw;
+		g_contStates[joyIdx].centerPitch = g_contStates[joyIdx].pitch;
+		g_contStates[joyIdx].centerRoll  = g_contStates[joyIdx].roll;
+	}
+	*yaw  = RAD2DEG * (g_contStates[joyIdx].roll - g_contStates[joyIdx].centerRoll);
+	*roll = RAD2DEG * (g_contStates[joyIdx].yaw  - g_contStates[joyIdx].centerYaw);
+
+	// g_controllerUpVector is already normalized
+	Vector4 U = pose * g_controllerUpVector;
+
+	// Project U to the Y-Z plane and find the angle
+	Vector4 Up = Vector4(0, U.y, U.z, 0);
+	Up.normalize();
+	*pitch = RAD2DEG * atan2(Up.z, Up.y);
+	// Signs need to be inverted to match XWA's system
+	*yaw  = - *yaw;
+	*roll = - *roll;
+
+	*yaw   = clamp(*yaw,   -g_ACJoyEmul.yawHalfRange,   g_ACJoyEmul.yawHalfRange)   / g_ACJoyEmul.yawHalfRange;
+	*pitch = clamp(*pitch, -g_ACJoyEmul.pitchHalfRange, g_ACJoyEmul.pitchHalfRange) / g_ACJoyEmul.pitchHalfRange;
+	*roll  = clamp(*roll,  -g_ACJoyEmul.rollHalfRange,  g_ACJoyEmul.rollHalfRange)  / g_ACJoyEmul.rollHalfRange;
+}
+
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
+	const bool bJoystickEmulationEnabled = (g_config.JoystickEmul != 0);
+
 	// Tell the joystick hook when to disable the joystick
 	if (g_pSharedDataJoystick != NULL) {
 		g_pSharedDataJoystick->GimbalLockFixActive = g_bGimbalLockFixActive;
-		g_pSharedDataJoystick->JoystickEmulationEnabled = (g_config.JoystickEmul != 0);
+		g_pSharedDataJoystick->JoystickEmulationEnabled = bJoystickEmulationEnabled;
 	}
 
-	if (!g_config.JoystickEmul) {
+	if (!bJoystickEmulationEnabled) {
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
 
@@ -313,11 +483,14 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				pji->dwRpos = 32767;
 			}
 		}
-		return res;
+
+		// There's code below to emulate the throttle when AC is on. We need to let this block fall through to reach that part
+		//return res;
 	}
 
-	if (joy != 0) return MMSYSERR_NODRIVER;
-	if (pji->dwSize != 0x34) return MMSYSERR_INVALPARAM;
+	//if (joy != 0) return MMSYSERR_NODRIVER;
+	//if (pji->dwSize != 0x34) return MMSYSERR_INVALPARAM;
+
 	// XInput
 	if (g_config.JoystickEmul == 2) {
 		XINPUT_STATE state;
@@ -365,6 +538,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 		return JOYERR_NOERROR;
 	}
+
 	DWORD now = GetTickCount();
 	// Assume we started a new game
 	if ((now - lastGetPos) > 5000)
@@ -380,12 +554,16 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 	POINT pos;
 	GetCursorPos(&pos);
 
-	pji->dwXpos = 256; // This is the center position for this axis
-	pji->dwYpos = 256;
-	pji->dwZpos = 256; // Throttle
-	pji->dwRpos = 256; // Rudder (roll)
+	// Reset pji, but only if emulation is enabled.
+	if (bJoystickEmulationEnabled) {
+		pji->dwXpos = 256; // This is the center position for this axis
+		pji->dwYpos = 256;
+		pji->dwZpos = 32768; // Throttle
+		pji->dwRpos = 256; // Rudder (roll)
+	}
 
 	// Mouse input
+	if (g_config.JoystickEmul == 1)
 	{
 		//if (!g_bGimbalLockFixActive)
 		{
@@ -451,50 +629,180 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		}
 	}
 
-	/*
-	bool AltKey = (GetAsyncKeyState(VK_MENU) & 0x8000) == 0x8000;
-	pji->dwRpos = 256; // This is the center position for this axis
-	if (AltKey) {
-		//log_debug("[DBG] AltKey Pressed");
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-			pji->dwRpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+	float normYaw = 0, normPitch = 0, normRoll = 0;
+	if (g_bUseSteamVR)
+	{
+		// Support VR controllers (quick-and-dirty approach, the proper way is probably
+		// to add code to the joystick hook so that bindings can be configured).
+		const int joyIdx = g_ACJoyEmul.joyHandIdx;
+		const int thrIdx = g_ACJoyEmul.thrHandIdx;
+
+		if (g_config.JoystickEmul == 3)
+		{
+			static Vector4 rightAnchor;
+			const bool bResetAnchor = !(g_prevContStates[joyIdx].buttons[VRButtons::GRIP]) &&
+										g_contStates[joyIdx].buttons[VRButtons::GRIP];
+			if (bResetAnchor)
+			{
+				rightAnchor = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);;
+			}
+
+			if (g_contStates[joyIdx].buttons[VRButtons::GRIP])
+			{
+				Vector4 current = g_contStates[joyIdx].pose * Vector4(0, 0, 0, 1);
+				float yaw   = clamp(current.x - rightAnchor.x, -g_ACJoyEmul.joyHalfRangeX, g_ACJoyEmul.joyHalfRangeX) / g_ACJoyEmul.joyHalfRangeX;
+				float pitch = clamp(current.z - rightAnchor.z, -g_ACJoyEmul.joyHalfRangeZ, g_ACJoyEmul.joyHalfRangeZ) / g_ACJoyEmul.joyHalfRangeZ;
+				float roll  = 0;
+				float dummy;
+
+				EmulYawPitchRollFromVR(bResetAnchor, &dummy, &dummy, &roll);
+
+				// Apply deadzone
+				const float s_yaw   = sign(yaw);
+				const float s_pitch = sign(pitch);
+				const float s_roll  = sign(roll);
+
+				yaw   = fabs(yaw);
+				pitch = fabs(pitch);
+				roll  = fabs(roll);
+
+				if (yaw < g_ACJoyEmul.deadZonePerc)
+					yaw = 0.0f;
+				else
+					yaw = lerp(0.0f, 1.0f, clamp(yaw / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
+
+				if (pitch < g_ACJoyEmul.deadZonePerc)
+					pitch = 0.0f;
+				else
+					pitch = lerp(0.0f, 1.0f, clamp(pitch / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
+
+				if (roll < g_ACJoyEmul.deadZonePerc)
+					roll = 0.0f;
+				else
+					roll = lerp(0.0f, 1.0f, clamp(roll / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
+
+				yaw   *= s_yaw;
+				pitch *= s_pitch;
+				roll  *= s_roll;
+
+				normYaw     = yaw;
+				normPitch   = pitch;
+				normRoll    = roll;
+				pji->dwXpos = (DWORD)(512.0f * ((normYaw   / 2.0f) + 0.5f));
+				pji->dwYpos = (DWORD)(512.0f * ((normPitch / 2.0f) + 0.5f));
+				pji->dwRpos = (DWORD)(512.0f * ((normRoll  / 2.0f) + 0.5f));
+			}
 		}
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-			pji->dwRpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+
+		if (g_ACJoyEmul.throttleEnabled)
+		{
+			static Vector4 anchor;
+			static float normThrottle   = 0.0f;
+			static float anchorThrottle = 0.0f;
+			if (!(g_prevContStates[thrIdx].buttons[VRButtons::GRIP]) && g_contStates[thrIdx].buttons[VRButtons::GRIP])
+			{
+				anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
+				anchorThrottle = normThrottle;
+			}
+
+			if (g_contStates[thrIdx].buttons[VRButtons::GRIP])
+			{
+				Vector4 current = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
+				const float D   = (current.z - anchor.z) / g_ACJoyEmul.thrHalfRange;
+				normThrottle    = clamp(anchorThrottle + D, -1.0f, 1.0f);
+			}
+
+			pji->dwZpos = (DWORD)(65536.0f * ((normThrottle / 2.0f) + 0.5f));
 		}
-	}
-	else {
-		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-			pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+
+		// Synthesize mouse motion
+		if (!g_bRendering3D)
+		{
+			EmulMouseWithVRControllers();
 		}
-		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-			pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+		else if (g_bActiveCockpitEnabled)
+		{
+			const uvfloat4 coords = { -1, -1, -1, -1 };
+			// Synthesize joystick button clicks and run AC actions associated with VR buttons
+			for (int contIdx = 0; contIdx < 2; contIdx++)
+			{
+				for (int buttonIdx = 0; buttonIdx < VRButtons::MAX; buttonIdx++)
+				{
+					if (IsContinousAction(g_ACJoyMappings[contIdx].action[buttonIdx]))
+					{
+						if (g_contStates[contIdx].buttons[buttonIdx])
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], coords, -1, contIdx, pji);
+					}
+					else
+					{
+						if (!g_prevContStates[contIdx].buttons[buttonIdx] && g_contStates[contIdx].buttons[buttonIdx])
+							ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], coords, -1, contIdx, pji);
+					}
+				}
+
+				// Trigger the fire button on its own (it can only be triggered when pressing grip at the same time)
+				if (g_config.JoystickEmul == 3 && contIdx == g_ACJoyEmul.joyHandIdx)
+				{
+					static bool bFirstTime = true;
+					static WORD joyButton1ScanCodes[2];
+					if (bFirstTime)
+					{
+						char action[] = "JOYBUTTON1";
+						TranslateACAction(joyButton1ScanCodes, action, nullptr);
+						bFirstTime = false;
+					}
+
+					if (g_contStates[contIdx].buttons[VRButtons::TRIGGER] &&
+						g_contStates[contIdx].buttons[VRButtons::GRIP])
+						ACRunAction(joyButton1ScanCodes, coords, -1, contIdx, pji);
+				}
+
+				// Actions have been processed, we can update the previous state now
+				g_prevContStates[contIdx] = g_contStates[contIdx];
+			}
 		}
-	}
-	log_debug("[DBG] dwXpos,dwRpos: %d, %d", pji->dwZpos, pji->dwRpos);
-	*/
-	
-	if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-		pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
-	}
-	if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-		pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
 	}
 
-	if (GetAsyncKeyState(VK_UP) & 0x8000) {
-		pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+	// Joystick emulation through the keyboard
+	if (g_config.JoystickEmul == 1)
+	{
+		bool bCtrlKey = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
+		if (bCtrlKey)
+		{
+			if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+				pji->dwRpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+			}
+			if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+				pji->dwRpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+			}
+		}
+		else
+		{
+			if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+				pji->dwXpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+			}
+			if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+				pji->dwXpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+			}
+		}
+
+		if (GetAsyncKeyState(VK_UP) & 0x8000) {
+			pji->dwYpos = static_cast<DWORD>(std::max(256 - 256 * g_config.KbdSensitivity, 0.0f));
+		}
+		if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
+			pji->dwYpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
+		}
+		if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;
+		// Normalize each axis to the range -1..1:
+		normYaw   = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
+		normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
+		normRoll  = 2.0f * (pji->dwRpos / 512.0f - 0.5f);
 	}
-	if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
-		pji->dwYpos = static_cast<DWORD>(std::min(256 + 256 * g_config.KbdSensitivity, 512.0f));
-	}
-	if (g_config.InvertYAxis) pji->dwYpos = 512 - pji->dwYpos;
-	// Normalize each axis to the range -1..1:
-	float normYaw   = 2.0f * (pji->dwXpos / 512.0f - 0.5f);
-	float normPitch = 2.0f * (pji->dwYpos / 512.0f - 0.5f);
-	if (g_pSharedDataJoystick != NULL) {
+
+	if (bJoystickEmulationEnabled && g_pSharedDataJoystick != NULL) {
 		g_pSharedDataJoystick->JoystickYaw   = normYaw;
 		g_pSharedDataJoystick->JoystickPitch = normPitch;
-		g_pSharedDataJoystick->JoystickRoll  = 0.0f;
+		g_pSharedDataJoystick->JoystickRoll  = normRoll;
 	}
 
 	if (g_bGimbalLockFixActive)

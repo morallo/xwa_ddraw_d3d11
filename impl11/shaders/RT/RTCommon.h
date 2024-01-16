@@ -308,7 +308,9 @@ Intersection _TraceRaySimpleHit(Ray ray, in int Offset) {
 				asfloat(node.children[2]));
 
 			Intersection inters = getIntersection(ray, A, B, C);
-			if (RayTriangleTest(inters)) {
+			if (inters.T > 0 && // Don't bother testing triangles if the intersection is behind the ray's origin
+				RayTriangleTest(inters))
+			{
 				inters.TriID = TriID;
 				best_inters = inters;
 				return best_inters;
@@ -419,8 +421,8 @@ Intersection _TLASTraceRaySimpleHit(Ray ray) {
 							asfloat(g_TLAS[curnode].children[2]));
 					// Transform the ray into the same coord sys as the OBB
 					Ray new_ray;
-					new_ray.origin = mul(float4(ray.origin, 1), Matrix).xyz;
-					new_ray.dir    = mul(float4(ray.dir,    0), Matrix).xyz;
+					new_ray.origin = mul(Matrix, float4(ray.origin, 1)).xyz;
+					new_ray.dir    = mul(Matrix, float4(ray.dir,    0)).xyz;
 
 					// Before traversing the BLAS, check if the ray intersects the OBB
 					const float3 new_ray_inv_dir = 1.0f / new_ray.dir;

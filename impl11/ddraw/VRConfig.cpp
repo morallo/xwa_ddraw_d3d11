@@ -1601,11 +1601,29 @@ bool LoadDCParams() {
 	return true;
 }
 
+void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
+{
+	bool bIsVRKeybActivator = false;
+	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsVRKeybActivator);
+
+	if (bIsVRKeybActivator)
+	{
+		g_vrKeybState.iHoverContIdx = contIdx;
+	}
+}
+
 /* Loads the dynamic_cockpit.cfg file */
 bool LoadACParams() {
 	log_debug("[DBG] [AC] Loading Active Cockpit params...");
 	FILE* file;
 	int error = 0, line = 0;
+
+	// Clear all the VR controller mappings
+	for (int i = 0; i < 2; i++)
+	{
+		for (int j = 0; j < (int)VRButtons::MAX; j++)
+			g_ACJoyMappings[i].action[j][0] = 0;
+	}
 
 	try {
 		error = fopen_s(&file, "./active_cockpit.cfg", "rt");
@@ -1633,7 +1651,23 @@ bool LoadACParams() {
 	}
 
 	g_LaserPointerBuffer.bDebugMode = 0;
-	g_LaserPointerBuffer.cursor_radius = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[0] = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[1] = 0.01f;
+
+	// VR keyboard AC elements
+	ac_element ac_elem;
+	float ac_tex_width = -1.0f, ac_tex_height = -1.0f;
+	g_iVRKeyboardSlot = -1;
+	g_iVRGloveSlot[0] = -1;
+	g_iVRGloveSlot[2] = -1;
+
+	enum ActionParse
+	{
+		NONE,
+		KEYB,
+		GLOVE0,
+		GLOVE1,
+	} actionFSM = NONE;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1649,11 +1683,15 @@ bool LoadACParams() {
 			if (_stricmp(param, "active_cockpit_enabled") == 0) {
 				g_bActiveCockpitEnabled = (bool)fValue;
 				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
-				if (!g_bActiveCockpitEnabled) {
+				if (!g_bActiveCockpitEnabled)
+				{
 					// Early abort: stop reading coordinates if the active cockpit is disabled
 					fclose(file);
 					return false;
 				}
+			}
+			else if (_stricmp(param, "enable_vr_pointer_in_concourse") == 0) {
+				g_bEnableVRPointerInConcourse = (bool)fValue;
 			}
 			else if (_stricmp(param, "freepie_controller_slot") == 0) {
 				g_iFreePIEControllerSlot = (int)fValue;
@@ -1662,51 +1700,292 @@ bool LoadACParams() {
 			else if (_stricmp(param, "button_data_available") == 0) {
 				g_bFreePIEControllerButtonDataAvailable = (bool)fValue;
 			}
-			else if (_stricmp(param, "controller_multiplier_x") == 0) {
-				g_fContMultiplierX = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_y") == 0) {
-				g_fContMultiplierY = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_z") == 0) {
-				g_fContMultiplierZ = fValue;
-			}
-			else if (_stricmp(param, "origin_from_HMD_position") == 0) {
-				g_bOriginFromHMD = (bool)fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_x") == 0) {
-				g_contOriginWorldSpace.x = fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_y") == 0) {
-				g_contOriginWorldSpace.y = fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_z") == 0) {
-				g_contOriginWorldSpace.z = fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_rotation") == 0) {
-				g_bCompensateHMDRotation = (bool)fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_position") == 0) {
-				g_bCompensateHMDPosition = (bool)fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_motion") == 0) {
-				g_bCompensateHMDRotation = (bool)fValue;
-				g_bCompensateHMDPosition = (bool)fValue;
-			}
-			else if (_stricmp(param, "full_cockpit_test") == 0) {
-				g_bFullCockpitTest = (bool)fValue;
-			}
-			else if (_stricmp(param, "laser_pointer_length") == 0) {
-				g_fLaserPointerLength = fValue;
-			}
-			else if (_stricmp(param, "debug_laser_dir") == 0) {
-				g_iLaserDirSelector = (int)fValue;
-			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
 			}
-			else if (_stricmp(param, "cursor_radius") == 0) {
-				g_LaserPointerBuffer.cursor_radius = fValue;
+			else if (_stricmp(param, "controller_forward_vector") == 0) {
+				LoadGeneric3DCoords(buf,
+					&(g_controllerForwardVector.x),
+					&(g_controllerForwardVector.y),
+					&(g_controllerForwardVector.z));
+				g_controllerForwardVector.w = 0;
+				g_controllerForwardVector.normalize();
+
+				// Compute the up vector
+				Vector3 R0, U0, F0;
+				R0 = Vector3(1, 0, 0);
+				F0.x = g_controllerForwardVector.x;
+				F0.y = g_controllerForwardVector.y;
+				F0.z = g_controllerForwardVector.z;
+				U0 = R0.cross(F0);
+				g_controllerUpVector.x = U0.x;
+				g_controllerUpVector.y = U0.y;
+				g_controllerUpVector.z = U0.z;
+				g_controllerUpVector.w = 0;
+				g_controllerUpVector.normalize();
+			}
+			else if (_stricmp(param, "throttle_emulation_enabled") == 0) {
+				g_ACJoyEmul.throttleEnabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "joystick_handedness") == 0) {
+				if (_stricmp(svalue, "right") == 0)
+				{
+					log_debug("[DBG] [AC] Right-handed VR controllers");
+					g_ACJoyEmul.joyHandIdx = 1;
+					g_ACJoyEmul.thrHandIdx = 0;
+				}
+				else
+				{
+					log_debug("[DBG] [AC] Left-handed VR controllers");
+					g_ACJoyEmul.joyHandIdx = 0;
+					g_ACJoyEmul.thrHandIdx = 1;
+				}
+			}
+			else if (_stricmp(param, "joystick_range_x") == 0) {
+				g_ACJoyEmul.joyHalfRangeX = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_range_z") == 0) {
+				g_ACJoyEmul.joyHalfRangeZ = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_dead_zone") == 0) {
+				g_ACJoyEmul.deadZonePerc = fValue / 100.0f;
+			}
+			else if (_stricmp(param, "throttle_range") == 0) {
+				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
+			}
+			/*
+			else if (_stricmp(param, "joystick_yaw_range") == 0) {
+				g_ACJoyEmul.yawHalfRange = fValue / 2.0f;
+			}
+			else if (_stricmp(param, "joystick_pitch_range") == 0) {
+				g_ACJoyEmul.pitchHalfRange = fValue / 2.0f;
+			}
+			else if (_stricmp(param, "joystick_roll_range") == 0) {
+				g_ACJoyEmul.rollHalfRange = fValue / 2.0f;
+			}
+			*/
+
+			if (_stricmp(param, "display_left_glove") == 0)
+			{
+				g_vrGlovesMeshes[0].visible = (bool)fValue;
+			}
+			else if (_stricmp(param, "display_right_glove") == 0)
+			{
+				g_vrGlovesMeshes[1].visible = (bool)fValue;
+			}
+			else if (_stricmp(param, "left_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[0].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[0].texGroupId = GroupId;
+					g_vrGlovesMeshes[0].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 0",
+						g_vrGlovesMeshes[0].texName, g_vrGlovesMeshes[0].texGroupId, g_vrGlovesMeshes[0].texImageId);
+				}
+			}
+			else if (_stricmp(param, "left_glove_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = GLOVE0;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRGloveSlot[0] = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRGloveSlot[0]].name, MAX_TEXTURE_NAME - 1, "_LGlove");
+					log_debug("[DBG] [AC] g_iVRGloveSlot[0]: %d", g_iVRGloveSlot[0]);
+				}
+			}
+			else if (_stricmp(param, "right_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[1].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[1].texGroupId = GroupId;
+					g_vrGlovesMeshes[1].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 1",
+						g_vrGlovesMeshes[1].texName, g_vrGlovesMeshes[1].texGroupId, g_vrGlovesMeshes[1].texImageId);
+				}
+			}
+			else if (_stricmp(param, "right_glove_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = GLOVE1;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRGloveSlot[1] = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRGloveSlot[1]].name, MAX_TEXTURE_NAME - 1, "_RGlove");
+					log_debug("[DBG] [AC] g_iVRGloveSlot[1]: %d", g_iVRGloveSlot[1]);
+				}
+			}
+
+			// VR controller configuration
+			if (_stricmp(param, "leftpad_up") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_UP, svalue);
+			}
+			if (_stricmp(param, "leftpad_down") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_DOWN, svalue);
+			}
+			if (_stricmp(param, "leftpad_left") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_LEFT, svalue);
+			}
+			if (_stricmp(param, "leftpad_right") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_RIGHT, svalue);
+			}
+			if (_stricmp(param, "leftpad_click") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_CLICK, svalue);
+			}
+			/*if (_stricmp(param, "left_trigger") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::TRIGGER, svalue);
+			}*/
+			if (_stricmp(param, "left_button_1") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::BUTTON_1, svalue);
+			}
+			if (_stricmp(param, "left_button_2") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::BUTTON_2, svalue);
+			}
+
+			if (_stricmp(param, "rightpad_up") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_UP, svalue);
+			}
+			if (_stricmp(param, "rightpad_down") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_DOWN, svalue);
+			}
+			if (_stricmp(param, "rightpad_left") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_LEFT, svalue);
+			}
+			if (_stricmp(param, "rightpad_right") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_RIGHT, svalue);
+			}
+			if (_stricmp(param, "rightpad_click") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_CLICK, svalue);
+			}
+			/*if (_stricmp(param, "right_trigger") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::TRIGGER, svalue);
+			}*/
+			if (_stricmp(param, "right_button_1") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::BUTTON_1, svalue);
+			}
+			if (_stricmp(param, "right_button_2") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::BUTTON_2, svalue);
+			}
+
+			if (_stricmp(param, "mouse_speed_x") == 0)
+			{
+				g_ACPointerData.mouseSpeedX = fValue;
+			}
+			else if (_stricmp(param, "mouse_speed_y") == 0)
+			{
+				g_ACPointerData.mouseSpeedY = fValue;
+			}
+
+			if (_stricmp(param, "push_button_threshold") == 0)
+			{
+				g_fPushButtonThreshold = fValue / 100.0f; // Convert to meters
+			}
+			if (_stricmp(param, "release_button_threshold") == 0)
+			{
+				g_fReleaseButtonThreshold = fValue / 100.0f; // Convert to meters
+			}
+
+			if (_stricmp(param, "keyb_texture") == 0) {
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrKeybState.sImageName, 128, sDATFileName);
+					g_vrKeybState.iGroupId = GroupId;
+					g_vrKeybState.iImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for the VR Keyboard",
+						g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
+				}
+			}
+			else if (_stricmp(param, "keyb_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = KEYB;
+				//log_debug("[DBG] [AC] VRKeyb texture size: %0.3f, %0.3f", keyb_tex_width, keyb_tex_height);
+				g_vrKeybState.fPixelWidth  = ac_tex_width;
+				g_vrKeybState.fPixelHeight = ac_tex_height;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					//log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
+						//	ac_elem.name, g_iNumACElements);
+						//ac_elem.idx = g_iNumACElements; // Generate a unique ID
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRKeyboardSlot = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRKeyboardSlot].name, MAX_TEXTURE_NAME - 1, "_VRKeyboard");
+					log_debug("[DBG] [AC] g_iVRKeyboardSlot: %d", g_iVRKeyboardSlot);
+				}
+			}
+			else if (_stricmp(param, "keyb_width_cms") == 0) {
+				g_vrKeybState.fMetersWidth = fValue / 100.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "action") == 0) {
+				if (actionFSM == NONE) {
+					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without defining a texture size first.", line);
+					continue;
+				}
+
+				int curSlot = -1;
+				switch (actionFSM)
+				{
+					case KEYB:   curSlot = g_iVRKeyboardSlot; break;
+					case GLOVE0: curSlot = g_iVRGloveSlot[0]; break;
+					case GLOVE1: curSlot = g_iVRGloveSlot[1]; break;
+				}
+
+				if (curSlot != -1)
+				{
+					/*log_debug("[DBG] [AC] Loading action for: [%s], W,H: %0.1f, %0.1f",
+						g_ACElements[curSlot].name, ac_tex_width, ac_tex_height);*/
+					LoadACAction(buf, ac_tex_width, ac_tex_height, &(g_ACElements[curSlot].coords), false);
+
+					/*int lastIdx = g_ACElements[curSlot].coords.numCoords - 1;
+					log_debug("[DBG] [AC] numCoords: %d, [%s], (%0.2f, %0.2f)-(%0.2f, %0.2f)",
+						g_ACElements[curSlot].coords.numCoords,
+						g_ACElements[curSlot].coords.action_name[lastIdx],
+						g_ACElements[curSlot].coords.area[lastIdx].x0,
+						g_ACElements[curSlot].coords.area[lastIdx].y0,
+						g_ACElements[curSlot].coords.area[lastIdx].x1,
+						g_ACElements[curSlot].coords.area[lastIdx].y1);*/
+				}
 			}
 		}
 	}
@@ -3017,10 +3296,10 @@ bool LoadGimbaLockFixConfig() {
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
 			fValue = (float)atof(svalue);
 
-			if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
+			/*if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
 				g_bEnableGimbalLockFix = (bool)fValue;
-			}
-			else if (_stricmp(param, "enable_rudder") == 0) {
+			}*/
+			if (_stricmp(param, "enable_rudder") == 0) {
 				g_bEnableRudder = (bool)fValue;
 			}
 			/*

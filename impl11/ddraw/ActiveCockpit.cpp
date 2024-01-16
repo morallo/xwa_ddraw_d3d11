@@ -4,33 +4,63 @@
 #include "utils.h"
 #include "Direct3DTexture.h"
 
+#include <mmsystem.h>
+
 /*********************************************************/
 // ACTIVE COCKPIT
-Vector4 g_contOriginWorldSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in world-space coords
-Vector4 g_contDirWorldSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // This is the direction in which the controller is pointing in world-space coords
-Vector4 g_contOriginViewSpace = Vector4(0.0f, 0.0f, 0.05f, 1.0f); // This is the origin of the controller in 3D, in view-space coords
-Vector4 g_contDirViewSpace = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // The direction in which the controller is pointing, in view-space coords
-Vector3 g_LaserPointer3DIntersection = Vector3(0.0f, 0.0f, 10000.0f);
-float g_fBestIntersectionDistance = 10000.0f, g_fLaserPointerLength = 0.0f;
-float g_fContMultiplierX, g_fContMultiplierY, g_fContMultiplierZ;
-int g_iBestIntersTexIdx = -1; // The index into g_ACElements where the intersection occurred
-bool g_bActiveCockpitEnabled = false, g_bACActionTriggered = false, g_bACLastTriggerState = false, g_bACTriggerState = false;
-bool g_bOriginFromHMD = false, g_bCompensateHMDRotation = false, g_bCompensateHMDPosition = false, g_bFullCockpitTest = true;
+// This is the origin of the controller in 3D
+Vector4 g_contOriginWorldSpace[2] =
+{
+	{-0.15f, -0.05f, 0.3f, 1.0f},
+	{ 0.15f, -0.05f, 0.3f, 1.0f}
+};
+// This is the direction in which the controller is pointing.
+// Comes from transforming g_controllerForwardVector into viewspace coords.
+Vector4 g_contDirWorldSpace[2];
+
+Vector4 g_controllerForwardVector = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // Forward direction in the controller's frame of reference
+Vector4 g_controllerUpVector = Vector4(0.0f, 1.0f, 0.0f, 0.0f);
+Vector3 g_LaserPointer3DIntersection[2] = { {0.0f, 0.0f, FLT_MAX}, {0.0f, 0.0f, FLT_MAX} };
+float g_fBestIntersectionDistance[2] = { FLT_MAX, FLT_MAX };
+float g_fLaserIntersectionDistance[2] = { FLT_MAX, FLT_MAX };
+float g_fPushButtonThreshold = 0.01f, g_fReleaseButtonThreshold = 0.018f;
+int g_iBestIntersTexIdx[2] = { -1, -1 }; // The index into g_ACElements where the intersection occurred
+bool g_bActiveCockpitEnabled = false;
+bool g_bEnableVRPointerInConcourse = true;
+bool g_bACActionTriggered[2] = { false, false };
+bool g_bACLastTriggerState[2] = { false, false };
+bool g_bACTriggerState[2] = { false, false };
+bool g_bPrevHoveringOnActiveElem[2] = { false, false };
 bool g_bFreePIEControllerButtonDataAvailable = false;
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
-int g_iNumACElements = 0, g_iLaserDirSelector = 3;
+int g_iNumACElements = 0, g_iVRKeyboardSlot = -1;
+int g_iVRGloveSlot[2] = { -1, -1 };
 // DEBUG vars
+bool g_enable_ac_debug = false;
 Vector3 g_debug_v0, g_debug_v1, g_debug_v2;
 bool g_bDumpLaserPointerDebugInfo = false;
 Vector3 g_LPdebugPoint;
 float g_fLPdebugPointOffset = 0.0f;
 // DEBUG vars
 
+ACJoyEmulSettings g_ACJoyEmul;        // Stores data needed to configure VR controllers (handedness, motion range, deadzones)
+ACJoyMapping      g_ACJoyMappings[2]; // Maps VR buttons to AC actions
+ACPointerData     g_ACPointerData;    // Tells us which controller and button is used to activate AC controls
+
+bool IsContinousAction(WORD* action)
+{
+	return (action != nullptr &&
+			action[0] == 0xFF &&
+			// The first joystick button is fire, so it's a continuous action.
+			// The second joystick button is target/roll. In order to enable roll, it must be a continous action.
+			(action[1] == AC_JOYBUTTON1_FAKE_VK_CODE || action[1] == AC_JOYBUTTON2_FAKE_VK_CODE));
+}
+
 /*
  * Executes the action defined by "action" as per the Active Cockpit
  * definitions.
  */
-void ACRunAction(WORD* action) {
+void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, struct joyinfoex_tag* pji) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// Scan codes: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	// Based on code from: https://stackoverflow.com/questions/18647053/sendinput-not-equal-to-pressing-key-manually-on-keyboard-in-c
@@ -38,8 +68,20 @@ void ACRunAction(WORD* action) {
 	// How to send extended scan codes
 	// https://stackoverflow.com/questions/36972524/winapi-extended-keyboard-scan-codes/36976260#36976260
 	// https://stackoverflow.com/questions/26283738/how-to-use-extended-scancodes-in-sendinput
+	static bool holdCtrl  = false;
+	static bool holdShift = false;
+	static bool holdAlt   = false;
+	static uvfloat4 ctrlRegion  = { 0 };
+	static uvfloat4 altRegion   = { 0 };
+	static uvfloat4 shiftRegion = { 0 };
+	const bool vrKeybClick = (ACSlot == g_iVRKeyboardSlot);
+
 	INPUT input[MAX_AC_ACTION_LEN];
 	bool bEscapedAction = (action[0] == 0xe0);
+
+	int auxContIdx = (contIdx + 1) % 2;
+	if (!g_contStates[auxContIdx].bIsValid)
+		auxContIdx = contIdx;
 
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
@@ -47,10 +89,92 @@ void ACRunAction(WORD* action) {
 	}
 
 	// Special internal action: these actions don't need to synthesize any input
-	if (action[0] == 0xFF) {
-		switch (action[1]) {
+	if (action[0] == 0xFF)
+	{
+		switch (action[1])
+		{
 		case AC_HOLOGRAM_FAKE_VK_CODE:
 			g_bDCHologramsVisible = !g_bDCHologramsVisible;
+			return;
+		case AC_VRKEYB_TOGGLE_FAKE_VK_CODE:
+			g_vrKeybState.iHoverContIdx = auxContIdx;
+			g_vrKeybState.ToggleState();
+			return;
+		case AC_VRKEYB_HOVER_FAKE_VK_CODE:
+			g_vrKeybState.iHoverContIdx = auxContIdx;
+			g_vrKeybState.state = KBState::HOVER;
+			return;
+		case AC_VRKEYB_PLACE_FAKE_VK_CODE:
+			g_vrKeybState.iHoverContIdx = auxContIdx;
+			g_vrKeybState.state = KBState::STATIC;
+			return;
+		case AC_VRKEYB_OFF_FAKE_VK_CODE:
+			g_vrKeybState.iHoverContIdx = auxContIdx;
+			g_vrKeybState.state = KBState::CLOSING;
+			return;
+		case AC_JOYBUTTON1_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 1;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 1);
+			}
+			return;
+		case AC_JOYBUTTON2_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 2;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 2);
+			}
+			return;
+		case AC_JOYBUTTON3_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 4;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 3);
+			}
+			return;
+		case AC_JOYBUTTON4_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 8;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 4);
+			}
+			return;
+		case AC_JOYBUTTON5_FAKE_VK_CODE:
+			if (pji != nullptr) {
+				pji->dwButtons |= 16;
+				pji->dwButtonNumber = max(pji->dwButtonNumber, 5);
+			}
+			return;
+
+		case AC_HOLD_CTRL_FAKE_VK_CODE:
+			holdCtrl = !holdCtrl;
+			ctrlRegion = coords;
+			// If we're clicking a sticky key, we can't be clicking anything else
+			g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
+
+			g_vrKeybState.ClearRegions();
+			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
+			if (holdAlt) g_vrKeybState.AddLitRegion(altRegion);
+			if (holdShift) g_vrKeybState.AddLitRegion(shiftRegion);
+			return;
+		case AC_HOLD_ALT_FAKE_VK_CODE:
+			holdAlt = !holdAlt;
+			altRegion = coords;
+			// If we're clicking a sticky key, we can't be clicking anything else
+			g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
+
+			g_vrKeybState.ClearRegions();
+			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
+			if (holdAlt) g_vrKeybState.AddLitRegion(altRegion);
+			if (holdShift) g_vrKeybState.AddLitRegion(shiftRegion);
+			return;
+		case AC_HOLD_SHIFT_FAKE_VK_CODE:
+			holdShift = !holdShift;
+			shiftRegion = coords;
+			// If we're clicking a sticky key, we can't be clicking anything else
+			g_vrKeybState.clickRegions[contIdx] = { -1, -1, -1, -1 };
+
+			g_vrKeybState.ClearRegions();
+			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
+			if (holdAlt) g_vrKeybState.AddLitRegion(altRegion);
+			if (holdShift) g_vrKeybState.AddLitRegion(shiftRegion);
 			return;
 		}
 		return;
@@ -62,7 +186,51 @@ void ACRunAction(WORD* action) {
 	//DisplayACAction(action);
 
 	// Copy & initialize the scan codes
-	int i = 0, j = bEscapedAction ? 1 : 0;
+	int i = 0, j;
+
+	// ***********************************************
+	// Add Ctrl, Alt, Shift if these keys were held
+	// ***********************************************
+	if (holdCtrl)
+	{
+		input[i].ki.wScan = 0x1D;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdAlt)
+	{
+		input[i].ki.wScan = 0x38;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdShift)
+	{
+		input[i].ki.wScan = 0x2A;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	// ***********************************************
+	// Send the regular key codes
+	// ***********************************************
+	j = bEscapedAction ? 1 : 0;
 	while (action[j] && j < MAX_AC_ACTION_LEN) {
 		input[i].ki.wScan = action[j];
 		input[i].type = INPUT_KEYBOARD;
@@ -92,6 +260,53 @@ void ACRunAction(WORD* action) {
 		i++; j++;
 	}
 
+	// ************************************************
+	// Release Ctrl, Alt, Shift if these keys were held
+	// ************************************************
+	if (holdCtrl)
+	{
+		input[i].ki.wScan = 0x1D;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdAlt)
+	{
+		input[i].ki.wScan = 0x38;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	if (holdShift)
+	{
+		input[i].ki.wScan = 0x2A;
+		input[i].type = INPUT_KEYBOARD;
+		input[i].ki.time = 0;
+		input[i].ki.wVk = 0;
+		input[i].ki.dwExtraInfo = 0;
+		input[i].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+		if (bEscapedAction) input[i].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+		i++;
+	}
+
+	holdCtrl  = false;
+	holdAlt   = false;
+	holdShift = false;
+	g_vrKeybState.ClearRegions();
+
+	if (vrKeybClick)
+		g_vrKeybState.clickRegions[contIdx] = coords;
+
 	// Send keydown/keyup events in one go: (this is the only way I found to enable the arrow/escaped keys)
 	SendInput(i, input, sizeof(INPUT));
 }
@@ -99,7 +314,7 @@ void ACRunAction(WORD* action) {
 /*
  * Converts a string representation of a hotkey to a series of scan codes
  */
-void TranslateACAction(WORD* scanCodes, char* action) {
+void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) {
 	// XWA keyboard reference:
 	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
 	// Scan code tables:
@@ -107,8 +322,12 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 	// https://www.shsu.edu/~csc_tjm/fall2000/cs272/scan_codes.html
 	// https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 	int len = strlen(action);
-	const char* ptr = action, * cursor;
+	const char* ptr = action, *cursor;
 	int i, j;
+
+	if (bIsVRKeybActivator != nullptr)
+		*bIsVRKeybActivator = false;
+
 	// Translate to uppercase
 	for (i = 0; i < len; i++)
 		action[i] = toupper(action[i]);
@@ -121,25 +340,41 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 		return;
 	}
 
-	j = 0;
-	/*
-	// Function keys must be handled separately because SHIFT+Fn have unique
-	// scan codes
-	if (strstr("F1", action) != NULL) {
-		if      (strstr(action, "SHIFT") != NULL)	scanCodes[j] = 0x54;
-		else if (strstr(action, "CTRL") != NULL)	scanCodes[j] = 0x5E;
-		else if (strstr(action, "ALT") != NULL)		scanCodes[j] = 0x68;
-		else										scanCodes[j] = 0x3B;
+	if (strstr(action, "HOLD_CTRL") != NULL)
+	{
+		scanCodes[0] = 0xFF;
+		scanCodes[1] = AC_HOLD_CTRL_FAKE_VK_CODE;
 		return;
 	}
-	// End of function keys
-	*/
 
-	// Composite keys
+	if (strstr(action, "HOLD_ALT") != NULL)
+	{
+		scanCodes[0] = 0xFF;
+		scanCodes[1] = AC_HOLD_ALT_FAKE_VK_CODE;
+		return;
+	}
+
+	if (strstr(action, "HOLD_SHIFT") != NULL)
+	{
+		scanCodes[0] = 0xFF;
+		scanCodes[1] = AC_HOLD_SHIFT_FAKE_VK_CODE;
+		return;
+	}
+
+	j = 0;
+	// Composite keys, allow combinations like CTRL+SHIFT+ALT+*
 	ptr = action;
-	if ((cursor = strstr(action, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
-	if ((cursor = strstr(action, "CTRL")) != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
-	if ((cursor = strstr(action, "ALT")) != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+	if ((cursor = strstr(ptr, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(ptr, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(ptr, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+
+	if ((cursor = strstr(ptr, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(ptr, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(ptr, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
+
+	if ((cursor = strstr(ptr, "SHIFT")) != NULL) { scanCodes[j++] = 0x2A; ptr = cursor + strlen("SHIFT "); }
+	if ((cursor = strstr(ptr, "CTRL"))  != NULL) { scanCodes[j++] = 0x1D; ptr = cursor + strlen("CTRL "); }
+	if ((cursor = strstr(ptr, "ALT"))   != NULL) { scanCodes[j++] = 0x38; ptr = cursor + strlen("ALT "); }
 
 	// Process the function keys
 	if (strstr(ptr, "F") != NULL) {
@@ -157,10 +392,10 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 	if (strstr(ptr, "ARROW") != NULL)
 	{
 		scanCodes[j++] = 0xE0;
-		if (strstr(ptr, "LEFT") != NULL)	scanCodes[j++] = 0x4B;
-		if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = 0x4D;
-		if (strstr(ptr, "UP") != NULL)	scanCodes[j++] = 0x48;
-		if (strstr(ptr, "DOWN") != NULL) 	scanCodes[j++] = 0x50;
+		if (strstr(ptr, "LEFT")  != NULL) scanCodes[j++] = 0x4B;
+		if (strstr(ptr, "RIGHT") != NULL) scanCodes[j++] = 0x4D;
+		if (strstr(ptr, "UP")    != NULL) scanCodes[j++] = 0x48;
+		if (strstr(ptr, "DOWN")  != NULL) scanCodes[j++] = 0x50;
 
 		//if (strstr(ptr, "LEFT") != NULL)		scanCodes[j++] = MapVirtualKey(VK_LEFT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4B
 		//if (strstr(ptr, "RIGHT") != NULL)	scanCodes[j++] = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x4D
@@ -218,6 +453,12 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 			return;
 		}
 
+		if (strstr(ptr, "BACKSPACE") != NULL) {
+			scanCodes[j++] = MapVirtualKey(VK_BACK, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
 		if (strstr(ptr, "SPACE") != NULL) {
 			scanCodes[j++] = 0x39;
 			scanCodes[j] = 0;
@@ -229,6 +470,91 @@ void TranslateACAction(WORD* scanCodes, char* action) {
 			scanCodes[1] = AC_HOLOGRAM_FAKE_VK_CODE;
 			return;
 		}
+
+		if (strstr(ptr, "VRKEYB_TOGGLE") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_TOGGLE_FAKE_VK_CODE;
+			if (bIsVRKeybActivator != nullptr)
+				*bIsVRKeybActivator = true;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_ON") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_HOVER_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_PLACE") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_PLACE_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "VRKEYB_OFF") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_VRKEYB_OFF_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON1") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON1_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON2") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON2_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON3") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON3_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON4") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON4_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "JOYBUTTON5") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_JOYBUTTON5_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "[") != NULL) {
+			scanCodes[j++] = 0x1A;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "]") != NULL) {
+			scanCodes[j++] = 0x1B;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "\\") != NULL) {
+			scanCodes[j++] = 0x2B;
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "ESC") != NULL) {
+			scanCodes[j++] = MapVirtualKey(VK_ESCAPE, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+	}
+
+	if (strlen(ptr) > 1)
+	{
+		log_debug("[DBG] [AC] WARNING: Parsing a probably unknown action: [%s]", ptr);
 	}
 
 	// Regular single-char keys
@@ -252,7 +578,7 @@ void DisplayACAction(WORD* scanCodes) {
  * Loads an "action" row:
  * "action" = ACTION, x0,y0, x1,y1
  */
-bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
+bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bool mirror)
 {
 	float x0, y0, x1, y1;
 	int res = 0, idx = coords->numCoords;
@@ -292,15 +618,28 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 		}
 		else {
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
-			TranslateACAction(&(coords->action[idx][0]), action);
+			TranslateACAction(&(coords->action[idx][0]), action, nullptr);
 			//DisplayACAction(&(coords->action[idx][0]));
 
-			coords->area[idx].x0 = x0 / width;
-			coords->area[idx].y0 = y0 / height;
-			coords->area[idx].x1 = x1 / width;
-			coords->area[idx].y1 = y1 / height;
+			x0 /= width;
+			y0 /= height;
+			x1 /= width;
+			y1 /= height;
+
+			// Images are stored upside down in an OPT (I think), so we need to flip the Y axis:
+			if (mirror)
+			{
+				y0 = 1.0f - y0;
+				y1 = 1.0f - y1;
+			}
+
+			if (y0 > y1) std::swap(y0, y1);
+			coords->area[idx].x0 = x0;
+			coords->area[idx].y0 = y0;
+			coords->area[idx].x1 = x1;
+			coords->area[idx].y1 = y1;
 			// Flip the coordinates if necessary
-			if (x0 != -1.0f && x1 != -1.0f) {
+			/*if (x0 != -1.0f && x1 != -1.0f) {
 				if (x0 > x1)
 				{
 					// Swap coords in the X-axis:
@@ -324,7 +663,7 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords)
 					coords->area[idx].y0 = 1.0f - coords->area[idx].y0;
 					coords->area[idx].y1 = 1.0f - coords->area[idx].y1;
 				}
-			}
+			}*/
 			coords->numCoords++;
 		}
 	}
@@ -422,16 +761,17 @@ bool LoadIndividualACParams(char* sFileName) {
 					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without a corresponding texture section.", line);
 					continue;
 				}
+				//log_debug("[DBG] [AC] Loading action for: [%s]", g_ACElements[lastACElemSelected].name);
 				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
 				// DEBUG
-				/*g_ACElements[lastACElemSelected].width = (short)tex_width;
-				g_ACElements[lastACElemSelected].height = (short)tex_height;
-				ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
+				//g_ACElements[lastACElemSelected].width = (short)tex_width;
+				//g_ACElements[lastACElemSelected].height = (short)tex_height;
+				/*ac_uv_coords *coords = &(g_ACElements[lastACElemSelected].coords);
 				int idx = coords->numCoords - 1;
-				log_debug("[DBG] [AC] Action: (%0.3f, %0.3f)-(%0.3f, %0.3f)",
+				log_debug("[DBG] [AC] Action (v is flipped): (%0.3f, %0.3f)-(%0.3f, %0.3f)",
 					coords->area[idx].x0, coords->area[idx].y0,
 					coords->area[idx].x1, coords->area[idx].y1);*/
-					// DEBUG
+				// DEBUG
 			}
 
 		}

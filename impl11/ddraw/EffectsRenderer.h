@@ -59,13 +59,12 @@ class EffectsRenderer : public D3dRenderer
 protected:
 	bool _bLastTextureSelectedNotNULL, _bLastLightmapSelectedNotNULL, _bIsLaser, _bIsCockpit, _bIsExterior;
 	bool _bIsGunner, _bIsExplosion, _bIsBlastMark, _bHasMaterial, _bDCIsTransparent, _bDCElemAlwaysVisible;
-	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState;
+	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState, _bIsActiveCockpit;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
-	bool _bCockpitConstantsCaptured, _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
+	bool _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
 	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady; // _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
 	bool _bHangarShadowsRenderedInCurrentFrame;
-	D3dConstants _CockpitConstants;
-	XwaTransform _CockpitWorldView;
+
 	Direct3DTexture *_lastTextureSelected = nullptr;
 	Direct3DTexture *_lastLightmapSelected = nullptr;
 	std::vector<DrawCommand> _LaserDrawCommands;
@@ -92,6 +91,16 @@ protected:
 	ComPtr<ID3D11BlendState> _oldBlendState;
 	ComPtr<ID3D11InputLayout> _oldInputLayout;
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+	Matrix4 _oldPose;
+
+	ComPtr<ID3D11Buffer> _vrKeybVertexBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybIndexBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _vrKeybMeshTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrKeybTextureSRV;
+
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
 	FLOAT _oldBlendFactor[4];
@@ -105,6 +114,7 @@ protected:
 	bool _BLASNeedsUpdate;
 
 	void OBJDumpD3dVertices(const SceneCompData *scene, const Matrix4 &A);
+	void SingleFileOBJDumpD3dVertices(const SceneCompData* scene, int trianglesCount, const std::string& name);
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
@@ -115,7 +125,17 @@ protected:
 	void SaveContext();
 	void RestoreContext();
 
+	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
+	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
+		short* Width_out=nullptr, short* Height_out=nullptr);
+	int LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profile, bool buildBVH);
+	void IntersectVRGeometry();
+
 public:
+	bool _bCockpitConstantsCaptured;
+	D3dConstants _CockpitConstants;
+	XwaTransform _CockpitWorldView;
+
 	EffectsRenderer();
 	virtual void CreateShaders();
 	virtual void SceneBegin(DeviceResources* deviceResources);
@@ -132,6 +152,7 @@ public:
 	void ApplyBloomSettings(float bloomOverride);
 	void ApplyDiegeticCockpit();
 	void ApplyMeshTransform();
+	void ApplyActiveCockpit(const SceneCompData* scene);
 	void DCCaptureMiniature();
 	// Returns true if the current draw call needs to be skipped
 	bool DCReplaceTextures();
@@ -160,9 +181,13 @@ public:
 	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);
 	FixedInstanceData* ObjectIDToFixedInstanceData(int objectId, uint32_t materialId);
 
+	void CreateVRMeshes();
+
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();
+	void RenderVRKeyboard();
+	void RenderVRGloves();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
 	void StartCascadedShadowMap();

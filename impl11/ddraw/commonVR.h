@@ -12,6 +12,7 @@
 #include "FreePIE.h"
 #include "Vectors.h"
 #include "Matrices.h"
+#include "xwa_structures.h"
 
 const float MAX_BRIGHTNESS = 1.0f;
 extern const float RAD_TO_DEG;
@@ -53,3 +54,42 @@ typedef enum {
 	TRACKER_STEAMVR,
 	TRACKER_TRACKIR
 } TrackerType;
+
+namespace VRGlovesProfile
+{
+	enum VRGlovesProfile
+	{
+		NEUTRAL = 0,
+		POINT,
+		GRASP,
+		MAX // Sentinel, do not remove
+	};
+};
+
+struct VRGlovesMesh
+{
+	// Gloved hands:
+	ComPtr<ID3D11Buffer> vertexBuffer;
+	ComPtr<ID3D11Buffer> indexBuffer;
+	//ComPtr<ID3D11Buffer> meshVerticesBuffer;
+	ComPtr<ID3D11Buffer> meshVerticesBuffers[VRGlovesProfile::MAX];
+	ComPtr<ID3D11Buffer> meshNormalsBuffer;
+	ComPtr<ID3D11Buffer> meshTexCoordsBuffer;
+	//ComPtr<ID3D11ShaderResourceView> meshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> meshVerticesSRVs[VRGlovesProfile::MAX];
+	ComPtr<ID3D11ShaderResourceView> meshNormalsSRV;
+	ComPtr<ID3D11ShaderResourceView> meshTexCoordsSRV;
+	ComPtr<ID3D11ShaderResourceView> textureSRV;
+	int numTriangles;
+	Matrix4 pose;
+	bool visible;
+	bool rendered;
+	float forwardPmeters[VRGlovesProfile::MAX]; // The forward-most point in this mesh, in meters. Used to push buttons
+	char texName[128];
+	int texGroupId, texImageId;
+	void* bvh;
+	std::vector<XwaTextureVertex> texCoords;
+	std::vector<int> texIndices;
+};
+
+extern VRGlovesMesh g_vrGlovesMeshes[2];

@@ -74,6 +74,7 @@ extern ShadertoyCBuffer         g_ShadertoyBuffer;
 extern LaserPointerCBuffer      g_LaserPointerBuffer;
 extern OPTMeshTransformCBuffer  g_OPTMeshTransformCB;
 extern RTConstantsBuffer        g_RTConstantsBuffer;
+extern VRGeometryCBuffer        g_VRGeometryCBuffer;
 
 extern D3DTLVERTEX* g_OrigVerts;
 extern uint32_t* g_OrigIndex;
@@ -175,7 +176,7 @@ inline int32_t&    BLASGetMeshVertices(BLASData& X) { return std::get<4>(X); }
 // BLAS Key: <MeshKey, LOD>. This tuple can be used to uniquely identify a BLAS entry.
 // There's one BLAS per mesh per LOD.
 // - MeshKey is scene->MeshVertices
-// - Set is the LOD index. We can get the LOD from its FaceGroup.
+// - LOD is the LOD's index. We can get the LOD from its FaceGroup.
 using BLASKey_t = std::tuple<int, int>;
 // Map of unique IDs for BLASes. (MeshKey, LOD) --> BlasId. Gets cleared on OnSizeChanged()
 extern std::map<BLASKey_t, int> g_BLASIdMap;

@@ -62,6 +62,7 @@
 #include "../Debug/HyperCompose.h"
 #include "../Debug/HyperComposeVR.h"
 #include "../Debug/HyperZoom.h"
+#include "../Debug/LaserPointer.h"
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
 #include "../Debug/FXAA_VR.h"
@@ -101,6 +102,7 @@
 #include "../Debug/RTShadowMaskPS_VR.h"
 #include "../Debug/PBRAdd.h"
 #include "../Debug/PBRAddVR.h"
+#include "../Debug/PixelShaderVRGeom.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainVertexShaderVR.h"
@@ -150,6 +152,7 @@
 #include "../Release/HyperCompose.h"
 #include "../Release/HyperComposeVR.h"
 #include "../Release/HyperZoom.h"
+#include "../Release/LaserPointer.h"
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
 #include "../Release/FXAA_VR.h"
@@ -189,6 +192,7 @@
 #include "../Release/RTShadowMaskPS_VR.h"
 #include "../Release/PBRAdd.h"
 #include "../Release/PBRAddVR.h"
+#include "../Release/PixelShaderVRGeom.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -235,7 +239,8 @@ extern int g_iNumACElements;
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
 extern float g_fHUDDepth;
-extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio;
+extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 
@@ -286,6 +291,8 @@ void ClearGlobalLBVHMap();
 // DEBUG: Map of meshKey --> (OPTname, vertcount, meshIndex). Only for debugging purposes.
 std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;
 #endif
+
+D3D11_VIEWPORT g_concourseViewport;
 
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
@@ -462,7 +469,7 @@ HRESULT DeviceResources::Initialize()
 	UINT createDeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
 #ifdef _DEBUG
-	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+	//createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
 
@@ -1508,6 +1515,24 @@ void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 }
 
 void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size) {
+	ac_element vrKeybElem;
+	ac_element vrGloveElements[2];
+
+	// Save the VR Keyboard slot
+	if (g_iVRKeyboardSlot != -1)
+	{
+		vrKeybElem = g_ACElements[g_iVRKeyboardSlot];
+	}
+
+	// Save the VR Gloves slots
+	for (int i = 0; i < 2; i++)
+	{
+		if (g_iVRGloveSlot[i] != -1)
+		{
+			vrGloveElements[i] = g_ACElements[g_iVRGloveSlot[i]];
+		}
+	}
+
 	for (int i = 0; i < size; i++) {
 		int numCoords = ACElements[i].coords.numCoords;
 		ACElements[i].name[0] = 0;
@@ -1518,6 +1543,23 @@ void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size
 		ACElements[i].coords.numCoords = 0;
 	}
 	g_iNumACElements = 0;
+
+	// Restore the VR Keyboard slot
+	if (g_iVRKeyboardSlot != -1)
+	{
+		g_iVRKeyboardSlot = g_iNumACElements++;
+		g_ACElements[g_iVRKeyboardSlot] = vrKeybElem;
+	}
+
+	// Restore the VR Gloves slots
+	for (int i = 0; i < 2; i++)
+	{
+		if (g_iVRGloveSlot[i] != -1)
+		{
+			g_iVRGloveSlot[i] = g_iNumACElements++;
+			g_ACElements[g_iVRGloveSlot[i]] = vrGloveElements[i];
+		}
+	}
 }
 
 void DeviceResources::ResetDynamicCockpit() {
@@ -1587,8 +1629,9 @@ void DeviceResources::ResetActiveCockpit() {
 		if (g_iNumACElements > 0) {
 			log_debug("[DBG] [AC] Clearing g_ACElements");
 			ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
-			g_iNumACElements = 0;
+			//g_iNumACElements = 0;
 		}
+		g_vrKeybState.state = KBState::OFF;
 	}
 }
 
@@ -3972,9 +4015,6 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
@@ -4015,6 +4055,9 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -4040,6 +4083,9 @@ HRESULT DeviceResources::LoadMainResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointer, sizeof(g_LaserPointer), nullptr, &_laserPointerPS)))
 			return hr;
 	}
 
@@ -4401,13 +4447,13 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderVRGeom, sizeof(g_PixelShaderVRGeom), nullptr, &_pixelShaderVRGeom)))
 		return hr;
 
 	if (g_bEnableVR)
@@ -4453,6 +4499,9 @@ HRESULT DeviceResources::LoadResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS_VR, sizeof(g_RTShadowMaskPS_VR), nullptr, &_rtShadowMaskPS_VR)))
 			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS_VR)))
+			return hr;
 	}
 	else
 	{
@@ -4481,6 +4530,9 @@ HRESULT DeviceResources::LoadResources()
 			return hr;
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointer, sizeof(g_LaserPointer), nullptr, &_laserPointerPS)))
 			return hr;
 	}
 
@@ -4740,8 +4792,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Laser Pointer (Active Cockpit) constant buffer
-	constantBufferDesc.ByteWidth = 112;
-	static_assert(sizeof(LaserPointerCBuffer) == 112, "sizeof(LaserPointerCBuffer) must be 112");
+	constantBufferDesc.ByteWidth = 288;
+	static_assert(sizeof(LaserPointerCBuffer) == 288, "sizeof(LaserPointerCBuffer) must be 288");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 
@@ -4773,6 +4825,15 @@ HRESULT DeviceResources::LoadResources()
 	static_assert(sizeof(RTConstantsBuffer) == 48, "sizeof(RTConstantsBuffer) must be 48");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
 		return hr;
+
+	// Create the constant buffer for the VR Geometry
+	if (g_bUseSteamVR)
+	{
+		constantBufferDesc.ByteWidth = 112;
+		static_assert(sizeof(VRGeometryCBuffer) == 112, "sizeof(VRGeometryCBuffer) must be 112");
+		if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_VRGeometryCBuffer)))
+			return hr;
+	}
 
 	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
 	InitOPTnames();
@@ -5070,6 +5131,15 @@ void DeviceResources::InitPSRTConstantsBuffer(ID3D11Buffer **buffer, const RTCon
 	}
 }
 
+void DeviceResources::InitVRGeometryCBuffer(ID3D11Buffer** buffer, const VRGeometryCBuffer* psConstants)
+{
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+		_d3dDeviceContext->PSSetConstantBuffers(11, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
+}
+
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
 	const float aspect_ratio, const float scale, const float brightness, float inv_scale)
 {
@@ -5238,17 +5308,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	ID3D11ShaderResourceView* texView = nullptr;
 
 	BeginAnnotatedEvent(L"RenderMain");
-
-	/*
-	if (g_bUseSteamVR) {
-		// Process SteamVR events
-		vr::VREvent_t event;
-		while (g_pHMD->PollNextEvent(&event, sizeof(event)))
-		{
-			ProcessVREvent(event);
-		}
-	}
-	*/
 
 	const bool bMapMode = PlayerDataTable[*g_playerIndex].mapState != 0;
 
@@ -5562,7 +5621,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			//g_fConcourseAspectRatio = 2.0f * actual_aspect / original_aspect;
 		}
 	}
-	//if (g_bUseSteamVR) g_fConcourseAspectRatio = 1.0f;
 
 	UINT left = (this->_backbufferWidth - w) / 2;
 	UINT top = (this->_backbufferHeight - h) / 2;
@@ -5587,6 +5645,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	this->InitViewport(&viewport);
+	g_concourseViewport = viewport;
 
 	if (SUCCEEDED(hr))
 	{

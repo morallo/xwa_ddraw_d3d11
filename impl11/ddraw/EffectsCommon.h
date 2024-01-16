@@ -11,27 +11,165 @@
 const int MAX_TEXTURE_NAME = 128;
 const float PI = 3.141593f;
 const float DEG2RAD = PI / 180.0f;
+const float RAD2DEG = 180.0f / PI;
 #endif
 
 // General types and globals
 
 class Direct3DTexture;
 
-typedef struct uvfloat4_struct {
+struct uvfloat4 {
 	float x0, y0, x1, y1;
-} uvfloat4;
+};
 
-typedef struct float3_struct {
+struct float3 {
 	float x, y, z;
-} float3;
 
-typedef struct float4_struct {
+	float3()
+	{
+		x = y = z = 0.0f;
+	}
+
+	float3(float x, float y, float z)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+	}
+
+	float3(const float data[4])
+	{
+		x = data[0];
+		y = data[1];
+		z = data[2];
+	}
+
+	float3(const Vector4 &P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+		this->z = P[2];
+	}
+
+	float3(const Vector3& P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+		this->z = P[2];
+	}
+
+	float3 xyz()
+	{
+		return float3(x, y, z);
+	}
+
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+
+	inline float3 operator+(const float3& rhs)
+	{
+		return float3(this->x + rhs.x, this->y + rhs.y, this->z + rhs.z);
+	}
+
+	inline float3 operator-(const float3& rhs)
+	{
+		return float3(this->x - rhs.x, this->y - rhs.y, this->z - rhs.z);
+	}
+
+	inline float3 operator*(const float3& rhs)
+	{
+		return float3(this->x * rhs.x, this->y * rhs.y, this->z * rhs.z);
+	}
+
+	inline float3& operator*=(const float rhs)
+	{
+		this->x *= rhs;
+		this->y *= rhs;
+		this->z *= rhs;
+
+		return *this;
+	}
+};
+
+inline float3 operator*(const float s, const float3& rhs)
+{
+	return float3(s * rhs.x, s * rhs.y, s * rhs.z);
+}
+
+inline float3 operator/(const float s, const float3& rhs)
+{
+	return float3(s / rhs.x, s / rhs.y, s / rhs.z);
+}
+
+struct float4 {
 	float x, y, z, w;
-} float4;
 
-typedef struct float2_struct {
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+
+	float4()
+	{
+		x = y = z = w = 0.0f;
+	}
+
+	float4(float x, float y, float z)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+		this->w = 1.0f;
+	}
+
+	float4(float x, float y, float z, float w)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+		this->w = w;
+	}
+
+	float4(float3 P, float w)
+	{
+		this->x = P.x;
+		this->y = P.y;
+		this->z = P.z;
+		this->w = w;
+	}
+
+	float4(uvfloat4 P)
+	{
+		x = P.x0;
+		y = P.y0;
+		z = P.x1;
+		w = P.y1;
+	}
+};
+
+struct float2 {
 	float x, y;
-} float2;
+
+	float2()
+	{
+	}
+
+	float2(float x, float y)
+	{
+		this->x = x;
+		this->y = y;
+	}
+
+	float2(float* P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+	}
+
+	float2(Vector4 P)
+	{
+		this->x = P.x;
+		this->y = P.y;
+	}
+
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+};
 
 // Holds the current 3D reconstruction constants, register b6
 typedef struct MetricReconstructionCBStruct {
@@ -143,25 +281,36 @@ typedef struct OPTMeshTransformCBufferStruct {
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
 // so that we can reuse the same CB slot -- after all, we can't manipulate
 // anything while travelling through hyperspace anyway...
-typedef struct LaserPointerCBStruct {
-	int TriggerState; // 0 = Not pressed, 1 = Pressed
-	float FOVscale, iResolution[2];
+struct LaserPointerCBuffer {
+	int TriggerState[2]; // 0 = Not pressed, 1 = Pressed
+	float iResolution[2];
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	float contOrigin[2], intersection[2];
+	int bContOrigin[2], bHoveringOnActiveElem[2];
 	// 48 bytes
-	int bContOrigin, bIntersection, bHoveringOnActiveElem;
-	int DirectSBSEye;
-	// 64 bytes
-	float v0[2], v1[2]; // DEBUG
-	// 80 bytes
-	float v2[2], uv[2]; // DEBUG
-	// 96
-	int bDebugMode;
-	float cursor_radius, lp_aspect_ratio[2];
+	float4 contOrigin[2][2];
 	// 112 bytes
-} LaserPointerCBuffer;
+	float4 intersection[2][2];
+	// 176 bytes
+	float uv[2][2];
+	// 192 bytes
+	int bDebugMode, unused0;
+	float cursor_radius[2];
+	// 208 bytes
+	float inters_radius[2];
+	int bDisplayLine[2];
+	// 224 bytes
+	int bIntersection[2];
+	float lp_aspect_ratio[2];
+	// 240 bytes
+	float2 v0L, v1L; // DEBUG
+	// 256 bytes
+	float2 v2L, v0R;
+	// 272 bytes
+	float2 v1R, v2R;
+	// 288 bytes
+};
 
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
@@ -239,6 +388,17 @@ typedef struct RTConstantsBufferStruct {
 	float    RTUnused1[2];
 	// 48 bytes
 } RTConstantsBuffer;
+
+struct VRGeometryCBuffer {
+	uint32_t numStickyRegions;
+	uint32_t clicked[2];
+	uint32_t unused1;
+	// 16 bytes
+	float4   stickyRegions[MAX_VRKEYB_REGIONS];
+	// 80 bytes
+	float4   clickRegions[2];
+	// 112 bytes
+};
 
 typedef struct {
 	/* Exclusive Flags. Only one flag can be set at the same time */

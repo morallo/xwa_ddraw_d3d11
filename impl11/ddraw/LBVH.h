@@ -10,6 +10,36 @@ constexpr int ENCODED_TREE_NODE4_SIZE = 64; // BVH4 node size
 struct Vector3;
 struct Vector4;
 
+// These are copies of the structures in RTCommon.h:
+constexpr float RT_MAX_DIST = 5000.0f;
+
+struct Ray
+{
+	float3 origin;
+	float3 dir;
+	float  max_dist;
+
+	Ray()
+	{
+		origin = float3(0, 0, 0);
+		dir = float3(0, 0, 0);
+		max_dist = RT_MAX_DIST;
+	}
+};
+
+struct Intersection
+{
+	int   TriID;
+	float U, V, T;
+
+	Intersection()
+	{
+		TriID = -1;
+		T = RT_MAX_DIST * OPT_TO_METERS;
+		U = V = 0.0f;
+	}
+};
+
 #pragma pack(push, 1)
 
 // QBVH inner node

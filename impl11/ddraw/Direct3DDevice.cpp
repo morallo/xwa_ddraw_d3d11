@@ -503,7 +503,7 @@ void GetCraftViewMatrix(Matrix4 *result);
 
 inline void backProjectMetric(float sx, float sy, float rhw, Vector3 *P);
 inline void backProjectMetric(UINT index, Vector3 *P);
-inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR);
 inline Vector3 projectToInGameOrPostProcCoordsMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR = false);
 float3 InverseTransformProjectionScreen(float4 pos);
 
@@ -660,6 +660,8 @@ int g_iNumLaserCannons = 0, g_iNumIonCannons = 0;
 // Sun Colors, to be used to apply colors to the flares later
 float4 g_SunColors[MAX_SUN_FLARES];
 int g_iSunFlareCount = 0;
+
+float clamp(float val, float min, float max);
 
 /*
  * Converts a metric (OPT-scale?) depth value to in-game (sz, rhw) values, copying the behavior of the game.
@@ -1407,7 +1409,7 @@ bool rayTriangleIntersect_old(
 bool rayTriangleIntersect(
 	const Vector3 &orig, const Vector3 &dir,
 	const Vector3 &v0, const Vector3 &v1, const Vector3 &v2,
-	float &t, Vector3 &P, float &u, float &v)
+	float &t, Vector3 &P, float &u, float &v, float margin)
 {
 	// From: https://www.scratchapixel.com/code.php?id=9&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle
 #ifdef MOLLER_TRUMBORE 
@@ -1427,13 +1429,18 @@ bool rayTriangleIntersect(
 
 	Vector3 tvec = orig - v0;
 	u = tvec.dot(pvec) * invDet;
-	if (u < 0 || u > 1) return false;
+	//if (u < 0 || u > 1) return false;
+	if (u < 0.0f - margin || u > 1.0f + margin) return false;
 
 	Vector3 qvec = tvec.cross(v0v1);
 	v = dir.dot(qvec) * invDet;
-	if (v < 0 || u + v > 1) return false;
+	//if (v < 0 || u + v > 1) return false;
+	if (v < 0.0f - margin || u + v > 1.0f + margin) return false;
 
 	t = v0v2.dot(qvec) * invDet;
+	// Prevent intersections behind the origin
+	if (t < 0.0f) return false;
+
 	P = orig + t * dir;
 
 	// Compute u-v again to make them consistent with tex coords
@@ -1507,6 +1514,105 @@ bool rayTriangleIntersect(
 
 	return true; // this ray hits the triangle 
 #endif 
+}
+
+// Given segment AB and Point P, compute the closest point Q
+// on segment AB. Also return t where Q = A + t * (B - A)
+// from: https://gdbooks.gitbooks.io/3dcollisions/content/Chapter1/closest_point_on_line.html
+inline Vector3 ClosestPointOnLine(const Vector3& a, const Vector3& b, Vector3 P, float& t)
+{
+	Vector3 ab = b - a;
+	// Project c onto ab, computing the paramaterized position
+	// d(t) = a + t * (b - a)
+	t = (P - a).dot(ab) / ab.dot(ab);
+
+	// Clamp T to a 0-1 range. If t was < 0 or > 1
+	// then the closest point was outside the line!
+	t = clamp(t, 0.0f, 1.0f);
+
+	// Compute the projected position from the clamped t
+	return a + t * ab;
+}
+
+/// <summary>
+/// Variation of rayTriangleIntersect. This code will find the closest point on the triangle
+/// to point orig and return its distance
+/// </summary>
+float ClosestPointOnTriangle(
+	const Vector3& orig, const Vector3& v0, const Vector3& v1, const Vector3& v2,
+	Vector3& P, float& u, float& v, float margin)
+{
+	// Variation of rayTriangleIntersect. This code will find the closest point on the triangle
+	// to point orig and return its distance
+	// From: https://www.scratchapixel.com/code.php?id=9&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle
+	Vector3 v0v1 = v1 - v0;
+	Vector3 v0v2 = v2 - v0;
+	// Compute the normal
+	Vector3 dir = v0v1.cross(v0v2);
+	Vector3 pvec = dir.cross(v0v2);
+	float det = v0v1.dot(pvec);
+	// ray and triangle are parallel if det is close to 0
+	if (fabs(det) < 0.00001f /* kEpsilon */) return FLT_MAX;
+
+	bool inside = true;
+	float t;
+	float invDet = 1.0f / det;
+
+	Vector3 tvec = orig - v0;
+	u = tvec.dot(pvec) * invDet;
+	//if (u < 0 || u > 1) return false;
+	if (u < 0.0f - margin || u > 1.0f + margin) inside = false;
+
+	Vector3 qvec = tvec.cross(v0v1);
+	v = dir.dot(qvec) * invDet;
+	//if (v < 0 || u + v > 1) return false;
+	if (v < 0.0f - margin || u + v > 1.0f + margin) inside = false;
+
+	t = v0v2.dot(qvec) * invDet;
+	// Prevent intersections behind the origin
+	//if (t < 0.0f) return false;
+	P = orig + t * dir;
+
+	if (!inside)
+	{
+		// The intersection is outside the triangle. Compute the distance between
+		// P and all the line segments making up the triangle and return the closest
+		// one to P.
+		const Vector3 P01 = ClosestPointOnLine(v0, v1, P, t);
+		const Vector3 P12 = ClosestPointOnLine(v1, v2, P, t);
+		const Vector3 P20 = ClosestPointOnLine(v2, v0, P, t);
+		const float d01 = (P - P01).length();
+		const float d12 = (P - P12).length();
+		const float d20 = (P - P20).length();
+		const float d = min(d01, min(d12, d20));
+		if (d == d01)
+			P = P01;
+		else if (d == d12)
+			P = P12;
+		else
+			P = P20;
+	}
+
+	// P is now inside the triangle or on one of its edges. Let's compute its
+	// barycentric coords
+	Vector3 C;
+	// edge 1
+	Vector3 edge1 = v2 - v1;
+	Vector3 vp1 = P - v1;
+	C = edge1.cross(vp1);
+	u = dir.dot(C);
+
+	// edge 2
+	Vector3 edge2 = v0 - v2;
+	Vector3 vp2 = P - v2;
+	C = edge2.cross(vp2);
+	v = dir.dot(C);
+
+	float denom = dir.dot(dir);
+	u /= denom;
+	v /= denom;
+
+	return (orig - P).length();
 }
 
 /*
@@ -1600,7 +1706,7 @@ inline void InverseTransformProjectionScreen(UINT index, Vector3 *P, bool invert
  *		(regular and VR paths): post-proc UV coords. (Confirmed by rendering the XWA lights
  *		in the external HUD shader).
  */
-inline Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
+Vector3 projectMetric(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix, bool bForceNonVR) {
 	Vector3 P, temp = pos3D;
 
 	if (!bForceNonVR && g_bEnableVR) {
@@ -2247,135 +2353,6 @@ bool Direct3DDevice::ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curInd
 // DEBUG
 //FILE *colorFile = NULL, *lightFile = NULL;
 // DEBUG
-
-bool Direct3DDevice::IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex,
-	Vector3 orig, Vector3 dir, bool debug)
-{
-	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
-	D3DTLVERTEX vert;
-	uint32_t index;
-	UINT idx = curIndex;
-	float u, v, U0, V0, U1, V1, U2, V2; // , dx, dy;
-	float best_t = 10000.0f;
-	bool bIntersection = false;
-
-	Vector3 tempv0, tempv1, tempv2, tempP;
-	float tempt, tu, tv;
-
-	/*
-	FILE *outFile = NULL;
-	if (g_bDumpSSAOBuffers) {
-		if (colorFile == NULL)
-			fopen_s(&colorFile, "./colorVertices.obj", "wt");
-		if (lightFile == NULL)
-			fopen_s(&lightFile, "./lightVertices.obj", "wt");
-		outFile = texture->is_LightTexture ? lightFile : colorFile;
-	}
-	*/
-
-	if (debug)
-		log_debug("[DBG] START Geom");
-
-	for (WORD i = 0; i < instruction->wCount; i++)
-	{
-		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
-		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		U0 = g_OrigVerts[index].tu; V0 = g_OrigVerts[index].tv;
-		backProjectMetric(index, &tempv0);
-		/* if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv0.x, tempv0.y, tempv0.z);
-			Vector3 q = project(tempv0, g_viewMatrix, g_fullMatrixLeft);
-			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		} */
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = projectMetric(tempv0, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)",//=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f/vert.rhw, 
-				tempv0.x, tempv0.y, tempv0.z,
-				q.x, q.y, 1.0f/q.z /*, dx, dy */);
-		}
-
-		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
-		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		U1 = g_OrigVerts[index].tu; V1 = g_OrigVerts[index].tv;
-		backProjectMetric(index, &tempv1);
-		/* if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv1.x, tempv1.y, tempv1.z);
-			Vector3 q = project(tempv1, g_viewMatrix, g_fullMatrixLeft);
-			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		} */
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = projectMetric(tempv1, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f/vert.rhw, 
-				tempv1.x, tempv1.y, tempv1.z,
-				q.x, q.y, 1.0f/q.z /*, dx, dy */);
-		}
-
-		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
-		//px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
-		U2 = g_OrigVerts[index].tu; V2 = g_OrigVerts[index].tv;
-		backProjectMetric(index, &tempv2);
-		/* if (g_bDumpSSAOBuffers) {
-			//fprintf(outFile, "v %0.6f %0.6f %0.6f\n", tempv2.x, tempv2.y, tempv2.z);
-			Vector3 q = project(tempv2, g_viewMatrix, g_fullMatrixLeft);
-			fprintf(outFile, "v %0.6f %0.6f %0.6f\n", q.x, q.y, q.z);
-		} */
-		if (debug) {
-			vert = g_OrigVerts[index];
-			Vector3 q = projectMetric(tempv2, g_viewMatrix, g_FullProjMatrixLeft /*, &dx, &dy */);
-			log_debug("[DBG] 2D: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f, %0.3f)", //=(%0.3f, %0.3f)",
-				vert.sx, vert.sy, 1.0f/vert.rhw,
-				tempv2.x, tempv2.y, tempv2.z,
-				q.x, q.y, 1.0f/q.z /*, dx, dy */);
-		}
-
-		// Check the intersection with this triangle
-		// (tu, tv) are barycentric coordinates in the tempv0,v1,v2 triangle
-		if (rayTriangleIntersect(orig, dir, tempv0, tempv1, tempv2, tempt, tempP, tu, tv))
-		{
-			//if (isACTex) tempt -= 0.01f; // Make AC elements a little more likely to be considered before other textures
-			//if (g_bDumpLaserPointerDebugInfo)
-			//	log_debug("[DBG] [AC] %s intersected, idx: %d, t: %0.6f", texName, textureIdx, tempt);
-			if (tempt < g_fBestIntersectionDistance)
-			{
-				//if (g_bDumpLaserPointerDebugInfo)
-				//	log_debug("[DBG] [AC] %s is best intersection with idx: %d, t: %0.6f", texName, textureIdx, tempt);
-				// Update the best intersection so far
-				g_fBestIntersectionDistance = tempt;
-				g_LaserPointer3DIntersection = tempP;
-				g_iBestIntersTexIdx = textureIdx;
-				g_debug_v0 = tempv0;
-				g_debug_v1 = tempv1;
-				g_debug_v2 = tempv2;
-
-				//float v0 = tempv0; *v1 = tempv1; *v2 = tempv2;
-				//*P = tempP;
-
-				// Interpolate the texture UV using the barycentric (tu, tv) coords:
-				u = tu * U0 + tv * U1 + (1.0f - tu - tv) * U2;
-				v = tu * V0 + tv * V1 + (1.0f - tu - tv) * V2;
-
-				g_LaserPointerBuffer.uv[0] = u;
-				g_LaserPointerBuffer.uv[1] = v;
-
-				bIntersection = true;
-				g_LaserPointerBuffer.bIntersection = 1;
-			}
-		}
-		/*else {
-			if (g_bDumpLaserPointerDebugInfo && strstr(texName, "AwingCockpit.opt,TEX00080,color") != NULL)
-				log_debug("[DBG] [AC] %s considered; but no intersection found!", texName);
-		}*/
-		if (!g_config.D3dHookExists) triangle++;
-	}
-
-	if (debug)
-		log_debug("[DBG] END Geom");
-	return bIntersection;
-}
 
 void Direct3DDevice::AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture)
 {
@@ -4508,77 +4485,6 @@ HRESULT Direct3DDevice::Execute(
 							log_debug("[DBG] Reticle Centroid: %0.3f, %0.3f, Screen: %0.3f, %0.3f", g_ReticleCentroid.x, g_ReticleCentroid.y, x, y);
 						}*/
 						// DEBUG
-					}
-				}
-				// Active Cockpit: Intersect the current texture with the controller
-				if (g_bActiveCockpitEnabled && bLastTextureSelectedNotNULL &&
-					(bIsActiveCockpit || bIsCockpit && g_bFullCockpitTest && !bIsHologram))
-				{
-					Vector3 orig, dir, v0, v1, v2, P;
-					//bool debug = false;
-					//bool bIntersection;
-					//log_debug("[DBG] [AC] Testing for intersection...");
-					//if (bIsActiveCockpit) log_debug("[DBG] [AC] Testing %s", lastTextureSelected->_surface->_name);
-					
-					// DEBUG
-					/*
-					if (strstr(lastTextureSelected->_surface->_name, "TEX00061") != NULL &&
-						strstr(lastTextureSelected->_surface->_name, "AwingCockpit") != NULL) {
-						debug = g_bDumpSSAOBuffers;
-						if (debug)
-							log_debug("[DBG] [AC] %s is being tested for inters", lastTextureSelected->_surface->_name);
-					}
-					*/
-					// DEBUG
-
-					orig.x = g_contOriginViewSpace.x;
-					orig.y = g_contOriginViewSpace.y;
-					orig.z = g_contOriginViewSpace.z;
-
-					dir.x = g_contDirViewSpace.x;
-					dir.y = g_contDirViewSpace.y;
-					dir.z = g_contDirViewSpace.z;
-
-					//bool debug = g_bDumpLaserPointerDebugInfo && (strstr(lastTextureSelected->_surface->_name, "AwingCockpit.opt,TEX00080,color") != NULL);
-					IntersectWithTriangles(instruction, currentIndexLocation, lastTextureSelected->ActiveCockpitIdx, 
-						bIsActiveCockpit, orig, dir /*, debug */);
-
-					// Commented block follows (debug block for LaserPointer):
-					{
-						//if (bIntersection) {
-							//Vector3 pos2D;
-
-							//if (t < g_fBestIntersectionDistance)
-							//{
-
-								//g_fBestIntersectionDistance = t;
-								//g_LaserPointer3DIntersection = P;
-								// Project to 2D
-								//pos2D = project(g_LaserPointer3DIntersection);
-								//g_LaserPointerBuffer.intersection[0] = pos2D.x;
-								//g_LaserPointerBuffer.intersection[1] = pos2D.y;
-								//g_LaserPointerBuffer.uv[0] = u;
-								//g_LaserPointerBuffer.uv[1] = v;
-								//g_LaserPointerBuffer.bIntersection = 1;
-								//g_debug_v0 = v0;
-								//g_debug_v1 = v1;
-								//g_debug_v2 = v2;
-
-								// DEBUG
-								//{
-									/*Vector3 q;
-									q = project(v0); g_LaserPointerBuffer.v0[0] = q.x; g_LaserPointerBuffer.v0[1] = q.y;
-									q = project(v1); g_LaserPointerBuffer.v1[0] = q.x; g_LaserPointerBuffer.v1[1] = q.y;
-									q = project(v2); g_LaserPointerBuffer.v2[0] = q.x; g_LaserPointerBuffer.v2[1] = q.y;*/
-									/*
-									log_debug("[DBG] [AC] Intersection: (%0.3f, %0.3f, %0.3f) --> (%0.3f, %0.3f)",
-										g_LaserPointer3DIntersection.x, g_LaserPointer3DIntersection.y, g_LaserPointer3DIntersection.z,
-										pos2D.x, pos2D.y);
-									*/
-									//}
-									// DEBUG
-								//}
-							//}
 					}
 				}
 
