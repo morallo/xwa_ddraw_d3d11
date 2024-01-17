@@ -83,6 +83,13 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, 
 	if (!g_contStates[auxContIdx].bIsValid)
 		auxContIdx = contIdx;
 
+	// If g_config.JoystickEmul is not set to 3, then joystick emulation is not enabled.
+	// That means that the dominant-hand motion controller is most likely grasping a real
+	// joystick so it makes no sense to try and display the VR keyboard on the inactive
+	// motion controller. Let's put it on the throttle hand instead.
+	if (g_config.JoystickEmul != 3)
+		auxContIdx = g_ACJoyEmul.thrHandIdx;
+
 	if (action[0] == 0) { // void action, skip
 		//log_debug("[DBG] [AC] Skipping VOID action");
 		return;
