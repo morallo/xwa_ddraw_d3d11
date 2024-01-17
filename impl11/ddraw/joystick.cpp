@@ -245,26 +245,41 @@ static int needsJoyEmul()
 		// Probably the joystick is just an emulation from a gamepad.
 		// Rather try to use it as gamepad directly then.
 		XINPUT_STATE state;
-		if (XInputGetState(0, &state) == ERROR_SUCCESS) return 2;
+		if (XInputGetState(0, &state) == ERROR_SUCCESS)
+		{
+			log_debug("[DBG] [JOY] Gamepad found.");
+			return 2;
+		}
 	}
+
 	UINT cnt = joyGetNumDevs();
 	for (unsigned i = 0; i < cnt; ++i)
 	{
-		JOYINFOEX jie;
+		/*JOYINFOEX jie;
 		memset(&jie, 0, sizeof(jie));
 		jie.dwSize = sizeof(jie);
 		jie.dwFlags = JOY_RETURNALL;
-		UINT res = joyGetPosEx(0, &jie);
+		UINT res = joyGetPosEx(0, &jie);*/
+
+		JOYCAPS caps;
+		UINT res = joyGetDevCaps(i, &caps, sizeof(JOYCAPS));
 		if (res == JOYERR_NOERROR)
+		{
+			log_debug("[DBG] [JOY] Found joystick in slot: %d", i);
 			return 0;
+		}
 	}
+
+	log_debug("[DBG] [JOY] Couldn't find any joysticks. Enabling keyb & mouse emulation.");
 	return 1;
 }
 
 UINT WINAPI emulJoyGetNumDevs(void)
 {
 	if (g_config.JoystickEmul < 0) {
+		log_debug("[DBG] [JOY] JoystickEmul is -1, looking for devices...");
 		g_config.JoystickEmul = needsJoyEmul();
+		log_debug("[DBG] [JOY] g_config.JoystickEmul got: %d", g_config.JoystickEmul);
 	}
 	if (!g_config.JoystickEmul) {
 		return joyGetNumDevs();
