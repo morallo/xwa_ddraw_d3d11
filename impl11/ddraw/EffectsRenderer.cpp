@@ -3790,30 +3790,49 @@ void EffectsRenderer::IntersectVRGeometry()
 
 					// Search the list of active elements in this keyboard and find the closest one
 					ac_uv_coords* coords = &(g_ACElements[g_iVRKeyboardSlot].coords);
+					int bestAreaIdx = -1;
+					float bestAreaDist = FLT_MAX;
 					for (int i = 0; i < coords->numCoords; i++)
 					{
 						if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
 							coords->area[i].y0 <= v && v <= coords->area[i].y1)
 						{
-							// Recompute P and center it on the current AC element
-
-							// First, let's re-compute the UVs
-							u = (coords->area[i].x0 + coords->area[i].x1) / 2.0f;
-							v = (coords->area[i].y0 + coords->area[i].y1) / 2.0f;
-
-							// Now let's use the new UV to compute a new P... and we do it as follows:
-							// The VR Keyboard has the X-axis going from index 0 to index 1
-							// and the Y axis goes from index 0 to index 3. Looks like this:
-							//
-							// 0 -> 1
-							// |
-							// 3
-							const Vector3 O = XwaVector3ToVector3(g_vrKeybMeshVertices[0]);
-							const Vector3 X = XwaVector3ToVector3(g_vrKeybMeshVertices[1] - g_vrKeybMeshVertices[0]);
-							const Vector3 Y = XwaVector3ToVector3(g_vrKeybMeshVertices[3] - g_vrKeybMeshVertices[0]);
-							P = Vector4ToVector3(KeybTransform * XwaVector3ToVector4(O + u * X + v * Y));
+							bestAreaIdx = i;
 							break;
 						}
+						else
+						{
+							const float uc = (coords->area[i].x0 + coords->area[i].x1) / 2.0f;
+							const float vc = (coords->area[i].y0 + coords->area[i].y1) / 2.0f;
+							const float dx = uc - u, dy = vc - v;
+							const float dist = dx * dx + dy * dy;
+							if (dist < bestAreaDist)
+							{
+								bestAreaDist = dist;
+								bestAreaIdx = i;
+							}
+						}
+					}
+
+					if (bestAreaIdx != -1)
+					{
+						// Recompute P and center it on the current AC element
+
+						// First, let's re-compute the UVs
+						u = (coords->area[bestAreaIdx].x0 + coords->area[bestAreaIdx].x1) / 2.0f;
+						v = (coords->area[bestAreaIdx].y0 + coords->area[bestAreaIdx].y1) / 2.0f;
+
+						// Now let's use the new UV to compute a new P... and we do it as follows:
+						// The VR Keyboard has the X-axis going from index 0 to index 1
+						// and the Y axis goes from index 0 to index 3. Looks like this:
+						//
+						// 0 -> 1
+						// |
+						// 3
+						const Vector3 O = XwaVector3ToVector3(g_vrKeybMeshVertices[0]);
+						const Vector3 X = XwaVector3ToVector3(g_vrKeybMeshVertices[1] - g_vrKeybMeshVertices[0]);
+						const Vector3 Y = XwaVector3ToVector3(g_vrKeybMeshVertices[3] - g_vrKeybMeshVertices[0]);
+						P = Vector4ToVector3(KeybTransform * XwaVector3ToVector4(O + u * X + v * Y));
 					}
 
 					g_LaserPointerBuffer.uv[contIdx][0] = u;
@@ -6265,7 +6284,8 @@ void EffectsRenderer::RenderVRGloves()
 		int profile = VRGlovesProfile::NEUTRAL;
 		if (g_contStates[i].buttons[VRButtons::GRIP])
 			profile = VRGlovesProfile::GRASP;
-		if (g_fLaserIntersectionDistance[i] < 0.18f * METERS_TO_OPT && g_bPrevHoveringOnActiveElem[i])
+		if (g_fLaserIntersectionDistance[i] < GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT &&
+			g_bPrevHoveringOnActiveElem[i])
 			profile = VRGlovesProfile::POINT;
 
 		// Translate the glove so that it clicks on objects when the trigger button is pressed.
