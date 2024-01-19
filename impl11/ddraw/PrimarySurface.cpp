@@ -7929,7 +7929,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_fLaserIntersectionDistance[contIdx] = (D - O).length();
 
 			// DEBUG
-#ifndef DISABLED
+#ifdef DISABLED
 			{
 				Vector4 pos2D[2];
 				Vector4 P;

@@ -1849,10 +1849,10 @@ void EffectsRenderer::CreateVRMeshes()
 	// This makes the keyboard appear slightly above our hand and near the index finger.
 	const float dispY = -0.03f * METERS_TO_OPT;
 	const float dispZ = H / 2.0f;
-	g_vrKeybMeshVertices[0] = { -W / 2.0f, dispY,  H / 2.0f + dispZ };
-	g_vrKeybMeshVertices[1] = {  W / 2.0f, dispY,  H / 2.0f + dispZ };
-	g_vrKeybMeshVertices[2] = {  W / 2.0f, dispY, -H / 2.0f + dispZ };
-	g_vrKeybMeshVertices[3] = { -W / 2.0f, dispY, -H / 2.0f + dispZ };
+	g_vrKeybMeshVertices[0] = { -W / 2.0f, dispY,  H / 2.0f + dispZ }; // Up-Left
+	g_vrKeybMeshVertices[1] = {  W / 2.0f, dispY,  H / 2.0f + dispZ }; // Up-Right
+	g_vrKeybMeshVertices[2] = {  W / 2.0f, dispY, -H / 2.0f + dispZ }; // Dn-Right
+	g_vrKeybMeshVertices[3] = { -W / 2.0f, dispY, -H / 2.0f + dispZ }; // Dn-Left
 
 	initialData.SysMemPitch = 0;
 	initialData.SysMemSlicePitch = 0;
@@ -3758,7 +3758,7 @@ void EffectsRenderer::IntersectVRGeometry()
 				Vector3 v2 = Vector4ToVector3(p2);
 
 				Vector3 P;
-				float dist = FLT_MAX, u, v;
+				float dist = FLT_MAX, baryU, baryV;
 
 				// Find the intersection along the triangle's normal (the closest point on the triangle)
 				Vector3 e10 = v1 - v0;
@@ -3767,39 +3767,71 @@ void EffectsRenderer::IntersectVRGeometry()
 				N.normalize();
 				N *= METERS_TO_OPT; // Everything is OPT scale here
 				Vector3 O = Vector4ToVector3(contOrigin[contIdx]);
-				const bool directedInters = rayTriangleIntersect(O, N, v0, v1, v2, dist, P, u, v, margin);
+				const bool directedInters = rayTriangleIntersect(O, N, v0, v1, v2, dist, P, baryU, baryV, margin);
+				const float baryW = 1.0f - baryU - baryV;
 
 				// Allowing negative distances prevents phantom clicking when we "push" behind the
 				// floating keyboard. dir is already in OPT scale, so we can just use 0.01 below and
 				// that means "1cm".
 				// GLOVE_NEAR_THRESHOLD_METERS rejects intersections that are too far away from the target
 				// (more than 5cms)
-				if (directedInters && dist > -0.01f && dist < GLOVE_NEAR_THRESHOLD_METERS &&
+				if (directedInters && dist > -0.02f && dist < GLOVE_NEAR_THRESHOLD_METERS &&
 					dist < g_fBestIntersectionDistance[contIdx])
 				{
 					g_fBestIntersectionDistance[contIdx] = dist;
-
-					const float baryU = u;
-					const float baryV = v;
-					const float baryW = 1.0f - baryU - baryV;
+					g_iBestIntersTexIdx[contIdx] = g_iVRKeyboardSlot;
 
 					XwaTextureVertex bestUV0 = g_vrKeybTextureCoords[t.v1];
 					XwaTextureVertex bestUV1 = g_vrKeybTextureCoords[t.v2];
 					XwaTextureVertex bestUV2 = g_vrKeybTextureCoords[t.v3];
 
-					g_LaserPointerBuffer.uv[contIdx][0] = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
-					g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
-					g_iBestIntersTexIdx[contIdx] = g_iVRKeyboardSlot;
+					float u = baryU * bestUV0.u + baryV * bestUV1.u + baryW * bestUV2.u;
+					float v = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
+
+					// Search the list of active elements in this keyboard and find the closest one
+					ac_uv_coords* coords = &(g_ACElements[g_iVRKeyboardSlot].coords);
+					for (int i = 0; i < coords->numCoords; i++)
+					{
+						if (coords->area[i].x0 <= u && u <= coords->area[i].x1 &&
+							coords->area[i].y0 <= v && v <= coords->area[i].y1)
+						{
+							// Recompute P and center it on the current AC element
+
+							// First, let's re-compute the UVs
+							u = (coords->area[i].x0 + coords->area[i].x1) / 2.0f;
+							v = (coords->area[i].y0 + coords->area[i].y1) / 2.0f;
+
+							// Now let's use the new UV to compute a new P... and we do it as follows:
+							// The VR Keyboard has the X-axis going from index 0 to index 1
+							// and the Y axis goes from index 0 to index 3. Looks like this:
+							//
+							// 0 -> 1
+							// |
+							// 3
+							const Vector3 O = XwaVector3ToVector3(g_vrKeybMeshVertices[0]);
+							const Vector3 X = XwaVector3ToVector3(g_vrKeybMeshVertices[1] - g_vrKeybMeshVertices[0]);
+							const Vector3 Y = XwaVector3ToVector3(g_vrKeybMeshVertices[3] - g_vrKeybMeshVertices[0]);
+							P = Vector4ToVector3(KeybTransform * XwaVector3ToVector4(O + u * X + v * Y));
+							break;
+						}
+					}
+
+					g_LaserPointerBuffer.uv[contIdx][0] = u;
+					g_LaserPointerBuffer.uv[contIdx][1] = v;
 
 					if (contIdx == 0)
 					{
-						g_enable_ac_debug = true;
+						//g_enable_ac_debug = true;
+						g_enable_ac_debug = false;
 						g_debug_v0 = v0;
 						g_debug_v1 = v1;
 						g_debug_v2 = v2;
 					}
 
 					g_LaserPointer3DIntersection[contIdx] = P;
+					// There's no need to test the other triangle in the VR keyb mesh. The closest
+					// intersection is along the normal anyway and we just found it.
+					continue;
 				}
 			}
 		}
