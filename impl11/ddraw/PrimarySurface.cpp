@@ -285,7 +285,7 @@ void GetFakeYawPitchRollFromKeyboard(float *yaw, float *pitch, float *roll) {
  * Returns the current yaw, pitch in PlayerDataTable in degrees
  */
 void GetFakeYawPitchRollFromMouseLook(float *yaw, float *pitch, float *roll) {
-	*yaw   = -(float)PlayerDataTable[*g_playerIndex].MousePositionX   / 65536.0f * 360.0f;
+	*yaw   = -(float)PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f;
 	*pitch =  (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
 	*roll  =  0.0f;
 }
@@ -3732,7 +3732,7 @@ void GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
 		pitch = (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
 	}
 	else {
-		yaw   = (float)PlayerDataTable[*g_playerIndex].MousePositionX   / 65536.0f * 360.0f + 180.0f;
+		yaw   = (float)PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f + 180.0f;
 		pitch = (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
 	}
 
@@ -3792,7 +3792,7 @@ void PrimarySurface::GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool inver
 void GetGunnerTurretViewMatrix(Matrix4 *result) {
 	// This is what the matrix looks like when looking forward:
 	// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
-	float factor = 32768.0f;
+	const float factor = 32768.0f;
 	/*
 	short *Turret = (short *)(0x8B94E0 + 0x21E);
 	Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
@@ -7618,7 +7618,10 @@ Vector4 OPTCoordsToSteamVR(Vector4 P)
 	return Q;
 }
 
-void VRControllerToOPTCoords(Vector4 contOrigin[2], Vector4 contDir[2])
+/// <summary>
+/// Converts the controller SteamVR position to Viewspace OPT coords.
+/// </summary>
+void VRControllerToOPTCoords(Vector4 contOrigin[2], Vector4 contDir[2], bool bIsGunner)
 {
 	for (int i = 0; i < 2; i++)
 	{
@@ -7744,7 +7747,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	//	g_LaserPointerBuffer.DirectSBSEye = 1;
 
 	Vector4 contOriginDisplay[2], contDirDisplay[2];
-	VRControllerToOPTCoords(contOriginDisplay, contDirDisplay);
+	VRControllerToOPTCoords(contOriginDisplay, contDirDisplay, false);
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_LaserPointerBuffer.x0 = x0;
