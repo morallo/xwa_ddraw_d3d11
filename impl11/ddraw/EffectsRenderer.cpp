@@ -2238,61 +2238,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	g_vrGlovesMeshes[0].rendered = false;
 	g_vrGlovesMeshes[1].rendered = false;
 
-	// Update the position of the keyboard
-	if (g_bActiveCockpitEnabled && g_bUseSteamVR)
-	{
-		const float cockpitOriginX = *g_POV_X;
-		const float cockpitOriginY = *g_POV_Y;
-		const float cockpitOriginZ = *g_POV_Z;
-
-		static Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
-
-		// Only update the position while the keyboard is hovering
-		if (g_vrKeybState.state == KBState::HOVER && g_contStates[g_vrKeybState.iHoverContIdx].bIsValid)
-		{
-			Matrix4 R, S;
-			S.scale(OPT_TO_METERS);
-			// The InitialTransform below ensures that the keyboard is always vertical when displayed, however,
-			// we'd still like to tilt it a little bit to make it easier to type things
-			R.rotateX(25.0f);
-
-			Matrix4 Tinv, Sinv;
-			Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
-			               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
-			               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
-			Sinv.scale(METERS_TO_OPT);
-
-			Matrix4 toSteamVR = swap * S * R;
-			Matrix4 toOPT     = Tinv * Sinv * swap;
-
-			// This is the origin of the controller, in SteamVR coords:
-			//const float* m0 = g_contStates[thrIdx].pose.get();
-			//Vector4 P = Vector4(m0[12], m0[13], m0[14], 1.0f);
-
-			// g_vrKeybState.state is HOVER because of the if above. So this is the transition
-			// where the keyboard is initially displayed.
-			if (g_vrKeybState.prevState != KBState::HOVER)
-			{
-				g_vrKeybState.InitialTransform = g_contStates[g_vrKeybState.iHoverContIdx].pose;
-				const float *m0 = g_vrKeybState.InitialTransform.get();
-				float m[16];
-				for (int i = 0; i < 16; i++) m[i] = m0[i];
-				// Erase the translation
-				m[12] = m[13] = m[14] = 0;
-				g_vrKeybState.InitialTransform.set(m);
-				// Invert the rotation
-				g_vrKeybState.InitialTransform.invert();
-			}
-			// Convert OPT to SteamVR coords, then invert the initial pose so that the keyboard is
-			// always shown upright, then apply the current VR controller pose, and finally move
-			// everything back to cockpit (viewpsace) coords.
-			g_vrKeybState.Transform = toOPT * g_contStates[g_vrKeybState.iHoverContIdx].pose * g_vrKeybState.InitialTransform * toSteamVR;
-			// XwaD3dVertexShader does a post-multiplication, so we need to transpose this:
-			g_vrKeybState.Transform.transpose();
-		}
-		g_vrKeybState.prevState = g_vrKeybState.state;
-	}
-
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
 		// Create the file if it doesn't exist
@@ -6083,9 +6028,93 @@ void EffectsRenderer::RenderTransparency()
 
 void EffectsRenderer::RenderVRKeyboard()
 {
-	if (!g_bUseSteamVR)
+	if (!g_bUseSteamVR || !g_bActiveCockpitEnabled)
 		return;
 
+	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
+	if (g_vrKeybState.bRendered || g_vrKeybState.state == KBState::OFF || !_bCockpitConstantsCaptured)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderVRKeyboard");
+
+	// Update the position of the keyboard
+	{
+		const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+			PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
+		const float cockpitOriginX = *g_POV_X;
+		const float cockpitOriginY = *g_POV_Y;
+		const float cockpitOriginZ = *g_POV_Z;
+
+		static Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+
+		Matrix4 R, S;
+		S.scale(OPT_TO_METERS);
+		// The InitialTransform below ensures that the keyboard is always vertical when displayed, however,
+		// we'd still like to tilt it a little bit to make it easier to type things
+		R.rotateX(25.0f);
+
+		Matrix4 Tinv, Sinv;
+		if (!bGunnerTurret)
+			Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
+			               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
+			               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
+		else
+			Tinv.identity();
+		Sinv.scale(METERS_TO_OPT);
+
+		Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+		Matrix4 Vinv;
+		if (bGunnerTurret)
+		{
+			// fullViewMat is available here, near the end of the frame; but it's not available in SceneBegin()
+			Vinv = g_VSMatrixCB.fullViewMat;
+			Vinv.invert();
+		}
+
+		Matrix4 toSteamVR = swap * S * R;
+		Matrix4 toOPT     = Tinv * Sinv * swap;
+
+		static Matrix4 H; // Hover pose matrix
+		// Only update the position while the keyboard is hovering
+		if (g_vrKeybState.state == KBState::HOVER && g_contStates[g_vrKeybState.iHoverContIdx].bIsValid)
+		{
+			// The hover matrix is only updated when the VR keyb is in the HOVER state
+			H = g_contStates[g_vrKeybState.iHoverContIdx].pose;
+
+			// This is the origin of the controller, in SteamVR coords:
+			//const float* m0 = g_contStates[thrIdx].pose.get();
+			//Vector4 P = Vector4(m0[12], m0[13], m0[14], 1.0f);
+
+			// g_vrKeybState.state is HOVER because of the if above. So this is the transition
+			// where the keyboard is initially displayed.
+			if (g_vrKeybState.prevState != KBState::HOVER)
+			{
+				g_vrKeybState.InitialTransform = g_contStates[g_vrKeybState.iHoverContIdx].pose;
+				const float* m0 = g_vrKeybState.InitialTransform.get();
+				float m[16];
+				for (int i = 0; i < 16; i++) m[i] = m0[i];
+				// Erase the translation
+				m[12] = m[13] = m[14] = 0;
+				g_vrKeybState.InitialTransform.set(m);
+				// Invert the rotation
+				g_vrKeybState.InitialTransform.invert();
+			}
+		}
+
+		// Convert OPT to SteamVR coords, then invert the initial pose so that the keyboard is
+		// always shown upright, then apply the current VR controller pose, and finally move
+		// everything back to cockpit (viewpsace) coords.
+		if (!bGunnerTurret)
+			g_vrKeybState.Transform = toOPT * H * g_vrKeybState.InitialTransform * toSteamVR;
+		else
+			g_vrKeybState.Transform = swapScale * toOPT * Vinv * H * g_vrKeybState.InitialTransform * toSteamVR;
+		// XwaD3dVertexShader does a post-multiplication, so we need to transpose this:
+		g_vrKeybState.Transform.transpose();
+		g_vrKeybState.prevState = g_vrKeybState.state;
+	}
+
+	// I think prevState is redundant, we should be able to use g_vrKeybState.prevState instead
 	static KBState prevState = KBState::OFF;
 	static float fadeIn, fadeInIncr;
 	if (prevState != KBState::HOVER && g_vrKeybState.state == KBState::HOVER)
@@ -6103,18 +6132,13 @@ void EffectsRenderer::RenderVRKeyboard()
 	if (fadeIn > 2.0f) {
 		fadeIn = 0.0f;
 		fadeInIncr = 0.0f;
-	} else if (g_vrKeybState.state == KBState::CLOSING && fadeIn < 1.0f) {
+	}
+	else if (g_vrKeybState.state == KBState::CLOSING && fadeIn < 1.0f) {
 		fadeIn = 0.0f;
 		fadeInIncr = 0.0f;
 		g_vrKeybState.state = KBState::OFF;
 	}
 	prevState = g_vrKeybState.state;
-
-	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
-	if (!g_bActiveCockpitEnabled || g_vrKeybState.bRendered || g_vrKeybState.state == KBState::OFF || !_bCockpitConstantsCaptured)
-		return;
-
-	_deviceResources->BeginAnnotatedEvent(L"RenderVRKeyboard");
 
 	auto& resources = _deviceResources;
 	auto& context = resources->_d3dDeviceContext;
@@ -6188,6 +6212,15 @@ void EffectsRenderer::RenderVRKeyboard()
 	_deviceResources->InitIndexBuffer(_vrKeybIndexBuffer.Get(), true);
 
 	// Set the constants buffer
+	if (bGunnerTurret)
+	{
+		// For the Gunner Turret, we're going to remove the world-view transform and replace it
+		// with an identity matrix. That way, the gloves, which are already in viewspace coords,
+		// will follow the headset no matter how the turret is oriented.
+		Matrix4 Id;
+		const float* m = Id.get();
+		for (int i = 0; i < 16; i++) _CockpitConstants.transformWorldView[i] = m[i];
+	}
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
 	_trianglesCount = g_vrKeybNumTriangles;
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
