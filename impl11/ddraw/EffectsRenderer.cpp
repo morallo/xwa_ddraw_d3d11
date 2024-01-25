@@ -3622,15 +3622,36 @@ void EffectsRenderer::IntersectVRGeometry()
 	if (!g_bRendering3D)
 		return;
 
-	Matrix4 KeybTransform = g_vrKeybState.Transform;
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
+	Matrix4 KeybTransform = bGunnerTurret ? g_vrKeybState.OPTTransform : g_vrKeybState.Transform;
+	Matrix4 InvOPTTransform;
 	// We premultiply in the code below, so we need to transpose the matrix because
 	// the Vertex shader does a postmultiplication
 	KeybTransform.transpose();
+	if (bGunnerTurret)
+	{
+		InvOPTTransform = KeybTransform;
+		InvOPTTransform.invert();
+	}
 
 	Vector4 contOrigin[2], contDir[2];
-	VRControllerToOPTCoords(contOrigin, contDir, _bIsGunner);
-	const float margin = 0.01f;
+	if (!bGunnerTurret)
+		VRControllerToOPTCoords(contOrigin, contDir, _bIsGunner);
+	else
+	{
+		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+		Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
+		Matrix4 toOPT = Sinv * swap;
+		for (int i = 0; i < 2; i++)
+		{
+			g_contOriginWorldSpace[i].w = 1.0f;
+			contOrigin[i] = toOPT * g_contOriginWorldSpace[i];
+		}
+	}
 
+	const float margin = 0.01f;
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
 		const int auxContIdx = (contIdx + 1) % 2;
@@ -3800,6 +3821,25 @@ void EffectsRenderer::IntersectVRGeometry()
 						g_debug_v2 = v2;
 					}
 
+					if (bGunnerTurret)
+					{
+						//log_debug("[DBG] [AC] P: %0.3f, %0.3f, %0.3f", P.x, P.y, P.z);
+						Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+						Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+						Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
+						Matrix4 toOPT = Sinv * swap;
+						Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
+						Vinv.invert();
+						Matrix4 toOPTInv = toOPT;
+						toOPTInv.invert();
+
+						Vector4 Q = { P.x, P.y, P.z, 1.0f };
+						//Q = swapScale * toOPT * Vinv * toOPTInv * Q;
+						//Q = toOPT * Vinv * toOPTInv * Q;
+						//Q = Sinv * Vinv * toOPTInv * Q;
+						Q = Vinv * toOPTInv * Q;
+						P = Vector4ToVector3(Q);
+					}
 					g_LaserPointer3DIntersection[contIdx] = P;
 					// There's no need to test the other triangle in the VR keyb mesh. The closest
 					// intersection is along the normal anyway and we just found it.
@@ -6102,15 +6142,26 @@ void EffectsRenderer::RenderVRKeyboard()
 			}
 		}
 
-		// Convert OPT to SteamVR coords, then invert the initial pose so that the keyboard is
-		// always shown upright, then apply the current VR controller pose, and finally move
-		// everything back to cockpit (viewpsace) coords.
 		if (!bGunnerTurret)
+		{
+			// Convert OPT to SteamVR coords, then invert the initial pose so that the keyboard is
+			// always shown upright, then apply the current VR controller pose, and finally move
+			// everything back to cockpit (viewpsace) coords.
 			g_vrKeybState.Transform = toOPT * H * g_vrKeybState.InitialTransform * toSteamVR;
+		}
 		else
+		{
+			// Convert OPT to SteamVR coords, then invert the initial pose so that the keyboard is
+			// always shown upright, then apply the current VR controller pose, invert the headset view
+			// matrix, convert everything back to viewspace coords and swap the axes since we're not
+			// using the regular world-view transform matrix (it's the identity matrix, see below).
+			// We do all this so that the VR keyboard is displayed in viewspace coords in the gunner turret.
 			g_vrKeybState.Transform = swapScale * toOPT * Vinv * H * g_vrKeybState.InitialTransform * toSteamVR;
+			g_vrKeybState.OPTTransform = toOPT * H * g_vrKeybState.InitialTransform * toSteamVR;
+		}
 		// XwaD3dVertexShader does a post-multiplication, so we need to transpose this:
 		g_vrKeybState.Transform.transpose();
+		g_vrKeybState.OPTTransform.transpose();
 		g_vrKeybState.prevState = g_vrKeybState.state;
 	}
 
@@ -6225,7 +6276,7 @@ void EffectsRenderer::RenderVRKeyboard()
 	_trianglesCount = g_vrKeybNumTriangles;
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
-	// Render the deferred commands
+	// Render the VR keyboard
 	RenderScene();
 
 	// Decrease the refcount of the textures
@@ -6415,7 +6466,7 @@ void EffectsRenderer::RenderVRGloves()
 		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
 		_trianglesCount = g_vrGlovesMeshes[i].numTriangles;
 
-		// Render the deferred commands
+		// Render the gloves
 		RenderScene();
 
 		// Decrease the refcount of the textures

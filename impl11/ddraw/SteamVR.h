@@ -101,6 +101,7 @@ struct VRKeybState
 	float   fPixelWidth;
 	float   fPixelHeight;
 	Matrix4 Transform; // Used to place the keyboard mesh inside a cockpit
+	Matrix4 OPTTransform; // Used to test intersections in the Gunner Turret
 	Matrix4 InitialTransform; // Captured when the keyb is initially turned on
 	int     iHoverContIdx;
 	char    sImageName[128];
@@ -123,6 +124,8 @@ struct VRKeybState
 		fPixelWidth  = 1024;
 		fPixelHeight = 480;
 		Transform.identity();
+		OPTTransform.identity();
+		InitialTransform.identity();
 
 		iHoverContIdx = 0;
 		ClearRegions();

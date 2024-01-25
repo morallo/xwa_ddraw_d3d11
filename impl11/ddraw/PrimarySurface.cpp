@@ -7656,6 +7656,7 @@ void OPTVertexToPostProcCoords(float* viewportScale, const Vector4& P, float *sc
 }
 
 /*
+ * pos2D = EyeProj * Headset * OPT_TO_METERS * WorldView * pos3D
  * According to my own notes, in SteamVR, the coordinate system is as follows:
  * +x is right
  * +y is up
@@ -7663,32 +7664,38 @@ void OPTVertexToPostProcCoords(float* viewportScale, const Vector4& P, float *sc
  */
 void PrimarySurface::OPTVertexToSteamVRPostProcCoords(Vector4 pos3D, Vector4 pos2D[2])
 {
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
 	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+	// TODO: When pos3D comes from the Gunner Turret, then W should be the identity matrix
 	const Matrix4 W = Matrix4(renderer->_CockpitConstants.transformWorldView);
 	const float pos3Dw = pos3D.w;
-
 	const Matrix4 V = g_VSMatrixCB.fullViewMat;
-
 	Vector4 P;
-	// Transform to WorldView coords:
-	P  = W * pos3D;
-	P *= OPT_TO_METERS;
 
-	pos3D.x = P.x;
-	pos3D.y = P.z;
-	pos3D.z = P.y;
-	// At this point, output.pos3D is metric, X+ is right, Y+ is up and Z- is forward (away from the camera), because
-	// that's the SteamVR coord sys
+	if (!bGunnerTurret)
+	{
+		// Transform to WorldView coords:
+		P = W * pos3D;
+		P *= OPT_TO_METERS;
 
-	// Apply the current SteamVR headset orientation:
-	// I know this is weird, but we need to set w = 0 because the translation is already
-	// applied to the World through the Cockpit Look Hook. So if we apply it here again,
-	// the cursor will be translated twice. So, we set w = 0 and thus avoid the translation...
-	pos3D.w = 0.0f;
-	pos3D = V * pos3D;
-	// ... but then we need to set w = 1 back here to enable the regular projection that is
-	// effected below.
-	pos3D.w = pos3Dw;
+		pos3D.x = P.x;
+		pos3D.y = P.z;
+		pos3D.z = P.y;
+		// At this point, output.pos3D is metric, X+ is right, Y+ is up and Z- is forward (away from the camera), because
+		// that's the SteamVR coord sys
+
+		// Apply the current SteamVR headset orientation:
+		// I know this is weird, but we need to set w = 0 because the translation is already
+		// applied to the World through the Cockpit Look Hook. So if we apply it here again,
+		// the cursor will be translated twice. So, we set w = 0 and thus avoid the translation...
+		pos3D.w = 0.0f;
+		pos3D = V * pos3D;
+		// ... but then we need to set w = 1 back here to enable the regular projection that is
+		// effected below.
+		pos3D.w = pos3Dw;
+	}
 
 	for (int eye = 0; eye < 2; eye++)
 	{
@@ -7734,6 +7741,9 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// The viewport covers the *whole* screen, including areas that were not rendered during the forward pass
 	// because this is a post-process effect
 
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
 		context->ResolveSubresource(
@@ -7746,6 +7756,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	//if (g_bEnableVR && !g_bUseSteamVR)
 	//	g_LaserPointerBuffer.DirectSBSEye = 1;
 
+	// contOriginDisplay is in OPT coords, viewspace
 	Vector4 contOriginDisplay[2], contDirDisplay[2];
 	VRControllerToOPTCoords(contOriginDisplay, contDirDisplay, false);
 
@@ -7969,9 +7980,20 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		// Compute the projected size of the intersection point (P)
 		{
 			// P is in OPT coords, now we need to transform it to WorldView coords for the projection:
+			// If the Gunner Turret is active, then P is in SteamVR coords, so we need to make some adjustments.
 			Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f);
-			Q = W * Q;
-			if (Q.z > 0.01f) // Don't display the intersection if it's behind the camera
+			if (!bGunnerTurret)
+				Q = W * Q;
+
+			// Don't display the intersection if it's behind the camera
+			// This is not a mistake, Q is in OPT scale, but Z is depth
+			//if (Q.z > 0.01f)
+			bool renderInters = false;
+			if (!bGunnerTurret)
+				renderInters = (Q.z > 0.01f);
+			else
+				renderInters = (Q.z < -0.01f);
+			if (renderInters)
 			{
 				if (!g_bUseSteamVR)
 				{
@@ -7995,7 +8017,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 					// Left eye
 					g_LaserPointerBuffer.intersection[contIdx][0][0] = pos2D[0].x;
 					g_LaserPointerBuffer.intersection[contIdx][0][1] = pos2D[0].y;
-					g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
+					if (!bGunnerTurret)
+						g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
+					else
+						g_LaserPointerBuffer.intersection[contIdx][0][2] = -Q.z;
 
 					// Right eye
 					g_LaserPointerBuffer.intersection[contIdx][1][0] = pos2D[1].x;
@@ -8004,7 +8029,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 					// Project a point 1.5mm to the right of Q to get the proper 3D radius
 					float sX0 = pos2D[0].x;
-					Q.x += (0.0015f * METERS_TO_OPT);
+					if (!bGunnerTurret)
+						Q.x += (0.0015f * METERS_TO_OPT);
+					else
+						Q.x += 0.0015f;
 					OPTVertexToSteamVRPostProcCoords(Q, pos2D);
 					g_LaserPointerBuffer.inters_radius[contIdx] = (pos2D[0].x - sX0);
 				}
