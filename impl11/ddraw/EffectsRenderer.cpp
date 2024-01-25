@@ -3823,21 +3823,19 @@ void EffectsRenderer::IntersectVRGeometry()
 
 					if (bGunnerTurret)
 					{
-						//log_debug("[DBG] [AC] P: %0.3f, %0.3f, %0.3f", P.x, P.y, P.z);
-						Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
 						Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 						Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
-						Matrix4 toOPT = Sinv * swap;
+						Matrix4 S = Matrix4().scale(OPT_TO_METERS);
+						Matrix4 toSteamVR = swap * S;
 						Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
 						Vinv.invert();
-						Matrix4 toOPTInv = toOPT;
-						toOPTInv.invert();
 
 						Vector4 Q = { P.x, P.y, P.z, 1.0f };
-						//Q = swapScale * toOPT * Vinv * toOPTInv * Q;
-						//Q = toOPT * Vinv * toOPTInv * Q;
-						//Q = Sinv * Vinv * toOPTInv * Q;
-						Q = Vinv * toOPTInv * Q;
+						// Convert Q, which is in OPT coords to SteamVR coords, then invert the
+						// headset rotation. Finally convert to OPT-scale -- but don't swap the axes!
+						// Just invert Z to make it consistent with RenderLaserPointer()
+						Q = Sinv * Vinv * toSteamVR * Q;
+						Q.z = -Q.z;
 						P = Vector4ToVector3(Q);
 					}
 					g_LaserPointer3DIntersection[contIdx] = P;

@@ -7696,6 +7696,12 @@ void PrimarySurface::OPTVertexToSteamVRPostProcCoords(Vector4 pos3D, Vector4 pos
 		// effected below.
 		pos3D.w = pos3Dw;
 	}
+	else
+	{
+		pos3D = OPT_TO_METERS * pos3D;
+		pos3D.z = -pos3D.z;
+		pos3D.w = pos3Dw;
+	}
 
 	for (int eye = 0; eye < 2; eye++)
 	{
@@ -7986,14 +7992,10 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				Q = W * Q;
 
 			// Don't display the intersection if it's behind the camera
-			// This is not a mistake, Q is in OPT scale, but Z is depth
-			//if (Q.z > 0.01f)
-			bool renderInters = false;
-			if (!bGunnerTurret)
-				renderInters = (Q.z > 0.01f);
-			else
-				renderInters = (Q.z < -0.01f);
-			if (renderInters)
+			// This is not a mistake, Q is in OPT scale, but Z is depth. The multiplication by W
+			// above does the axis swap for the regular cockpit, and for the Gunner Turret, we
+			// make sure to do the swap in IntersectVRGeometry()
+			if (Q.z > 0.01f)
 			{
 				if (!g_bUseSteamVR)
 				{
@@ -8017,10 +8019,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 					// Left eye
 					g_LaserPointerBuffer.intersection[contIdx][0][0] = pos2D[0].x;
 					g_LaserPointerBuffer.intersection[contIdx][0][1] = pos2D[0].y;
-					if (!bGunnerTurret)
-						g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
-					else
-						g_LaserPointerBuffer.intersection[contIdx][0][2] = -Q.z;
+					g_LaserPointerBuffer.intersection[contIdx][0][2] = Q.z * OPT_TO_METERS;
 
 					// Right eye
 					g_LaserPointerBuffer.intersection[contIdx][1][0] = pos2D[1].x;
@@ -8029,10 +8028,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 					// Project a point 1.5mm to the right of Q to get the proper 3D radius
 					float sX0 = pos2D[0].x;
-					if (!bGunnerTurret)
-						Q.x += (0.0015f * METERS_TO_OPT);
-					else
-						Q.x += 0.0015f;
+					Q.x += (0.0015f * METERS_TO_OPT);
 					OPTVertexToSteamVRPostProcCoords(Q, pos2D);
 					g_LaserPointerBuffer.inters_radius[contIdx] = (pos2D[0].x - sX0);
 				}
