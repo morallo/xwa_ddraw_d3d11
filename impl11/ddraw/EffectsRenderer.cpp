@@ -436,6 +436,11 @@ inline Vector3 Vector4ToVector3(const Vector4& V)
 	return Vector3(V.x, V.y, V.z);
 }
 
+inline Vector4 Vector3ToVector4(const Vector3& V, float w)
+{
+	return Vector4(V.x, V.y, V.z, w);
+}
+
 inline Vector2 XwaTextureVertexToVector2(const XwaTextureVertex &V)
 {
 	return Vector2(V.u, V.v);
@@ -6406,20 +6411,29 @@ void EffectsRenderer::RenderVRGloves()
 		Matrix4 gloveDisp;
 		if (profile == VRGlovesProfile::POINT && g_contStates[i].buttons[VRButtons::TRIGGER])
 		{
+			Vector4 I;
+
 			if (bGunnerTurret)
 			{
-				// This is the same transform chain used in IntersectVRGeometry()
-				Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
-				Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
-				Matrix4 toOPT = Sinv * swap;
+				// The following transform chain is inspired by the VR glove transform chain, which is:
+				// g_vrGlovesMeshes[i].pose = swapScale * gloveDisp * toOPT * Vinv * g_contStates[i].pose * toSteamVR;
+				// But in this case, swapScale is not needed, gloveDisp does not exist, and we're starting
+				// from SteamVR coords, so the chain is simpler:
+				Matrix4 toGunnerOPT = toOPT * Vinv;
+
+				// Recompute contOrigin and I:
 				g_contOriginWorldSpace[i].w = 1.0f;
-				contOrigin[i] = toOPT * g_contOriginWorldSpace[i];
+				contOrigin[i] = toGunnerOPT * g_contOriginWorldSpace[i];
+				I = toGunnerOPT * Vector3ToVector4(g_LaserPointerIntersSteamVR[i], 1.0f);
+			}
+			else
+			{
+				I = Vector4(g_LaserPointer3DIntersection[i]);
 			}
 
 			// Just move the finger (i.e. the origin) to the intersection point. That should work
 			// regardless of the direction the controller is facing.
 			// Coordinates here are OPT-Viewspace.
-			Vector4 I = Vector4(g_LaserPointer3DIntersection[i]);
 			Vector4 dir = I - contOrigin[i];
 			// Only displace the glove if it's close enough to the target:
 			if (dir.length() < GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT)
