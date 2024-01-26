@@ -3831,10 +3831,17 @@ void EffectsRenderer::IntersectVRGeometry()
 						Vinv.invert();
 
 						Vector4 Q = { P.x, P.y, P.z, 1.0f };
-						// Convert Q, which is in OPT coords to SteamVR coords, then invert the
+						// Convert Q (which is in OPT coords), to SteamVR coords, then invert the
 						// headset rotation. Finally convert to OPT-scale -- but don't swap the axes!
 						// Just invert Z to make it consistent with RenderLaserPointer()
-						Q = Sinv * Vinv * toSteamVR * Q;
+						Q = toSteamVR * Q;
+						// This is a bit of a crutch, but I'm temporarily storing the intersection in
+						// SteamVR coords because it's easier to test the distance with the controller
+						// in this framework. This shouldn't be necessary, though.
+						g_LaserPointerIntersSteamVR[contIdx].x = Q.x;
+						g_LaserPointerIntersSteamVR[contIdx].y = Q.y;
+						g_LaserPointerIntersSteamVR[contIdx].z = Q.z;
+						Q = Sinv * Vinv * Q;
 						Q.z = -Q.z;
 						P = Vector4ToVector3(Q);
 					}
@@ -6401,8 +6408,12 @@ void EffectsRenderer::RenderVRGloves()
 		{
 			if (bGunnerTurret)
 			{
-				// TODO: Verify this transform chain
-				contOrigin[i] = swapScale * toOPT * Vinv * g_contStates[i].pose * g_contOriginWorldSpace[i];
+				// This is the same transform chain used in IntersectVRGeometry()
+				Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+				Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
+				Matrix4 toOPT = Sinv * swap;
+				g_contOriginWorldSpace[i].w = 1.0f;
+				contOrigin[i] = toOPT * g_contOriginWorldSpace[i];
 			}
 
 			// Just move the finger (i.e. the origin) to the intersection point. That should work

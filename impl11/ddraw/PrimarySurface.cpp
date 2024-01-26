@@ -7764,7 +7764,18 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	// contOriginDisplay is in OPT coords, viewspace
 	Vector4 contOriginDisplay[2], contDirDisplay[2];
-	VRControllerToOPTCoords(contOriginDisplay, contDirDisplay, false);
+	if (!bGunnerTurret)
+		VRControllerToOPTCoords(contOriginDisplay, contDirDisplay, false);
+	else
+		for (int i = 0; i < 2; i++)
+		{
+			// This is the same transform chain used in IntersectVRGeometry()
+			Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+			Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
+			Matrix4 toOPT = Sinv * swap;
+			g_contOriginWorldSpace[i].w = 1.0f;
+			contOriginDisplay[i] = toOPT * g_contOriginWorldSpace[i];
+		}
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_LaserPointerBuffer.x0 = x0;
@@ -7884,7 +7895,8 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			}
 		}
 
-		contOriginDisplay[contIdx] = W * contOriginDisplay[contIdx];
+		if (!bGunnerTurret)
+			contOriginDisplay[contIdx] = W * contOriginDisplay[contIdx];
 		// contOriginDisplay is now in Worldview coords
 		g_LaserPointerBuffer.bContOrigin[contIdx] = (contOriginDisplay[contIdx].z > 0.01f); // Don't display the cursor if it's behind the camera
 
@@ -7946,7 +7958,19 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			g_LaserPointerBuffer.bIntersection[contIdx] = true;
 			Vector3 O = { ray.origin.x, ray.origin.y, ray.origin.z };
 			Vector3 D = { P.x, P.y, P.z };
+			if (bGunnerTurret)
+			{
+				O.x = g_contOriginWorldSpace[contIdx].x;
+				O.y = g_contOriginWorldSpace[contIdx].y;
+				O.z = g_contOriginWorldSpace[contIdx].z;
+
+				D.x = g_LaserPointerIntersSteamVR[contIdx].x;
+				D.y = g_LaserPointerIntersSteamVR[contIdx].y;
+				D.z = g_LaserPointerIntersSteamVR[contIdx].z;
+			}
 			g_fLaserIntersectionDistance[contIdx] = (D - O).length();
+			if (bGunnerTurret)
+				D *= OPT_TO_METERS;
 
 			// DEBUG
 #ifdef DISABLED

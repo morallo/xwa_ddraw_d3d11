@@ -21,6 +21,7 @@ Vector4 g_contDirWorldSpace[2];
 Vector4 g_controllerForwardVector = Vector4(0.0f, 0.0f, 1.0f, 0.0f); // Forward direction in the controller's frame of reference
 Vector4 g_controllerUpVector = Vector4(0.0f, 1.0f, 0.0f, 0.0f);
 Vector3 g_LaserPointer3DIntersection[2] = { {0.0f, 0.0f, FLT_MAX}, {0.0f, 0.0f, FLT_MAX} };
+Vector3 g_LaserPointerIntersSteamVR[2] = { {0.0f, 0.0f, FLT_MAX}, {0.0f, 0.0f, FLT_MAX} };
 float g_fBestIntersectionDistance[2] = { FLT_MAX, FLT_MAX };
 float g_fLaserIntersectionDistance[2] = { FLT_MAX, FLT_MAX };
 float g_fPushButtonThreshold = 0.01f, g_fReleaseButtonThreshold = 0.018f;

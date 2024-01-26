@@ -50,6 +50,7 @@ extern Vector4 g_controllerForwardVector; // Forward direction in the controller
 extern Vector4 g_controllerUpVector;
 extern Vector4 g_contDirWorldSpace[2]; // This is the direction in which the controller is pointing in world-space coords
 extern Vector3 g_LaserPointer3DIntersection[2];
+extern Vector3 g_LaserPointerIntersSteamVR[2];
 extern float g_fBestIntersectionDistance[2], g_fLaserIntersectionDistance[2];
 extern float g_fPushButtonThreshold, g_fReleaseButtonThreshold;
 extern int g_iBestIntersTexIdx[2]; // The index into g_ACElements where the intersection occurred
