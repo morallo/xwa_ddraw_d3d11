@@ -7580,7 +7580,7 @@ Vector4 SteamVRToOPTCoords(Vector4 P)
 	float cockpitOriginY = *g_POV_Y;
 	float cockpitOriginZ = *g_POV_Z;
 
-	float dispX = P.w * (cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor));
+	float dispX = P.w * (cockpitOriginX + (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor));
 	float dispY = P.w * (cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor));
 	float dispZ = P.w * (cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 
@@ -7605,7 +7605,7 @@ Vector4 OPTCoordsToSteamVR(Vector4 P)
 	float cockpitOriginY = *g_POV_Y;
 	float cockpitOriginZ = *g_POV_Z;
 
-	float dispX = P.w * (cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor));
+	float dispX = P.w * (cockpitOriginX + (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor));
 	float dispY = P.w * (cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor));
 	float dispZ = P.w * (cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 

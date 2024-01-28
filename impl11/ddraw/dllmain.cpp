@@ -70,6 +70,12 @@ void PrintVector(const Vector4 &Vector) {
 		Vector.x, Vector.y, Vector.z);
 }
 
+inline bool InGunnerTurret()
+{
+	return (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+}
+
 extern bool bFreePIEAlreadyInitialized, g_bDCApplyEraseRegionCommands, g_bEnableLaserLights, g_bDCHologramsVisible;
 void ShutdownFreePIE();
 
@@ -1113,32 +1119,42 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			switch (wParam) {
 			// Shift + Arrow Keys
 			case VK_LEFT:
-				//IncreaseHUDParallax(-0.1f);
-				// Adjust the POV in VR (through cockpit shake), see CockpitLook
+				// Adjust the POV in VR, see CockpitLook
 				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					g_pSharedDataCockpitLook->POVOffsetZ -= POVOffsetIncr;
+					if (!InGunnerTurret())
+						g_CockpitPOVOffset.z -= POVOffsetIncr;
+					else
+						g_GunnerTurretPOVOffset.y -= POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_RIGHT:
-				//IncreaseHUDParallax(0.1f);
-				// Adjust the POV in VR (through cockpit shake), see CockpitLook
+				// Adjust the POV in VR, see CockpitLook
 				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					g_pSharedDataCockpitLook->POVOffsetZ += POVOffsetIncr;
+					if (!InGunnerTurret())
+						g_CockpitPOVOffset.z += POVOffsetIncr;
+					else
+						g_GunnerTurretPOVOffset.y += POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_UP:
-				// Adjust the POV in VR (through cockpit shake), see CockpitLook
+				// Adjust the POV in VR, see CockpitLook
 				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					g_pSharedDataCockpitLook->POVOffsetY += POVOffsetIncr;
+					if (!InGunnerTurret())
+						g_CockpitPOVOffset.y += POVOffsetIncr;
+					else
+						g_GunnerTurretPOVOffset.x += POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
 			case VK_DOWN:
-				// Adjust the POV in VR (through cockpit shake), see CockpitLook
+				// Adjust the POV in VR, see CockpitLook
 				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					g_pSharedDataCockpitLook->POVOffsetY -= POVOffsetIncr;
+					if (!InGunnerTurret())
+						g_CockpitPOVOffset.y -= POVOffsetIncr;
+					else
+						g_GunnerTurretPOVOffset.x -= POVOffsetIncr;
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
@@ -1146,9 +1162,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_OEM_PERIOD:
 				log_debug("[DBG] Resetting POVOffset for %s", g_sCurrentCockpit);
 				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					g_pSharedDataCockpitLook->POVOffsetX = 0.0f;
-					g_pSharedDataCockpitLook->POVOffsetY = 0.0f;
-					g_pSharedDataCockpitLook->POVOffsetZ = 0.0f;
+					g_CockpitPOVOffset = { 0, 0, 0 };
+					g_GunnerTurretPOVOffset = { 0, 0, 0 };
 					SavePOVOffsetToIniFile();
 				}
 				return 0;

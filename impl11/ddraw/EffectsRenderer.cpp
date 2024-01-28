@@ -2112,6 +2112,24 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		int hyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
 		CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
 
+		// Set either the Cockpit or Gunner Turret POV Offsets into the proper shared memory slots
+		// THIS SHOULD BE THE ONLY SPOT WHERE WE WRITE TO g_pSharedDataCockpitLook->POVOffsetX/Y/Z
+		if (g_pSharedDataCockpitLook != nullptr)
+		{
+			if (!bGunnerTurret)
+			{
+				g_pSharedDataCockpitLook->POVOffsetX = g_CockpitPOVOffset.x;
+				g_pSharedDataCockpitLook->POVOffsetY = g_CockpitPOVOffset.y;
+				g_pSharedDataCockpitLook->POVOffsetZ = g_CockpitPOVOffset.z;
+			}
+			else
+			{
+				g_pSharedDataCockpitLook->POVOffsetX = g_GunnerTurretPOVOffset.x;
+				g_pSharedDataCockpitLook->POVOffsetY = g_GunnerTurretPOVOffset.y;
+				g_pSharedDataCockpitLook->POVOffsetZ = g_GunnerTurretPOVOffset.z;
+			}
+		}
+
 		//log_debug("[DBG] viewingFilmState: %d, inMissionFilmState: %d",
 		//	*viewingFilmState, *inMissionFilmState);
 		// *viewingFilmState is 0 during regular flight and becomes 2 when playing back a movie.
@@ -6150,7 +6168,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 		Matrix4 Tinv, Sinv;
 		if (!bGunnerTurret)
-			Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
+			Tinv.translate(cockpitOriginX + (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
 			               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
 			               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 		else
@@ -6401,7 +6419,7 @@ void EffectsRenderer::RenderVRGloves()
 	Matrix4 S, T, Sinv, Tinv;
 	S.scale(OPT_TO_METERS);
 	if (!bGunnerTurret)
-		Tinv.translate(cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
+		Tinv.translate(cockpitOriginX + (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
 					   cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
 					   cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 	else

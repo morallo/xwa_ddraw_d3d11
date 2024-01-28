@@ -111,6 +111,9 @@ extern bool g_bPrevPlayerInHangar;
 extern bool g_bInTechRoom;
 extern bool g_bMetricParamsNeedReapply;
 
+extern Vector3 g_CockpitPOVOffset;
+extern Vector3 g_GunnerTurretPOVOffset;
+
 bool isInVector(uint32_t crc, std::vector<uint32_t>& vector);
 bool isInVector(char* name, std::vector<char*>& vector);
 bool isInVector(char* OPTname, std::vector<OPTNameType>& vector);

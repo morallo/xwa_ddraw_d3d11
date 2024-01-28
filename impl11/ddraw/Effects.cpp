@@ -202,6 +202,9 @@ bool g_bInBriefingRoom = false;
 
 D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
+Vector3 g_CockpitPOVOffset = { 0, 0, 0 };
+Vector3 g_GunnerTurretPOVOffset = { 0, 0, 0 };
+
 // **************************
 // DATReader global vars and function pointers
 HMODULE g_hDATReader = nullptr;
@@ -606,8 +609,12 @@ bool SavePOVOffsetToIniFile()
 	enum FSM {
 		INIT_ST,
 		IN_TAG_ST,
-		OUT_OF_TAG_ST
 	} fsm = INIT_ST;
+
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+	const char* sectionName = bGunnerTurret ? "GunnerTurretPOVOffset" : "CockpitPOVOffset";
+	Vector3 POVOffset = bGunnerTurret ? g_GunnerTurretPOVOffset : g_CockpitPOVOffset;
 
 	if (g_pSharedDataCockpitLook == NULL || !g_SharedMemCockpitLook.IsDataReady()) {
 		log_debug("[DBG] [POV] Shared Memory has not been initialized, cannot write POV Offset");
@@ -625,7 +632,7 @@ bool SavePOVOffsetToIniFile()
 	sCraftName[len - 7] = 0;
 
 	snprintf(sFileName, 256, ".\\FlightModels\\%s.ini", sCraftName);
-	log_debug("[DBG] [POV] Saving current POV Offset to INI file [%s]...", sFileName);
+	log_debug("[DBG] [POV] Saving current POV Offset [%s] to INI file [%s]...", sectionName, sFileName);
 	// Open sFileName for reading
 	try {
 		error = fopen_s(&in_file, sFileName, "rt");
@@ -653,6 +660,8 @@ bool SavePOVOffsetToIniFile()
 	}
 
 	bool bPOVWritten = false;
+	int prevLineLen = 0;
+	bool bPrevLineBlank = false;
 	while (fgets(buf, 256, in_file) != NULL) {
 		line++;
 		// Commented lines are automatically pass-through
@@ -663,16 +672,21 @@ bool SavePOVOffsetToIniFile()
 
 		// Catch section names
 		if (buf[0] == '[') {
-			if (strstr(buf, "CockpitPOVOffset") != NULL) {
+			if (strstr(buf, sectionName) != NULL) {
 				fsm = IN_TAG_ST;
 			}
 			else {
 				if (fsm == IN_TAG_ST) {
-					fsm = OUT_OF_TAG_ST;
-					fprintf(out_file, "\n[CockpitPOVOffset]\n");
-					fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
-					fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
-					fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);
+					// A new [section] is beginning and we just skipped over the [sectionName] region.
+					// Let's write the new POV offset here, at the same location it was previously within
+					// the .ini file.
+					fsm = INIT_ST;
+					if (!bPrevLineBlank)
+						fprintf(out_file, "\n");
+					fprintf(out_file, "[%s]\n", sectionName);
+					fprintf(out_file, "OffsetX = %0.3f\n", POVOffset.x);
+					fprintf(out_file, "OffsetY = %0.3f\n", POVOffset.y);
+					fprintf(out_file, "OffsetZ = %0.3f\n", POVOffset.z);
 					fprintf(out_file, "\n");
 					bPOVWritten = true;
 				}
@@ -680,17 +694,21 @@ bool SavePOVOffsetToIniFile()
 		}
 
 		// If we're not in-tag, then just pass-through:
-		if (fsm != IN_TAG_ST)
+		if (fsm != IN_TAG_ST) {
+			prevLineLen = strlen(buf);
+			bPrevLineBlank = (prevLineLen == 1) && buf[prevLineLen - 1] == '\n';
 			fprintf(out_file, buf);
+		}
 	}
 
-	// This DC file may not have the "xwahacker_fov" line, so let's add it:
+	// This DC file may not have the POV section, so let's add it:
 	if (!bPOVWritten) {
-		fprintf(out_file, "[CockpitPOVOffset]\n");
-		fprintf(out_file, "OffsetX = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetX);
-		fprintf(out_file, "OffsetY = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetY);
-		fprintf(out_file, "OffsetZ = %0.3f\n", g_pSharedDataCockpitLook->POVOffsetZ);
-		fprintf(out_file, "\n");
+		if (!bPrevLineBlank)
+			fprintf(out_file, "\n");
+		fprintf(out_file, "[%s]\n", sectionName);
+		fprintf(out_file, "OffsetX = %0.3f\n", POVOffset.x);
+		fprintf(out_file, "OffsetY = %0.3f\n", POVOffset.y);
+		fprintf(out_file, "OffsetZ = %0.3f\n", POVOffset.z);
 		bPOVWritten = true;
 	}
 
@@ -720,7 +738,8 @@ bool LoadPOVOffsetFromIniFile()
 	// [Section]
 	enum FSM {
 		OUT_OF_TAG_ST,
-		IN_TAG_ST,
+		IN_CP_TAG_ST,
+		IN_GT_TAG_ST,
 	} fsm = OUT_OF_TAG_ST;
 
 	log_debug("[DBG] [POV] LoadPOVOffset");
@@ -764,29 +783,35 @@ bool LoadPOVOffsetFromIniFile()
 
 		// Catch section names
 		if (buf[0] == '[') {
-			fsm = (strstr(buf, "CockpitPOVOffset") != NULL) ? IN_TAG_ST : OUT_OF_TAG_ST;
+			if (strstr(buf, "CockpitPOVOffset") != NULL)
+				fsm = IN_CP_TAG_ST;
+			else if (strstr(buf, "GunnerTurretPOVOffset") != NULL)
+				fsm = IN_GT_TAG_ST;
+			else
+				fsm = OUT_OF_TAG_ST;
 		}
 
-		// If we're not in-tag, then just pass-through:
-		if (fsm == IN_TAG_ST) {
+		if (fsm == IN_CP_TAG_ST || fsm == IN_GT_TAG_ST) {
+			Vector3& POVOffset = fsm == IN_CP_TAG_ST ? g_CockpitPOVOffset : g_GunnerTurretPOVOffset;
 			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
 				fValue = (float)atof(svalue);
 				// Read the relevant parameters
 				if (_stricmp(param, "OffsetX") == 0) {
-					log_debug("[DBG] [POV] Read OffsetX: %0.3f", fValue);
-					g_pSharedDataCockpitLook->POVOffsetX = fValue;
+					log_debug("[DBG] [POV] Read [%d] OffsetX: %0.3f", fsm, fValue);
+					POVOffset.x = fValue;
 				}
 				if (_stricmp(param, "OffsetY") == 0) {
-					log_debug("[DBG] [POV] Read OffsetY: %0.3f", fValue);
-					g_pSharedDataCockpitLook->POVOffsetY = fValue;
+					log_debug("[DBG] [POV] Read [%d] OffsetY: %0.3f", fsm, fValue);
+					POVOffset.y = fValue;
 				}
 				if (_stricmp(param, "OffsetZ") == 0) {
-					log_debug("[DBG] [POV] Read OffsetZ: %0.3f", fValue);
-					g_pSharedDataCockpitLook->POVOffsetZ = fValue;
+					log_debug("[DBG] [POV] Read [%d] OffsetZ: %0.3f", fsm, fValue);
+					POVOffset.z = fValue;
 				}
 			}
 		}
 	}
+
 	log_debug("[DBG] [POV] numlines read: %d", line);
 	fclose(in_file);
 	return true;
