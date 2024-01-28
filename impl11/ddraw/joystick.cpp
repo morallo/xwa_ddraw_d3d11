@@ -759,10 +759,13 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				if (g_config.JoystickEmul == 3 && contIdx == g_ACJoyEmul.joyHandIdx)
 				{
 					static bool bFirstTime = true;
-					static WORD joyButton1ScanCodes[2];
+					static WORD joyButton1ScanCodes[4];
 					if (bFirstTime)
 					{
-						char action[] = "JOYBUTTON1";
+						//char action[] = "JOYBUTTON1";
+						// Instead of using JOYBUTTON1, let's use Alt+2. JOYBUTTON1 may be mapped to something
+						// other than firing weapons, but Alt+2 is always just "fire"
+						char action[] = "ALT+2";
 						TranslateACAction(joyButton1ScanCodes, action, nullptr);
 						bFirstTime = false;
 					}
