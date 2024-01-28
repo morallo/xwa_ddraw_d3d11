@@ -429,6 +429,20 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 			return;
 		}
 
+		if (strstr(ptr, "PLUS") != NULL)
+		{
+			scanCodes[j++] = MapVirtualKey(VK_OEM_PLUS, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "MINUS") != NULL)
+		{
+			scanCodes[j++] = MapVirtualKey(VK_OEM_MINUS, MAPVK_VK_TO_VSC);
+			scanCodes[j] = 0;
+			return;
+		}
+
 		if (isdigit(*ptr)) { // CONFIRMED
 			int digit = *ptr - '0';
 			if (digit == 0) digit += 10;
