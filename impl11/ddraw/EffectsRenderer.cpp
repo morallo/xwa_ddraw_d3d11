@@ -3631,15 +3631,9 @@ void EffectsRenderer::IntersectVRGeometry()
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
 
 	Matrix4 KeybTransform = bGunnerTurret ? g_vrKeybState.OPTTransform : g_vrKeybState.Transform;
-	Matrix4 InvOPTTransform;
 	// We premultiply in the code below, so we need to transpose the matrix because
 	// the Vertex shader does a postmultiplication
 	KeybTransform.transpose();
-	if (bGunnerTurret)
-	{
-		InvOPTTransform = KeybTransform;
-		InvOPTTransform.invert();
-	}
 
 	Vector4 contOrigin[2], contDir[2];
 	if (!bGunnerTurret)
@@ -3674,9 +3668,43 @@ void EffectsRenderer::IntersectVRGeometry()
 			pose0 = pose;
 			pose.invert();    // We're going from Cockpit coords to Glove OPT coords
 
-			// Transform the ray into the OPT coord sys
-			Vector4 O = pose * contOrigin[contIdx];
-			Vector4 D = pose * contDir[contIdx];
+			// Transform the controller's origin into the OPT coord sys
+			Vector4 O;
+			if (bGunnerTurret)
+			{
+				// The gloves are in the following coord sys after the "pose" transform is
+				// applied:
+				//
+				// Scale: OPT
+				// Viewspace (moving the headset modifies the coords)
+				// X+: Right
+				// Y+: Down
+				// Z+: Forwards
+				//
+				// SteamVR is in the following system:
+				// Scale: metric
+				// Worldspace (moving the headset does not alter the coords)
+				// X+: Right
+				// Y-: Down
+				// Z-: Forwards
+				//
+				// So, to transform SteamVR to OPT-viewspace we need to:
+				// Apply headset's inverse transform
+				// invert Y and Z
+				// Scale to OPT sizes
+				Matrix4 invYZ({ 1,0,0,0,  0,-1,0,0,  0,0,-1,0,  0,0,0,1 });
+				Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
+				Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
+				Vinv.invert();
+				O = Sinv * invYZ * Vinv * g_contOriginWorldSpace[contIdx];
+				// Convert OPT-Viewspace back into OPT-Objectspace
+				O = pose * O;
+			}
+			else
+			{
+				// Convert OPT-Viewspace back into OPT-Objectspace
+				O = pose * contOrigin[contIdx];
+			}
 
 			// Find the closest intersection with the Glove OPT
 			float3 P;
@@ -3710,12 +3738,28 @@ void EffectsRenderer::IntersectVRGeometry()
 				g_LaserPointerBuffer.uv[contIdx][1] = baryU * bestUV0.v + baryV * bestUV1.v + baryW * bestUV2.v;
 				g_iBestIntersTexIdx[contIdx] = g_iVRGloveSlot[auxContIdx];
 
-				// P is in the OPT coord sys...
+				// P is in the OPT-Object coord sys...
 				Vector4 Q = { P.x, P.y, P.z, 1.0f };
-				// ... so we need to transform it into Viewspace coords:
+				// ... so we need to transform it into OPT-Viewspace coords:
 				Q = pose0 * Q;
 
-				g_LaserPointer3DIntersection[contIdx] = { Q.x, Q.y, Q.z };
+				if (bGunnerTurret)
+				{
+					g_LaserPointer3DIntersection[contIdx] = { Q.x, -Q.y, Q.z };
+					Matrix4 invYZ({ 1,0,0,0,  0,-1,0,0,  0,0,-1,0,  0,0,0,1 });
+					Matrix4 S = Matrix4().scale(OPT_TO_METERS);
+					Matrix4 toSteamVR = g_VSMatrixCB.fullViewMat * invYZ * S;
+					Q = toSteamVR * Q;
+
+					// This is a bit of a crutch, but I'm temporarily storing the intersection in
+					// SteamVR coords because it's easier to test the distance with the controller
+					// in this framework. This shouldn't be necessary, though.
+					g_LaserPointerIntersSteamVR[contIdx].x = Q.x;
+					g_LaserPointerIntersSteamVR[contIdx].y = Q.y;
+					g_LaserPointerIntersSteamVR[contIdx].z = Q.z;
+				}
+				else
+					g_LaserPointer3DIntersection[contIdx] = { Q.x, Q.y, Q.z };
 				// Skip to the next contIdx/glove?
 				//continue;
 			}

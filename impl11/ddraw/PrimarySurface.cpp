@@ -7736,6 +7736,27 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	this->_deviceResources->BeginAnnotatedEvent(L"RenderLaserPointer");
 
+	// DEBUG: Display contOrigin and intersVR inside the cockpit. Looks nice, BTW
+#ifdef DISABLED
+	{
+		std::string msg;
+		Vector3 P;
+		Vector4 Q;
+		int contIdx = 1;
+		int y = 50;
+
+		Q = g_contOriginWorldSpace[contIdx];
+		msg = "contOrigin[" + std::to_string(contIdx) + "]: " + std::to_string(Q.x) + ", " + std::to_string(Q.y) + ", " + std::to_string(Q.z);
+		DisplayCenteredText((char *)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
+		y += 25;
+
+		P = g_LaserPointerIntersSteamVR[contIdx];
+		msg = "inters[" + std::to_string(contIdx) + "]: " + std::to_string(P.x) + ", " + std::to_string(P.y) + ", " + std::to_string(P.z);
+		DisplayCenteredText((char*)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
+		y += 25;
+	}
+#endif
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
