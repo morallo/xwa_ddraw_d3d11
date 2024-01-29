@@ -100,6 +100,7 @@ protected:
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshVerticesSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybTextureSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrGreenCirclesSRV;
 
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
@@ -181,6 +182,19 @@ public:
 	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);
 	FixedInstanceData* ObjectIDToFixedInstanceData(int objectId, uint32_t materialId);
 
+	void CreateRectangleMesh(
+		float widthMeters,
+		float heightMeters,
+		XwaVector3 dispMeters,
+		/* out */ D3dTriangle* tris,
+		/* out */ XwaVector3* meshVertices,
+		/* out */ XwaTextureVertex* texCoords,
+		/* out */ ComPtr<ID3D11Buffer>& vertexBuffer,
+		/* out */ ComPtr<ID3D11Buffer>& indexBuffer,
+		/* out */ ComPtr<ID3D11Buffer>& meshVerticesBuffer,
+		/* out */ ComPtr<ID3D11ShaderResourceView>& meshVerticesSRV,
+		/* out */ ComPtr<ID3D11Buffer>& texCoordsBuffer,
+		/* out */ ComPtr<ID3D11ShaderResourceView>& texCoordsSRV);
 	void CreateVRMeshes();
 
 	// Deferred rendering

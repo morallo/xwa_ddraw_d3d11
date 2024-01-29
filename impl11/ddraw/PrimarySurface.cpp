@@ -7742,7 +7742,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		std::string msg;
 		Vector3 P;
 		Vector4 Q;
-		int contIdx = 1;
+		int contIdx = 0;
 		int y = 50;
 
 		Q = g_contOriginWorldSpace[contIdx];
@@ -7750,10 +7750,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		DisplayCenteredText((char *)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
 		y += 25;
 
-		P = g_LaserPointerIntersSteamVR[contIdx];
+		//P = g_LaserPointerIntersSteamVR[contIdx]; // Use this for the Gunner Turret
+		P = g_LaserPointer3DIntersection[contIdx]; // Use this for the Cockpit
 		msg = "inters[" + std::to_string(contIdx) + "]: " + std::to_string(P.x) + ", " + std::to_string(P.y) + ", " + std::to_string(P.z);
 		DisplayCenteredText((char*)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
 		y += 25;
+
+		// Both P and Q are in the viewspace system and they are not affected by inertia.
 	}
 #endif
 
@@ -7967,9 +7970,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		{
 			if (g_iBestIntersTexIdx[contIdx] != -1)
 			{
-				P.x = g_LaserPointer3DIntersection[contIdx].x;
-				P.y = g_LaserPointer3DIntersection[contIdx].y;
-				P.z = g_LaserPointer3DIntersection[contIdx].z;
+				P = g_LaserPointer3DIntersection[contIdx];
 			}
 			else
 			{

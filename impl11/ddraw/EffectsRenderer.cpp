@@ -1810,15 +1810,22 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 	return triangles.size();
 }
 
-void EffectsRenderer::CreateVRMeshes()
+void EffectsRenderer::CreateRectangleMesh(
+	float widthMeters,
+	float heightMeters,
+	XwaVector3 dispMeters,
+	/* out */ D3dTriangle* tris,
+	/* out */ XwaVector3* meshVertices,
+	/* out */ XwaTextureVertex* texCoords,
+	/* out */ ComPtr<ID3D11Buffer>& vertexBuffer,
+	/* out */ ComPtr<ID3D11Buffer>& indexBuffer,
+	/* out */ ComPtr<ID3D11Buffer>& meshVerticesBuffer,
+	/* out */ ComPtr<ID3D11ShaderResourceView>& meshVerticesSRV,
+	/* out */ ComPtr<ID3D11Buffer>& texCoordsBuffer,
+	/* out */ ComPtr<ID3D11ShaderResourceView>& texCoordsSRV)
 {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
-	// The virtual keyboard only makes sense when AC is on
-	if (!g_bActiveCockpitEnabled)
-		return;
-
-	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
 	constexpr int numVertices = 4;
 	D3dVertex _vertices[numVertices];
 
@@ -1830,54 +1837,63 @@ void EffectsRenderer::CreateVRMeshes()
 	_vertices[2] = { 2, 0, 2, 0 };
 	_vertices[3] = { 3, 0, 3, 0 };
 
-	g_vrKeybTriangles[0] = { 0, 1, 2 };
-	g_vrKeybTriangles[1] = { 0, 2, 3 };
+	tris[0] = { 0, 1, 2 };
+	tris[1] = { 0, 2, 3 };
 
 	D3D11_SUBRESOURCE_DATA initialData;
 	initialData.SysMemPitch = 0;
 	initialData.SysMemSlicePitch = 0;
 
 	initialData.pSysMem = _vertices;
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybVertexBuffer);
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &vertexBuffer);
 
-	initialData.pSysMem = g_vrKeybTriangles;
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybNumTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybIndexBuffer);
+	initialData.pSysMem = tris;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybNumTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &indexBuffer);
 
-	/*g_vrKeybMeshVertices[0] = { -10.0f, -25.0f, 30.0f };
-	g_vrKeybMeshVertices[1] = {  10.0f, -25.0f, 30.0f };
-	g_vrKeybMeshVertices[2] = {  10.0f, -25.0f, 18.0f };
-	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };*/
-	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
-	const float W = g_vrKeybState.fMetersWidth * METERS_TO_OPT, H = W / ratio;
+	// Create the mesh
+	const float halfW = widthMeters  / 2.0f * METERS_TO_OPT;
+	const float halfH = heightMeters / 2.0f * METERS_TO_OPT;
+	XwaVector3  disp  = dispMeters * METERS_TO_OPT;
+	meshVertices[0] = { -halfW + disp.x, disp.y,  halfH + disp.z }; // Up-Left
+	meshVertices[1] = {  halfW + disp.x, disp.y,  halfH + disp.z }; // Up-Right
+	meshVertices[2] = {  halfW + disp.x, disp.y, -halfH + disp.z }; // Dn-Right
+	meshVertices[3] = { -halfW + disp.x, disp.y, -halfH + disp.z }; // Dn-Left
 
-	// Center the keyboard around the origin, but displaced upwards and a little bit forward.
-	// This makes the keyboard appear slightly above our hand and near the index finger.
-	const float dispY = -0.03f * METERS_TO_OPT;
-	const float dispZ = H / 2.0f;
-	g_vrKeybMeshVertices[0] = { -W / 2.0f, dispY,  H / 2.0f + dispZ }; // Up-Left
-	g_vrKeybMeshVertices[1] = {  W / 2.0f, dispY,  H / 2.0f + dispZ }; // Up-Right
-	g_vrKeybMeshVertices[2] = {  W / 2.0f, dispY, -H / 2.0f + dispZ }; // Dn-Right
-	g_vrKeybMeshVertices[3] = { -W / 2.0f, dispY, -H / 2.0f + dispZ }; // Dn-Left
-
-	initialData.SysMemPitch = 0;
-	initialData.SysMemSlicePitch = 0;
-	initialData.pSysMem = g_vrKeybMeshVertices;
-
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybMeshVerticesCount * sizeof(XwaVector3), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshVerticesBuffer);
-	device->CreateShaderResourceView(_vrKeybMeshVerticesBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, g_vrKeybMeshVerticesCount), &_vrKeybMeshVerticesSRV);
+	initialData.pSysMem = meshVertices;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(XwaVector3),
+		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &meshVerticesBuffer);
+	device->CreateShaderResourceView(meshVerticesBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(meshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, numVertices), &meshVerticesSRV);
 
 	// Create the UVs
-	g_vrKeybTextureCoords[0] = { 0, 0 };
-	g_vrKeybTextureCoords[1] = { 1, 0 };
-	g_vrKeybTextureCoords[2] = { 1, 1 };
-	g_vrKeybTextureCoords[3] = { 0, 1 };
+	constexpr int texCoordsCount = 4;
+	texCoords[0] = { 0, 0 };
+	texCoords[1] = { 1, 0 };
+	texCoords[2] = { 1, 1 };
+	texCoords[3] = { 0, 1 };
 
-	initialData.SysMemPitch = 0;
-	initialData.SysMemSlicePitch = 0;
 	initialData.pSysMem = g_vrKeybTextureCoords;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoordsCount * sizeof(XwaTextureVertex),
+		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &texCoordsBuffer);
+	device->CreateShaderResourceView(texCoordsBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(texCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoordsCount), &texCoordsSRV);
+}
 
-	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybTextureCoordsCount * sizeof(XwaTextureVertex), D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &_vrKeybMeshTexCoordsBuffer);
-	device->CreateShaderResourceView(_vrKeybMeshTexCoordsBuffer, &CD3D11_SHADER_RESOURCE_VIEW_DESC(_vrKeybMeshTexCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, g_vrKeybTextureCoordsCount), &_vrKeybMeshTexCoordsSRV);
+void EffectsRenderer::CreateVRMeshes()
+{
+	// The virtual keyboard only makes sense when AC is on
+	if (!g_bActiveCockpitEnabled)
+		return;
+
+	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
+	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
+	const float height = g_vrKeybState.fMetersWidth / ratio;
+	CreateRectangleMesh(g_vrKeybState.fMetersWidth, height, { 0, -0.03f, height / 2.0f },
+		g_vrKeybTriangles, g_vrKeybMeshVertices, g_vrKeybTextureCoords,
+		_vrKeybVertexBuffer, _vrKeybIndexBuffer,
+		_vrKeybMeshVerticesBuffer, _vrKeybMeshVerticesSRV,
+		_vrKeybMeshTexCoordsBuffer, _vrKeybMeshTexCoordsSRV);
+
 	//_vrKeybVertexBuffer->AddRef();
 	//_vrKeybIndexBuffer->AddRef();
 	//_vrKeybMeshVerticesBuffer->AddRef();
@@ -1896,6 +1912,17 @@ void EffectsRenderer::CreateVRMeshes()
 			g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
 	}
 	log_debug("[DBG] [AC] Virtual keyboard buffers CREATED");
+
+	// Load the green circles used to display the intersection point
+	res = LoadDATImage(".\\Effects\\ActiveCockpit\\Textures.dat", 2, 0, _vrGreenCirclesSRV.GetAddressOf());
+	if (SUCCEEDED(res))
+	{
+		log_debug("[DBG] [AC] VR green circles loaded!");
+	}
+	else
+	{
+		log_debug("[DBG] [AC] Could not load texture for green circles");
+	}
 
 	// *************************************************
 	// Gloves
