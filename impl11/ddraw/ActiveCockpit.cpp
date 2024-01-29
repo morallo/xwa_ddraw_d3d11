@@ -88,7 +88,11 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, 
 	// That means that the dominant-hand motion controller is most likely grasping a real
 	// joystick so it makes no sense to try and display the VR keyboard on the inactive
 	// motion controller. Let's put it on the throttle hand instead.
-	if (g_config.JoystickEmul != 3)
+	if (g_config.JoystickEmul != 3 ||
+		// if JoystickEmul == 3, and the dominant hand is gripping the controller, then it's
+		// the same case: the dominant hand is gripping the joystick and it makes no sense to
+		// display the keyboard on that hand.
+		(g_config.JoystickEmul == 3 && g_contStates[g_ACJoyEmul.joyHandIdx].buttons[VRButtons::GRIP]))
 		auxContIdx = g_ACJoyEmul.thrHandIdx;
 
 	if (action[0] == 0) { // void action, skip
