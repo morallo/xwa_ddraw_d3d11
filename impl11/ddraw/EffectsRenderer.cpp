@@ -126,7 +126,7 @@ void ApplyYawPitchRoll(float yaw_deg, float pitch_deg, float roll_deg);
 Matrix4 GetSimpleDirectionMatrix(Vector4 Fs, bool invert);
 void ClearGlobalLBVHMap();
 
-void VRControllerToOPTCoords(Vector4 contOrigin[2], Vector4 contDir[2], bool bIsGunner);
+void VRControllerToOPTCoords(Vector4 contOrigin[2], Vector4 contDir[2]);
 Intersection getIntersection(Ray ray, float3 A, float3 B, float3 C);
 bool RayTriangleTest(const Intersection& inters);
 bool rayTriangleIntersect(
@@ -1614,6 +1614,13 @@ D3dTriangle g_vrKeybTriangles[g_vrKeybNumTriangles];
 XwaVector3 g_vrKeybMeshVertices[g_vrKeybMeshVerticesCount];
 XwaTextureVertex g_vrKeybTextureCoords[g_vrKeybTextureCoordsCount];
 
+constexpr int g_vrDotNumTriangles = 2;
+constexpr int g_vrDotMeshVerticesCount = 4;
+constexpr int g_vrDotTextureCoordsCount = 4;
+D3dTriangle g_vrDotTriangles[g_vrDotNumTriangles];
+XwaVector3 g_vrDotMeshVertices[g_vrDotMeshVerticesCount];
+XwaTextureVertex g_vrDotTextureCoords[g_vrDotTextureCoordsCount];
+
 char* g_GlovesProfileNames[2][VRGlovesProfile::MAX] = {
 	{ "Effects\\ActiveCockpit\\LGloveNeutral.obj",
 	  "Effects\\ActiveCockpit\\LGlovePoint.obj",
@@ -1854,6 +1861,11 @@ void EffectsRenderer::CreateRectangleMesh(
 	const float halfW = widthMeters  / 2.0f * METERS_TO_OPT;
 	const float halfH = heightMeters / 2.0f * METERS_TO_OPT;
 	XwaVector3  disp  = dispMeters * METERS_TO_OPT;
+	// Reference mesh: this displays a rectangle on the center of the A-Wing dashboard
+	/*g_vrKeybMeshVertices[0] = { -10.0f, -25.0f, 30.0f };
+	g_vrKeybMeshVertices[1] = {  10.0f, -25.0f, 30.0f };
+	g_vrKeybMeshVertices[2] = {  10.0f, -25.0f, 18.0f };
+	g_vrKeybMeshVertices[3] = { -10.0f, -25.0f, 18.0f };*/
 	meshVertices[0] = { -halfW + disp.x, disp.y,  halfH + disp.z }; // Up-Left
 	meshVertices[1] = {  halfW + disp.x, disp.y,  halfH + disp.z }; // Up-Right
 	meshVertices[2] = {  halfW + disp.x, disp.y, -halfH + disp.z }; // Dn-Right
@@ -1872,7 +1884,7 @@ void EffectsRenderer::CreateRectangleMesh(
 	texCoords[2] = { 1, 1 };
 	texCoords[3] = { 0, 1 };
 
-	initialData.pSysMem = g_vrKeybTextureCoords;
+	initialData.pSysMem = texCoords;
 	device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoordsCount * sizeof(XwaTextureVertex),
 		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &texCoordsBuffer);
 	device->CreateShaderResourceView(texCoordsBuffer,
@@ -1900,6 +1912,13 @@ void EffectsRenderer::CreateVRMeshes()
 	//_vrKeybMeshVerticesView->AddRef();
 	//_vrKeybMeshTextureCoordsBuffer->AddRef();
 	//_vrKeybMeshTextureCoordsView->AddRef();
+
+	log_debug("[DBG] [AC] Creating VR Dot buffers");
+	CreateRectangleMesh(0.017f, 0.017f, { 0, 0, 0 },
+		g_vrDotTriangles, g_vrDotMeshVertices, g_vrDotTextureCoords,
+		_vrDotVertexBuffer, _vrDotIndexBuffer,
+		_vrDotMeshVerticesBuffer, _vrDotMeshVerticesSRV,
+		_vrDotMeshTexCoordsBuffer, _vrDotMeshTexCoordsSRV);
 
 	int res = LoadDATImage(g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId, _vrKeybTextureSRV.GetAddressOf());
 	if (SUCCEEDED(res))
@@ -2287,6 +2306,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	g_vrKeybState.bRendered = false;
 	g_vrGlovesMeshes[0].rendered = false;
 	g_vrGlovesMeshes[1].rendered = false;
+	_bDotsbRendered = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -2999,12 +3019,6 @@ void EffectsRenderer::SceneEnd()
 		}
 	}
 
-	if (g_bActiveCockpitEnabled)
-	{
-		// Test additional geometry (VR Keyboard, gloves)
-		IntersectVRGeometry();
-	}
-
 	if (g_bDumpSSAOBuffers && bD3DDumpOBJEnabled && g_bRTEnabled)
 	{
 #ifdef DUMP_TLAS
@@ -3682,7 +3696,7 @@ void EffectsRenderer::IntersectVRGeometry()
 
 	Vector4 contOrigin[2], contDir[2];
 	if (!bGunnerTurret)
-		VRControllerToOPTCoords(contOrigin, contDir, _bIsGunner);
+		VRControllerToOPTCoords(contOrigin, contDir);
 	else
 	{
 		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
@@ -3978,7 +3992,7 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 
 	// Intersect the current texture with the controller
 	Vector4 contOrigin[2], contDir[2];
-	VRControllerToOPTCoords(contOrigin, contDir, _bIsGunner);
+	VRControllerToOPTCoords(contOrigin, contDir);
 
 	const float margin = 0.0001f;
 	for (int contIdx = 0; contIdx < 2; contIdx++)
@@ -6165,6 +6179,149 @@ void EffectsRenderer::RenderTransparency()
 	_deviceResources->EndAnnotatedEvent();
 }
 
+void EffectsRenderer::RenderVRDots()
+{
+	if (!g_bUseSteamVR || !g_bActiveCockpitEnabled || _bDotsbRendered || !_bCockpitConstantsCaptured)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderVRDots");
+
+	// Test intersections on additional geometry (VR Keyboard, gloves)
+	if (g_bActiveCockpitEnabled)
+	{
+		IntersectVRGeometry();
+	}
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rastersizer and depth stencil states for transparency
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	// fSSAOAlphaMult ?
+	// fSSAOMaskVal ?
+	// fPosNormalAlpha ?
+	// fBloomStrength ?
+	// bInHyperspace ?
+
+	g_VRGeometryCBuffer.numStickyRegions = 0;
+	// Disable region highlighting
+	g_VRGeometryCBuffer.clicked[0] = false;
+	g_VRGeometryCBuffer.clicked[1] = false;
+
+	// Flags used in RenderScene():
+	_bIsCockpit = !bGunnerTurret;
+	_bIsGunner = bGunnerTurret;
+	_bIsBlastMark = false;
+
+	// Set the textures
+	_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
+
+	// Set the mesh buffers
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrDotMeshVerticesSRV.Get(), nullptr, _vrDotMeshTexCoordsSRV.Get(), nullptr };
+	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+	_deviceResources->InitVertexBuffer(_vrDotVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(nullptr, true);
+	_deviceResources->InitIndexBuffer(_vrDotIndexBuffer.Get(), true);
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
+	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
+
+	// Set the constants buffer
+	Matrix4 Vinv;
+	if (bGunnerTurret)
+	{
+		// For the Gunner Turret, we're going to remove the world-view transform and replace it
+		// with an identity matrix. That way, the gloves, which are already in viewspace coords,
+		// will follow the headset no matter how the turret is oriented.
+		Matrix4 Id;
+		const float* m = Id.get();
+		for (int i = 0; i < 16; i++) _CockpitConstants.transformWorldView[i] = m[i];
+
+		Vinv = g_VSMatrixCB.fullViewMat;
+		Vinv.invert();
+	}
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	_trianglesCount = g_vrDotNumTriangles;
+
+	Matrix4 V, swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+	{
+		const float* m0 = g_VSMatrixCB.fullViewMat.get();
+		float m[16];
+		for (int i = 0; i < 16; i++) m[i] = m0[i];
+		// Erase the translation: we now have a billboard that always points towards the camera
+		m[12] = m[13] = m[14] = 0;
+		V.set(m);
+		V = swap * V * swap;
+	}
+
+	for (int contIdx = 0; contIdx < 2; contIdx++)
+	{
+		if (g_iBestIntersTexIdx[contIdx] == -1)
+			continue;
+
+		Matrix4 DotTransform;
+		// This transform puts the dot near the center of the A-Wing dashboard:
+		//DotTransform.translate(0, -30.0f, 20.0f);
+		if (!bGunnerTurret)
+		{
+			DotTransform = V;
+			// This is the same as doing DotTransform = T * V:
+			DotTransform.translate(g_LaserPointer3DIntersection[contIdx]);
+		}
+		else
+		{
+			Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+			Matrix4 S    = Matrix4().scale(OPT_TO_METERS);
+			Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
+			Matrix4 T    = Matrix4().translate(g_LaserPointerIntersSteamVR[contIdx]);
+			Matrix4 toOPT     = Sinv * swap;
+			Matrix4 toSteamVR = swap * S;
+			// This transform chain is the same as the one used in RenderVRGloves minus gloveDisp and
+			// pose is replaced with T. Also, V is used to convert the mesh into a billboard first
+			DotTransform      = swapScale * toOPT * Vinv * T * toSteamVR * V;
+		}
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene();
+	}
+
+	_bDotsbRendered = true;
+	RestoreContext();
+	_deviceResources->EndAnnotatedEvent();
+}
+
 void EffectsRenderer::RenderVRKeyboard()
 {
 	if (!g_bUseSteamVR || !g_bActiveCockpitEnabled)
@@ -6447,8 +6604,8 @@ void EffectsRenderer::RenderVRGloves()
 	S.scale(OPT_TO_METERS);
 	if (!bGunnerTurret)
 		Tinv.translate(cockpitOriginX + (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
-					   cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
-					   cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
+		               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
+		               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
 	else
 		Tinv.identity();
 	Sinv.scale(METERS_TO_OPT);
@@ -6471,7 +6628,7 @@ void EffectsRenderer::RenderVRGloves()
 
 	Vector4 contOrigin[2];
 	Vector4 contDir[2];
-	VRControllerToOPTCoords(contOrigin, contDir, _bIsGunner);
+	VRControllerToOPTCoords(contOrigin, contDir);
 
 	// Render both gloves (if they are enabled)
 	for (int i = 0; i < 2; i++)
@@ -7289,5 +7446,6 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	RenderTransparency();
 	RenderVRGloves();
 	RenderVRKeyboard();
+	RenderVRDots();
 	_deviceResources->EndAnnotatedEvent();
 }

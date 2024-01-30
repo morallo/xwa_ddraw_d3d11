@@ -100,7 +100,15 @@ protected:
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshVerticesSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybMeshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrKeybTextureSRV;
+
+	ComPtr<ID3D11Buffer> _vrDotVertexBuffer;
+	ComPtr<ID3D11Buffer> _vrDotIndexBuffer;
+	ComPtr<ID3D11Buffer> _vrDotMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _vrDotMeshTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _vrDotMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _vrDotMeshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrGreenCirclesSRV;
+	bool _bDotsbRendered;
 
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
@@ -200,6 +208,7 @@ public:
 	// Deferred rendering
 	void RenderLasers();
 	void RenderTransparency();
+	void RenderVRDots();
 	void RenderVRKeyboard();
 	void RenderVRGloves();
 	void RenderCockpitShadowMap();

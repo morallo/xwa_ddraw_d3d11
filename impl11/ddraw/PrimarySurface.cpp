@@ -7621,7 +7621,7 @@ Vector4 OPTCoordsToSteamVR(Vector4 P)
 /// <summary>
 /// Converts the controller SteamVR position to Viewspace OPT coords.
 /// </summary>
-void VRControllerToOPTCoords(Vector4 contOrigin[2], Vector4 contDir[2], bool bIsGunner)
+void VRControllerToOPTCoords(Vector4 contOrigin[2], Vector4 contDir[2])
 {
 	for (int i = 0; i < 2; i++)
 	{
@@ -7745,6 +7745,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		int contIdx = 0;
 		int y = 50;
 
+		// Both P and Q are in the viewspace system and they are not affected by inertia.
 		Q = g_contOriginWorldSpace[contIdx];
 		msg = "contOrigin[" + std::to_string(contIdx) + "]: " + std::to_string(Q.x) + ", " + std::to_string(Q.y) + ", " + std::to_string(Q.z);
 		DisplayCenteredText((char *)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
@@ -7755,8 +7756,6 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		msg = "inters[" + std::to_string(contIdx) + "]: " + std::to_string(P.x) + ", " + std::to_string(P.y) + ", " + std::to_string(P.z);
 		DisplayCenteredText((char*)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
 		y += 25;
-
-		// Both P and Q are in the viewspace system and they are not affected by inertia.
 	}
 #endif
 
@@ -7789,7 +7788,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// contOriginDisplay is in OPT coords, viewspace
 	Vector4 contOriginDisplay[2], contDirDisplay[2];
 	if (!bGunnerTurret)
-		VRControllerToOPTCoords(contOriginDisplay, contDirDisplay, false);
+		VRControllerToOPTCoords(contOriginDisplay, contDirDisplay);
 	else
 		for (int i = 0; i < 2; i++)
 		{
@@ -7978,6 +7977,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			}
 
 			g_LaserPointerBuffer.bIntersection[contIdx] = true;
+			//g_LaserPointerBuffer.bIntersection[contIdx] = false;
 			Vector3 O = { ray.origin.x, ray.origin.y, ray.origin.z };
 			Vector3 D = { P.x, P.y, P.z };
 			if (bGunnerTurret)
@@ -8134,6 +8134,11 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		}
 		g_bACActionTriggered[contIdx] = false;
 	}
+
+	// If the gloves are visible, then there's no need to render the ball-and-sticks pointers:
+	// RenderVRDots() will take care of rendering the intersection markers
+	if (g_vrGlovesMeshes[0].visible)
+		return;
 
 	// Render the laser pointer and intersections
 	// Temporarily disable ZWrite: we won't need it for post-proc
