@@ -216,10 +216,6 @@ public:
 
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
 
-	short ComputeMsgWidth(char *str, int font_size_index);
-	short DisplayText(char *str, int font_size_index, short x, short y, uint32_t color);
-	short DisplayCenteredText(char *str, int font_size_index, short y, uint32_t color);
-
 	void RenderText();
 
 	void RenderRadar();

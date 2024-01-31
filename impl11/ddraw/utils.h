@@ -14,6 +14,12 @@ std::string wchar_tostring(LPCWSTR text);
 std::wstring string_towstring(const std::string& text);
 std::wstring string_towstring(const char* text);
 
+short ComputeMsgWidth(char* str, int font_size_index);
+short DisplayText(char* str, int font_size_index, short x, short y, uint32_t color);
+short DisplayCenteredText(char* str, int font_size_index, short y, uint32_t color);
+// Only rows 0..2 are available
+void DisplayTimedMessage(uint32_t seconds, int row, char* msg);
+
 #if LOGGER
 
 std::string tostr_IID(REFIID iid);

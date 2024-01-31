@@ -11134,13 +11134,13 @@ ID2D1Factory* pD2DFactory_;
 ComPtr<IDWriteTextLayout> layouts[381];
 ComPtr<ID2D1SolidColorBrush> brushes[32];
 int brushColors[32] = {};
-boolean font_initialized = false;
+bool font_initialized = false;
 
 /*
   Computes the width of the given message. Use this function before adding messages to be
   displayed.
  */
-short PrimarySurface::ComputeMsgWidth(char *str, int font_size_index) {
+short ComputeMsgWidth(char* str, int font_size_index) {
 	int x = 0;
 	if (!font_initialized)
 		return x;
@@ -11154,19 +11154,19 @@ short PrimarySurface::ComputeMsgWidth(char *str, int font_size_index) {
 /*
   Adds the given text to the buffer that is used by RenderText to display messages.
   This function requires Jeremy's new Text Renderer to work.
- 
+
   font_size_index must be an integer in the range 0..2
- 		index 0: small
- 		index 1: regular
- 		index 2: smallest
- 
+		index 0: small
+		index 1: regular
+		index 2: smallest
+
   color is in 0xRRGGBB format.
- 
+
   x,y must be in in-game coordinates
- 
+
   returns the x coordinate after the last char rendered
  */
-short PrimarySurface::DisplayText(char *str, int font_size_index, short x, short y, uint32_t color) {
+short DisplayText(char* str, int font_size_index, short x, short y, uint32_t color) {
 	if (!font_initialized)
 		return x;
 
@@ -11210,7 +11210,7 @@ short PrimarySurface::DisplayText(char *str, int font_size_index, short x, short
   Adds centered text at the given vertical position.
   Returns the x coordinate where the next char can be placed
  */
-short PrimarySurface::DisplayCenteredText(char *str, int font_size_index, short y, uint32_t color) {
+short DisplayCenteredText(char* str, int font_size_index, short y, uint32_t color) {
 	short width = ComputeMsgWidth(str, font_size_index);
 	short x = (short)(g_fCurInGameWidth / 2.0f) - width / 2;
 	return DisplayText(str, font_size_index, x, y, color);
@@ -11221,7 +11221,7 @@ short PrimarySurface::DisplayCenteredText(char *str, int font_size_index, short 
   the timer on whatever is in that slot. The hard-coded values are screen-height
   relative and seem to work fine across different resolutions.
  */
-void DisplayTimedMessage(uint32_t seconds, int row, char *msg) {
+void DisplayTimedMessage(uint32_t seconds, int row, char* msg) {
 	short y_pos = (short)(g_fCurInGameHeight * (0.189f + 0.05f * row));
 	g_TimedMessages[row].SetMsg(msg, seconds, y_pos, FONT_LARGE_IDX, FONT_BLUE_COLOR);
 }

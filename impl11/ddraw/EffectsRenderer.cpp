@@ -1893,44 +1893,21 @@ void EffectsRenderer::CreateRectangleMesh(
 
 void EffectsRenderer::CreateVRMeshes()
 {
-	// The virtual keyboard only makes sense when AC is on
+	int res;
+
+	// The VR keyboard/gloves only make sense when AC is on
 	if (!g_bActiveCockpitEnabled)
 		return;
 
-	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
-	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
-	const float height = g_vrKeybState.fMetersWidth / ratio;
-	CreateRectangleMesh(g_vrKeybState.fMetersWidth, height, { 0, -0.03f, height / 2.0f },
-		g_vrKeybTriangles, g_vrKeybMeshVertices, g_vrKeybTextureCoords,
-		_vrKeybVertexBuffer, _vrKeybIndexBuffer,
-		_vrKeybMeshVerticesBuffer, _vrKeybMeshVerticesSRV,
-		_vrKeybMeshTexCoordsBuffer, _vrKeybMeshTexCoordsSRV);
-
-	//_vrKeybVertexBuffer->AddRef();
-	//_vrKeybIndexBuffer->AddRef();
-	//_vrKeybMeshVerticesBuffer->AddRef();
-	//_vrKeybMeshVerticesView->AddRef();
-	//_vrKeybMeshTextureCoordsBuffer->AddRef();
-	//_vrKeybMeshTextureCoordsView->AddRef();
-
+	// *************************************************
+	// Gloves
+	// *************************************************
 	log_debug("[DBG] [AC] Creating VR Dot buffers");
 	CreateRectangleMesh(0.017f, 0.017f, { 0, 0, 0 },
 		g_vrDotTriangles, g_vrDotMeshVertices, g_vrDotTextureCoords,
 		_vrDotVertexBuffer, _vrDotIndexBuffer,
 		_vrDotMeshVerticesBuffer, _vrDotMeshVerticesSRV,
 		_vrDotMeshTexCoordsBuffer, _vrDotMeshTexCoordsSRV);
-
-	int res = LoadDATImage(g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId, _vrKeybTextureSRV.GetAddressOf());
-	if (SUCCEEDED(res))
-	{
-		log_debug("[DBG] [AC] VR Keyboard texture successfully loaded!");
-	}
-	else
-	{
-		log_debug("[DBG] [AC] Could not load texture for VR Keyboard [%s]-[%d]-[%d]",
-			g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
-	}
-	log_debug("[DBG] [AC] Virtual keyboard buffers CREATED");
 
 	// Load the green circles used to display the intersection point
 	res = LoadDATImage(".\\Effects\\ActiveCockpit\\Textures.dat", 2, 0, _vrGreenCirclesSRV.GetAddressOf());
@@ -1975,6 +1952,38 @@ void EffectsRenderer::CreateVRMeshes()
 		}
 		log_debug("[DBG] [AC] VR glove hand buffers CREATED");
 	}
+
+	// *************************************************
+	// VR Keyboard
+	// *************************************************
+	log_debug("[DBG] [AC] Creating virtual keyboard buffers");
+	const float ratio = g_vrKeybState.fPixelWidth / g_vrKeybState.fPixelHeight;
+	const float height = g_vrKeybState.fMetersWidth / ratio;
+	const float forward = g_vrGlovesMeshes[0].forwardPmeters[VRGlovesProfile::POINT];
+	CreateRectangleMesh(g_vrKeybState.fMetersWidth, height, { 0, -forward, height / 2.0f },
+		g_vrKeybTriangles, g_vrKeybMeshVertices, g_vrKeybTextureCoords,
+		_vrKeybVertexBuffer, _vrKeybIndexBuffer,
+		_vrKeybMeshVerticesBuffer, _vrKeybMeshVerticesSRV,
+		_vrKeybMeshTexCoordsBuffer, _vrKeybMeshTexCoordsSRV);
+
+	res = LoadDATImage(g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId, _vrKeybTextureSRV.GetAddressOf());
+	if (SUCCEEDED(res))
+	{
+		log_debug("[DBG] [AC] VR Keyboard texture successfully loaded!");
+	}
+	else
+	{
+		log_debug("[DBG] [AC] Could not load texture for VR Keyboard [%s]-[%d]-[%d]",
+			g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
+	}
+	log_debug("[DBG] [AC] Virtual keyboard buffers CREATED");
+
+	//_vrKeybVertexBuffer->AddRef();
+	//_vrKeybIndexBuffer->AddRef();
+	//_vrKeybMeshVerticesBuffer->AddRef();
+	//_vrKeybMeshVerticesView->AddRef();
+	//_vrKeybMeshTextureCoordsBuffer->AddRef();
+	//_vrKeybMeshTextureCoordsView->AddRef();
 
 	// TODO: Check for memory leaks. Should I Release() these resources?
 }
@@ -3471,6 +3480,16 @@ void EffectsRenderer::ApplySpecialMaterials()
 	}
 }
 
+/// <summary>
+/// Returns 0 if there's no throttle, 1 for full throttle.
+/// </summary>
+float GetCurrentPlayerThrottle()
+{
+	CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
+	if (craftInstance == NULL) return 0.0f;
+	return craftInstance->EngineThrottleInput / 65535.0f;
+};
+
 void EffectsRenderer::ApplyDiegeticCockpit()
 {
 	// g_OPTMeshTransformCB.MeshTransform should be reset to identity for each mesh at
@@ -3480,12 +3499,6 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		return;
 
 	auto &resources = _deviceResources;
-
-	auto GetThrottle = []() {
-		CraftInstance *craftInstance = GetPlayerCraftInstanceSafe();
-		if (craftInstance == NULL) return 0.0f;
-		return craftInstance->EngineThrottleInput / 65535.0f;
-	};
 
 	auto GetHyperThrottle = []() {
 		float timeInHyperspace = (float)PlayerDataTable[*g_playerIndex].timeInHyperspace;
@@ -3549,7 +3562,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		//if (!_bThrottleTransformReady)
 		{
 			float throttle = (DiegeticMesh == DM_THR_ROT_X || DiegeticMesh == DM_THR_ROT_Y || DiegeticMesh == DM_THR_ROT_Z) ?
-				GetThrottle() : GetHyperThrottle();
+				GetCurrentPlayerThrottle() : GetHyperThrottle();
 
 			// Build the transform matrix
 			Vector3 ThrottleRoot = _lastTextureSelected->material.ThrottleRoot;
@@ -3586,7 +3599,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		// throttle are present.
 		//if (!_bThrottleTransformReady)
 		{
-			float throttle = DiegeticMesh == DM_THR_TRANS ? GetThrottle() : GetHyperThrottle();
+			float throttle = DiegeticMesh == DM_THR_TRANS ? GetCurrentPlayerThrottle() : GetHyperThrottle();
 
 			// Build the transform matrix
 			Matrix4 T, R;
@@ -3614,7 +3627,7 @@ void EffectsRenderer::ApplyDiegeticCockpit()
 		// throttle are present.
 		//if (!_bThrottleRotAxisToZPlusReady)
 		{
-			float throttle = DiegeticMesh == DM_THR_ROT_ANY ? GetThrottle() : GetHyperThrottle();
+			float throttle = DiegeticMesh == DM_THR_ROT_ANY ? GetCurrentPlayerThrottle() : GetHyperThrottle();
 			Material *material = &(_lastTextureSelected->material);
 
 			float ThrottleMaxAngle = material->ThrottleMaxAngle;

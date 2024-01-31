@@ -53,6 +53,8 @@ extern D3D11_VIEWPORT g_concourseViewport;
 extern int g_WindowWidth, g_WindowHeight;
 extern float g_fCurInGame2DWidth, g_fCurInGame2DHeight;
 
+float GetCurrentPlayerThrottle();
+
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "XInput9_1_0")
 
@@ -744,7 +746,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			if (!(g_prevContStates[thrIdx].buttons[VRButtons::GRIP]) && g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
-				anchorThrottle = normThrottle;
+				anchorThrottle = -1.0f * (GetCurrentPlayerThrottle() * 2.0f - 1.0f);
 			}
 
 			if (g_contStates[thrIdx].buttons[VRButtons::GRIP])
