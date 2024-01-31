@@ -73,6 +73,7 @@ struct ACJoyEmulSettings
 	float joyHalfRangeX;
 	float joyHalfRangeZ;
 	float deadZonePerc;
+	float rollDeadZonePerc;
 	float thrHalfRange;
 
 	float yawHalfRange;
@@ -83,13 +84,15 @@ struct ACJoyEmulSettings
 	{
 		throttleEnabled = false;
 
-		joyHandIdx    = 1;
-		thrHandIdx    = 0;
+		joyHandIdx = 1;
+		thrHandIdx = 0;
 
 		joyHalfRangeX = 0.075f;
 		joyHalfRangeZ = 0.075f;
-		deadZonePerc  = 0.1f;
 		thrHalfRange  = 0.07f;
+
+		deadZonePerc     = 0.15f;
+		rollDeadZonePerc = 0.17f;
 
 		yawHalfRange   = 35.0f;
 		pitchHalfRange = 25.0f;

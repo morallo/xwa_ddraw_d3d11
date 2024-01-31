@@ -691,10 +691,10 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				else
 					pitch = lerp(0.0f, 1.0f, clamp(pitch / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
 
-				if (roll < g_ACJoyEmul.deadZonePerc)
+				if (roll < g_ACJoyEmul.rollDeadZonePerc)
 					roll = 0.0f;
 				else
-					roll = lerp(0.0f, 1.0f, clamp(roll / (1.0f - g_ACJoyEmul.deadZonePerc), 0.0f, 1.0f));
+					roll = lerp(0.0f, 1.0f, clamp(roll / (1.0f - g_ACJoyEmul.rollDeadZonePerc), 0.0f, 1.0f));
 
 				yaw   *= s_yaw;
 				pitch *= s_pitch;

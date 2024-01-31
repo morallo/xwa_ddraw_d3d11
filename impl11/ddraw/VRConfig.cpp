@@ -1750,10 +1750,12 @@ bool LoadACParams() {
 			else if (_stricmp(param, "joystick_dead_zone") == 0) {
 				g_ACJoyEmul.deadZonePerc = fValue / 100.0f;
 			}
+			else if (_stricmp(param, "joystick_roll_dead_zone") == 0) {
+				g_ACJoyEmul.rollDeadZonePerc = fValue / 100.0f;
+			}
 			else if (_stricmp(param, "throttle_range") == 0) {
 				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
 			}
-			/*
 			else if (_stricmp(param, "joystick_yaw_range") == 0) {
 				g_ACJoyEmul.yawHalfRange = fValue / 2.0f;
 			}
@@ -1763,7 +1765,7 @@ bool LoadACParams() {
 			else if (_stricmp(param, "joystick_roll_range") == 0) {
 				g_ACJoyEmul.rollHalfRange = fValue / 2.0f;
 			}
-			*/
+
 
 			if (_stricmp(param, "display_left_glove") == 0)
 			{
