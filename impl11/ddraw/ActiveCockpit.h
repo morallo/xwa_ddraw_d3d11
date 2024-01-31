@@ -66,6 +66,7 @@ extern int g_iFreePIESlot, g_iFreePIEControllerSlot;
 struct ACJoyEmulSettings
 {
 	bool  throttleEnabled;
+	bool  yprEnabled;
 	// Internally, the left-hand index is always 0 and the right hand is at index 1
 	// We use these indices to enable handedness:
 	int   joyHandIdx;
@@ -83,6 +84,7 @@ struct ACJoyEmulSettings
 	ACJoyEmulSettings()
 	{
 		throttleEnabled = false;
+		yprEnabled      = true;
 
 		joyHandIdx = 1;
 		thrHandIdx = 0;

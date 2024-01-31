@@ -434,20 +434,44 @@ void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, f
 	if (bResetCenter)
 	{
 		g_contStates[joyIdx].centerYaw   = g_contStates[joyIdx].yaw;
-		g_contStates[joyIdx].centerPitch = g_contStates[joyIdx].pitch;
 		g_contStates[joyIdx].centerRoll  = g_contStates[joyIdx].roll;
+
+		g_contStates[joyIdx].centerUp = pose * g_controllerUpVector;
+		// Project U to the Y-Z plane:
+		g_contStates[joyIdx].centerUp.x = 0;
+		g_contStates[joyIdx].centerUp.w = 0;
+		g_contStates[joyIdx].centerUp.normalize();
 	}
-	*yaw  = RAD2DEG * (g_contStates[joyIdx].roll - g_contStates[joyIdx].centerRoll);
+	// THIS IS NOT A MISTAKE!
+	// SteamVR's roll is what we call yaw when moving the ship and viceversa.
 	*roll = RAD2DEG * (g_contStates[joyIdx].yaw  - g_contStates[joyIdx].centerYaw);
+	*yaw  = RAD2DEG * (g_contStates[joyIdx].roll - g_contStates[joyIdx].centerRoll);
 
+	// To compute the pitch, we're going to project the controller's Up dir to the Y-Z plane.
+	// Then, in this Y-Z plane we'll compute the "x" and "y" components of the controller's
+	// Up to see how far it is from the centerUp reference captured above. Once the "x" and
+	// "y" components have been captured, we use the cross product of these vectors to figure
+	// out the direction of the tilt and use atan2 to find the final angle.
+	// Easy-peasy!
+	const Vector4 cUp = g_contStates[joyIdx].centerUp;
 	// g_controllerUpVector is already normalized
-	Vector4 U = pose * g_controllerUpVector;
-
-	// Project U to the Y-Z plane and find the angle
-	Vector4 Up = Vector4(0, U.y, U.z, 0);
+	Vector4 Up = pose * g_controllerUpVector;
+	// Project U to the Y-Z plane and find the angle wrt centerUp
+	Up.x = Up.w = 0;
 	Up.normalize();
-	*pitch = RAD2DEG * atan2(Up.z, Up.y);
-	// Signs need to be inverted to match XWA's system
+
+	const float x = Up.dot(cUp);
+	const Vector3 X = x * Vector3(cUp.x, cUp.y, cUp.z);
+	const Vector3 Y = Vector3(Up.x, Up.y, Up.z) - X;
+	const float y = Y.length();
+	// Despite their names, X and Y both lie in the Y-Z plane, so their cross product
+	// will point along the X axis. The sign of C.x tells us if the pitch is forwards
+	// or backwards:
+	const Vector3 C = X.cross(Y);
+	const float s = sign(C.x);
+
+	*pitch = RAD2DEG * atan2(s * y, x);
+	// Signs need to be inverted to match XWA's system:
 	*yaw  = - *yaw;
 	*roll = - *roll;
 
@@ -670,7 +694,10 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				float roll  = 0;
 				float dummy;
 
-				EmulYawPitchRollFromVR(bResetAnchor, &dummy, &dummy, &roll);
+				if (g_ACJoyEmul.yprEnabled)
+					EmulYawPitchRollFromVR(bResetAnchor, &yaw, &pitch, &roll);
+				else
+					EmulYawPitchRollFromVR(bResetAnchor, &dummy, &dummy, &roll);
 
 				// Apply deadzone
 				const float s_yaw   = sign(yaw);
