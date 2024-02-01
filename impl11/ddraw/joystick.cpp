@@ -433,49 +433,91 @@ void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, f
 	// roll : left : 40, right : -40
 	const int joyIdx = g_ACJoyEmul.joyHandIdx;
 	Matrix4 pose = g_contStates[joyIdx].pose;
+	static Vector4 cUpYZ, cUpXY;
 	if (bResetCenter)
 	{
-		g_contStates[joyIdx].centerYaw   = g_contStates[joyIdx].yaw;
-		g_contStates[joyIdx].centerRoll  = g_contStates[joyIdx].roll;
+		// Capture the current forward vector (g_controllerForwardVector is already normalized)
+		g_contStates[joyIdx].centerFwd = pose * g_controllerForwardVector;
+		// Project F to the X-Z plane:
+		g_contStates[joyIdx].centerFwd.y = 0;
+		g_contStates[joyIdx].centerFwd.w = 0;
+		g_contStates[joyIdx].centerFwd.normalize();
 
+		// Capture the current up vector (g_controllerUpVector is already normalized)
 		g_contStates[joyIdx].centerUp = pose * g_controllerUpVector;
+
 		// Project U to the Y-Z plane:
-		g_contStates[joyIdx].centerUp.x = 0;
-		g_contStates[joyIdx].centerUp.w = 0;
-		g_contStates[joyIdx].centerUp.normalize();
+		cUpYZ = g_contStates[joyIdx].centerUp;
+		cUpYZ.x = cUpYZ.w = 0;
+		cUpYZ.normalize();
+
+		// Project U to the X-Y plane:
+		cUpXY = g_contStates[joyIdx].centerUp;
+		cUpXY.z = cUpXY.w = 0;
+		cUpXY.normalize();
 	}
-	// THIS IS NOT A MISTAKE!
-	// SteamVR's roll is what we call yaw when moving the ship and viceversa.
-	*roll = RAD2DEG * (g_contStates[joyIdx].yaw  - g_contStates[joyIdx].centerYaw);
-	*yaw  = RAD2DEG * (g_contStates[joyIdx].roll - g_contStates[joyIdx].centerRoll);
 
-	// To compute the pitch, we're going to project the controller's Up dir to the Y-Z plane.
-	// Then, in this Y-Z plane we'll compute the "x" and "y" components of the controller's
-	// Up to see how far it is from the centerUp reference captured above. Once the "x" and
-	// "y" components have been captured, we use the cross product of these vectors to figure
-	// out the direction of the tilt and use atan2 to find the final angle.
-	// Easy-peasy!
-	const Vector4 cUp = g_contStates[joyIdx].centerUp;
 	// g_controllerUpVector is already normalized
-	Vector4 Up = pose * g_controllerUpVector;
-	// Project U to the Y-Z plane and find the angle wrt centerUp
-	Up.x = Up.w = 0;
-	Up.normalize();
+	Vector4 U = pose * g_controllerUpVector;
 
-	const float x = Up.dot(cUp);
-	const Vector3 X = x * Vector3(cUp.x, cUp.y, cUp.z);
-	const Vector3 Y = Vector3(Up.x, Up.y, Up.z) - X;
-	const float y = Y.length();
-	// Despite their names, X and Y both lie in the Y-Z plane, so their cross product
-	// will point along the X axis. The sign of C.x tells us if the pitch is forwards
-	// or backwards:
-	const Vector3 C = X.cross(Y);
-	const float s = sign(C.x);
+	// Project U to the Y-Z plane and find the angle wrt centerUp to find the pitch
+	{
+		// To compute the pitch, we're going to project the controller's Up dir to the Y-Z plane.
+		// Then, in this Y-Z plane we'll compute the "x" and "y" components of the controller's
+		// Up to see how far it is from the centerUp reference captured above. Once the "x" and
+		// "y" components have been captured, we use the cross product of these vectors to figure
+		// out the direction of the tilt and use atan2 to find the final angle.
+		// Easy-peasy!
+		Vector4 Uyz;
+		Uyz.y = U.y; Uyz.z = U.z;
+		Uyz.x = Uyz.w = 0;
+		Uyz.normalize();
 
-	*pitch = RAD2DEG * atan2(s * y, x);
-	// Signs need to be inverted to match XWA's system:
-	*yaw  = - *yaw;
-	*roll = - *roll;
+		const float x = Uyz.dot(cUpYZ);
+		const Vector3 X = x * Vector3(cUpYZ.x, cUpYZ.y, cUpYZ.z);
+		const Vector3 Y = Vector3(Uyz.x, Uyz.y, Uyz.z) - X;
+		const float y = Y.length();
+		// Despite their names, X and Y both lie in the Y-Z plane, so their cross product
+		// will point along the X axis. The sign of C.x tells us if the pitch is forwards
+		// or backwards:
+		const Vector3 C = X.cross(Y);
+		const float s = sign(C.x);
+		*pitch = RAD2DEG * atan2(s * y, x);
+	}
+
+	// Project U to the X-Y plane and find the angle wrt centerUp to find the yaw
+	{
+		Vector4 Uxy;
+		Uxy.x = U.x; Uxy.y = U.y;
+		Uxy.z = Uxy.w = 0;
+		Uxy.normalize();
+
+		const float x = Uxy.dot(cUpXY);
+		const Vector3 X = x * Vector3(cUpXY.x, cUpXY.y, cUpXY.z);
+		const Vector3 Y = Vector3(Uxy.x, Uxy.y, Uxy.z) - X;
+		const float y = Y.length();
+		const Vector3 C = Y.cross(X);
+		const float s = sign(C.z);
+		*yaw = RAD2DEG * atan2(s * y, x);
+	}
+
+	// Project F to the X-Z plane and find the angle wrt centerFwd to find the roll
+	{
+		const Vector4 cFwd = g_contStates[joyIdx].centerFwd;
+		// g_controllerForwardVector is already normalized
+		Vector4 Fwd = pose * g_controllerForwardVector;
+		// Project to the X-Z plane and find the angle wrt centerFwd
+		Fwd.y = Fwd.w = 0;
+		Fwd.normalize();
+
+		const float x = Fwd.dot(cFwd);
+		const Vector3 X = x * Vector3(cFwd.x, cFwd.y, cFwd.z);
+		const Vector3 Y = Vector3(Fwd.x, Fwd.y, Fwd.z) - X;
+		const float y = Y.length();
+		const Vector3 C = Y.cross(X);
+		const float s = sign(C.y);
+		*roll = RAD2DEG * atan2(s * y, x);
+	}
 
 	*yaw   = clamp(*yaw,   -g_ACJoyEmul.yawHalfRange,   g_ACJoyEmul.yawHalfRange)   / g_ACJoyEmul.yawHalfRange;
 	*pitch = clamp(*pitch, -g_ACJoyEmul.pitchHalfRange, g_ACJoyEmul.pitchHalfRange) / g_ACJoyEmul.pitchHalfRange;

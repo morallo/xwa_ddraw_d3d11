@@ -61,9 +61,7 @@ struct ControllerState
 	bool     bIsValid;
 	bool     buttons[VRButtons::MAX];
 	float    trackPadX, trackPadY;
-	float    yaw, pitch, roll; // As reported by SteamVR
-	float    centerYaw, centerRoll;
-	Vector4  centerUp;
+	Vector4  centerFwd, centerUp;
 	uint32_t packetNum; // Internal, do not modify
 	bool     displayGlove;
 
@@ -75,8 +73,6 @@ struct ControllerState
 		bIsValid  = false;
 		trackPadX = 0;
 		trackPadY = 0;
-		yaw = pitch = roll = 0;
-		centerYaw = centerRoll = 0;
 		packetNum = 0xFFFFFFFF;
 		displayGlove = true;
 	}

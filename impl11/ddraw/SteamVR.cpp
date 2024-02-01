@@ -423,11 +423,11 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 					g_contStates[i].trackPadY = state.rAxis[0].y;
 					g_contStates[i].packetNum = state.unPacketNum;
 
-					vr::HmdMatrix34_t m34_fullMatrix;
-					vr::HmdQuaternionf_t q;
-					Matrix4toHmdMatrix34(g_contStates[i].pose, m34_fullMatrix);
-					q = rotationToQuaternion(m34_fullMatrix);
-					quatToEuler(q, &(g_contStates[i].yaw), &(g_contStates[i].pitch), &(g_contStates[i].roll));
+					//vr::HmdMatrix34_t m34_fullMatrix;
+					//vr::HmdQuaternionf_t q;
+					//Matrix4toHmdMatrix34(g_contStates[i].pose, m34_fullMatrix);
+					//q = rotationToQuaternion(m34_fullMatrix);
+					//quatToEuler(q, &(g_contStates[i].yaw), &(g_contStates[i].pitch), &(g_contStates[i].roll));
 
 					//DisplayController(i);
 				}

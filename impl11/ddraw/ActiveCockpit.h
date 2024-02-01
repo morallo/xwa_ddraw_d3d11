@@ -96,9 +96,9 @@ struct ACJoyEmulSettings
 		deadZonePerc     = 0.15f;
 		rollDeadZonePerc = 0.17f;
 
-		yawHalfRange   = 35.0f;
+		yawHalfRange   = 25.0f;
 		pitchHalfRange = 25.0f;
-		rollHalfRange  = 25.0f;
+		rollHalfRange  = 15.0f;
 	}
 };
 extern ACJoyEmulSettings g_ACJoyEmul;
