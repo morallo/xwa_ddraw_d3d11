@@ -1756,8 +1756,9 @@ bool LoadACParams() {
 			else if (_stricmp(param, "throttle_range") == 0) {
 				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
 			}
-			else if (_stricmp(param, "joystick_yaw_pitch_roll_emul_enabled") == 0) {
-				g_ACJoyEmul.yprEnabled = (bool)fValue;
+			else if (_stricmp(param, "joystick_emul_mode") == 0) {
+				int val = (int)fValue;
+				g_ACJoyEmul.yprEnabled = (val == 1);
 			}
 			else if (_stricmp(param, "joystick_yaw_range") == 0) {
 				g_ACJoyEmul.yawHalfRange = fValue / 2.0f;
