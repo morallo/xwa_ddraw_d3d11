@@ -48,6 +48,11 @@ ACJoyEmulSettings g_ACJoyEmul;        // Stores data needed to configure VR cont
 ACJoyMapping      g_ACJoyMappings[2]; // Maps VR buttons to AC actions
 ACPointerData     g_ACPointerData;    // Tells us which controller and button is used to activate AC controls
 
+void POVBackwards();
+void POVForwards();
+void POVUp();
+void POVDown();
+
 bool IsContinousAction(WORD* action)
 {
 	return (action != nullptr &&
@@ -187,6 +192,20 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, 
 			if (holdCtrl) g_vrKeybState.AddLitRegion(ctrlRegion);
 			if (holdAlt) g_vrKeybState.AddLitRegion(altRegion);
 			if (holdShift) g_vrKeybState.AddLitRegion(shiftRegion);
+			return;
+
+		// POV Adjustments
+		case AC_POV_UP_FAKE_VK_CODE:
+			POVUp();
+			return;
+		case AC_POV_DN_FAKE_VK_CODE:
+			POVDown();
+			return;
+		case AC_POV_FD_FAKE_VK_CODE:
+			POVForwards();
+			return;
+		case AC_POV_BK_FAKE_VK_CODE:
+			POVBackwards();
 			return;
 		}
 		return;
@@ -574,6 +593,30 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 		if (strstr(ptr, "ESC") != NULL) {
 			scanCodes[j++] = MapVirtualKey(VK_ESCAPE, MAPVK_VK_TO_VSC);
 			scanCodes[j] = 0;
+			return;
+		}
+
+		if (strstr(ptr, "POV_UP") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_POV_UP_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "POV_DOWN") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_POV_DN_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "POV_FORWARD") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_POV_FD_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "POV_BACKWARD") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_POV_BK_FAKE_VK_CODE;
 			return;
 		}
 	}

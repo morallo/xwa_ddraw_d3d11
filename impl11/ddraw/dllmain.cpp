@@ -163,6 +163,50 @@ void IncreaseAspectRatio(float delta) {
 	log_debug("[DBG] [FOV] Aspect Ratio: %0.6f, Concourse Aspect Ratio: %0.6f", g_fAspectRatio, g_fConcourseAspectRatio);
 }
 
+void POVBackwards()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.z -= POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.y -= POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
+}
+
+void POVForwards()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.z += POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.y += POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
+}
+
+void POVUp()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.y += POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.x += POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
+}
+
+void POVDown()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.y -= POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.x -= POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
+}
+
 #define MAX_ACTION_LEN 10
 void RunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
@@ -1120,43 +1164,19 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Shift + Arrow Keys
 			case VK_LEFT:
 				// Adjust the POV in VR, see CockpitLook
-				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					if (!InGunnerTurret())
-						g_CockpitPOVOffset.z -= POVOffsetIncr;
-					else
-						g_GunnerTurretPOVOffset.y -= POVOffsetIncr;
-					SavePOVOffsetToIniFile();
-				}
+				POVBackwards();
 				return 0;
 			case VK_RIGHT:
 				// Adjust the POV in VR, see CockpitLook
-				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					if (!InGunnerTurret())
-						g_CockpitPOVOffset.z += POVOffsetIncr;
-					else
-						g_GunnerTurretPOVOffset.y += POVOffsetIncr;
-					SavePOVOffsetToIniFile();
-				}
+				POVForwards();
 				return 0;
 			case VK_UP:
 				// Adjust the POV in VR, see CockpitLook
-				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					if (!InGunnerTurret())
-						g_CockpitPOVOffset.y += POVOffsetIncr;
-					else
-						g_GunnerTurretPOVOffset.x += POVOffsetIncr;
-					SavePOVOffsetToIniFile();
-				}
+				POVUp();
 				return 0;
 			case VK_DOWN:
 				// Adjust the POV in VR, see CockpitLook
-				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					if (!InGunnerTurret())
-						g_CockpitPOVOffset.y -= POVOffsetIncr;
-					else
-						g_GunnerTurretPOVOffset.x -= POVOffsetIncr;
-					SavePOVOffsetToIniFile();
-				}
+				POVDown();
 				return 0;
 
 			case VK_OEM_PERIOD:
