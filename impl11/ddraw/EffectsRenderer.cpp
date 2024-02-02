@@ -5500,14 +5500,12 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// TODO: Update the Hyperspace FSM -- but only update it exactly once per frame.
 	// Looks like the code to do this update in Execute() still works. So moving on for now
 
-	// Capture the cockpit OPT -> View transform for use in ShadowMapping later on
-	if (g_bShadowMapEnable) {
-		if (!_bCockpitConstantsCaptured && (_bIsCockpit || _bIsGunner))
-		{
-			_bCockpitConstantsCaptured = true;
-			_CockpitConstants = _constants;
-			_CockpitWorldView = scene->WorldViewTransform;
-		}
+	// Capture the cockpit OPT -> View transform. It's used for ShadowMapping and VR gloves
+	if (!_bCockpitConstantsCaptured && (_bIsCockpit || _bIsGunner))
+	{
+		_bCockpitConstantsCaptured = true;
+		_CockpitConstants = _constants;
+		_CockpitWorldView = scene->WorldViewTransform;
 	}
 
 	// Procedural Lava
@@ -6194,7 +6192,7 @@ void EffectsRenderer::RenderTransparency()
 
 void EffectsRenderer::RenderVRDots()
 {
-	if (!g_bUseSteamVR || !g_bActiveCockpitEnabled || _bDotsbRendered || !_bCockpitConstantsCaptured)
+	if (!g_bUseSteamVR || !g_bRendering3D || !g_bActiveCockpitEnabled || _bDotsbRendered || !_bCockpitConstantsCaptured)
 		return;
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVRDots");
@@ -6337,7 +6335,7 @@ void EffectsRenderer::RenderVRDots()
 
 void EffectsRenderer::RenderVRKeyboard()
 {
-	if (!g_bUseSteamVR || !g_bActiveCockpitEnabled)
+	if (!g_bUseSteamVR || !g_bActiveCockpitEnabled || !g_bRendering3D)
 		return;
 
 	// g_vrKeybState.bRendered is set to false on SceneBegin() -- at the beginning of each frame
@@ -6560,10 +6558,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 void EffectsRenderer::RenderVRGloves()
 {
-	if (!g_bUseSteamVR)
-		return;
-
-	if (!g_bActiveCockpitEnabled || !_bCockpitConstantsCaptured)
+	if (!g_bUseSteamVR || !g_bRendering3D || !g_bActiveCockpitEnabled || !_bCockpitConstantsCaptured)
 		return;
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVRGloves");
