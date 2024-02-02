@@ -78,7 +78,7 @@ Config::Config()
 	this->OnlyGrayscaleInTechRoom = false;
 	this->TechRoomHolograms = false;
 	this->CullBackFaces = false;
-	this->FlipDATImages = true;
+	this->FlipDATImages = false;
 
 	this->HDConcourseEnabled = false;
 
