@@ -3701,14 +3701,15 @@ void EffectsRenderer::IntersectVRGeometry()
 
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+	const bool bInHangar = *g_playerInHangar;
 
-	Matrix4 KeybTransform = bGunnerTurret ? g_vrKeybState.OPTTransform : g_vrKeybState.Transform;
+	Matrix4 KeybTransform = (bGunnerTurret || bInHangar) ? g_vrKeybState.OPTTransform : g_vrKeybState.Transform;
 	// We premultiply in the code below, so we need to transpose the matrix because
 	// the Vertex shader does a postmultiplication
 	KeybTransform.transpose();
 
 	Vector4 contOrigin[2], contDir[2];
-	if (!bGunnerTurret)
+	if (!bGunnerTurret && !bInHangar)
 		VRControllerToOPTCoords(contOrigin, contDir);
 	else
 	{
@@ -3742,7 +3743,7 @@ void EffectsRenderer::IntersectVRGeometry()
 
 			// Transform the controller's origin into the OPT coord sys
 			Vector4 O;
-			if (bGunnerTurret)
+			if (bGunnerTurret || bInHangar)
 			{
 				// The gloves are in the following coord sys after the "pose" transform is
 				// applied:
@@ -3815,7 +3816,7 @@ void EffectsRenderer::IntersectVRGeometry()
 				// ... so we need to transform it into OPT-Viewspace coords:
 				Q = pose0 * Q;
 
-				if (bGunnerTurret)
+				if (bGunnerTurret || bInHangar)
 				{
 					g_LaserPointer3DIntersection[contIdx] = { Q.x, -Q.y, Q.z };
 					Matrix4 invYZ({ 1,0,0,0,  0,-1,0,0,  0,0,-1,0,  0,0,0,1 });
@@ -3942,7 +3943,7 @@ void EffectsRenderer::IntersectVRGeometry()
 						g_debug_v2 = v2;
 					}
 
-					if (bGunnerTurret)
+					if (bGunnerTurret || bInHangar)
 					{
 						Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 						Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
@@ -4069,6 +4070,31 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 								g_enable_ac_debug = true;
 							}
 							g_LaserPointer3DIntersection[contIdx] = P;
+
+							//if (bGunnerTurret || bInHangar)
+							if (*g_playerInHangar)
+							{
+								Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+								const float cockpitOriginX = *g_POV_X;
+								const float cockpitOriginY = *g_POV_Y;
+								const float cockpitOriginZ = *g_POV_Z;
+
+								Matrix4 T;
+								T.translate(-cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
+								            -cockpitOriginY + (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
+								            -cockpitOriginZ - (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
+
+								Matrix4 S = Matrix4().scale(OPT_TO_METERS);
+								Matrix4 toSteamVR = swap * S;
+								Vector4 Q = toSteamVR * T * Vector3ToVector4(P, 1.0f);
+
+								// This is a bit of a crutch, but I'm temporarily storing the intersection in
+								// SteamVR coords because it's easier to test the distance with the controller
+								// in this framework. This shouldn't be necessary, though.
+								g_LaserPointerIntersSteamVR[contIdx].x = Q.x;
+								g_LaserPointerIntersSteamVR[contIdx].y = Q.y;
+								g_LaserPointerIntersSteamVR[contIdx].z = Q.z;
+							}
 						}
 					}
 				}
@@ -6207,6 +6233,7 @@ void EffectsRenderer::RenderVRDots()
 	auto& context = resources->_d3dDeviceContext;
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+	const bool bInHangar = *g_playerInHangar;
 
 	SaveContext();
 
@@ -6266,7 +6293,7 @@ void EffectsRenderer::RenderVRDots()
 
 	// Set the constants buffer
 	Matrix4 Vinv;
-	if (bGunnerTurret)
+	if (bGunnerTurret || bInHangar)
 	{
 		// For the Gunner Turret, we're going to remove the world-view transform and replace it
 		// with an identity matrix. That way, the gloves, which are already in viewspace coords,
@@ -6300,7 +6327,7 @@ void EffectsRenderer::RenderVRDots()
 		Matrix4 DotTransform;
 		// This transform puts the dot near the center of the A-Wing dashboard:
 		//DotTransform.translate(0, -30.0f, 20.0f);
-		if (!bGunnerTurret)
+		if (!bGunnerTurret && !bInHangar)
 		{
 			DotTransform = V;
 			// This is the same as doing DotTransform = T * V:
@@ -6344,11 +6371,12 @@ void EffectsRenderer::RenderVRKeyboard()
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVRKeyboard");
 
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+	const bool bInHangar = *g_playerInHangar;
+
 	// Update the position of the keyboard
 	{
-		const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
-			PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
-
 		const float cockpitOriginX = *g_POV_X;
 		const float cockpitOriginY = *g_POV_Y;
 		const float cockpitOriginZ = *g_POV_Z;
@@ -6362,7 +6390,7 @@ void EffectsRenderer::RenderVRKeyboard()
 		R.rotateX(25.0f);
 
 		Matrix4 Tinv, Sinv;
-		if (!bGunnerTurret)
+		if (!bGunnerTurret && !bInHangar)
 			Tinv.translate(cockpitOriginX + (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
 			               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
 			               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
@@ -6372,7 +6400,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 		Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
 		Matrix4 Vinv;
-		if (bGunnerTurret)
+		if (bGunnerTurret || bInHangar)
 		{
 			// fullViewMat is available here, near the end of the frame; but it's not available in SceneBegin()
 			Vinv = g_VSMatrixCB.fullViewMat;
@@ -6409,7 +6437,7 @@ void EffectsRenderer::RenderVRKeyboard()
 			}
 		}
 
-		if (!bGunnerTurret)
+		if (!bGunnerTurret && !bInHangar)
 		{
 			// Convert OPT to SteamVR coords, then invert the initial pose so that the keyboard is
 			// always shown upright, then apply the current VR controller pose, and finally move
@@ -6503,9 +6531,6 @@ void EffectsRenderer::RenderVRKeyboard()
 	}
 
 	// Flags used in RenderScene():
-	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
-		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
-	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
 	_bIsGunner = bGunnerTurret;
 	_bIsBlastMark = false;
@@ -6530,7 +6555,7 @@ void EffectsRenderer::RenderVRKeyboard()
 	_deviceResources->InitIndexBuffer(_vrKeybIndexBuffer.Get(), true);
 
 	// Set the constants buffer
-	if (bGunnerTurret)
+	if (bGunnerTurret || bInHangar)
 	{
 		// For the Gunner Turret, we're going to remove the world-view transform and replace it
 		// with an identity matrix. That way, the gloves, which are already in viewspace coords,
@@ -6597,6 +6622,7 @@ void EffectsRenderer::RenderVRGloves()
 
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+	const bool bInHangar = *g_playerInHangar;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -6610,7 +6636,7 @@ void EffectsRenderer::RenderVRGloves()
 	Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 	Matrix4 S, T, Sinv, Tinv;
 	S.scale(OPT_TO_METERS);
-	if (!bGunnerTurret)
+	if (!bGunnerTurret && !bInHangar)
 		Tinv.translate(cockpitOriginX + (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
 		               cockpitOriginY - (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
 		               cockpitOriginZ + (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
@@ -6620,7 +6646,7 @@ void EffectsRenderer::RenderVRGloves()
 
 	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
 	Matrix4 Vinv;
-	if (bGunnerTurret)
+	if (bGunnerTurret || bInHangar)
 	{
 		Vinv = g_VSMatrixCB.fullViewMat;
 		Vinv.invert();
@@ -6667,7 +6693,7 @@ void EffectsRenderer::RenderVRGloves()
 		{
 			Vector4 I;
 
-			if (bGunnerTurret)
+			if (bGunnerTurret || bInHangar)
 			{
 				// The following transform chain is inspired by the VR glove transform chain, which is:
 				// g_vrGlovesMeshes[i].pose = swapScale * gloveDisp * toOPT * Vinv * g_contStates[i].pose * toSteamVR;
@@ -6697,7 +6723,7 @@ void EffectsRenderer::RenderVRGloves()
 		// The gloves are in the OPT-viewspace coord sys. In order to apply the SteamVR
 		// pose, we need to transform them to the SteamVR coord sys, then we apply the
 		// SteamVR pose, and then we move it back to the OPT-viewspace system.
-		if (!_bIsGunner)
+		if (!_bIsGunner && !bInHangar)
 		{
 			g_vrGlovesMeshes[i].pose = gloveDisp * toOPT * g_contStates[i].pose * toSteamVR;
 		}
@@ -6731,7 +6757,7 @@ void EffectsRenderer::RenderVRGloves()
 		_deviceResources->InitIndexBuffer(g_vrGlovesMeshes[i].indexBuffer.Get(), true);
 
 		// Set the constants buffer
-		if (bGunnerTurret)
+		if (bGunnerTurret || bInHangar)
 		{
 			// For the Gunner Turret, we're going to remove the world-view transform and replace it
 			// with an identity matrix. That way, the gloves, which are already in viewspace coords,

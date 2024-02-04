@@ -7751,9 +7751,13 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 		DisplayCenteredText((char *)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
 		y += 25;
 
-		//P = g_LaserPointerIntersSteamVR[contIdx]; // Use this for the Gunner Turret
+		P = g_LaserPointerIntersSteamVR[contIdx]; // Use this for the Gunner Turret
+		msg = "intersVR[" + std::to_string(contIdx) + "]: " + std::to_string(P.x) + ", " + std::to_string(P.y) + ", " + std::to_string(P.z);
+		DisplayCenteredText((char*)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
+		y += 25;
+
 		P = g_LaserPointer3DIntersection[contIdx]; // Use this for the Cockpit
-		msg = "inters[" + std::to_string(contIdx) + "]: " + std::to_string(P.x) + ", " + std::to_string(P.y) + ", " + std::to_string(P.z);
+		msg = "intersOPT[" + std::to_string(contIdx) + "]: " + std::to_string(P.x) + ", " + std::to_string(P.y) + ", " + std::to_string(P.z);
 		DisplayCenteredText((char*)msg.c_str(), FONT_LARGE_IDX, y, FONT_BLUE_COLOR);
 		y += 25;
 	}
@@ -7772,6 +7776,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+	const bool bInHangar = *g_playerInHangar;
 
 	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 	if (g_bUseSteamVR)
@@ -7787,7 +7792,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 
 	// contOriginDisplay is in OPT coords, viewspace
 	Vector4 contOriginDisplay[2], contDirDisplay[2];
-	if (!bGunnerTurret)
+	if (!bGunnerTurret && !bInHangar)
 		VRControllerToOPTCoords(contOriginDisplay, contDirDisplay);
 	else
 		for (int i = 0; i < 2; i++)
@@ -7918,7 +7923,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			}
 		}
 
-		if (!bGunnerTurret)
+		if (!bGunnerTurret && !bInHangar)
 			contOriginDisplay[contIdx] = W * contOriginDisplay[contIdx];
 		// contOriginDisplay is now in Worldview coords
 		g_LaserPointerBuffer.bContOrigin[contIdx] = (contOriginDisplay[contIdx].z > 0.01f); // Don't display the cursor if it's behind the camera
@@ -7980,7 +7985,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			//g_LaserPointerBuffer.bIntersection[contIdx] = false;
 			Vector3 O = { ray.origin.x, ray.origin.y, ray.origin.z };
 			Vector3 D = { P.x, P.y, P.z };
-			if (bGunnerTurret)
+			if (bGunnerTurret || bInHangar)
 			{
 				O.x = g_contOriginWorldSpace[contIdx].x;
 				O.y = g_contOriginWorldSpace[contIdx].y;
@@ -7991,7 +7996,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 				D.z = g_LaserPointerIntersSteamVR[contIdx].z;
 			}
 			g_fLaserIntersectionDistance[contIdx] = (D - O).length();
-			if (bGunnerTurret)
+			if (bGunnerTurret || bInHangar)
 				D *= OPT_TO_METERS;
 
 			// DEBUG
@@ -8034,7 +8039,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 			// P is in OPT coords, now we need to transform it to WorldView coords for the projection:
 			// If the Gunner Turret is active, then P is in SteamVR coords, so we need to make some adjustments.
 			Vector4 Q = Vector4(P.x, P.y, P.z, 1.0f);
-			if (!bGunnerTurret)
+			if (!bGunnerTurret && !bInHangar)
 				Q = W * Q;
 
 			// Don't display the intersection if it's behind the camera
@@ -8139,6 +8144,7 @@ void PrimarySurface::RenderLaserPointer(D3D11_VIEWPORT *lastViewport,
 	// RenderVRDots() will take care of rendering the intersection markers
 	if (g_vrGlovesMeshes[0].visible)
 		return;
+	// ******************************************************
 
 	// Render the laser pointer and intersections
 	// Temporarily disable ZWrite: we won't need it for post-proc

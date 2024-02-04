@@ -52,7 +52,12 @@ typedef struct AuxTextureDataStruct {
 #define FONT_MEDIUM_IDX 0
 #define FONT_LARGE_IDX 1
 #define FONT_SMALL_IDX 2
+
+#define FONT_RED_COLOR 0xFF3333
+#define FONT_GREEN_COLOR 0x33FF33
 #define FONT_BLUE_COLOR 0x5555FF
+#define FONT_WHITE_COLOR 0xFFFFFF
+#define FONT_BLACK_COLOR 0x0
 
 // Use this when using a static array for _extraTextures:
 //const int MAX_EXTRA_TEXTURES = 40;
