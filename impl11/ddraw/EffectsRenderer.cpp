@@ -3166,6 +3166,8 @@ void EffectsRenderer::SaveContext()
 	UINT NumRects = 1;
 	context->RSGetScissorRects(&NumRects, &_oldScissorRect);
 	_oldPose = g_OPTMeshTransformCB.MeshTransform;
+	for (int i = 0; i < 16; i++)
+		_oldTransformWorldView[i] = _CockpitConstants.transformWorldView[i];
 }
 
 void EffectsRenderer::RestoreContext()
@@ -3231,6 +3233,8 @@ void EffectsRenderer::RestoreContext()
 	_oldVertexBuffer.Release();
 	_oldIndexBuffer.Release();
 	g_OPTMeshTransformCB.MeshTransform = _oldPose;
+	for (int i = 0; i < 16; i++)
+		_CockpitConstants.transformWorldView[i] = _oldTransformWorldView[i];
 }
 
 void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
@@ -7019,7 +7023,7 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	g_ShadowMapVSCBuffer.sm_VR_mode = g_bEnableVR;
 
 	// Set the cockpit transform matrix and other shading-related constants
-	context->UpdateSubresource(_constantBuffer, 0, nullptr, &(_CockpitConstants), 0, 0);
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
 
 	// Compute all the lightWorldMatrices and their OBJrange/minZ's first:
 	for (int idx = 0; idx < *s_XwaGlobalLightsCount; idx++)
@@ -7034,7 +7038,7 @@ void EffectsRenderer::RenderCockpitShadowMap()
 		g_ShadowMapVSCBuffer.sm_maxZ[idx] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z; // Regular range for the cockpit
 
 		// g_OPTMeshTransformCB.MeshTransform is only relevant if we're going to apply
-		// m	esh transforms to individual shadow map meshes. Like pieces of the diegetic cockpit.
+		// mesh transforms to individual shadow map meshes. Like pieces of the diegetic cockpit.
 
 		// Compute the LightView (Parallel Projection) Matrix
 		// g_CurrentHeadingViewMatrix needs to have the correct data from SteamVR, including roll

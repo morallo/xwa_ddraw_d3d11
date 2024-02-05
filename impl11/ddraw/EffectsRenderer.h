@@ -92,6 +92,7 @@ protected:
 	ComPtr<ID3D11InputLayout> _oldInputLayout;
 	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
 	Matrix4 _oldPose;
+	float _oldTransformWorldView[16];
 
 	ComPtr<ID3D11Buffer> _vrKeybVertexBuffer;
 	ComPtr<ID3D11Buffer> _vrKeybIndexBuffer;
