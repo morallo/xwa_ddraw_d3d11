@@ -29,6 +29,7 @@
 
 extern D3dRenderer* g_current_renderer;
 extern LBVH* g_ACTLASTree;
+//extern float g_HMDYaw, g_HMDPitch, g_HMDRoll;
 
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
@@ -8319,6 +8320,9 @@ void UpdateViewMatrix()
 		yaw   *= RAD_TO_DEG * g_fYawMultiplier;
 		pitch *= RAD_TO_DEG * g_fPitchMultiplier;
 		roll  *= RAD_TO_DEG * g_fRollMultiplier;
+		//g_HMDYaw = yaw;
+		//g_HMDPitch = pitch;
+		//g_HMDRoll = roll;
 
 		// DEBUG
 		if (g_bSteamVRYawPitchRollFromMouseLook)

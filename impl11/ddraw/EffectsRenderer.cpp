@@ -107,6 +107,8 @@ float g_fTurnRateScale = 1.0f;
 // do a smooth interpolation between the desired ypr rate and the current ypr rate.
 float CurPlayerYawRateDeg = 0, CurPlayerPitchRateDeg = 0, CurPlayerRollRateDeg = 0;
 
+//float g_HMDYaw = 0, g_HMDPitch = 0, g_HMDRoll = 0;
+
 float lerp(float x, float y, float s);
 
 inline float clamp(float val, float min, float max)
@@ -5818,6 +5820,46 @@ void EffectsRenderer::DCCaptureMiniature()
 
 	// Enable Z-Buffer since we're drawing the targeted craft
 	QuickSetZWriteEnabled(TRUE);
+
+	// Disable any custom MeshTransform's we may have loaded from the VR Gloves or HMD.
+	// I could not remove the HMD's transform cleanly, but at least the targeted craft no
+	// longer appears outside the CMD in ships like the YT-2000.
+	if (g_bUseSteamVR)
+	{
+		/*{
+			std::string msg;
+			Vector3 P;
+			int y = 50;
+
+			msg = "ypr: " + std::to_string(g_HMDYaw) + ", " + std::to_string(g_HMDPitch) + ", " + std::to_string(g_HMDRoll);
+			DisplayCenteredText((char*)msg.c_str(), FONT_LARGE_IDX, y, FONT_WHITE_COLOR);
+			y += 25;
+		}*/
+
+		Matrix4 V;
+		// This transform chain was copied from CustomHMD where roll is similarly applied
+		// along the current view direction. It works here, but only when viewing the ships
+		// "head-on". Looks like the targeted ship's own orientation is also in play here
+		/*Matrix4 R = Matrix4().rotateZ(-g_HMDYaw) * Matrix4().rotateX(g_HMDPitch);
+		Matrix4 Rinv = R;
+		Rinv.invert();
+		Matrix4 Rx = Rinv * Matrix4().rotateY(-g_HMDRoll) * R;
+		V = R * Rx;*/
+
+		/*
+		const float* m = g_VSMatrixCB.fullViewMat.get();
+		const float x = m[12];
+		const float y = m[13];
+		const float z = m[14];
+		V.translate(-x * METERS_TO_OPT, -z * METERS_TO_OPT, -y * METERS_TO_OPT);
+		*/
+		V.identity();
+
+		g_OPTMeshTransformCB.MeshTransform = V;
+		g_OPTMeshTransformCB.MeshTransform.transpose();
+		_deviceResources->InitVSConstantOPTMeshTransform(_deviceResources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+		g_OPTMeshTransformCB.MeshTransform.identity();
+	}
 
 	// Render
 	if (g_bUseSteamVR)
