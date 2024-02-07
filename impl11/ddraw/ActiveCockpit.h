@@ -31,6 +31,7 @@
 #define AC_POV_DN_FAKE_VK_CODE 0x14
 #define AC_POV_FD_FAKE_VK_CODE 0x15
 #define AC_POV_BK_FAKE_VK_CODE 0x16
+#define AC_POV_RESET_FAKE_VK_CODE 0x17
 
 typedef struct ac_uv_coords_struct {
 	uvfloat4 area[MAX_AC_COORDS_PER_TEXTURE];

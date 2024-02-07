@@ -207,6 +207,24 @@ void POVDown()
 	}
 }
 
+void POVReset()
+{
+	if (g_bUseSteamVR)
+		g_pChaperone->ResetZeroPose(vr::TrackingUniverseSeated);
+	g_bResetHeadCenter = true;
+	//g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
+	g_fFakeRoll = 0.0f;
+	//g_contOriginViewSpace = g_contOriginWorldSpace;
+	g_LaserPointDebug.x = 0.0f;
+	g_LaserPointDebug.y = 0.0f;
+	g_LaserPointDebug.z = 0.0f;
+	g_fShadowMapAngleX = 0.0f;
+	g_fShadowMapAngleY = 0.0f;
+	g_fShadowMapScale = 1.0f;
+	// Force recalculation of y-center:
+	g_bYCenterHasBeenFixed = false;
+}
+
 #define MAX_ACTION_LEN 10
 void RunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
@@ -1182,8 +1200,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_OEM_PERIOD:
 				log_debug("[DBG] Resetting POVOffset for %s", g_sCurrentCockpit);
 				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
-					g_CockpitPOVOffset = { 0, 0, 0 };
-					g_GunnerTurretPOVOffset = { 0, 0, 0 };
+					if (!InGunnerTurret())
+						g_CockpitPOVOffset = { 0, 0, 0 };
+					else
+						g_GunnerTurretPOVOffset = { 0, 0, 0 };
 					SavePOVOffsetToIniFile();
 				}
 				return 0;
@@ -1214,21 +1234,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				break;
 
 			case VK_OEM_PERIOD:
-				if (g_bUseSteamVR)
-					g_pChaperone->ResetZeroPose(vr::TrackingUniverseSeated);
-				g_bResetHeadCenter = true;
-
-				//g_contOriginWorldSpace.set(0.0f, 0.0f, 0.05f, 1);
-				g_fFakeRoll = 0.0f;
-				//g_contOriginViewSpace = g_contOriginWorldSpace;
-				g_LaserPointDebug.x = 0.0f;
-				g_LaserPointDebug.y = 0.0f;
-				g_LaserPointDebug.z = 0.0f;
-				g_fShadowMapAngleX = 0.0f;
-				g_fShadowMapAngleY = 0.0f;
-				g_fShadowMapScale = 1.0f;
-				// Force recalculation of y-center:
-				g_bYCenterHasBeenFixed = false;
+				POVReset();
 				break;
 
 			case 'D' :

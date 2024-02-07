@@ -52,6 +52,7 @@ void POVBackwards();
 void POVForwards();
 void POVUp();
 void POVDown();
+void POVReset();
 
 bool IsContinousAction(WORD* action)
 {
@@ -206,6 +207,9 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, 
 			return;
 		case AC_POV_BK_FAKE_VK_CODE:
 			POVBackwards();
+			return;
+		case AC_POV_RESET_FAKE_VK_CODE:
+			POVReset();
 			return;
 		}
 		return;
@@ -617,6 +621,12 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 		if (strstr(ptr, "POV_BACKWARD") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_POV_BK_FAKE_VK_CODE;
+			return;
+		}
+
+		if (strstr(ptr, "POV_RESET") != NULL) {
+			scanCodes[0] = 0xFF;
+			scanCodes[1] = AC_POV_RESET_FAKE_VK_CODE;
 			return;
 		}
 	}
