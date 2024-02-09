@@ -6405,7 +6405,13 @@ void EffectsRenderer::RenderVRDots()
 			//log_debug_vr(50 + contIdx * 25, FONT_WHITE_COLOR, "[%d]: %0.3f, %0.3f, %0.3f", contIdx, N.x, N.y, N.z);
 			// The transform chain is now Rx * Ry: this will align the view vector going from the
 			// origin to the intersection with Z+
-			V = Rx * Ry;
+			// Adding Rz to the chain makes the dot keep the up direction aligned with the camera.
+			// This is what the brackets do right now.
+			// Removing Rz keeps the up direction aligned with the reticle: this is probably
+			// what we want to do if we want to replace the brackets/reticle/pips
+			//Matrix4 Rz = Matrix4().rotateZ(g_pSharedDataCockpitLook->Roll);
+			//V = Rz * Rx * Ry; // <-- Up direction is always view-aligned
+			V = Rx * Ry; // <-- Up direction is reticle-aligned
 			// The transpose is the inverse, so it will align Z+ with the view vector:
 			V.transpose();
 			V = swap * V * swap;
