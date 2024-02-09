@@ -6355,20 +6355,61 @@ void EffectsRenderer::RenderVRDots()
 	_trianglesCount = g_vrDotNumTriangles;
 
 	Matrix4 V, swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
-	{
-		const float* m0 = g_VSMatrixCB.fullViewMat.get();
-		float m[16];
-		for (int i = 0; i < 16; i++) m[i] = m0[i];
-		// Erase the translation: we now have a billboard that always points towards the camera
-		m[12] = m[13] = m[14] = 0;
-		V.set(m);
-		V = swap * V * swap;
-	}
 
 	for (int contIdx = 0; contIdx < 2; contIdx++)
 	{
 		if (g_iBestIntersTexIdx[contIdx] == -1)
 			continue;
+
+		// Compute a new matrix for the dot by using the origin -> intersection point view vector.
+		// First we'll align this vector with Z+ and then we'll use the inverse of this matrix to
+		// rotate the dot so that it always faces the origin.
+		{
+			Vector4 P;
+			if (!bGunnerTurret && !bInHangar)
+			{
+				// g_LaserPointerIntersSteamVR is not populated in this case, so we need to transform
+				// g_LaserPointer3DIntersection, which is in OPT scale, into the SteamVR coord sys.
+				const float cockpitOriginX = *g_POV_X;
+				const float cockpitOriginY = *g_POV_Y;
+				const float cockpitOriginZ = *g_POV_Z;
+				Matrix4 T;
+
+				T.translate(-cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
+				            -cockpitOriginY + (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
+				            -cockpitOriginZ - (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
+
+				Matrix4 S = Matrix4().scale(OPT_TO_METERS);
+				Matrix4 toSteamVR = swap * S;
+				P = toSteamVR * T * Vector3ToVector4(g_LaserPointer3DIntersection[contIdx], 1.0f);
+			}
+			else
+				P = Vector3ToVector4(g_LaserPointerIntersSteamVR[contIdx], 1);
+
+			// O is the headset's center, in SteamVR coords:
+			Vector4 O = g_VSMatrixCB.fullViewMat * Vector4(0, 0, 0, 1);
+			// N goes from the intersection point to the headset's origin: it's the view vector now
+			Vector4 N = P - O;
+			//log_debug_vr(50 + contIdx * 25, FONT_WHITE_COLOR, "P[%d]: %0.3f, %0.3f, %0.3f", contIdx, P.x, P.y, P.z);
+
+			N.normalize();
+			// Rotate N into the Y-Z plane --> make x == 0
+			const float Yang = atan2(N.x, N.z) * RAD_TO_DEG;
+			Matrix4 Ry = Matrix4().rotateY(-Yang);
+			N = Ry * N;
+
+			// Rotate N into the X-Z plane --> make y == 0. N should now be equal to Z+
+			const float Xang = atan2(N.y, N.z) * RAD_TO_DEG;
+			Matrix4 Rx = Matrix4().rotateX(Xang);
+			//N = Rx * N;
+			//log_debug_vr(50 + contIdx * 25, FONT_WHITE_COLOR, "[%d]: %0.3f, %0.3f, %0.3f", contIdx, N.x, N.y, N.z);
+			// The transform chain is now Rx * Ry: this will align the view vector going from the
+			// origin to the intersection with Z+
+			V = Rx * Ry;
+			// The transpose is the inverse, so it will align Z+ with the view vector:
+			V.transpose();
+			V = swap * V * swap;
+		}
 
 		Matrix4 DotTransform;
 		// This transform puts the dot near the center of the A-Wing dashboard:
@@ -6390,6 +6431,12 @@ void EffectsRenderer::RenderVRDots()
 			// This transform chain is the same as the one used in RenderVRGloves minus gloveDisp and
 			// pose is replaced with T. Also, V is used to convert the mesh into a billboard first
 			DotTransform      = swapScale * toOPT * Vinv * T * toSteamVR * V;
+
+			// This transform will put the dot in the center of the screen, no matter where we look.
+			// but bInHangar must be forced to true:
+			//DotTransform.identity();
+			//T = Matrix4().translate(0, -15.0f, 0.0f);
+			//DotTransform = swapScale * T;
 		}
 		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
 		DotTransform.transpose();

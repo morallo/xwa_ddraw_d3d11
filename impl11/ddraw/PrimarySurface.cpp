@@ -6891,13 +6891,13 @@ void PrimarySurface::RenderSunFlare()
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
 		// can be reused. So let's just overwrite the values that we need.
-		g_VSCBuffer.aspect_ratio			=  g_fAspectRatio;
-		g_VSCBuffer.z_override			= -1.0f;
-		g_VSCBuffer.sz_override			= -1.0f;
-		g_VSCBuffer.mult_z_override		= -1.0f;
-		g_VSCBuffer.apply_uv_comp       =  false;
-		g_VSCBuffer.bPreventTransform	=  0.0f;
-		g_VSCBuffer.bFullTransform		=  0.0f;
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
 		if (g_bEnableVR)
 		{
 			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
