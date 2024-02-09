@@ -18,6 +18,7 @@
 
 using namespace Gdiplus;
 
+short DisplayCenteredText(char* str, int font_size_index, short y, uint32_t color);
 void DisplayTimedMessage(uint32_t seconds, int row, char* msg);
 
 std::string int_to_hex(int i)
@@ -797,6 +798,19 @@ void log_debug(const char *format, ...)
 	OutputDebugString(buf);
 	OutputDebugString("\n");
 	va_end(args);
+}
+
+short log_debug_vr(short y, int color, const char* format, ...)
+{
+	char buf[512];
+
+	va_list args;
+	va_start(args, format);
+
+	vsprintf_s(buf, 512, format, args);
+	y = DisplayCenteredText(buf, 0, y, color);
+	va_end(args);
+	return y;
 }
 
 void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...)
