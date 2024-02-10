@@ -110,6 +110,7 @@ protected:
 	ComPtr<ID3D11ShaderResourceView> _vrDotMeshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrGreenCirclesSRV;
 	bool _bDotsbRendered;
+	bool _bHUDRendered;
 
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
@@ -210,6 +211,7 @@ public:
 	void RenderLasers();
 	void RenderTransparency();
 	void RenderVRDots();
+	void RenderVRHUD();
 	void RenderVRKeyboard();
 	void RenderVRGloves();
 	void RenderCockpitShadowMap();
