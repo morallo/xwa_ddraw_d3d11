@@ -465,24 +465,17 @@ void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, f
 		// To compute the pitch, we're going to project the controller's Up dir to the Y-Z plane.
 		// Then, in this Y-Z plane we'll compute the "x" and "y" components of the controller's
 		// Up to see how far it is from the centerUp reference captured above. Once the "x" and
-		// "y" components have been captured, we use the cross product of these vectors to figure
-		// out the direction of the tilt and use atan2 to find the final angle.
-		// Easy-peasy!
+		// "y" components have been captured, we use atan2 to compute the final angle.
 		Vector4 Uyz;
 		Uyz.y = U.y; Uyz.z = U.z;
 		Uyz.x = Uyz.w = 0;
 		Uyz.normalize();
 
+		// cUpPYZ is perpendicular to cUpYZ
+		const Vector3 cUpPYZ = Vector3(0, -cUpYZ.z, cUpYZ.y);
 		const float x = Uyz.dot(cUpYZ);
-		const Vector3 X = x * Vector3(cUpYZ.x, cUpYZ.y, cUpYZ.z);
-		const Vector3 Y = Vector3(Uyz.x, Uyz.y, Uyz.z) - X;
-		const float y = Y.length();
-		// Despite their names, X and Y both lie in the Y-Z plane, so their cross product
-		// will point along the X axis. The sign of C.x tells us if the pitch is forwards
-		// or backwards:
-		const Vector3 C = X.cross(Y);
-		const float s = sign(C.x);
-		*pitch = RAD2DEG * atan2(s * y, x);
+		const float y = Uyz.dot(cUpPYZ);
+		*pitch = RAD2DEG * atan2(y, x);
 	}
 
 	// Project U to the X-Y plane and find the angle wrt centerUp to find the yaw
@@ -492,13 +485,11 @@ void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, f
 		Uxy.z = Uxy.w = 0;
 		Uxy.normalize();
 
+		// cUpPXY is perpendicualr to cUpXY
+		const Vector3 cUpPXY = Vector3(cUpXY.y, -cUpXY.x, 0);
 		const float x = Uxy.dot(cUpXY);
-		const Vector3 X = x * Vector3(cUpXY.x, cUpXY.y, cUpXY.z);
-		const Vector3 Y = Vector3(Uxy.x, Uxy.y, Uxy.z) - X;
-		const float y = Y.length();
-		const Vector3 C = Y.cross(X);
-		const float s = sign(C.z);
-		*yaw = RAD2DEG * atan2(s * y, x);
+		const float y = Uxy.dot(cUpPXY);
+		*yaw = RAD2DEG * atan2(y, x);
 	}
 
 	// Project F to the X-Z plane and find the angle wrt centerFwd to find the roll
@@ -510,13 +501,11 @@ void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, f
 		Fwd.y = Fwd.w = 0;
 		Fwd.normalize();
 
+		// cFwdP is perpendicular to cFwd
+		Vector3 cFwdP = Vector3(-cFwd.z, 0, cFwd.x);
 		const float x = Fwd.dot(cFwd);
-		const Vector3 X = x * Vector3(cFwd.x, cFwd.y, cFwd.z);
-		const Vector3 Y = Vector3(Fwd.x, Fwd.y, Fwd.z) - X;
-		const float y = Y.length();
-		const Vector3 C = Y.cross(X);
-		const float s = sign(C.y);
-		*roll = RAD2DEG * atan2(s * y, x);
+		const float y = Fwd.dot(cFwdP);
+		*roll = RAD2DEG * atan2(y, x);
 	}
 
 	*yaw   = clamp(*yaw,   -g_ACJoyEmul.yawHalfRange,   g_ACJoyEmul.yawHalfRange)   / g_ACJoyEmul.yawHalfRange;
