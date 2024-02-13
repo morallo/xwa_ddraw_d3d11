@@ -161,6 +161,9 @@ float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cock
 
 const float POVOffsetIncr = 0.025f;
 
+float g_fSteamVROverlayWidthInMeters = 5.0f;
+float g_fSteamVROverlayDepthInMeters = 5.0f;
+
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
 // with ddraw against the OBJ exported from the OPT. The values were tweaked until a
@@ -543,7 +546,12 @@ void LoadVRParams() {
 			else if (_stricmp(param, "steamvr_yaw_pitch_roll_from_mouse_look") == 0) {
 				g_bSteamVRYawPitchRollFromMouseLook = (bool)fValue;
 			}
-
+			else if (_stricmp(param, "concourse_width_in_meters") == 0) {
+				g_fSteamVROverlayWidthInMeters = fValue;
+			}
+			else if (_stricmp(param, "concourse_depth_in_meters") == 0) {
+				g_fSteamVROverlayDepthInMeters = fValue;
+			}
 
 			param_read_count++;
 		}

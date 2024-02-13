@@ -8,7 +8,8 @@
 #include "EffectsCommon.h"
 #include <openvr.h>
 
-constexpr float DEFAULT_STEAMVR_OVERLAY_WIDTH = 5.0f;
+extern float g_fSteamVROverlayWidthInMeters;
+extern float g_fSteamVROverlayDepthInMeters;
 
 extern vr::IVRSystem* g_pHMD;
 extern vr::IVRChaperone* g_pChaperone;

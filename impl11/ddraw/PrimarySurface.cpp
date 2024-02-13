@@ -9263,7 +9263,7 @@ HRESULT PrimarySurface::Flip(
 								// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
 								g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
 								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
-								g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, DEFAULT_STEAMVR_OVERLAY_WIDTH);
+								g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, g_fSteamVROverlayWidthInMeters);
 								g_pVROverlay->ShowOverlay(g_VR2Doverlay); // Present 2D
 							}
 

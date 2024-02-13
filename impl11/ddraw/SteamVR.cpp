@@ -238,10 +238,10 @@ bool InitSteamVR()
 	overlay_transform = {
 		1.0f, 0.0f, 0.0f,  0.0f,
 		0.0f, 1.0f, 0.0f,  0.0f,
-		0.0f, 0.0f, 1.0f, -5.0f
+		0.0f, 0.0f, 1.0f, -g_fSteamVROverlayDepthInMeters
 	};
 	g_pVROverlay->CreateOverlay("xwa_2d_window", "X-Wing Alliance VR", &g_VR2Doverlay);
-	g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, DEFAULT_STEAMVR_OVERLAY_WIDTH); // Make the overlay 5 meters wide.
+	g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, g_fSteamVROverlayWidthInMeters); // Make the overlay 5 meters wide.
 	g_pVROverlay->SetOverlayTransformAbsolute(g_VR2Doverlay, vr::TrackingUniverseSeated, &overlay_transform);
 	if (g_bEnableVRPointerInConcourse)
 	{
