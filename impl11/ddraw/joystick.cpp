@@ -513,6 +513,23 @@ void EmulYawPitchRollFromVR(const bool bResetCenter, float *yaw, float *pitch, f
 	*roll  = clamp(*roll,  -g_ACJoyEmul.rollHalfRange,  g_ACJoyEmul.rollHalfRange)  / g_ACJoyEmul.rollHalfRange;
 }
 
+void ProcessVRControllerButtons()
+{
+	const uvfloat4 coords = { -1, -1, -1, -1 };
+	// Synthesize joystick button clicks and run AC actions associated with VR buttons
+	for (int contIdx = 0; contIdx < 2; contIdx++)
+	{
+		for (int buttonIdx = 0; buttonIdx < VRButtons::MAX; buttonIdx++)
+		{
+			if (!g_prevContStates[contIdx].buttons[buttonIdx] && g_contStates[contIdx].buttons[buttonIdx])
+				ACRunAction(g_ACJoyMappings[contIdx].action[buttonIdx], coords, -1, contIdx, nullptr);
+		}
+
+		// Actions have been processed, we can update the previous state now
+		g_prevContStates[contIdx] = g_contStates[contIdx];
+	}
+}
+
 UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 {
 	const bool bJoystickEmulationEnabled = (g_config.JoystickEmul != 0);

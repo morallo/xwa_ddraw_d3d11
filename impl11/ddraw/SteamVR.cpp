@@ -59,6 +59,8 @@ const char *VRButtonNames[VRButtons::MAX]
 	"PAD_CLICK",
 };
 
+void ProcessVRControllerButtons();
+
 bool InitSteamVR()
 {
 	/*
@@ -435,6 +437,12 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		}
 	}
+
+	// When we're parked in the hangar, the joystick loop won't get called; so we need to manually
+	// process the VR controller events here or the VR buttons won't work. This should at least
+	// allow users to bring up the VR keyboard using the controller to do everything else.
+	if (*g_playerInHangar)
+		ProcessVRControllerButtons();
 }
 
 /*
