@@ -10561,6 +10561,7 @@ HRESULT PrimarySurface::Flip(
 			// If SteamVR is on, we do NOT want to do VSync with the monitor as well: that'll kill the performance.
 			if (g_bUseSteamVR)
 				bEnableVSync = false;
+			log_debug_vr_reset();
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
 			//log_debug("[DBG] ******************* PRESENT 3D");

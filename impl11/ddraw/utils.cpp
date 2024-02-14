@@ -813,6 +813,25 @@ short log_debug_vr(short y, int color, const char* format, ...)
 	return y;
 }
 
+static short log_debug_y = 50;
+void log_debug_vr(int color, const char* format, ...)
+{
+	char buf[512];
+
+	va_list args;
+	va_start(args, format);
+
+	vsprintf_s(buf, 512, format, args);
+	DisplayCenteredText(buf, 0, log_debug_y, color);
+	log_debug_y += 25;
+	va_end(args);
+}
+
+void log_debug_vr_reset()
+{
+	log_debug_y = 50;
+}
+
 void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...)
 {
 	char buf[128];
