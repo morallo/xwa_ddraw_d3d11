@@ -910,5 +910,11 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		pji->dwRpos = 256;
 	}
 
+	if (!PlayerDataTable[*g_playerIndex].gunnerTurretActive && g_config.SwapJoystickXZAxes) {
+		DWORD X = pji->dwXpos;
+		pji->dwXpos = pji->dwRpos;
+		pji->dwRpos = X;
+	}
+
 	return JOYERR_NOERROR;
 }
