@@ -544,12 +544,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 		UINT res = joyGetPosEx(joy, pji);
 		if (g_config.InvertYAxis && joyYmax > 0) pji->dwYpos = joyYmax - pji->dwYpos;
 
-		// Only swap the X-Z joystick axes if the flag is set and we're not in the gunner turret
-		if (!PlayerDataTable[*g_playerIndex].gunnerTurretActive && g_config.SwapJoystickXZAxes) {
-			DWORD X = pji->dwXpos;
-			pji->dwXpos = pji->dwRpos;
-			pji->dwRpos = X;
-		}
+		// The X-Z joystick axes are now swapped below, at the end of this function
 
 		if (g_config.InvertThrottle) pji->dwZpos = (joyZmax - pji->dwZpos) + joyZmin;
 		// dwXpos: x-axis goes from 0 (left) to 32767 (center) to 65535 (right)
