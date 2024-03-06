@@ -269,7 +269,6 @@ extern int g_iRTTotalBLASNodesInFrame, g_iRTMaxBLASNodesSoFar, g_iRTMaxTLASNodes
 extern uint32_t g_iRTMaxMeshesSoFar;
 extern int g_iRTMatricesNextSlot;
 extern bool g_bRTReAllocateBvhBuffer;
-extern bool g_bRTCaptureCameraAABB;
 extern bool g_bRTEnableEmbree;
 extern std::map<std::string, bool> g_RTExcludeOPTNames;
 extern std::map<uint8_t, bool> g_RTExcludeShipCategories;
@@ -311,6 +310,16 @@ extern bool g_bDumpOptNodes;
 
 // ZIP variables
 extern bool g_bCleanupZIPDirs;
+
+struct BracketVR
+{
+	Vector3 posOPT;
+	float halfWidthOPT;
+	float strokeWidth;
+	Vector3 color;
+	float rollCompensation;
+};
+extern std::vector<BracketVR> g_bracketsVR;
 
 // *****************************************************
 // Global functions

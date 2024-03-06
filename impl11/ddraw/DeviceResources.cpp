@@ -1987,7 +1987,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		// This path is only hit when we're *not* in the Tech Room
 		ClearGlobalLBVHMap();
-		g_bRTCaptureCameraAABB = true;
 		g_iRTTotalBLASNodesInFrame = g_iRTMaxBLASNodesSoFar = g_iRTMaxTLASNodesSoFar = 0;
 		g_iRTMaxMeshesSoFar = 0;
 		g_bRTReAllocateBvhBuffer = false;
@@ -4829,8 +4828,8 @@ HRESULT DeviceResources::LoadResources()
 	// Create the constant buffer for the VR Geometry
 	if (g_bUseSteamVR)
 	{
-		constantBufferDesc.ByteWidth = 112;
-		static_assert(sizeof(VRGeometryCBuffer) == 112, "sizeof(VRGeometryCBuffer) must be 112");
+		constantBufferDesc.ByteWidth = 128;
+		static_assert(sizeof(VRGeometryCBuffer) == 128, "sizeof(VRGeometryCBuffer) must be 128");
 		if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_VRGeometryCBuffer)))
 			return hr;
 	}

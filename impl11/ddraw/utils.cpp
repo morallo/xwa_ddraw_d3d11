@@ -800,6 +800,13 @@ void log_debug(const char *format, ...)
 	va_end(args);
 }
 
+static short log_debug_y = 50;
+
+void log_debug_vr_set_row(short row)
+{
+	log_debug_y = row * 25;
+}
+
 short log_debug_vr(short y, int color, const char* format, ...)
 {
 	char buf[512];
@@ -813,7 +820,6 @@ short log_debug_vr(short y, int color, const char* format, ...)
 	return y;
 }
 
-static short log_debug_y = 50;
 void log_debug_vr(int color, const char* format, ...)
 {
 	char buf[512];

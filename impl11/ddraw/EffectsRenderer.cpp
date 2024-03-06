@@ -23,6 +23,10 @@ extern LONG g_directBuilderNextInnerNode;
 
 bool g_bUseCentroids = true;
 
+static bool s_captureProjectionDeltas = true;
+float g_f0x08C1600, g_f0x0686ACC;
+float g_f0x080ACF8, g_f0x07B33C0, g_f0x064D1AC;
+
 RTCDevice g_rtcDevice = nullptr;
 RTCScene g_rtcScene = nullptr;
 
@@ -47,7 +51,6 @@ bool g_bRTEnabledInTechRoom = true;
 bool g_bRTEnabled = false; // In-flight RT switch.
 bool g_bRTEnabledInCockpit = false;
 bool g_bRTEnableSoftShadows = false;
-bool g_bRTCaptureCameraAABB = true;
 bool g_bRTEnableEmbree = false;
 // Used for in-flight RT, to create the BVH buffer that will store all the
 // individual BLASes needed for the current frame.
@@ -98,6 +101,8 @@ std::map<uint64_t, FixedInstanceData> g_fixedInstanceDataMap;
 VRGlovesMesh g_vrGlovesMeshes[2];
 
 EffectsRenderer *g_effects_renderer = nullptr;
+
+std::vector<BracketVR> g_bracketsVR;
 
 // Current turn rate. This will make the ship turn faster at 1/3 throttle.
 // This variable makes a smooth transition when the throttle changes.
@@ -228,6 +233,10 @@ float4 TransformProjection(float3 input)
 
 /// <summary>
 /// Same as TransformProjection(), but returns in-game screen coordinates + depth buffer
+/// Coordinate system is OPT-scale:
+/// X+ Right
+/// Y+ Up
+/// Z+ Forwards
 /// </summary>
 float4 TransformProjectionScreen(float3 input)
 {
@@ -286,7 +295,20 @@ float3 InverseTransformProjection(float4 input)
  * Converts 2D into metric 3D at OPT-scale (you get 100% metric 3D by multiplying with OPT_TO_METERS after this)
  * The formulas used here work with the engine glow and with the explosions because w == z in that case.
  * It may not work in other cases.
+ *
  * Confirmed cases: Engine glow, Explosions.
+ *
+ * NOTE 1: This is not the direct inverse of TransformProjection anymore (there's g_config settings that have yet
+ * to be ported over here).
+ * NOTE 2: The OPT universe is centered around the HUD. If the input coords are the center of the HUD, then the
+ * resulting OPT value will be (0, 0, depth). The center of the HUD is usually not the same as the screen center!
+ * NOTE 3: In external view, the HUD may not be centered on the screen if inertia is enabled, but the center of the
+ * screen corresponds to (0, 0, depth)
+ * NOTE 4: The output is OPT scale but the axes are... unconventional:
+ *
+ * X+: Right
+ * Y+: DOWN
+ * Z+: FORWARDS
  */
 float3 InverseTransformProjectionScreen(float4 input)
 {
@@ -487,160 +509,6 @@ int AABB::DumpLimitsToOBJ(FILE* D3DDumpOBJFile, const std::string &name, int Ver
 int AABB::DumpLimitsToOBJ(FILE *D3DDumpOBJFile, int OBJGroupId, int VerticesCountOffset)
 {
 	return DumpLimitsToOBJ(D3DDumpOBJFile, std::string("aabb-") + std::to_string(OBJGroupId), VerticesCountOffset);
-}
-
-/// <summary>
-/// Get the AABB for the current camera space by gathering all
-/// the frustrum limits. The resulting AABB is in OPT-scale coords,
-/// to get meters, multiply the AABB by OPT_TO_METERS.
-/// </summary>
-/// <returns></returns>
-AABB GetCameraSpaceAABBFromFrustrum()
-{
-	// Calc and dump the 8 corners of the frustrum
-	float Znear = *(float*)0x08B94CC;
-	float Zfar = *(float*)0x05B46B4;
-	AABB aabb;
-	float3 V;
-	float4 v;
-	float Z;
-
-	const float Z_MAX = 5000.0f, Z_MIN = 25.0f;
-	const float marginX = g_fCurInGameWidth * 0.05f;
-	const float marginY = g_fCurInGameHeight * 0.05f;
-	const float left = -marginX, right = g_fCurInGameWidth + marginX;
-	const float top = -marginY, bottom = g_fCurInGameHeight + marginY;
-
-	Z = Zfar / (Z_MAX * METERS_TO_OPT);
-
-	v.x = left; v.y = top; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	v.x = right; v.y = top; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	v.x = right; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	v.x = left; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	// ------------------------------------------------------------------
-
-	Z = Zfar / (Z_MIN * METERS_TO_OPT);
-
-	v.x = left; v.y = top; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	v.x = right; v.y = top; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	v.x = right; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	v.x = left; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	aabb.Expand(V);
-
-	return aabb;
-}
-
-void DumpFrustrumToOBJ()
-{
-	FILE* D3DDumpOBJFile = NULL;
-	fopen_s(&D3DDumpOBJFile, "./frustrum.obj", "wt");
-	fprintf(D3DDumpOBJFile, "o frustrum\n");
-
-	// Calc and dump the 8 corners of the frustrum
-	float Znear = *(float*)0x08B94CC;
-	float Zfar = *(float*)0x05B46B4;
-	// [18780] [DBG] [BVH] Znear: 765.382812, Zfar: 64.000000
-	fprintf(D3DDumpOBJFile, "# Znear: %0.6f, Zfar: %0.6f\n", Znear, Zfar);
-	float3 V;
-	float4 v;
-	// ------------------------------------------------------------------
-	float Z = 0.0002f; // Zfar, 0 causes inf, smaller = farther
-	const float Z_MAX = 10000.0f, Z_MIN = 10.0f;
-	const float marginX = g_fCurInGameWidth * 0.05f;
-	const float marginY = g_fCurInGameHeight * 0.05f;
-	const float left = -marginX, right = g_fCurInGameWidth + marginX;
-	const float top = -marginY, bottom = g_fCurInGameHeight + marginY;
-
-	// Inverting the formulas for P.z in InverseTransformProjection yields:
-	// Z = (Zfar / w) * OPT_TO_METERS;
-	// w = Zfar / (Z * METERS_TO_OPT);
-	Z = Zfar / (Z_MAX * METERS_TO_OPT);
-	//log_debug("[DBG] [BVH] Z max: %0.6f", Z);
-
-	v.x = left; v.y = top; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-
-	v.x = right; v.y = top; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-
-	v.x = right; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-
-	v.x = left; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-	// ------------------------------------------------------------------
-	// Z = 0.25f; // Znear, the bigger, the closer to the origin.
-	Z = Zfar / (Z_MIN * METERS_TO_OPT);
-	//log_debug("[DBG] [BVH] Z min: %0.6f", Z);
-
-	v.x = left; v.y = top; v.z = v.w = Z; // 0 causes inf, use 0.00001
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-
-	v.x = right; v.y = top; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-
-	v.x = right; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-
-	v.x = left; v.y = bottom; v.z = v.w = Z;
-	V = InverseTransformProjectionScreen(v);
-	V.x *= OPT_TO_METERS; V.y *= OPT_TO_METERS; V.z *= OPT_TO_METERS;
-	fprintf(D3DDumpOBJFile, "v %0.6f %0.6f %0.6f\n", V.x, V.y, V.z);
-
-	const int VerticesCountOffset = 1;
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 0, VerticesCountOffset + 1);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 1, VerticesCountOffset + 2);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 2, VerticesCountOffset + 3);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 3, VerticesCountOffset + 0);
-
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 4, VerticesCountOffset + 5);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 5, VerticesCountOffset + 6);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 6, VerticesCountOffset + 7);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 7, VerticesCountOffset + 4);
-
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 0, VerticesCountOffset + 4);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 1, VerticesCountOffset + 5);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 2, VerticesCountOffset + 6);
-	fprintf(D3DDumpOBJFile, "f %d %d\n", VerticesCountOffset + 3, VerticesCountOffset + 7);
-	fprintf(D3DDumpOBJFile, "\n");
-
-	fclose(D3DDumpOBJFile);
 }
 
 void DumpTLASLeaves(std::vector<TLASLeafItem> &tlasLeaves, char *fileName)
@@ -2252,6 +2120,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_TransparentDrawCommands.clear();
 	_ShadowMapDrawCommands.clear();
 	_bCockpitConstantsCaptured = false;
+	_bExteriorConstantsCaptured = false;
 	_bShadowsRenderedInCurrentFrame = false;
 	_bHangarShadowsRenderedInCurrentFrame = false;
 	// Initialize the joystick mesh transform on this frame
@@ -2297,20 +2166,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 			delete g_ACTLASTree;
 			g_ACTLASTree = nullptr;
 		}
-
-		if (g_bRTCaptureCameraAABB && g_iPresentCounter > 2) {
-			/* Get the Frustrum and Camera Space global AABB */
-			g_CameraAABB = GetCameraSpaceAABBFromFrustrum();
-			g_CameraRange.x = g_CameraAABB.max.x - g_CameraAABB.min.x;
-			g_CameraRange.y = g_CameraAABB.max.y - g_CameraAABB.min.y;
-			g_CameraRange.z = g_CameraAABB.max.z - g_CameraAABB.min.z;
-			/*
-			log_debug("[DBG] [BVH] cameraAABB: (%0.3f, %0.3f, %0.3f)-(%0.3f, %0.3f, %0.3f)",
-				cameraAABB.min.x * OPT_TO_METERS, cameraAABB.min.y * OPT_TO_METERS, cameraAABB.min.z * OPT_TO_METERS,
-				cameraAABB.max.x * OPT_TO_METERS, cameraAABB.max.y * OPT_TO_METERS, cameraAABB.max.z * OPT_TO_METERS);
-			*/
-			g_bRTCaptureCameraAABB = false;
-		}
 	}
 
 	// VR Keyboard and gloves
@@ -2319,6 +2174,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	g_vrGlovesMeshes[1].rendered = false;
 	_bDotsbRendered = false;
 	_bHUDRendered = false;
+	_bBracketsRendered = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -2966,6 +2822,7 @@ void EffectsRenderer::SceneEnd()
 {
 	//EndCascadedShadowMap();
 	D3dRenderer::SceneEnd();
+	s_captureProjectionDeltas = true;
 
 	if (_BLASNeedsUpdate)
 	{
@@ -5241,6 +5098,16 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
 	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
 
+	if (s_captureProjectionDeltas)
+	{
+		g_f0x08C1600 = *(float*)0x08C1600;
+		g_f0x0686ACC = *(float*)0x0686ACC;
+		g_f0x080ACF8 = *(float*)0x080ACF8;
+		g_f0x07B33C0 = *(float*)0x07B33C0;
+		g_f0x064D1AC = *(float*)0x064D1AC;
+		s_captureProjectionDeltas = false;
+	}
+
 	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
 	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
 	context->VSGetShaderResources(0, 3, oldVSSRV[0].GetAddressOf());
@@ -5539,6 +5406,12 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		_bCockpitConstantsCaptured = true;
 		_CockpitConstants = _constants;
 		_CockpitWorldView = scene->WorldViewTransform;
+	}
+
+	if (!_bExteriorConstantsCaptured && _bIsExterior)
+	{
+		_bExteriorConstantsCaptured = true;
+		_ExteriorConstants = _constants;
 	}
 
 	// Procedural Lava
@@ -6314,6 +6187,7 @@ void EffectsRenderer::RenderVRDots()
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
+	g_VRGeometryCBuffer.bRenderBracket = false;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -6460,6 +6334,194 @@ void EffectsRenderer::RenderVRDots()
 	_deviceResources->EndAnnotatedEvent();
 }
 
+void EffectsRenderer::RenderVRBrackets()
+{
+	if (!g_bUseSteamVR || !g_bRendering3D || _bBracketsRendered)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderVRBrackets");
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rastersizer and depth stencil states for transparency
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+
+	g_VRGeometryCBuffer.numStickyRegions = 0;
+	g_VRGeometryCBuffer.bRenderBracket = 1;
+	// Disable region highlighting
+	g_VRGeometryCBuffer.clicked[0] = false;
+	g_VRGeometryCBuffer.clicked[1] = false;
+
+	// Flags used in RenderScene():
+	_bIsCockpit = !bGunnerTurret;
+	_bIsGunner = bGunnerTurret;
+	_bIsBlastMark = false;
+
+	// Set the textures
+	// Use this to render each bracket individually:
+	_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
+	// Use this to render 2D brackets on a big canvas:
+	//_deviceResources->InitPSShaderResourceView(resources->_BracketsSRV.Get(), nullptr);
+
+	// Set the mesh buffers
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrDotMeshVerticesSRV.Get(), nullptr, _vrDotMeshTexCoordsSRV.Get(), nullptr };
+	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+	_deviceResources->InitVertexBuffer(_vrDotVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(nullptr, true);
+	_deviceResources->InitIndexBuffer(_vrDotIndexBuffer.Get(), true);
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
+
+	const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	Vector4 cUp, cBk, cDn, cFd;
+	Matrix4 V, swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+
+	// Turns out we don't need the Cockpit Transform at all. We only need the headset's
+	// transform for both the cockpit and external views.
+	{
+		Matrix4 ViewMatrix = g_VSMatrixCB.fullViewMat;
+		ViewMatrix.invert();
+
+		// Up vector, SteamVR coords. Compensated for HMD rotation
+		cUp = ViewMatrix * Vector4(0, 1, 0, 0);
+		cDn = -1.0f * cUp;
+		// This produces a backwards vector in SteamVR coords:
+		cBk = ViewMatrix * Vector4(0, 0, 1, 0);
+		cFd = -1.0f * cBk;
+	}
+	//log_debug("[DBG] cUp: %0.3f, %0.3f, %0.3f", cUp.x, cUp.y, cUp.z);
+	//log_debug("[DBG] cBk: %0.3f, %0.3f, %0.3f", cBk.x, cBk.y, cBk.z);
+
+	// Let's replace transformWorldView with the identity matrix:
+	Matrix4 Id;
+	const float* m = Id.get();
+	if (!bExternalCamera)
+	{
+		for (int i = 0; i < 16; i++) _CockpitConstants.transformWorldView[i] = m[i];
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	}
+	else
+	{
+		for (int i = 0; i < 16; i++) _ExteriorConstants.transformWorldView[i] = m[i];
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_ExteriorConstants, 0, 0);
+	}
+
+	_trianglesCount = g_vrDotNumTriangles;
+	// Get the width in OPT-scale of the mesh that will be rendered:
+	// 0 -> 1
+	// |    |
+	// 3 -> 2
+	const float meshWidth = g_vrDotMeshVertices[1].x - g_vrDotMeshVertices[0].x;
+	for (uint32_t i = 0; i < g_bracketsVR.size(); i++)
+	{
+		const auto& bracketVR = g_bracketsVR[i];
+		Vector4 dotPosSteamVR;
+		dotPosSteamVR.x = bracketVR.posOPT.x * OPT_TO_METERS;
+		dotPosSteamVR.y = bracketVR.posOPT.z * OPT_TO_METERS;
+		dotPosSteamVR.z = bracketVR.posOPT.y * OPT_TO_METERS;
+		dotPosSteamVR.w = 1.0f;
+
+		const float meshScale = (bracketVR.halfWidthOPT * 2.0f) / meshWidth;
+		g_VRGeometryCBuffer.strokeWidth = bracketVR.strokeWidth;
+		g_VRGeometryCBuffer.bracketColor = bracketVR.color;
+
+		{
+			Vector4 P = dotPosSteamVR;
+
+			// U points to the local Up direction, as defined by the current Cockpit transform
+			// F points towards the bracket
+			Vector3 F = { P.x, P.y, P.z }; F.normalize();
+			// F . cFd can be 0 when the bracket is on the sides too. In that case, we want
+			// to use kUp (i.e. have it become 1)
+			float kUp; // = max(0.0f, F.dot(Vector4ToVector3(cFd)));
+			float kBk = max(0.0f, F.dot(Vector4ToVector3(cUp)));
+			float kFd = max(0.0f, F.dot(Vector4ToVector3(cDn)));
+
+			// This fixes kUp when looking at brackets on the sides of the ship.
+			kUp = 1.0f - (kBk + kFd);
+			//log_debug_vr_set_row(5);
+			//log_debug_vr("kUp: %0.3f, kBk: %0.3f, kFd: %0.3f", kUp, kBk, kFd);
+
+			Vector3 U = kUp * Vector4ToVector3(cUp) + kBk * Vector4ToVector3(cBk) + kFd * Vector4ToVector3(cFd);
+			U.normalize();
+
+			Vector3 R = F.cross(U); R.normalize();
+			// Re-compute the Up vector
+			U = F.cross(R); U.normalize();
+			float m[16] = { R.x, U.x, F.x, 0,
+							R.y, U.y, F.y, 0,
+							R.z, U.z, F.z, 0,
+							0, 0, 0, 1 };
+			V.set(m);
+			// This transpose inverts the rotation:
+			V.transpose();
+			V = swap * V * swap;
+		}
+
+		Matrix4 DotTransform;
+		DotTransform.identity();
+		// This transform will put the dot in the center of the screen, no matter where we look.
+		// but bInHangar must be forced to true:
+		//T = Matrix4().translate(0, -15.0f, 0.0f);
+		Vector3 posOPT = { dotPosSteamVR.x * METERS_TO_OPT,
+						   dotPosSteamVR.z * METERS_TO_OPT,
+						   dotPosSteamVR.y * METERS_TO_OPT };
+		Matrix4 T = Matrix4().translate(posOPT);
+		// Use this to render individual brackets and apply billboard correction:
+		DotTransform = swapScale * T * Matrix4().scale(meshScale) * V;
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene();
+	}
+
+	_bBracketsRendered = true;
+	RestoreContext();
+	g_bracketsVR.clear();
+
+	context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, 0,
+		resources->_offscreenBufferBloomMask, 0, BLOOM_BUFFER_FORMAT);
+	context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, D3D11CalcSubresource(0, 1, 1),
+		resources->_offscreenBufferBloomMask, D3D11CalcSubresource(0, 1, 1), BLOOM_BUFFER_FORMAT);
+
+	_deviceResources->EndAnnotatedEvent();
+}
+
 void EffectsRenderer::RenderVRHUD()
 {
 	if (!g_bUseSteamVR || !g_bRendering3D || _bHUDRendered || !_bCockpitConstantsCaptured)
@@ -6500,6 +6562,7 @@ void EffectsRenderer::RenderVRHUD()
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
+	g_VRGeometryCBuffer.bRenderBracket = false;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -6806,6 +6869,7 @@ void EffectsRenderer::RenderVRKeyboard()
 		g_VRGeometryCBuffer.clicked[i] = g_LaserPointerBuffer.TriggerState[i];
 		g_VRGeometryCBuffer.clickRegions[i] = g_vrKeybState.clickRegions[i];
 	}
+	g_VRGeometryCBuffer.bRenderBracket = false;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -6896,6 +6960,7 @@ void EffectsRenderer::RenderVRGloves()
 	// Disable region highlighting on the gloves for now...
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
+	g_VRGeometryCBuffer.bRenderBracket = false;
 
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
