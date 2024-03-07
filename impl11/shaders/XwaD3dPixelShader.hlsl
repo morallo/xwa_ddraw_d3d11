@@ -124,12 +124,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	{
 		// Do not write the 3D position
 		output.pos3D.a = 0;
-		// Do now write the normal
+		// Do not write the normal
 		output.normal.a = 0;
-		//output.ssaoMask.a = 1; // Needed to write the emission material for lasers
-		output.ssaoMask.a = 0; // We should let the regular material properties on lasers so that they become emitters
-		output.ssMask.a = 0;
-		//output.diffuse = 0;
+		output.ssaoMask.rgb = 0;
+		output.ssaoMask.a = alpha; // We should let the regular material properties on lasers
+
+		output.ssMask.rg = 0;
+		output.ssMask.ba = alpha; // Make lasers shadeless and blend these properties with the current background
+
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
 		HSV.y *= 1.5;
