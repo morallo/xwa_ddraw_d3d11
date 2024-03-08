@@ -245,18 +245,6 @@ inline ColNorm doSSDODirect(
 	}
 	*/
 
-	/*
-	// Compute emission, if applicable
-	if (occ_material > EMISSION_LO) {
-		float3 occ_color = texColor.SampleLevel(sampColor, sample_uv, 0).xyz;
-		// NOTE: We're not writing the 3D pos for lasers because we don't want lasers to contribute to
-		//       SSAO/SSDO, so there's no point trying to compute v for these elements!
-		// v = occluder - P, so it goes from the current point to the occluder
-		//output.E = occ_color * max(dot(B, -v), 0); // Should I use B or Normal?
-		//output.E = occ_color * max(dot(SSAO_Normal, -v), 0); // Should I use B or Normal?
-		output.E = occ_color;
-	}
-	*/
 	return output;
 }
 

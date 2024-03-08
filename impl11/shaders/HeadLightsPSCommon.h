@@ -150,13 +150,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  spec_int_mask  = ssaoMask.z;
 	float  diff_int		  = 1.0;
 	float  metallic		  = mask / METAL_MAT;
-	float  nm_int_mask	  = ssMask.x;
+	//float  nm_int_mask	  = ssMask.x;
 	float  spec_val_mask  = ssMask.y;
-	float  shadeless_mask = ssMask.z;
-	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	// An area is "shadeless" if it's GLASS_MAT or above
-	float  shadeless = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
-	shadeless = max(shadeless, shadeless_mask);
+	float  shadeless      = ssMask.z;
 	//float  diffuse_difference = 1.0;
 	// ssMask.z is unused ATM
 
@@ -238,7 +234,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
 	float exponent = max(global_glossiness * gloss_mask, 0.05);
 	float spec_bloom_int = global_spec_bloom_intensity;
-	if (GLASS_LO <= mask && mask < GLASS_HI) {
+	//if (GLASS_LO <= mask && mask < GLASS_HI)
+	if (false)
+	{
 		exponent *= 2.0;
 		spec_bloom_int *= 3.0; // Make the glass bloom more
 	}
@@ -311,11 +309,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Avoid harsh transitions (the lines below will also kill glass spec)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
 		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
-
-		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
-		// intact
-		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
-		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += MainColor.rgb * saturate(

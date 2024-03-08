@@ -243,14 +243,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
 	// We shouldn't call this shader for smoke, lasers or engine glow
-	
-	// Never call this shader for the following:
-	// The HUD is shadeless and has transparency. Some planets in the background are also 
-	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
-	// So glass is a non-shadeless surface with transparency:
-	//if (fSSAOMaskVal < SHADELESS_LO && !bIsShadeless && alpha < 0.95) {
-	
-	// Original code:
 	output.color = float4(brightness * texelColor.xyz, texelColor.w);
 
 	bool bIsLightmapGreeble = (GreebleControl & 0x20000) != 0x0;

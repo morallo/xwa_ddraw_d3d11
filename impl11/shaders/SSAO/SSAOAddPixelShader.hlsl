@@ -150,19 +150,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  gloss_mask     = ssaoMask.y;
 	float  spec_int_mask  = ssaoMask.z;
 	float  diff_int       = 1.0;
-	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	float  shadeless      = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
 	float  metallic       = mask / METAL_MAT;
-	float  nm_int         = ssMask.x;
+	//float  nm_int         = ssMask.x;
 	float  spec_val       = ssMask.y;
-	float  shadeless_mask = ssMask.z;
+	float  shadeless      = ssMask.z;
 	float3 pos3D;
 
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
 
-	if (mask > EMISSION_LO) {
+	if (shadeless > 0.01) {
 		output.color = float4(color, 1);
 		return output;
 	}
@@ -186,7 +184,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
 	// or I'll get negative numbers
 	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
-	shadeless = max(shadeless, shadeless_mask);
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast
@@ -369,7 +366,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
 	float exponent = max(global_glossiness * gloss_mask, 0.05);
 	float spec_bloom_int = global_spec_bloom_intensity;
-	if (GLASS_LO <= mask && mask < GLASS_HI) {
+	//if (GLASS_LO <= mask && mask < GLASS_HI)
+	if (false)
+	{
 		exponent *= 2.0;
 		spec_bloom_int *= 3.0; // Make the glass bloom more
 	}
@@ -408,11 +407,6 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		float spec_bloom = spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		spec = total_shadow_factor * LightIntensity * spec_int_mask * pow(spec, exponent);
-
-		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
-		// intact
-		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
-		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);

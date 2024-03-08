@@ -182,25 +182,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	// The HUD is shadeless and has transparency. Some planets in the background are also 
-	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
-	// So glass is a non-shadeless surface with transparency:
-#ifdef DISABLED
-	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
-		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
-		&& alpha < 0.95) /* This texture has transparency */
-		//&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
-	{
-		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask.r = GLASS_MAT;
-		output.ssaoMask.gba = 1.0;
-		// Also write the normals of this surface over the current background
-		output.normal.a = 1.0;
-		output.ssMask.r = 0.0; // No normal mapping
-		output.ssMask.g = 1.0; // White specular value
-		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
-	}
-#endif
 
 	return output;
 }

@@ -246,14 +246,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  spec_int_mask  = ssaoMask.z;
 	float  diff_int       = 1.0;
 	float  metallic       = mask / METAL_MAT;
-	float  nm_int_mask    = ssMask.x;
+	//float  nm_int_mask    = ssMask.x;
 	float  spec_val_mask  = ssMask.y;
-	float  shadeless_mask = ssMask.z;
-	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	// An area is "shadeless" if it's GLASS_MAT or above
-	float  shadeless      = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
-	shadeless = max(shadeless, shadeless_mask);
-	if (mask > EMISSION_LO) {
+	float  shadeless      = ssMask.z;
+	if (shadeless > 0.01) {
 		output.color = float4(color, 1);
 		return output;
 	}
@@ -495,7 +491,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	//const float exposure = 1.0;
 	// Make glass more glossy
-	bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
+	//bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
+	bool bIsGlass = false;
 	if (bIsGlass)
 	{
 		glossiness = 0.93;
