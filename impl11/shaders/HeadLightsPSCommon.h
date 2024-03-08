@@ -150,7 +150,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  spec_int_mask  = ssaoMask.z;
 	float  diff_int		  = 1.0;
 	float  metallic		  = mask / METAL_MAT;
-	//float  nm_int_mask	  = ssMask.x;
+	float  glass		  = ssMask.x;
 	float  spec_val_mask  = ssMask.y;
 	float  shadeless      = ssMask.z;
 	//float  diffuse_difference = 1.0;
@@ -235,7 +235,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float exponent = max(global_glossiness * gloss_mask, 0.05);
 	float spec_bloom_int = global_spec_bloom_intensity;
 	//if (GLASS_LO <= mask && mask < GLASS_HI)
-	if (false)
+	if (glass > 0.01)
 	{
 		exponent *= 2.0;
 		spec_bloom_int *= 3.0; // Make the glass bloom more

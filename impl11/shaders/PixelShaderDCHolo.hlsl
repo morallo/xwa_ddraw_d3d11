@@ -286,7 +286,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			float hud_alpha = hud_texelColor.a;
 			// We can make the text shadeless so that it's easier to read.
 			if (hud_alpha > 0.5) {
-				output.ssaoMask.r = SHADELESS_MAT;
+				output.ssaoMask.r = 0;
 				output.ssaoMask.a = 1.0;
 				output.bloom = 0.7 * float4(hud_texelColor);
 			}

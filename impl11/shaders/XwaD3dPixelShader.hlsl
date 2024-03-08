@@ -11,51 +11,12 @@ SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D normalMap : register(t13);
 
-//#define ORIGINAL_D3D_RENDERER_SHADERS
-#ifdef ORIGINAL_D3D_RENDERER_SHADERS
-// This is the original PixelShaderInput used in the D3dRendererHook
-struct PixelShaderInput
-{
-	float4 pos		: SV_POSITION;
-	float4 position : COLOR2;
-	float4 normal	: COLOR1;
-	float2 tex		: TEXCOORD;
-	float4 color		: COLOR0;
-};
-
-// This is the original Pixel shader used in the D3dRendererHook
-float4 main(PixelShaderInput input) : SV_TARGET
-{
-	//if (input.color.w == 1.0f)
-	//{
-	//	return input.color;
-	//}
-
-	float4 color = float4(input.color.xyz, 1.0f);
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
-
-	float4 c = texelColor * color;
-
-	if (renderTypeIllum == 1)
-	{
-		float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
-		c.xyz += texelColorIllum.xyz * texelColorIllum.w;
-		c = saturate(c);
-	}
-
-	// DEBUG: Display normal data
-	c.rgb = (normalize(input.normal.xyz) + 1.0) * 0.5;
-	return c;
-}
-#else
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
-	//float4 color  : COLOR0;
-	//float4 tangent : TANGENT;
 };
 
 struct PixelShaderOutput
@@ -71,7 +32,7 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	// This is the per-vertex Gouraud-shaded color coming from the VR:
+	// This is the per-vertex Gouraud-shaded color coming from the VS:
 	//float4 color			= float4(input.color.xyz, 1.0f);
 	float4 texelColor		= texture0.Sample(sampler0, input.tex);
 
@@ -92,6 +53,16 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE && alpha >= 0.95)
 		output.color.rgb = float3(0.7, 0.7, 0.7);
+
+	if (bIsShadeless && alpha < 0.95 && // Transparent & shadeless
+		renderType != 2) // Do not process lasers (they are also transparent and shadeless!)
+	{
+		// Shadeless and transparent texture. This is cockpit glass or similar.
+		// ssaoMask: Material, Glossiness, Specular Intensity
+		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
+		output.normal = 0;
+		return output;
+	}
 
 	float3 N = normalize(input.normal.xyz);
 	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
@@ -170,8 +141,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
+		output.ssMask.r = lerp(0, 0, bloom_alpha);
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
 		// Apply the bloom strength to this lightmap
@@ -185,20 +155,21 @@ PixelShaderOutput main(PixelShaderInput input)
 	// The HUD is shadeless and has transparency. Some planets in the background are also 
 	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
 	// So glass is a non-shadeless surface with transparency:
-	if (!bIsShadeless && /* Another way of saying "this texture isn't shadeless" */
-		alpha < 0.95 &&  /* This texture has transparency */
-		!bIsBlastMark)   /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
+	if (!bIsShadeless  && /* Another way of saying "this texture isn't shadeless" */
+		alpha < 0.95   && /* This texture has transparency */
+		!bIsBlastMark)    /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
 	{
 		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask.r = GLASS_MAT;
+		output.ssaoMask.r   = 0;
 		output.ssaoMask.gba = 1.0;
+
 		// Also write the normals of this surface over the current background
 		output.normal.a = 1.0;
-		output.ssMask.r = 0.0; // No normal mapping
+
+		output.ssMask.r = 1.0; // Glass material
 		output.ssMask.g = 1.0; // White specular value
 		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
 	}
 
 	return output;
 }
-#endif

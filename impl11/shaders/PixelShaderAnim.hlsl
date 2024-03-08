@@ -135,7 +135,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// material stays shadeless. This isn't a proper fix. Instead, we should get rid of
 	// the multiple materials in channel ssaoMask.r and instead just keep separate channels
 	// for metallicity, glossiness, etc. This should work for now, though.
-	output.ssaoMask = float4(fSSAOMaskVal/alpha, glossiness, specInt, texelColor.a);
+	//output.ssaoMask = float4(fSSAOMaskVal/alpha, glossiness, specInt, texelColor.a);
+	// We now have separate channels for metallicity and glass, so let's use the regular formula:
+	output.ssaoMask = float4(fSSAOMaskVal, glossiness, specInt, texelColor.a);
 	// SS Mask: unused, Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, fAmbient, texelColor.a);
 
@@ -157,8 +159,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = float4(bloom_alpha * val * colorLight, bloom_alpha);
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
+		output.ssMask.r = lerp(0, 0, bloom_alpha);
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, colorLight, alphaLight);
 		//output.color.a = max(output.color.a, alphaLight);

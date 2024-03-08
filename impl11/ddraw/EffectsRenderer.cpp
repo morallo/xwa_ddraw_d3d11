@@ -3272,10 +3272,11 @@ void EffectsRenderer::ApplyMaterialProperties()
 
 	_bModifiedShaders = true;
 
-	if (_lastTextureSelected->material.IsShadeless)
-		g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-	else
-		g_PSCBuffer.fSSAOMaskVal = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+	//if (_lastTextureSelected->material.IsShadeless)
+	//	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	//else
+	g_PSCBuffer.fSSAOMaskVal = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+	g_PSCBuffer.bIsShadeless = _lastTextureSelected->material.IsShadeless;
 	g_PSCBuffer.fGlossiness = _lastTextureSelected->material.Glossiness;
 	g_PSCBuffer.fSpecInt = _lastTextureSelected->material.Intensity;
 	g_PSCBuffer.fNMIntensity = _lastTextureSelected->material.NMIntensity;

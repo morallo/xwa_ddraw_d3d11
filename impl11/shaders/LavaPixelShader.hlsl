@@ -421,8 +421,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, 1.0, alpha);
+	// SS Mask: Glass, Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, 1.0, alpha);
 
 	float repeat = 2.0 + (LavaSize - 1.0);
 	float size = 1.0 + LavaSize;

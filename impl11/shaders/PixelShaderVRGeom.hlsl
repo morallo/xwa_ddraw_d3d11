@@ -156,7 +156,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.diffuse = input.color;
 
 	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
-	//output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
 	output.ssMask = float4(0, 0, 0, 0);
 
 	// Black-noise fade in/out -- this part will be played when turning the VR keyboard

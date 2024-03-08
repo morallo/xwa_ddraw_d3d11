@@ -69,14 +69,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	// DEBUG
-		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
-		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
-		//output.ssMask = 0;
-		//output.normal = 0;
-		//return output;
-	// DEBUG
-
 	// Original code:
 	//float3 N = normalize(cross(ddx(P), ddy(P)));
 	// Since Z increases away from the camera, the normals end up being negative when facing the
@@ -102,7 +94,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask.b: Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
 	// DEBUG
 	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
@@ -115,7 +107,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float a   = 0.1 * alpha;
 		output.color    = float4(texelColor.rgb, a);
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, a);
-		output.ssMask   = float4(fNMIntensity, fSpecVal, 0.0, a);
+		output.ssMask   = float4(0, fSpecVal, 0.0, a);
 		return output;
 	}
 
@@ -168,23 +160,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 
 		return output;
-	}
-
-	// The HUD is shadeless and has transparency. Some planets in the background are also 
-	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
-	// So glass is a non-shadeless surface with transparency:
-	if (!bIsShadeless && /* Another way of saying "this texture isn't shadeless" */
-		alpha < 0.95 && /* This texture has transparency */
-		!bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
-	{
-		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask.r = GLASS_MAT;
-		output.ssaoMask.gba = 1.0;
-		// Also write the normals of this surface over the current background
-		output.normal.a = 1.0;
-		output.ssMask.r = 0.0; // No normal mapping
-		output.ssMask.g = 1.0; // White specular value
-		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
 	}
 
 	// Original code:

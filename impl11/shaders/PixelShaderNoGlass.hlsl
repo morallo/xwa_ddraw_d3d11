@@ -73,13 +73,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 	
 	// bloom
 	if (HSV.z >= 0.8) {
 		float bloom_alpha = saturate(fBloomStrength);
 		output.bloom = float4(fBloomStrength * texelColor.rgb, alpha);
-		//output.ssaoMask.r = SHADELESS_MAT;
 		output.ssMask.b = bloom_alpha;
 		//output.ssaoMask.ga = 1; // Maximum glossiness on light areas
 		output.ssaoMask.a = bloom_alpha;

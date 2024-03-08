@@ -21,10 +21,8 @@
 #define PLASTIC_MAT   0.00
 #define METAL_MAT     0.50
 // TODO: Remove all these:
-#define GLASS_MAT     0.60
 #define SHADELESS_MAT 0.75
 #define EMISSION_MAT  1.00
-
 
 // Material limits
 #define PLASTIC_LO    0.000
@@ -33,6 +31,3 @@
 #define METAL_LO      0.250
 #define METAL_HI      0.550
 
-// TODO: Remove this:
-//#define GLASS_LO      0.575
-//#define GLASS_HI      0.625

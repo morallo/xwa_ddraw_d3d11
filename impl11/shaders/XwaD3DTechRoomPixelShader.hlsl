@@ -171,8 +171,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
+		output.ssMask.r = lerp(0, 0, bloom_alpha);
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
 		// Apply the bloom strength to this lightmap

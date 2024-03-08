@@ -246,10 +246,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  spec_int_mask  = ssaoMask.z;
 	float  diff_int       = 1.0;
 	float  metallic       = mask / METAL_MAT;
-	//float  nm_int_mask    = ssMask.x;
+	float  glass          = ssMask.x;
 	float  spec_val_mask  = ssMask.y;
 	float  shadeless      = ssMask.z;
-	if (shadeless > 0.01) {
+	if (shadeless > 0.9) {
 		output.color = float4(color, 1);
 		return output;
 	}
@@ -492,8 +492,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//const float exposure = 1.0;
 	// Make glass more glossy
 	//bool bIsGlass = (GLASS_LO <= mask && mask < GLASS_HI);
-	bool bIsGlass = false;
-	if (bIsGlass)
+	if (glass > 0.01)
 	{
 		glossiness = 0.93;
 		reflectance = 1.0;
@@ -556,7 +555,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		*/
 		// Branchless version of the block above:
 		const float spec_val = dot(0.333, specular_out);
-		float glass_interpolator = lerp(0, saturate(spec_val), bIsGlass);
+		float glass_interpolator = lerp(0, saturate(spec_val), glass);
 		float excess_energy = smoothstep(0.95, 4.0, spec_val); // approximate: saturate(spec_val - 1.0);
 		float3 col_and_glass = lerp(col, specular_out, glass_interpolator);
 		// Apply the shadeless mask.
@@ -566,7 +565,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		tmp_color += lerp(col_and_glass, color.rgb, shadeless);
 		// Add some bloom where appropriate:
 		// only-shadow-casters-emit-bloom * Glass-blooms-more-than-other-surfaces * excess-specular-energy
-		float spec_bloom = is_shadow_caster * lerp(0.4, 1.25, bIsGlass) * excess_energy;
+		float spec_bloom = is_shadow_caster * lerp(0.4, 1.25, glass) * excess_energy;
 		tmp_bloom += total_shadow_factor * spec_bloom;
 	}
 	output.bloom = tmp_bloom;
