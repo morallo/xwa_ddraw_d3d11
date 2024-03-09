@@ -158,17 +158,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
 		output.bloom = float4(bloom_alpha * val * colorLight, bloom_alpha);
 		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		output.ssMask.r = lerp(0, 0, bloom_alpha);
+		output.ssaoMask.r = 0;
+		output.ssMask.ba  = bloom_alpha;
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, colorLight, alphaLight);
 		//output.color.a = max(output.color.a, alphaLight);
 		// Apply the bloom strength to this lightmap
 		output.bloom.rgb *= fBloomStrength;
 		if (ExclusiveMaskLight == SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK) {
-			output.bloom = lerp(output.bloom, float4(0, 0, 0, 1), alphaLight);
+			output.bloom    = lerp(output.bloom, float4(0, 0, 0, 1), alphaLight);
 			output.ssaoMask = lerp(float4(0, 0, 0, 1), float4(output.ssaoMask.rgb, alphaLight), alphaLight);
-			output.ssMask = lerp(float4(0, 0, 0, 1), float4(output.ssMask.rgb, alphaLight), alphaLight);
+			output.ssMask   = lerp(float4(0, 0, 0, 1), float4(output.ssMask.rgb, alphaLight), alphaLight);
 		}
 		// The following line needs to be updated, it was originally
 		// intended to remove the lightmap layer, but keep the regular

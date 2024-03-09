@@ -3272,9 +3272,6 @@ void EffectsRenderer::ApplyMaterialProperties()
 
 	_bModifiedShaders = true;
 
-	//if (_lastTextureSelected->material.IsShadeless)
-	//	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-	//else
 	g_PSCBuffer.fSSAOMaskVal = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
 	g_PSCBuffer.bIsShadeless = _lastTextureSelected->material.IsShadeless;
 	g_PSCBuffer.fGlossiness = _lastTextureSelected->material.Glossiness;
@@ -3313,11 +3310,11 @@ void EffectsRenderer::ApplySpecialMaterials()
 		_lastTextureSelected->is_Smoke)
 	{
 		_bModifiedShaders = true;
-		g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fSSAOMaskVal = 0;
+		g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 		g_PSCBuffer.fNMIntensity = 0.0f;
-		g_PSCBuffer.fSpecVal = 0.0f;
+		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.bIsShadeless = 1;
 
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
@@ -3328,21 +3325,21 @@ void EffectsRenderer::ApplySpecialMaterials()
 		)
 	{
 		_bModifiedShaders = true;
-		g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
-		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fSSAOMaskVal = 0;
+		g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 		g_PSCBuffer.fNMIntensity = 0.0f;
-		g_PSCBuffer.fSpecVal = 0.0f;
+		g_PSCBuffer.fSpecVal     = 0.0f;
 
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
 	else if (_lastTextureSelected->is_Laser) {
 		_bModifiedShaders = true;
-		g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
-		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fSSAOMaskVal = 0;
+		g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 		g_PSCBuffer.fNMIntensity = 0.0f;
-		g_PSCBuffer.fSpecVal = 0.0f;
+		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.bIsShadeless = 1;
 
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
@@ -5994,12 +5991,12 @@ void EffectsRenderer::RenderLasers()
 	g_PSCBuffer.AspectRatio = 1.0f;
 
 	// Laser-specific stuff from ApplySpecialMaterials():
-	g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
-	g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-	g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
-	g_PSCBuffer.fNMIntensity = 0.0f;
-	g_PSCBuffer.fSpecVal = 0.0f;
-	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fSSAOMaskVal    = 0;
+	g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
+	g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity    = 0.0f;
+	g_PSCBuffer.fSpecVal        = 0.0f;
+	g_PSCBuffer.bIsShadeless    = 1;
 	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	// Laser-specific stuff from ApplyBloomSettings():
 	g_PSCBuffer.fBloomStrength = g_BloomConfig.fLasersStrength;
@@ -6181,7 +6178,6 @@ void EffectsRenderer::RenderVRDots()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?
 	// fPosNormalAlpha ?
@@ -6372,7 +6368,6 @@ void EffectsRenderer::RenderVRBrackets()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	g_VRGeometryCBuffer.bRenderBracket = 1;
@@ -6561,7 +6556,6 @@ void EffectsRenderer::RenderVRHUD()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	// Disable region highlighting
@@ -6853,7 +6847,6 @@ void EffectsRenderer::RenderVRKeyboard()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
 	g_PSCBuffer.rand0 = fadeIn;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?

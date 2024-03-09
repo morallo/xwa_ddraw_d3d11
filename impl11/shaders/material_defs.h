@@ -20,9 +20,6 @@
 // Emission: 1.0
 #define PLASTIC_MAT   0.00
 #define METAL_MAT     0.50
-// TODO: Remove all these:
-#define SHADELESS_MAT 0.75
-#define EMISSION_MAT  1.00
 
 // Material limits
 #define PLASTIC_LO    0.000

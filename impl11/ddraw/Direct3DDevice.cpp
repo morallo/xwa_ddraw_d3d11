@@ -4925,7 +4925,7 @@ HRESULT Direct3DDevice::Execute(
 						lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+						g_PSCBuffer.fSSAOMaskVal = 0;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
@@ -4945,7 +4945,7 @@ HRESULT Direct3DDevice::Execute(
 						)
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
+						g_PSCBuffer.fSSAOMaskVal = 0;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
@@ -4955,7 +4955,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 					else if (lastTextureSelected->is_Laser) {
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
+						g_PSCBuffer.fSSAOMaskVal = 0;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;

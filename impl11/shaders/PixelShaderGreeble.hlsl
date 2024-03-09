@@ -213,14 +213,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	// DEBUG
-		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
-		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
-		//output.ssMask = 0;
-		//output.normal = 0;
-		//return output;
-	// DEBUG
-
 	float3 N = normalize(input.normal.xyz);
 	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 
@@ -275,8 +267,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
 		output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
 		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		output.ssMask.r = lerp(0, 0, bloom_alpha);
+		output.ssaoMask.r = 0;
+		output.ssMask.ba  = bloom_alpha;
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
 		// Apply the bloom strength to this lightmap

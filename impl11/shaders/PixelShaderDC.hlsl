@@ -238,18 +238,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
 		//output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
 		output.ssaoMask = float4(0, 1, 0.15, 1);
-		output.ssMask = float4(0.0, 1.0, 1.0, 1.0); // (unused), White Spec Val, shadeless
+		output.ssMask = float4(0.0, 1.0, 1.0, 1.0); // Glass, White Spec Val, shadeless
 	}
 	// Let's make the text and other DC elements emissive so that they are readable even in low lighting conditions
-	output.ssaoMask.r = lerp(output.ssaoMask.r, EMISSION_MAT, hud_Lightness);
+	output.ssMask.b = lerp(output.ssMask.b, 1.0, hud_Lightness);
 	
 	// At this point, coverColor is the blended cover texture (if it exists) and the HUD contents
 	if (dc_bloom) {
 		// coverColor may have changed, we need to convert to HSV again
 		float3 HSV = RGBtoHSV(coverColor.xyz);
 		if (HSV.z >= 0.8) {
-			//diffuse = 1.0;
-			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
+			output.bloom       = float4(fBloomStrength * coverColor.xyz, 1);
 			output.ssaoMask.r  = 0;
 			output.ssaoMask.ga = 1; // Maximum glossiness on light areas
 			output.ssaoMask.b  = 0.15; // Low spec intensity
@@ -263,7 +262,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Text DC elements can be made to float inside the cockpit. In that case, we might want
 	// them to be transparent and this code achieves that.
 	if (transparent) {
-		float alpha = 4.0 * dot(0.333, output.color.rgb);
+		const float alpha = 4.0 * dot(0.333, output.color.rgb);
 		output.color.a    = alpha;
 		output.bloom      = 0;
 		output.pos3D      = 0;

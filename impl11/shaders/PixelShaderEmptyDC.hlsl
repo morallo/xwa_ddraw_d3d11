@@ -76,11 +76,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	N.z = -N.z;
 	output.normal = float4(N, 1);
 
-	//output.ssaoMask = 0;
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	//output.diffuse = input.color;
-
-	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
+	// SS Mask: Glass, Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, 0.0, 0.0);
 
 	// No DynCockpitSlots; but we're using a cover texture anyway. Clear the holes.
@@ -99,10 +96,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		texelColor.xyz = HSVtoRGB(HSV);
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
 		brightness = 1.0;
-		//output.ssaoMask = 1;
-		output.ssaoMask.r  = SHADELESS_MAT;
+		output.ssaoMask.r  = 0;
 		output.ssaoMask.ga = 1; // Maximum glossiness on light areas?
 		output.ssaoMask.b  = 0.15; // Low spec intensity
+		output.ssMask.b    = 1; // Shadeless material
 	}
 	
 	texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
@@ -116,10 +113,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// DC areas are shadeless, have high glossiness and low spec intensity
 	// if alpha is 1, this is the cover texture
 	// if alpha is 0, this is the hole in the cover texture
-	output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, alpha);
+	output.ssaoMask.rgb = lerp(float3(0, 1.0, 0.15), output.ssaoMask.rgb, alpha);
 	output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, alpha); // Normal Mapping intensity, Specular Value
 	output.ssaoMask.a   = max(output.ssaoMask.a, (1 - alpha));
 	output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
+	output.ssMask.b     = 1.0 - alpha;
 	if (bInHyperspace) output.color.a = 1.0; // Hyperspace transparency fix
 	return output;
 
