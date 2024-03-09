@@ -96,6 +96,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
+	// Make GUI elements (reticle, triangle pointer, etc), explosions, debris, etc shadeless:
+	if (bIsShadeless)
+	{
+		output.ssMask.ba = alpha; // Shadeless material
+		output.normal = 0;
+	}
+
 	if (ExclusiveMask == SPECIAL_CONTROL_SMOKE)
 	{
 		//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
