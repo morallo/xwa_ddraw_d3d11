@@ -178,5 +178,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.bloom = max(output.bloom, ScreenLyrBloom);
 
+	if (bIsShadeless)
+	{
+		// Shadeless and transparent texture. This is cockpit glass or similar.
+		output.ssMask.ba = alpha;
+	}
+
 	return output;
 }

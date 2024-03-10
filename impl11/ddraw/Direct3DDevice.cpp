@@ -4902,12 +4902,11 @@ HRESULT Direct3DDevice::Execute(
 					//DisplayCoords(instruction, currentIndexLocation);
 					// DEBUG
 
-					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
-					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
 					// Send the skybox to infinity:
 					g_VSCBuffer.sz_override = 1.52590219E-05f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 					g_PSCBuffer.bIsShadeless = 1;
+					g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BACKGROUND;
 					// Suns are pushed to infinity too:
 					//if (bIsSun) log_debug("[DBG] Sun pushed to infinity");
@@ -4931,7 +4930,6 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
 						g_PSCBuffer.bIsShadeless = 1;
-
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 						// DEBUG
@@ -4950,7 +4948,6 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
-
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
 					else if (lastTextureSelected->is_Laser) {
@@ -4961,7 +4958,6 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
 						g_PSCBuffer.bIsShadeless = 1;
-
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
 				}
@@ -6323,12 +6319,12 @@ HRESULT Direct3DDevice::BeginScene()
 		}
 
 	if (g_bReshadeEnabled && !bTransitionToHyperspace) {
-		float infinity[4] = { 0, 0, 32000.0f, 0 };
+		//float infinity[4] = { 0, 0, 32000.0f, 0 };
 		float zero[4] = { 0, 0, 0, 0 };
-		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, zero /* infinity */);
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
 		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, zero /* infinity */);
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
 		}
 	}
@@ -6338,7 +6334,7 @@ HRESULT Direct3DDevice::BeginScene()
 		// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
 		// on the sides of the screen
 		float infinity[4] = { 0, 0, 32000.0f, 0 };
-		float zero[4] = { 0, 0, 0, 0 };
+		//float zero[4] = { 0, 0, 0, 0 };
 
 		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
 		if (g_bUseSteamVR)

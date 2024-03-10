@@ -33,28 +33,28 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	// This is the per-vertex Gouraud-shaded color coming from the VS:
-	//float4 color			= float4(input.color.xyz, 1.0f);
-	float4 texelColor		= texture0.Sample(sampler0, input.tex);
+	//float4 color = float4(input.color.xyz, 1.0f);
+	float4 texelColor = texture0.Sample(sampler0, input.tex);
 
 	const uint bIsBlastMark	 = special_control & SPECIAL_CONTROL_BLAST_MARK;
 	const uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
-		texelColor			= texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
-	float  alpha			= texelColor.w;
-	float3 P				= input.pos3D.xyz;
-	float  SSAOAlpha		= saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	float  alpha     = texelColor.w;
+	float3 P         = input.pos3D.xyz;
+	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	
 	// Zero-out the bloom mask and provide default output values
-	output.bloom			= 0;
-	output.color			= float4(brightness * texelColor.xyz, texelColor.w);
-	output.pos3D			= float4(P, SSAOAlpha);
-	output.ssMask			= 0;
+	output.bloom  = 0;
+	output.color  = float4(brightness * texelColor.xyz, texelColor.w);
+	output.pos3D  = float4(P, SSAOAlpha);
+	output.ssMask = 0;
 
 	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE && alpha >= 0.95)
 		output.color.rgb = float3(0.7, 0.7, 0.7);
 
-	if (bIsShadeless && alpha < 0.95 && // Transparent & shadeless
+	if (bIsShadeless && bIsTransparent &&
 		renderType != 2) // Do not process lasers (they are also transparent and shadeless!)
 	{
 		// Shadeless and transparent texture. This is cockpit glass or similar.

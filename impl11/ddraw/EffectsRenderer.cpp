@@ -3272,13 +3272,14 @@ void EffectsRenderer::ApplyMaterialProperties()
 
 	_bModifiedShaders = true;
 
-	g_PSCBuffer.fSSAOMaskVal = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
-	g_PSCBuffer.bIsShadeless = _lastTextureSelected->material.IsShadeless;
-	g_PSCBuffer.fGlossiness = _lastTextureSelected->material.Glossiness;
-	g_PSCBuffer.fSpecInt = _lastTextureSelected->material.Intensity;
-	g_PSCBuffer.fNMIntensity = _lastTextureSelected->material.NMIntensity;
-	g_PSCBuffer.fSpecVal = _lastTextureSelected->material.SpecValue;
-	g_PSCBuffer.fAmbient = _lastTextureSelected->material.Ambient;
+	g_PSCBuffer.fSSAOMaskVal   = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+	g_PSCBuffer.bIsShadeless   = _lastTextureSelected->material.IsShadeless;
+	g_PSCBuffer.bIsTransparent = _lastTextureSelected->is_Transparent;
+	g_PSCBuffer.fGlossiness    = _lastTextureSelected->material.Glossiness;
+	g_PSCBuffer.fSpecInt       = _lastTextureSelected->material.Intensity;
+	g_PSCBuffer.fNMIntensity   = _lastTextureSelected->material.NMIntensity;
+	g_PSCBuffer.fSpecVal       = _lastTextureSelected->material.SpecValue;
+	g_PSCBuffer.fAmbient       = _lastTextureSelected->material.Ambient;
 
 	if (_lastTextureSelected->material.AlphaToBloom) {
 		_bModifiedPixelShader = true;
@@ -3316,7 +3317,6 @@ void EffectsRenderer::ApplySpecialMaterials()
 		g_PSCBuffer.fNMIntensity = 0.0f;
 		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.bIsShadeless = 1;
-
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
 	else if (_lastTextureSelected->is_Debris || _lastTextureSelected->is_Trail ||
@@ -3330,7 +3330,6 @@ void EffectsRenderer::ApplySpecialMaterials()
 		g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 		g_PSCBuffer.fNMIntensity = 0.0f;
 		g_PSCBuffer.fSpecVal     = 0.0f;
-
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
 	else if (_lastTextureSelected->is_Laser) {
@@ -3341,7 +3340,6 @@ void EffectsRenderer::ApplySpecialMaterials()
 		g_PSCBuffer.fNMIntensity = 0.0f;
 		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.bIsShadeless = 1;
-
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
 }
@@ -6178,6 +6176,7 @@ void EffectsRenderer::RenderVRDots()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?
 	// fPosNormalAlpha ?
@@ -6368,6 +6367,7 @@ void EffectsRenderer::RenderVRBrackets()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	g_VRGeometryCBuffer.bRenderBracket = 1;
@@ -6556,6 +6556,7 @@ void EffectsRenderer::RenderVRHUD()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	// Disable region highlighting
@@ -6847,6 +6848,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	g_PSCBuffer.rand0 = fadeIn;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?
