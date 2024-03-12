@@ -94,7 +94,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		ScreenLyrBloom = fOverlayBloomPower * val * layerColor;
 	}
 
-	float  alpha = texelColor.a;
+	//float  alpha = texelColor.a;
+	// The offscreenBuffer can now have transparency because nothing has been rendered to it.
+	// Previously, it always had a solid color. So now we need to check if there is actually
+	// transparency to keep the alpha, otherwise we force the surface to be opaque.
+	float alpha = bIsTransparent ? texelColor.a : 1;
 	float3 HSV = RGBtoHSV(texelColor.rgb);
 
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
@@ -179,10 +183,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.bloom = max(output.bloom, ScreenLyrBloom);
 
 	if (bIsShadeless)
-	{
-		// Shadeless and transparent texture. This is cockpit glass or similar.
 		output.ssMask.ba = alpha;
-	}
 
 	return output;
 }
