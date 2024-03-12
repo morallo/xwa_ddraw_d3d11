@@ -1738,10 +1738,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_renderTargetView.Release();
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
+	this->_backgroundBufferSRV.Release();
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferHdBackground.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
+	this->_backgroundBuffer.Release();
+	this->_backgroundBufferAsInput.Release();
 	if (this->_useMultisampling)
 		this->_shadertoyBufMSAA.Release();
 	this->_shadertoyBuf.Release();
@@ -2183,7 +2186,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			BACKBUFFER_FORMAT,
 			this->_backbufferWidth,
 			this->_backbufferHeight,
-			(g_bUseSteamVR)? 2 : 1, //If we want to render in single-pass instanced stereo, we need Texture2DArray with 1 slice per eye
+			g_bUseSteamVR ? 2 : 1, // If we want to render in single-pass instanced stereo, we need Texture2DArray with 1 slice per eye
 			1,
 			D3D11_BIND_RENDER_TARGET,
 			D3D11_USAGE_DEFAULT,
@@ -2226,6 +2229,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
+
+			step = "Background";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_backgroundBuffer);
+			if (FAILED(hr))
+				goto out;
 
 			if (g_bUseSteamVR) {
 				step = "_offscreenBufferR";
@@ -2498,6 +2506,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
+
+			step = "backgroundBufferAsInput";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_backgroundBufferAsInput);
+			if (FAILED(hr))
+				goto out;
 
 			// ReticleBufAsInput
 			// Not rendered in stereo.
@@ -3003,6 +3016,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
 			}
+
+			step = "backgroundBufferSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_backgroundBufferAsInput,
+				&shaderResourceViewDesc, &this->_backgroundBufferSRV);
+			if (FAILED(hr))
+				goto out;
 
 			step = "_shadertoySRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBuf, &shaderResourceViewDesc, &this->_shadertoySRV);

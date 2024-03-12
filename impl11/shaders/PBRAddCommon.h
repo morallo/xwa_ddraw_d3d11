@@ -27,9 +27,8 @@ SamplerState sampColor : register(s0);
 Texture2DArray texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
 
-// The SSDO Indirect buffer
-Texture2DArray texSSDOInd : register(t2);
-SamplerState samplerSSDOInd : register(s2);
+// The Background buffer
+Texture2DArray texBackground : register(t2);
 
 // The SSAO mask
 Texture2DArray texSSAOMask : register(t3);
@@ -58,9 +57,8 @@ SamplerState sampColor : register(s0);
 Texture2D texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
 
-// The SSDO Indirect buffer
-Texture2D texSSDOInd : register(t2);
-SamplerState samplerSSDOInd : register(s2);
+// The Background buffer
+Texture2D texBackground : register(t2);
 
 // The SSAO mask
 Texture2D texSSAOMask : register(t3);
@@ -115,7 +113,6 @@ struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 	float4 bloom : SV_TARGET1;
-	//float4 bent  : SV_TARGET2; // The bent buffer does not exist anymore
 };
 
 // From: https://www.shadertoy.com/view/MdfXWr
@@ -223,24 +220,25 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.bent = 0;
 
 	float2 input_uv_sub   = input.uv * amplifyFactor;
-	float2 input_uv_sub2  = input.uv * amplifyFactor;
+	//float2 input_uv_sub2  = input.uv * amplifyFactor;
 #ifdef INSTANCED_RENDERING
-    float3 color          = texColor.Sample(sampColor, float3(input.uv, input.viewId)).xyz;
+	float4 texelColor     = texColor.Sample(sampColor, float3(input.uv, input.viewId));
 	float4 Normal         = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
 	float3 pos3D          = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
-    float3 ssdo           = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
-    float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, float3(input_uv_sub2, input.viewId)).rgb;
-    float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
-    float3 ssMask         = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
+	float3 ssdo           = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
+	float3 background     = texBackground.Sample(sampColor, float3(input.uv, input.viewId)).rgb;
+	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
+	float3 ssMask         = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
 #else
-	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
+	float4 texelColor     = texColor.Sample(sampColor, input.uv);
 	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
 	float3 pos3D          = texPos.Sample(sampPos, input.uv).xyz;
-    float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-    float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
-    float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-    float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	float3 background     = texBackground.Sample(sampColor, input.uv).rgb;
+	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 #endif
+	float3 color          = texelColor.rgb;
 	float  mask           = ssaoMask.x;
 	float  gloss_mask     = ssaoMask.y;
 	float  spec_int_mask  = ssaoMask.z;
@@ -249,20 +247,18 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  glass          = ssMask.x;
 	float  spec_val_mask  = ssMask.y;
 	float  shadeless      = ssMask.z;
-	if (shadeless > 0.9) {
-		output.color = float4(color, 1);
-		return output;
-	}
+
+	const float blendAlpha = saturate(2.0 * Normal.w);
 
 	// This shader is shared between the SSDO pass and the Deferred/PBR pass.
 	// For the deferred pass, we don't have an SSDO component, so:
 	// Set the ssdo component to 1 if ssdo is disabled
 	ssdo = lerp(1.0, ssdo, ssdo_enabled);
-	ssdoInd = lerp(0.0, ssdoInd, ssdo_enabled);
+	//ssdoInd = lerp(0.0, ssdoInd, ssdo_enabled);
 
 	// Toggle the SSDO component for debugging purposes:
 	ssdo = lerp(ssdo, 1.0, sso_disable);
-	ssdoInd = lerp(ssdoInd, 0.0, sso_disable);
+	//ssdoInd = lerp(ssdoInd, 0.0, sso_disable);
 
 	// Recompute the contact shadow here...
 
@@ -280,26 +276,37 @@ PixelShaderOutput main(PixelShaderInput input)
 	//if (mask > 0.9 || Normal.w < 0.01) {
 	// If I remove the following, then the bloom mask is messed up!
 	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
-	//if (Normal.w < 0.475) {
-	if (Normal.w < 0.01) {
-		output.color = float4(color, 1);
+	//if (Normal.w < 0.475)
+	/*
+	if (Normal.w <= 0.0)
+	{
+		output.color = float4(color, 0);
 		return output;
 	}
+	*/
+
+	if (shadeless >= 0.95)
+	{
+		output.color = float4(lerp(background, color, texelColor.a), 1);
+		return output;
+	}
+
 	// Avoid harsh transitions
 	// The substraction below should be 1.0 - Normal.w; but I see alpha = 0.5 coming from the normals buf
 	// because that gets written in PixelShaderTexture.hlsl in the alpha channel... I've got to check why
 	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
 	// or I'll get negative numbers
-	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
+	//shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
 	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
 	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
 	float distance_fade = enable_dist_fade * saturate((P.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
-	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
+	//shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
 	color = color * color; // Gamma correction (approx pow 2.2)
+
 	//float3 N = normalize(Normal.xyz);
-	float3 N = Normal.xyz;
+	float3 N = blendAlpha * Normal.xyz;
 	const float3 smoothN = N;
 
 	// Raytraced shadows. The output of this section is written to rt_shadow_factor
@@ -646,6 +653,11 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// For PBR shading, HDR is nonoptional:
 	tmp_color = tmp_color / (HDR_white_point + tmp_color);
-	output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
+	//output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
+	output.color.rgb = sqrt(tmp_color /* * exposure*/); // Invert gamma approx
+	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
+	// In other words, this helps reduce halos around objects.
+	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
+
 	return output;
 }

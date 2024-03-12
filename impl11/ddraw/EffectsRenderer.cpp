@@ -5909,7 +5909,18 @@ void EffectsRenderer::RenderScene()
 	if (g_rendererType == RendererType_Shadow && !g_config.HangarShadowsEnabled)
 		return;
 
-	auto &context = _deviceResources->_d3dDeviceContext;
+	auto& resources = _deviceResources;
+	auto& context = _deviceResources->_d3dDeviceContext;
+
+	if (g_iD3DExecuteCounter == 0)
+	{
+		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+		if (g_bDumpSSAOBuffers)
+			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+
+		// Wipe out the background:
+		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+	}
 
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
 	unsigned short scissorTop = *(unsigned short*)0x07CA354;
@@ -5955,7 +5966,7 @@ void EffectsRenderer::RenderScene()
 
 //out:
 	g_iD3DExecuteCounter++;
-	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
+	g_iDrawCounter++; // EffectsRenderer. We need this counter to enable proper Tech Room detection
 }
 
 void EffectsRenderer::RenderLasers()

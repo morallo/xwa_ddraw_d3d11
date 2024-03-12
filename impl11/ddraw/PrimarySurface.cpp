@@ -3104,6 +3104,8 @@ void PrimarySurface::DeferredPass()
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
+			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
@@ -3111,7 +3113,7 @@ void PrimarySurface::DeferredPass()
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
 			NULL,													// SSDO Direct Component (LDR)
-			NULL, //resources->_ssaoBufSRV_R.Get(),					// SSDO Indirect
+			resources->_backgroundBufferSRV.Get(),					// Background buffer
 			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
 
 			resources->_depthBufSRV.Get(),							// Depth buffer
