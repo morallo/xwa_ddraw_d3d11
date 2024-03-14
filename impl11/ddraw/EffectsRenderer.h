@@ -74,6 +74,7 @@ protected:
 	Matrix4 _throttleMeshTransform;
 	AABB _hangarShadowAABB;
 	Matrix4 _hangarShadowMapRotation;
+	ID3D11RenderTargetView *_overrideRTV;
 
 	VertexShaderCBuffer _oldVSCBuffer;
 	PixelShaderCBuffer _oldPSCBuffer;

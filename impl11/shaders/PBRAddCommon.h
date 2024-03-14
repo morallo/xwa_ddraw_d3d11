@@ -48,6 +48,12 @@ SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2DArray rtShadowMask : register(t17);
+
+// Transparent layer 1
+Texture2DArray transp1 : register(t18);
+// Transparent layer 2
+Texture2DArray transp2 : register(t19);
+
 #else
 // The color buffer
 Texture2D texColor : register(t0);
@@ -78,6 +84,11 @@ SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2D rtShadowMask : register(t17);
+
+// Transparent layer 1
+Texture2D transp1 : register(t18);
+// Transparent layer 2
+Texture2D transp2 : register(t19);
 #endif
 
 // The Shadow Map buffer
@@ -212,6 +223,17 @@ inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize,
 	return shadow / samples;
 }
 
+float4 BlendTransparentLayers(in float4 color, in float4 transpColor1, in float4 transpColor2)
+{
+	// Blend the transparent layers now
+	//if (!ssao_debug)
+	{
+		color.rgb = lerp(color.rgb, transpColor1.rgb, transpColor1.a);
+		color.rgb = lerp(color.rgb, transpColor2.rgb, transpColor2.a);
+	}
+	return color;
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -229,6 +251,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 background     = texBackground.Sample(sampColor, float3(input.uv, input.viewId)).rgb;
 	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
 	float3 ssMask         = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
+	float4 transpColor1   = transp1.Sample(sampColor, float3(input.uv, input.viewId));
+	float4 transpColor2   = transp2.Sample(sampColor, float3(input.uv, input.viewId));
 #else
 	float4 texelColor     = texColor.Sample(sampColor, input.uv);
 	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
@@ -237,6 +261,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 background     = texBackground.Sample(sampColor, input.uv).rgb;
 	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float4 transpColor1   = transp1.Sample(sampColor, input.uv);
+	float4 transpColor2   = transp2.Sample(sampColor, input.uv);
 #endif
 	float3 color          = texelColor.rgb;
 	float  mask           = ssaoMask.x;
@@ -288,6 +314,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (shadeless >= 0.95)
 	{
 		output.color = float4(lerp(background, color, texelColor.a), 1);
+		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
 		return output;
 	}
 
@@ -659,5 +686,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// In other words, this helps reduce halos around objects.
 	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
 
+	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
 	return output;
 }

@@ -3096,8 +3096,7 @@ void PrimarySurface::DeferredPass()
 		ID3D11RenderTargetView *rtvs[5] = {
 			resources->_renderTargetView.Get(),
 			resources->_renderTargetViewBloomMask.Get(),
-			NULL, // resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
-			NULL, NULL,
+			NULL, NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
 
@@ -3106,23 +3105,27 @@ void PrimarySurface::DeferredPass()
 			0, BACKBUFFER_FORMAT);
 		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
 			0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		if (g_bUseSteamVR) {
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[8] = {
-			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			NULL,													// SSDO Direct Component (LDR)
-			resources->_backgroundBufferSRV.Get(),					// Background buffer
-			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			context->ResolveSubresource(
+				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
+		ID3D11ShaderResourceView *srvs_pass[10] = {
+			resources->_offscreenAsInputShaderResourceView.Get(), // 0: Color buffer
+			NULL,                                                 // 1: SSDO Direct Component (LDR)
+			resources->_backgroundBufferSRV.Get(),                // 2: Background buffer
+			resources->_ssaoMaskSRV.Get(),                        // 3: SSAO Mask
 
-			resources->_depthBufSRV.Get(),							// Depth buffer
-			resources->_normBufSRV.Get(),							// Normals buffer
-			resources->_ssMaskSRV.Get(),							// Shading System buffer
-			g_ShadowMapping.bEnabled ?								// The shadow map
+			resources->_depthBufSRV.Get(),                        // 4: Depth buffer
+			resources->_normBufSRV.Get(),                         // 5: Normals buffer
+			resources->_ssMaskSRV.Get(),                          // 6: Shading System buffer
+			g_ShadowMapping.bEnabled ?                            // 7: The shadow map
 				resources->_shadowMapArraySRV.Get() : NULL,
 		};
-		context->PSSetShaderResources(0, 8, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass);
 
 		if (g_bRTEnabled)
 		{
@@ -3134,6 +3137,14 @@ void PrimarySurface::DeferredPass()
 			};
 			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
 			context->PSSetShaderResources(14, 4, srvs);
+		}
+
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_transp1SRV.Get(), // 18
+				resources->_transp2SRV.Get(), // 19
+			};
+			context->PSSetShaderResources(18, 2, srvs);
 		}
 
 		if (g_bUseSteamVR)
@@ -3154,6 +3165,11 @@ void PrimarySurface::DeferredPass()
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBufferAfterDeferredPass.dds");
+	}
 
 	this->_deviceResources->EndAnnotatedEvent();
 }
@@ -9622,6 +9638,22 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
+			context->ResolveSubresource(resources->_transpBufferAsInput1, 0, resources->_transpBuffer1, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(resources->_transpBufferAsInput2, 0, resources->_transpBuffer2, 0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR)
+			{
+				context->ResolveSubresource(resources->_transpBufferAsInput1, D3D11CalcSubresource(0, 1, 1),
+					resources->_transpBuffer1, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+				context->ResolveSubresource(resources->_transpBufferAsInput2, D3D11CalcSubresource(0, 1, 1),
+					resources->_transpBuffer2, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			}
+
+			if (g_bDumpSSAOBuffers)
+			{
+				DirectX::SaveDDSTextureToFile(context, resources->_transpBufferAsInput1, L"c:\\Temp\\_transpBufferAsInput1.dds");
+				DirectX::SaveDDSTextureToFile(context, resources->_transpBufferAsInput2, L"c:\\Temp\\_transpBufferAsInput2.dds");
+			}
+
 			// Render the Raytraced shadow mask
 			if (g_bRTEnabled && g_bRTEnableSoftShadows)
 			{
@@ -9712,6 +9744,10 @@ HRESULT PrimarySurface::Flip(
 						if (g_bUseSteamVR)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, D3D11CalcSubresource(0, 1, 1),
 								resources->_offscreenBufferBloomMask, D3D11CalcSubresource(0, 1, 1), BLOOM_BUFFER_FORMAT);
+						if (g_bDumpSSAOBuffers)
+						{
+							DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlare.png");
+						}
 						break;
 				}
 

@@ -1970,6 +1970,7 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
+	_overrideRTV = nullptr;
 
 #ifdef DISABLED
 	{
@@ -3099,6 +3100,8 @@ void EffectsRenderer::RestoreContext()
 	g_OPTMeshTransformCB.MeshTransform = _oldPose;
 	for (int i = 0; i < 16; i++)
 		_CockpitConstants.transformWorldView[i] = _oldTransformWorldView[i];
+
+	_overrideRTV = nullptr;
 }
 
 void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
@@ -5585,15 +5588,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.meshTransformMatrix = g_OPTMeshTransformCB.MeshTransform;
 		// Add the command to the list of deferred commands
 		_TransparentDrawCommands.push_back(command);
-
-#ifdef DISABLED
-		if (!_vrKeyboardConstantsCaptured /* && _bIsCockpit */)
-		{
-			_vrKeybCommand = command;
-			_vrKeyboardConstantsCaptured = true;
-		}
-#endif
-
 		goto out;
 	}
 
@@ -5940,7 +5934,9 @@ void EffectsRenderer::RenderScene()
 	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
+		_overrideRTV != nullptr ? _overrideRTV :
 		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || _bIsReticle */), // Select the main RTV
+
 		_deviceResources->_renderTargetViewBloomMask.Get(),
 		g_bAOEnabled ? _deviceResources->_renderTargetViewDepthBuf.Get() : NULL,
 		// The normals hook should not be allowed to write normals for light textures. This is now implemented
@@ -6018,9 +6014,6 @@ void EffectsRenderer::RenderLasers()
 	_bIsGunner = false;
 	_bIsBlastMark = false;
 
-	// Just in case we need to do anything for VR or other alternative display devices...
-	ExtraPreprocessing();
-
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
@@ -6051,6 +6044,7 @@ void EffectsRenderer::RenderLasers()
 		// Set the number of triangles
 		_trianglesCount = command.trianglesCount;
 
+		_overrideRTV = resources->_transp1RTV;
 		// Render the deferred commands
 		RenderScene();
 	}
@@ -6058,6 +6052,11 @@ void EffectsRenderer::RenderLasers()
 	// Clear the command list and restore the previous state
 	_LaserDrawCommands.clear();
 	RestoreContext();
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_transpBuffer1, L"C:\\Temp\\_transpBuffer1Lasers.dds");
+	}
 	_deviceResources->EndAnnotatedEvent();
 }
 
@@ -6071,6 +6070,9 @@ void EffectsRenderer::RenderTransparency()
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
+	context->ClearRenderTargetView(resources->_transp1RTV, resources->clearColor);
+	context->ClearRenderTargetView(resources->_transp2RTV, resources->clearColor);
+
 	SaveContext();
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
@@ -6083,9 +6085,6 @@ void EffectsRenderer::RenderTransparency()
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
-
-	// Just in case we need to do anything for VR or other alternative display devices...
-	ExtraPreprocessing();
 
 	// Other stuff that is common in the loop below
 	UINT vertexBufferStride = sizeof(D3dVertex);
@@ -6132,6 +6131,7 @@ void EffectsRenderer::RenderTransparency()
 		// Set the right pixel shader
 		_deviceResources->InitPixelShader(command.pixelShader);
 
+		_overrideRTV = _bIsCockpit ? resources->_transp2RTV : resources->_transp1RTV;
 		// Render the deferred commands
 		RenderScene();
 
@@ -6143,6 +6143,12 @@ void EffectsRenderer::RenderTransparency()
 	// Clear the command list and restore the previous state
 	_TransparentDrawCommands.clear();
 	RestoreContext();
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_transpBuffer1, L"C:\\Temp\\_transpBuffer1.dds");
+		DirectX::SaveDDSTextureToFile(context, resources->_transpBuffer2, L"C:\\Temp\\_transpBuffer2.dds");
+	}
 
 	_deviceResources->EndAnnotatedEvent();
 }
@@ -7829,8 +7835,8 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	g_rendererType = RendererType_Main;
 	RenderCockpitShadowMap();
 	RenderHangarShadowMap();
-	RenderLasers();
 	RenderTransparency();
+	RenderLasers();
 	RenderVRGloves();
 	RenderVRKeyboard();
 	RenderVRDots();

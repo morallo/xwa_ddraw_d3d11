@@ -1739,12 +1739,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
 	this->_backgroundBufferSRV.Release();
+	this->_transp1SRV.Release();
+	this->_transp2SRV.Release();
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferHdBackground.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
 	this->_backgroundBuffer.Release();
 	this->_backgroundBufferAsInput.Release();
+	this->_transpBuffer1.Release();
+	this->_transpBuffer2.Release();
+	this->_transpBufferAsInput1.Release();
+	this->_transpBufferAsInput2.Release();
 	if (this->_useMultisampling)
 		this->_shadertoyBufMSAA.Release();
 	this->_shadertoyBuf.Release();
@@ -1872,6 +1878,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewNormBuf.Release();
 		this->_renderTargetViewSSAOMask.Release();
 		this->_renderTargetViewSSMask.Release();
+		this->_transp1RTV.Release();
+		this->_transp2RTV.Release();
 		//this->_renderTargetViewEmissionMask.Release();
 		if (g_bUseSteamVR) {
 			this->_offscreenBufferBloomMaskR.Release();
@@ -2235,6 +2243,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr))
 				goto out;
 
+			step = "Transparency1";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBuffer1);
+			if (FAILED(hr))
+				goto out;
+
+			step = "Transparency2";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBuffer2);
+			if (FAILED(hr))
+				goto out;
+
 			if (g_bUseSteamVR) {
 				step = "_offscreenBufferR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferR);
@@ -2509,6 +2527,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			step = "backgroundBufferAsInput";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_backgroundBufferAsInput);
+			if (FAILED(hr))
+				goto out;
+
+			step = "transpBufferAsInput1";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBufferAsInput1);
+			if (FAILED(hr))
+				goto out;
+
+			step = "transpBufferAsInput2";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBufferAsInput2);
 			if (FAILED(hr))
 				goto out;
 
@@ -3023,6 +3051,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr))
 				goto out;
 
+			step = "transp1SRV";
+			if (FAILED(this->_d3dDevice->CreateShaderResourceView(this->_transpBufferAsInput1,
+				&shaderResourceViewDesc, &this->_transp1SRV)))
+				goto out;
+
+			step = "transp2SRV";
+			if (FAILED(this->_d3dDevice->CreateShaderResourceView(this->_transpBufferAsInput2,
+				&shaderResourceViewDesc, &this->_transp2SRV)))
+				goto out;
+
 			step = "_shadertoySRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBuf, &shaderResourceViewDesc, &this->_shadertoySRV);
 			if (FAILED(hr)) {
@@ -3462,6 +3500,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			log_debug("[DBG] [ST] _shadertoyRTV FAILED");
 			goto out;
 		}
+
+		step = "_transp1RTV";
+		if (FAILED(this->_d3dDevice->CreateRenderTargetView(this->_transpBuffer1,
+			&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_transp1RTV)))
+			goto out;
+
+		step = "_transp2RTV";
+		if (FAILED(this->_d3dDevice->CreateRenderTargetView(this->_transpBuffer2,
+			&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_transp2RTV)))
+			goto out;
 
 		// _ReticleRTV
 		if (g_bEnableVR) {

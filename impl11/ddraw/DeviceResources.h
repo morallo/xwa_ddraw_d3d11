@@ -217,8 +217,12 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
-	ComPtr<ID3D11Texture2D> _backgroundBuffer; // MSAA, keeps the stellar background
+	ComPtr<ID3D11Texture2D> _backgroundBuffer;        // MSAA, keeps the stellar background
 	ComPtr<ID3D11Texture2D> _backgroundBufferAsInput; // Non-MSAA, associated with an SRV
+	ComPtr<ID3D11Texture2D> _transpBuffer1;           // MSAA, keeps the first transparency layer
+	ComPtr<ID3D11Texture2D> _transpBufferAsInput1;    // Non-MSAA, associated with an SRV
+	ComPtr<ID3D11Texture2D> _transpBuffer2;           // MSAA, keeps the second transparency layer
+	ComPtr<ID3D11Texture2D> _transpBufferAsInput2;    // Non-MSAA, associated with an SRV
 	// Dynamic Cockpit
 	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpit;    // Used to render the targeting computer dynamically <-- Need to re-check this claim
 	ComPtr<ID3D11Texture2D> _offscreenBufferDynCockpitBG;  // Used to render the targeting computer dynamically <-- Need to re-check this claim
@@ -309,6 +313,8 @@ public:
 	ComPtr<ID3D11RenderTargetView> _DCTextRTV;
 	ComPtr<ID3D11RenderTargetView> _DCTextAsInputRTV;
 	ComPtr<ID3D11RenderTargetView> _ReticleRTV;
+	ComPtr<ID3D11RenderTargetView> _transp1RTV;
+	ComPtr<ID3D11RenderTargetView> _transp2RTV;
 	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
@@ -353,6 +359,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
 	ComPtr<ID3D11ShaderResourceView> _backgroundBufferSRV;
+	ComPtr<ID3D11ShaderResourceView> _transp1SRV;
+	ComPtr<ID3D11ShaderResourceView> _transp2SRV;
 	// Dynamic Cockpit
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;    // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds
