@@ -1765,8 +1765,8 @@ void EffectsRenderer::CreateVRMeshes()
 {
 	int res;
 
-	// The VR keyboard/gloves only make sense when AC is on
-	if (!g_bActiveCockpitEnabled)
+	// The VR keyboard/gloves only make sense when VR is on
+	if (!g_bUseSteamVR)
 		return;
 
 	// *************************************************
@@ -1789,6 +1789,10 @@ void EffectsRenderer::CreateVRMeshes()
 	{
 		log_debug("[DBG] [AC] Could not load texture for green circles");
 	}
+
+	// The VR keyboard and gloves are only displayed when the Active Cockpit is on.
+	if (!g_bActiveCockpitEnabled)
+		return;
 
 	// *************************************************
 	// Gloves
