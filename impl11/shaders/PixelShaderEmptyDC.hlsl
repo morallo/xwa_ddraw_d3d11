@@ -118,9 +118,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssaoMask.a   = max(output.ssaoMask.a, (1 - alpha));
 	output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
 	output.ssMask.b     = 1.0 - alpha;
-	if (bInHyperspace) output.color.a = 1.0; // Hyperspace transparency fix
+	//if (bInHyperspace) output.color.a = 1.0; // Hyperspace transparency fix
+	// Transparency fix -- everywhere
+	output.color.a = 1;
 	return output;
-
-	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-	//return output;
 }
