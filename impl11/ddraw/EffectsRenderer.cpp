@@ -6178,8 +6178,7 @@ void EffectsRenderer::RenderVRDots()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
-	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
 	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
@@ -6370,7 +6369,7 @@ void EffectsRenderer::RenderVRBrackets()
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
 	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
@@ -6559,7 +6558,7 @@ void EffectsRenderer::RenderVRHUD()
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
 	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
@@ -6852,7 +6851,9 @@ void EffectsRenderer::RenderVRKeyboard()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
-	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	//_deviceResources->InitBlendState(_solidBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -7835,11 +7836,21 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	g_rendererType = RendererType_Main;
 	RenderCockpitShadowMap();
 	RenderHangarShadowMap();
+
+	RenderVRKeyboard();
+	// We can't render the VR dots here because they will get obscured by the transparency
+	// layers. They have to be rendered after the DeferredPass() has been executed.
+	//RenderVRDots();
+	RenderVRGloves();
+
+	// RenderLasers() has to be executed after RenderTransparency(). The reason is that in
+	// RenderTransparency() we're rendering glass on external objects and the cockpit, and
+	// the lasers are rendered to the first transparent layer afterwards. So, the order is:
+	// External Glass --> Lasers --> Cockpit Glass
+	// RenderTransparency() renders both the External Glass and Cockpit Glass to different layers.
 	RenderTransparency();
 	RenderLasers();
-	RenderVRGloves();
-	RenderVRKeyboard();
-	RenderVRDots();
+
 	//RenderVRHUD();
 	_deviceResources->EndAnnotatedEvent();
 }

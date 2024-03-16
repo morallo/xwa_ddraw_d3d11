@@ -9751,6 +9751,14 @@ HRESULT PrimarySurface::Flip(
 						break;
 				}
 
+				// The VR dots are shadeless and should appear on top of everything else, so we render
+				// them after the Deferred/SSAO pass above
+				if (g_bUseSteamVR && g_bActiveCockpitEnabled)
+				{
+					EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+					renderer->RenderVRDots();
+				}
+
 				if (g_bDumpSSAOBuffers) {
 					//DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask2.dds");
