@@ -5906,7 +5906,7 @@ void EffectsRenderer::RenderScene()
 	auto& resources = _deviceResources;
 	auto& context = _deviceResources->_d3dDeviceContext;
 
-	if (g_iD3DExecuteCounter == 0)
+	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
 	{
 		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 		if (g_bDumpSSAOBuffers)
@@ -6131,7 +6131,8 @@ void EffectsRenderer::RenderTransparency()
 		// Set the right pixel shader
 		_deviceResources->InitPixelShader(command.pixelShader);
 
-		_overrideRTV = _bIsCockpit ? resources->_transp2RTV : resources->_transp1RTV;
+		if (!g_bInTechRoom)
+			_overrideRTV = _bIsCockpit ? resources->_transp2RTV : resources->_transp1RTV;
 		// Render the deferred commands
 		RenderScene();
 
