@@ -6070,9 +6070,6 @@ void EffectsRenderer::RenderTransparency()
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 
-	context->ClearRenderTargetView(resources->_transp1RTV, resources->clearColor);
-	context->ClearRenderTargetView(resources->_transp2RTV, resources->clearColor);
-
 	SaveContext();
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());

@@ -6300,6 +6300,8 @@ HRESULT Direct3DDevice::BeginScene()
 	if (!bTransitionToHyperspace) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
 		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
+		context->ClearRenderTargetView(resources->_transp1RTV, resources->clearColor);
+		context->ClearRenderTargetView(resources->_transp2RTV, resources->clearColor);
 		if (g_bEnableVR) {
 			context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
 		}
