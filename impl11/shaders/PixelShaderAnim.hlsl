@@ -102,7 +102,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 HSV = RGBtoHSV(texelColor.rgb);
 
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
-		alpha = HSV.z;
+		// Using the new render strategy (redirecting transparent output to its own layer)
+		// requires the gamma compensation to be done here... and I know that it should be
+		// 1/2.2 = 0.4545..., but other numbers approximate the old look better:
+		alpha = pow(abs(HSV.z), 0.4);
 
 	float4 texelColorLight = AuxColorLight * texture1.Sample(sampler0, UV);
 	float  alphaLight = texelColorLight.a;
@@ -182,8 +185,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.bloom = max(output.bloom, ScreenLyrBloom);
 
-	if (bIsShadeless)
-		output.ssMask.ba = alpha;
+	//if (bIsShadeless)
+	//	output.ssMask.ba = alpha;
 
 	return output;
 }

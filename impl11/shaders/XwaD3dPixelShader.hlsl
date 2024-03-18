@@ -60,6 +60,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Shadeless and transparent texture. This is cockpit glass or similar.
 		// ssaoMask: Material, Glossiness, Specular Intensity
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
+		output.color.a = sqrt(output.color.a); // Gamma correction (approx)
 		output.normal = 0;
 		return output;
 	}
