@@ -113,14 +113,19 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
-	/*
 	if (ExclusiveMask == SPECIAL_CONTROL_EXPLOSION)
 	{
-		output.color = float4(0, 1, 0, alpha);
-		output.bloom = output.color;
+		alpha = sqrt(alpha); // Gamma correction (approx)
+		output.ssaoMask  = float4(0, 0, 0, alpha);
+		output.ssMask.ba = alpha; // Shadeless material
+		// Areas where the normals are transparent are treated as "background" when doing the
+		// DeferredPass() blending. So here, let's make sure there's a non-transparent void
+		// normal to prevent that:
+		output.normal = float4(0, 0, 0, 0.5);
+		output.pos3D  = 0;
+		output.bloom  = float4(fBloomStrength * output.color.rgb, output.color.a);
 		return output;
 	}
-	*/
 
 	// Enhance the engine glow. In this texture, the diffuse component also provides
 	// the hue. The engine glow is also used to render smoke, so that's why the smoke
