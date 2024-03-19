@@ -60,7 +60,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Shadeless and transparent texture. This is cockpit glass or similar.
 		// ssaoMask: Material, Glossiness, Specular Intensity
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-		output.color.a = sqrt(output.color.a); // Gamma correction (approx)
+		//output.color.a = sqrt(output.color.a); // Gamma correction (approx)
 		output.normal = 0;
 		return output;
 	}
@@ -98,11 +98,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.pos3D.a = 0;
 		// Do not write the normal
 		output.normal.a = 0;
-		output.ssaoMask.rgb = 0;
-		output.ssaoMask.a = alpha; // We should let the regular material properties on lasers
-
-		output.ssMask.rg = 0;
-		output.ssMask.ba = alpha; // Make lasers shadeless and blend these properties with the current background
+		// Lasers are now rendered to a separate shadeless layer, so we don't need to
+		// write any material properties:
+		output.ssaoMask = 0;
+		output.ssMask = 0;
 
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
@@ -112,8 +111,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		HSV.z *= 2.0;
 		float3 color = HSVtoRGB(HSV);
 		output.color = float4(color, alpha);
-		output.bloom = float4(color, alpha);
-		output.bloom.rgb *= fBloomStrength;
+		output.bloom = float4(fBloomStrength * color, alpha);
 		return output;
 	}
 

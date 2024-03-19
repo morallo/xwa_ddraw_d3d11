@@ -228,8 +228,9 @@ float4 BlendTransparentLayers(in float4 color, in float4 transpColor1, in float4
 	// Blend the transparent layers now
 	//if (!ssao_debug)
 	{
-		color.rgb = lerp(color.rgb, transpColor1.rgb, transpColor1.a);
-		color.rgb = lerp(color.rgb, transpColor2.rgb, transpColor2.a);
+		// Premultiplied alpha blending:
+		color.rgb = transpColor1.rgb + (1 - transpColor1.a) * color.rgb;
+		color.rgb = transpColor2.rgb + (1 - transpColor2.a) * color.rgb;
 	}
 	return color;
 }
@@ -504,7 +505,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//const float ambient = 0.03; // Use the global ambient constant from shading_system
 	//const float Value = dot(0.333, color.rgb);
 	// Approximate luma:
-	const float Value = max((0.299f * color.x + 0.587f * color.y + 0.114f * color.z), spec_val_mask);
+	const float Value = max(dot(float3(0.299f, 0.587f, 0.114f), color.xyz), spec_val_mask);
 
 	//const bool blackish = V < 0.1;
 	const float blackish = smoothstep(0.1, 0.0, Value);

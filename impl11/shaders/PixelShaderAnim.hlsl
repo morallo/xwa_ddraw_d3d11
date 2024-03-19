@@ -102,10 +102,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 HSV = RGBtoHSV(texelColor.rgb);
 
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+	{
+		alpha = dot(float3(0.299, 0.587, 0.114), texelColor.rgb);
 		// Using the new render strategy (redirecting transparent output to its own layer)
-		// requires the gamma compensation to be done here... and I know that it should be
-		// 1/2.2 = 0.4545..., but other numbers approximate the old look better:
-		alpha = pow(abs(HSV.z), 0.4);
+		// requires the gamma compensation to be done here...
+		alpha = sqrt(alpha);
+	}
 
 	float4 texelColorLight = AuxColorLight * texture1.Sample(sampler0, UV);
 	float  alphaLight = texelColorLight.a;
