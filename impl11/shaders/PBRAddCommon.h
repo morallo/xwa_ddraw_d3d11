@@ -223,14 +223,30 @@ inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize,
 	return shadow / samples;
 }
 
+// See:
+// https://wickedengine.net/2017/10/22/which-blend-state-for-me/
+inline float4 PreMulBlend(in float4 src, in float4 dst)
+{
+	// Equivalent DX11 state:
+	// desc.SrcBlend       = D3D11_BLEND_ONE;
+	// desc.DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
+	// desc.BlendOp        = D3D11_BLEND_OP_ADD;
+	// Final alpha value settings:
+	// desc.SrcBlendAlpha  = D3D11_BLEND_ONE;
+	// desc.DestBlendAlpha = D3D11_BLEND_ONE;
+	// desc.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+	dst.rgb = src.rgb + (1 - src.a) * dst.rgb;
+	return dst;
+}
+
+
 float4 BlendTransparentLayers(in float4 color, in float4 transpColor1, in float4 transpColor2)
 {
 	// Blend the transparent layers now
 	//if (!ssao_debug)
 	{
-		// Premultiplied alpha blending:
-		color.rgb = transpColor1.rgb + (1 - transpColor1.a) * color.rgb;
-		color.rgb = transpColor2.rgb + (1 - transpColor2.a) * color.rgb;
+		color = PreMulBlend(transpColor1, color);
+		color = PreMulBlend(transpColor2, color);
 	}
 	return color;
 }
@@ -685,7 +701,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color.rgb = sqrt(tmp_color /* * exposure*/); // Invert gamma approx
 	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
 	// In other words, this helps reduce halos around objects.
-	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
+	//output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
+	output.color.a = texelColor.a;
+	output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
 
 	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
 	return output;
