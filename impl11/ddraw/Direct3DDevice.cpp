@@ -882,7 +882,7 @@ public:
 		return desc;
 	}
 
-	D3D11_BLEND_DESC GetBlendDesc()
+	D3D11_BLEND_DESC GetBlendDesc(bool hitEffect=false)
 	{
 		D3D11_BLEND_DESC desc{};
 
@@ -895,7 +895,12 @@ public:
 
 		desc.RenderTarget[0].SrcBlendAlpha = this->TextureMapBlend == D3DTBLEND_MODULATEALPHA ? D3D11_BLEND_SRC_ALPHA : D3D11_BLEND_ONE;
 		desc.RenderTarget[0].DestBlendAlpha = this->TextureMapBlend == D3DTBLEND_MODULATEALPHA ? D3D11_BLEND_INV_SRC_ALPHA : D3D11_BLEND_ZERO;
-		desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		if (!hitEffect)
+			desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		else
+			// Hit effects need this BlendOpAlpha or they will apply transparency over solid surfaces!
+			desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
+
 		desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
 		return desc;
@@ -2600,21 +2605,6 @@ inline void Direct3DDevice::EnableHoloTransparency() {
 	resources->InitBlendState(nullptr, &blendDesc);
 }
 
-/*
- * Saves the current blend state to m_SavedBlendDesc
- */
-inline void Direct3DDevice::SaveBlendState() {
-	m_SavedBlendDesc = this->_renderStates->GetBlendDesc();
-}
-
-/*
- * Restore a previously-saved blend state in m_SavedBlendDesc
- */
-inline void Direct3DDevice::RestoreBlendState() {
-	auto& resources = this->_deviceResources;
-	resources->InitBlendState(nullptr, &m_SavedBlendDesc);
-}
-
 inline void UpdateDCHologramState() {
 	if (!g_bDCHologramsVisiblePrev && g_bDCHologramsVisible) {
 		g_fDCHologramFadeIn = 0.0f;
@@ -2809,7 +2799,7 @@ HRESULT Direct3DDevice::Execute(
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
 	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
-	bool bModifiedBlendState = false, bModifiedVertexShader = false;
+	bool bModifiedVertexShader = false;
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
@@ -3213,7 +3203,8 @@ HRESULT Direct3DDevice::Execute(
 					break;
 
 				step = "BlendState";
-				D3D11_BLEND_DESC blendDesc = this->_renderStates->GetBlendDesc();
+				bool bIsHitEffect = (lastTextureSelected != nullptr) && (lastTextureSelected->is_HitEffect);
+				D3D11_BLEND_DESC blendDesc = this->_renderStates->GetBlendDesc(bIsHitEffect);
 				if (FAILED(hr = this->_deviceResources->InitBlendState(nullptr, &blendDesc))) {
 					log_debug("[DBG] Caught error at Execute:BlendState");
 					hr = device->GetDeviceRemovedReason();
@@ -4528,7 +4519,6 @@ HRESULT Direct3DDevice::Execute(
 				// so that we can restore the state at the end of the draw call.
 				bModifiedShaders      = false;
 				bModifiedPixelShader  = false;
-				bModifiedBlendState   = false;
 				bModifiedVertexShader = false;
 
 				// DEBUG
@@ -4566,49 +4556,6 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bIsXWAHangarShadow) {
-					// For hangar shadows we need to change the blending operation (it's set to force alpha = 1)
-					// EDIT (after a few months) I'm not sure the fix below works very well. This was paired with
-					// an alpha of 0.25 in PixelShaderSolid, but that caused overlapping shadows to look darker.
-					// I changed the blend op to min and max and that only caused shadows to go full black. I ended
-					// up disabling this block and using the original settings -- except I changed the color of the
-					// shadow to black (because otherwise it's rendered blue). See PixelShaderSolid.hlsl.
-					/*
-					D3D11_BLEND_DESC blendDesc{};
-					blendDesc.AlphaToCoverageEnable = FALSE;
-					blendDesc.IndependentBlendEnable = FALSE;
-					blendDesc.RenderTarget[0].BlendEnable = TRUE;
-					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-					//blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_MIN;
-					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MIN;
-					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-					hr = resources->InitBlendState(nullptr, &blendDesc);
-					*/
-
-					//D3D11_BLEND_DESC desc = this->_renderStates->GetBlendDesc();
-					/*
-					log_debug("[DBG] ******************************");
-					log_debug("[DBG] BlendEnable: %d, BlendOp: %d, BlendOpAlpha: %d", 
-						desc.RenderTarget->BlendEnable, desc.RenderTarget->BlendOp, desc.RenderTarget->BlendOpAlpha);
-					log_debug("[DBG] SrcBlend: %d, SrcBlendAlpha: %d",
-						desc.RenderTarget->SrcBlend, desc.RenderTarget->SrcBlendAlpha);
-					log_debug("[DBG] DestBlend: %d, DestBlendAlpha: %d",
-						desc.RenderTarget->DestBlend, desc.RenderTarget->DestBlendAlpha);
-					log_debug("[DBG] ******************************");*/
-					/*
-					This is the blend state for hangar shadows (they are forced to be alpha 1):
-					[16360] [DBG] BlendEnable: 1, BlendOp: 1, BlendOpAlpha: 1
-					[16360] [DBG] SrcBlend: 5, SrcBlendAlpha: 2
-					[16360] [DBG] DestBlend: 6, DestBlendAlpha: 1
-					*/
-					//D3D11_BLEND_OP_ADD == 1
-					//D3D11_BLEND_ZERO == 1
-					//D3D11_BLEND_ONE == 2
-					//D3D11_BLEND_SRC_ALPHA == 5
-					//D3D11_BLEND_INV_SRC_ALPHA == 6
 					bModifiedShaders = true;
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_XWA_SHADOW;
 				}
@@ -5200,7 +5147,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-					else if (lastTextureSelected->is_Spark) {
+					else if (lastTextureSelected->is_Spark || lastTextureSelected->is_HitEffect) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
@@ -5336,7 +5283,7 @@ HRESULT Direct3DDevice::Execute(
 						ID3D11RenderTargetView *rtvs[1] = {
 							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 						};
-						context->OMSetRenderTargets(1, 
+						context->OMSetRenderTargets(1,
 							//resources->_renderTargetView.GetAddressOf(),
 							rtvs, resources->_depthStencilViewL.Get());
 					} else {
@@ -5691,11 +5638,6 @@ HRESULT Direct3DDevice::Execute(
 						resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 					else
 						resources->InitVertexShader(resources->_vertexShader);
-				}
-
-				if (bModifiedBlendState) {
-					RestoreBlendState();
-					bModifiedBlendState = false;
 				}
 
 				currentIndexLocation += 3 * instruction->wCount;

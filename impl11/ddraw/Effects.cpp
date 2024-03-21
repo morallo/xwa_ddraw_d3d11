@@ -112,7 +112,10 @@ std::vector<char*> Sparks_ResNames = {
 	"dat,3000,",
 	"dat,3001,",
 	"dat,3002,",
-	
+};
+
+// These groups live in ANIMATIONS.dat
+std::vector<char*> HitEffects_ResNames = {
 	"dat,3100,", // <-- This is the hit effect for ions
 	"dat,3200,", // <-- This is the hit effect for red lasers
 	"dat,3300,", // <-- This is the hit effect for green lasers

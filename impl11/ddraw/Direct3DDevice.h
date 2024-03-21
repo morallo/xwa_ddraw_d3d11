@@ -58,10 +58,6 @@ public:
 
 	void EnableHoloTransparency();
 
-	void SaveBlendState();
-
-	void RestoreBlendState();
-
 	uint32_t GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT currentIndexLocation, Direct3DTexture * lastTextureSelected);
 
 	void UpdateReconstructionConstants();
@@ -103,5 +99,4 @@ public:
 	DWORD _maxExecuteBufferSize;
 	ComPtr<ID3D11Buffer> _vertexBuffer;
 	ComPtr<ID3D11Buffer> _indexBuffer;
-	D3D11_BLEND_DESC m_SavedBlendDesc;
 };

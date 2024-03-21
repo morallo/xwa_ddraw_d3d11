@@ -3003,6 +3003,11 @@ void PrimarySurface::DeferredPass()
 	auto& context = resources->_d3dDeviceContext;
 	float x0, y0, x1, y1;
 
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBufferBeforeDeferredPass.dds");
+	}
+
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_SSAO_PSCBuffer.x0 = x0;
 	g_SSAO_PSCBuffer.y0 = y0;

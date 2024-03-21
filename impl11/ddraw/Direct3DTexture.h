@@ -96,6 +96,8 @@ public:
 	bool is_Trail;
 	// True for sparks (to control Bloom)
 	bool is_Spark;
+	// True for hit effects
+	bool is_HitEffect;
 	// True for cockpit sparks (to control Bloom)
 	bool is_CockpitSpark;
 	// True for the chaff dat

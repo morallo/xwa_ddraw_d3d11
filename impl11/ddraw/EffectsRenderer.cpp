@@ -3192,7 +3192,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bIsTargetHighlighted = false;
 	//bool bIsExterior = false, bIsDAT = false;
 	//bool bIsDS2CoreExplosion = false;
-	bool bIsElectricity = false, bHasMaterial = false;
+	bool bHasMaterial = false;
 
 	if (_bLastTextureSelectedNotNULL) {
 		if (g_bDynCockpitEnabled && _lastTextureSelected->is_DynCockpitDst)
@@ -3324,8 +3324,8 @@ void EffectsRenderer::ApplySpecialMaterials()
 	}
 	else if (_lastTextureSelected->is_Debris || _lastTextureSelected->is_Trail ||
 		_lastTextureSelected->is_CockpitSpark || _lastTextureSelected->is_Spark ||
-		_lastTextureSelected->is_Chaff || _lastTextureSelected->is_Missile
-		)
+		_lastTextureSelected->is_Chaff || _lastTextureSelected->is_Missile ||
+		_lastTextureSelected->is_HitEffect)
 	{
 		_bModifiedShaders = true;
 		g_PSCBuffer.fSSAOMaskVal = 0;
@@ -4048,7 +4048,7 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 		g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
 	} */
-	else if (_lastTextureSelected->is_Spark) {
+	else if (_lastTextureSelected->is_Spark || _lastTextureSelected->is_HitEffect) {
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
@@ -5611,12 +5611,6 @@ out:
 	for (int i = 0; i < 3; i++)
 		oldVSSRV[i].Release();
 	*/
-	/*
-	if (bModifiedBlendState) {
-		RestoreBlendState();
-		bModifiedBlendState = false;
-	}
-	*/
 
 #if LOGGER_DUMP
 	DumpConstants(_constants);
@@ -5866,9 +5860,6 @@ bool EffectsRenderer::DCReplaceTextures()
 			if (g_PSCBuffer.DynCockpitSlots > 0) {
 				_bModifiedPixelShader = true;
 				if (_bIsHologram) {
-					// Holograms require alpha blending to be enabled, but we also need to save the current
-					// blending state so that it gets restored at the end of this draw call.
-					//SaveBlendState();
 					EnableHoloTransparency();
 					_bModifiedBlendState = true;
 					uint32_t hud_color = (*g_XwaFlightHudColor) & 0x00FFFFFF;
