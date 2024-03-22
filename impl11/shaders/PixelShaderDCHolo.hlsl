@@ -153,7 +153,7 @@ float4 hologram(float2 p, float4 bgColor, out float shadeless_alpha)
 	//bgColor.rgb *= scans;
 	//bgColor.a *= saturate(scans);
 
-	bgColor.a = lerp(bgColor.a, 0.0, dout);
+	bgColor.a = HOLOGRAM_ALPHA * lerp(bgColor.a, 0.0, dout);
 	//shadeless_alpha = lerp(1.0, 0.0, din);
 	//din = lerp(din, 0.0, din); --> This creates a square margin
 	return bgColor;
