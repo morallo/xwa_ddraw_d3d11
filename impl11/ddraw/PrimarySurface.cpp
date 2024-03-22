@@ -2637,10 +2637,16 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
+			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR) {
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
 		ID3D11ShaderResourceView *srvs_pass1[5] = {
 			resources->_depthBufSRV.Get(),
 			resources->_normBufSRV.Get(),
@@ -2957,20 +2963,28 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
-			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
-			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
-			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			resources->_offscreenAsInputShaderResourceView.Get(),	// 0: Color buffer
+			resources->_ssaoBufSRV.Get(),                           // 1: SSDO Direct Component
+			//resources->_ssaoBufSRV_R.Get(),                       // SSDO Indirect
+			resources->_backgroundBufferSRV.Get(),                  // 2: Background buffer
+			resources->_ssaoMaskSRV.Get(),                          // 3: SSAO Mask
 
-			resources->_depthBufSRV.Get(),							// Depth buffer
-			resources->_normBufSRV.Get(),							// Normals buffer
-			//resources->_bentBufSRV.Get(),							// Bent Normals
-			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
-
-			g_ShadowMapping.bEnabled ? 
-				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
+			resources->_depthBufSRV.Get(),                          // 4: Depth buffer
+			resources->_normBufSRV.Get(),                           // 5: Normals buffer
+			resources->_ssMaskSRV.Get(),                            // 6: Shading System Mask buffer
+			g_ShadowMapping.bEnabled ?                              // 7: The shadow map
+				resources->_shadowMapArraySRV.Get() : NULL,
 		};
 		context->PSSetShaderResources(0, 8, srvs_pass2);
+
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_transp1SRV.Get(), // 18
+				resources->_transp2SRV.Get(), // 19
+			};
+			context->PSSetShaderResources(18, 2, srvs);
+		}
+
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
