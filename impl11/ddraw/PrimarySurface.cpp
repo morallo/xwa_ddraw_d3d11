@@ -2487,6 +2487,11 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		}
+		else {
+			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
+				0, BACKBUFFER_FORMAT);
+		}
+
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(), // 0: Color buffer
 			resources->_ssaoBufSRV.Get(),                         // 1: SSAO component
@@ -2517,8 +2522,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			ID3D11ShaderResourceView* srvs[] = {
 				resources->_transp1SRV.Get(), // 18
 				resources->_transp2SRV.Get(), // 19
+				resources->_ReticleSRV.Get(), // 20
 			};
-			context->PSSetShaderResources(18, 2, srvs);
+			context->PSSetShaderResources(18, 3, srvs);
 		}
 
 		if (g_bUseSteamVR)
@@ -2659,6 +2665,11 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		}
+		else {
+			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
+				0, BACKBUFFER_FORMAT);
+		}
+
 		ID3D11ShaderResourceView *srvs_pass1[5] = {
 			resources->_depthBufSRV.Get(),
 			resources->_normBufSRV.Get(),
@@ -2993,8 +3004,9 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 			ID3D11ShaderResourceView* srvs[] = {
 				resources->_transp1SRV.Get(), // 18
 				resources->_transp2SRV.Get(), // 19
+				resources->_ReticleSRV.Get(), // 20
 			};
-			context->PSSetShaderResources(18, 2, srvs);
+			context->PSSetShaderResources(18, 3, srvs);
 		}
 
 		if (g_bUseSteamVR)
@@ -3144,6 +3156,11 @@ void PrimarySurface::DeferredPass()
 				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 		}
+		else {
+			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
+				0, BACKBUFFER_FORMAT);
+		}
+
 		ID3D11ShaderResourceView *srvs_pass[10] = {
 			resources->_offscreenAsInputShaderResourceView.Get(), // 0: Color buffer
 			NULL,                                                 // 1: SSDO Direct Component (LDR)
@@ -3174,8 +3191,9 @@ void PrimarySurface::DeferredPass()
 			ID3D11ShaderResourceView* srvs[] = {
 				resources->_transp1SRV.Get(), // 18
 				resources->_transp2SRV.Get(), // 19
+				resources->_ReticleSRV.Get(), // 20
 			};
-			context->PSSetShaderResources(18, 2, srvs);
+			context->PSSetShaderResources(18, 3, srvs);
 		}
 
 		if (g_bUseSteamVR)
@@ -5237,7 +5255,7 @@ void PrimarySurface::RenderExternalHUD()
 			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1), 
 			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	// Resolve the Reticle buffer
-	if (g_bEnableVR) {
+	{
 		context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA, 0, BACKBUFFER_FORMAT);
 		if (g_bDumpSSAOBuffers) {
 			DirectX::SaveWICTextureToFile(context, resources->_ReticleBufAsInput, GUID_ContainerFormatPng,

@@ -1839,7 +1839,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_DCTextAsInputRTV.Release();
 	}
 
-	if (g_bEnableVR) {
+	{
 		this->_ReticleBufMSAA.Release();
 		this->_ReticleBufAsInput.Release();
 		this->_ReticleRTV.Release();
@@ -2299,7 +2299,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// ReticleBufMSAA
-			if (g_bEnableVR) {
+			{
 				step = "_ReticleBufMSAA";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ReticleBufMSAA);
 				if (FAILED(hr)) {
@@ -2543,7 +2543,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// ReticleBufAsInput
 			// Not rendered in stereo.
 			desc.ArraySize = 1;
-			if (g_bEnableVR) {
+			{
 				step = "_ReticleBufAsInput";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ReticleBufAsInput);
 				if (FAILED(hr)) {
@@ -3078,9 +3078,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// _ReticleSRV
-			// The reticle is not rendered in stereo
+			// The reticle is not rendered in stereo:
 			shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			if (g_bEnableVR) {
+			{
 				step = "_ReticleSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_ReticleBufAsInput, &shaderResourceViewDesc, &this->_ReticleSRV);
 				if (FAILED(hr)) {
@@ -3512,7 +3512,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 
 		// _ReticleRTV
-		if (g_bEnableVR) {
+		{
 			step = "_ReticleRTV";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ReticleBufMSAA, &GetRtvDesc(this->_useMultisampling, false), &this->_ReticleRTV);
 			if (FAILED(hr)) goto out;

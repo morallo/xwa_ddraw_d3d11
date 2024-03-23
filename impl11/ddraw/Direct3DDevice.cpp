@@ -4996,7 +4996,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
-				bool bRenderReticleToBuffer = g_bEnableVR && bIsReticle; // && !bExternalCamera;
+				bool bRenderReticleToBuffer = bIsReticle; // && !bExternalCamera;
 				if (g_bDynCockpitEnabled &&
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
@@ -6244,9 +6244,7 @@ HRESULT Direct3DDevice::BeginScene()
 		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 		context->ClearRenderTargetView(resources->_transp1RTV, resources->clearColor);
 		context->ClearRenderTargetView(resources->_transp2RTV, resources->clearColor);
-		if (g_bEnableVR) {
-			context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
-		}
+		context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
 			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);

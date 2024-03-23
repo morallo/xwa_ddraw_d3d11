@@ -50,6 +50,8 @@ Texture2D transp1 : register(t18);
 // Transparent layer 2
 Texture2D transp2 : register(t19);
 
+// Reticle (only available in non VR mode)
+Texture2D reticleTex : register(t20);
 
 // The Shadow Map buffer
 Texture2DArray<float> texShadowMap : register(t7);
@@ -168,6 +170,22 @@ float4 BlendTransparentLayers(in float4 color, in float4 transpColor1, in float4
 	return color;
 }
 
+float4 BlendTransparentLayers(
+	in float4 color,
+	in float4 transpColor1,
+	in float4 transpColor2,
+	in float4 transpColor3)
+{
+	// Blend the transparent layers now
+	//if (!ssao_debug)
+	{
+		color = PreMulBlend(transpColor1, color);
+		color = PreMulBlend(transpColor2, color);
+		color = PreMulBlend(transpColor3, color);
+	}
+	return color;
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	float2 input_uv_sub   = input.uv * amplifyFactor;
@@ -179,6 +197,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
 	float4 transpColor1   = transp1.Sample(sampColor, input.uv);
 	float4 transpColor2   = transp2.Sample(sampColor, input.uv);
+	float4 reticleColor   = reticleTex.Sample(sampColor, input.uv);
 
 	float3 color          = texelColor.rgb;
 	float  mask           = ssaoMask.x;
@@ -210,10 +229,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color = float4(color, 1);
 		return output;
 	}*/
+
 	if (shadeless >= 0.95)
 	{
 		output.color = float4(lerp(background, color, texelColor.a), 1);
+#ifdef INSTANCED_RENDERING
 		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
+#else
+		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2, reticleColor);
+#endif
 		return output;
 	}
 
@@ -515,6 +539,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
 	// In other words, this helps reduce halos around objects.
 	output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
+#ifdef INSTANCED_RENDERING
 	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
+#else
+	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2, reticleColor);
+#endif
 	return output;
 }
