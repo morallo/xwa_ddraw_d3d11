@@ -727,9 +727,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color.rgb = sqrt(tmp_color /* * exposure*/); // Invert gamma approx
 	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
 	// In other words, this helps reduce halos around objects.
-	//output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
-	output.color.a = texelColor.a;
-	output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
+	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
+	// These lines, althought apparently correct, re-introduce small white halos around objects.
+	// This is easier to see in VR or low resolutions:
+	//output.color.a = texelColor.a;
+	//output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
 
 #ifdef INSTANCED_RENDERING
 	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);

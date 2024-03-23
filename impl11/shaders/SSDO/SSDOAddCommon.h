@@ -877,11 +877,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = 0.5 * ssdoInd;
 #endif
 
-	output.color.a = texelColor.a;
 	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
 	// In other words, this helps reduce halos around objects.
-	output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
-
+	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
+	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
+	// In other words, this helps reduce halos around objects.
+	//output.color.a = texelColor.a;
+	//output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
 #ifdef INSTANCED_RENDERING
 	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
 #else
