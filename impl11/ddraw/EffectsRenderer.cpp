@@ -3322,10 +3322,9 @@ void EffectsRenderer::ApplySpecialMaterials()
 		g_PSCBuffer.bIsShadeless = 1;
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
-	else if (_lastTextureSelected->is_Debris || _lastTextureSelected->is_Trail ||
+	else if (_lastTextureSelected->is_Debris ||
 		_lastTextureSelected->is_CockpitSpark || _lastTextureSelected->is_Spark ||
-		_lastTextureSelected->is_Chaff || _lastTextureSelected->is_Missile ||
-		_lastTextureSelected->is_HitEffect)
+		_lastTextureSelected->is_Chaff)
 	{
 		_bModifiedShaders = true;
 		g_PSCBuffer.fSSAOMaskVal = 0;
@@ -3334,6 +3333,9 @@ void EffectsRenderer::ApplySpecialMaterials()
 		g_PSCBuffer.fNMIntensity = 0.0f;
 		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
+	}
+	else if (_lastTextureSelected->is_Missile) {
+		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_MISSILE;
 	}
 	else if (_lastTextureSelected->is_Laser) {
 		_bModifiedShaders = true;
@@ -4068,7 +4070,7 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 	{
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
-		g_PSCBuffer.bIsEngineGlow = 1;
+		//g_PSCBuffer.bIsEngineGlow = 1;
 	}
 	else if (_lastTextureSelected->is_SkydomeLight) {
 		_bModifiedShaders = true;
@@ -5602,6 +5604,7 @@ out:
 
 	if (_bModifiedPixelShader)
 		resources->InitPixelShader(lastPixelShader);
+	_overrideRTV = nullptr;
 
 	// Decrease the refcount of all the objects we queried at the prologue. (Is this
 	// really necessary? They live on the stack, so maybe they are auto-released?)
@@ -5624,17 +5627,17 @@ out:
  If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
-inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye) {
+inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable) {
 	auto& resources = this->_deviceResources;
 
-	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
-	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
+	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
+	ID3D11RenderTargetView *shadertoyRTV = resources->_shadertoyRTV.Get();
 	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
 		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
 		return shadertoyRTV;
 	else
 		// Normal output buffer (_offscreenBuffer)
-		return regularRTV;
+		return _overrideRTV != nullptr ? _overrideRTV : regularRTV;
 }
 
 // This function should only be called when the miniature (targetted craft) is being rendered.
@@ -5925,7 +5928,6 @@ void EffectsRenderer::RenderScene()
 	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
-		_overrideRTV != nullptr ? _overrideRTV :
 		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || _bIsReticle */), // Select the main RTV
 
 		_deviceResources->_renderTargetViewBloomMask.Get(),

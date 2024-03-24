@@ -60,19 +60,20 @@ OPTMeshTransformCBuffer       : register(b8)
 // Used in the special_control CB field in the pixel shader
 // These flags are mutually-exclusive, so be careful when setting them. Only a handful are used
 // in the same shader though.
-#define SPECIAL_CONTROL_XWA_SHADOW	1
-#define SPECIAL_CONTROL_GLASS		2
-#define SPECIAL_CONTROL_BACKGROUND	3
-#define SPECIAL_CONTROL_SMOKE		4
-#define SPECIAL_CONTROL_HIGHLIGHT	5 // Used for debugging purposes (to highlight specific elements)
-#define SPECIAL_CONTROL_NO_COLOR_ALPHA 6 // When this is set, the alpha value for the color output is forced to 0. Used in AlphaToBloom.hlsl
-#define SPECIAL_CONTROL_EXPLOSION	7
-#define SPECIAL_CONTROL_BLACK_TO_ALPHA 8 // Used when rendering animated textures so that black becomes transparent
+#define SPECIAL_CONTROL_XWA_SHADOW          1
+#define SPECIAL_CONTROL_GLASS               2
+#define SPECIAL_CONTROL_BACKGROUND          3
+#define SPECIAL_CONTROL_SMOKE               4
+#define SPECIAL_CONTROL_HIGHLIGHT           5 // Used for debugging purposes (to highlight specific elements)
+#define SPECIAL_CONTROL_NO_COLOR_ALPHA      6 // When this is set, the alpha value for the color output is forced to 0. Used in AlphaToBloom.hlsl
+#define SPECIAL_CONTROL_EXPLOSION           7
+#define SPECIAL_CONTROL_BLACK_TO_ALPHA      8 // Used when rendering animated textures so that black becomes transparent
 #define SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK 9
-#define SPECIAL_CONTROL_GRAYSCALE	10 // Used in the Tech Room to display grayscale models. Only for modelling/debugging purposes
-#define SPECIAL_CONTROL_DEBUG		11 // Generic debug flag. Only used when developing or testing features.
+#define SPECIAL_CONTROL_GRAYSCALE           10 // Used in the Tech Room to display grayscale models. Only for modelling/debugging purposes
+#define SPECIAL_CONTROL_DEBUG               11 // Generic debug flag. Only used when developing or testing features.
+#define SPECIAL_CONTROL_MISSILE             12
 // These are the bits used for exclusive special control flags
-#define SPECIAL_CONTROL_EXCLUSIVE_MASK 0x0FF
+#define SPECIAL_CONTROL_EXCLUSIVE_MASK      0x0FF
 // The following are bits in the special_control field. They need to be blended with the rest of the exclusive
 // flags
 #define SPECIAL_CONTROL_BLAST_MARK 0x100 // Set when the current texture is a blast mark

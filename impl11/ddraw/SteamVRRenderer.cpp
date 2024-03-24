@@ -135,7 +135,6 @@ void SteamVRRenderer::RenderScene()
 	// ****************************************************************************
 	{
 		ID3D11RenderTargetView *rtvs[6] = {
-			_overrideRTV != nullptr ? _overrideRTV :
 			SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || bIsReticle */),
 			resources->_renderTargetViewBloomMask.Get(),
 			resources->_renderTargetViewDepthBuf.Get(), 

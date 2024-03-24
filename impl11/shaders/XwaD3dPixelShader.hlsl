@@ -36,19 +36,19 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float4 color = float4(input.color.xyz, 1.0f);
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 
-	const uint bIsBlastMark	 = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	const uint bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
 	const uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
 		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
-	float  alpha     = texelColor.w;
-	float3 P         = input.pos3D.xyz;
-	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	const float alpha = texelColor.w;
+	float3 P = input.pos3D.xyz;
+	float SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	
 	// Zero-out the bloom mask and provide default output values
-	output.bloom  = 0;
-	output.color  = float4(brightness * texelColor.xyz, texelColor.w);
-	output.pos3D  = float4(P, SSAOAlpha);
+	output.bloom = 0;
+	output.color = float4(brightness * texelColor.xyz, texelColor.w);
+	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 
 	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE && alpha >= 0.95)
@@ -91,8 +91,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: unused (Normal Mapping Intensity), Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
-	// Process lasers
-	if (renderType == 2)
+	// Process lasers and missiles and probably other forms of ordinance as well...
+	// That's right, renderType is 2 for missiles!
+	if (renderType == 2 && ExclusiveMask != SPECIAL_CONTROL_MISSILE)
 	{
 		// Do not write the 3D position
 		output.pos3D.a = 0;
@@ -119,32 +120,40 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.color.rgb = 0.75;
 	//return output;
 
+	if (ExclusiveMask == SPECIAL_CONTROL_MISSILE)
+	{
+		output.color.a = alpha;
+		output.normal.a = 0.5 * alpha;
+		output.ssMask.ba = alpha; // Make it all shadeless
+		// Missiles may have illumination maps, so the next block sometimes is executed too:
+	}
+
 	// In the D3dRendererHook, lightmaps and regular textures are rendered on the same draw call.
 	// Here's the case where a lightmap has been provided:
 	if (renderTypeIllum == 1)
 	{
 		// We have a lightmap texture
-		float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
-		float3 color = texelColorIllum.rgb;
-		float alpha = texelColorIllum.a;
+		const float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
+		// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to make it [0, 1]
+		const float alpha = texelColorIllum.a * 10.0;
+		float3 illumColor = texelColorIllum.rgb;
 		// This is a light texture, process the bloom mask accordingly
-		float3 HSV = RGBtoHSV(color);
+		float3 HSV = RGBtoHSV(illumColor);
 		float val = HSV.z;
 		// Make the light textures brighter in 32-bit mode
 		HSV.z *= 1.25;
-		// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to make it [0, 1]
-		alpha *= 10.0;
-		color = HSVtoRGB(HSV);
+
+		illumColor = HSVtoRGB(HSV);
 
 		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
-		output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
-		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = 0;
-		output.ssMask.ba  = bloom_alpha; // Shadeless area
-		// Replace the current color with the lightmap color, where appropriate:
-		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
 		// Apply the bloom strength to this lightmap
-		output.bloom.rgb *= fBloomStrength;
+		output.bloom = fBloomStrength * float4(bloom_alpha * val * illumColor, bloom_alpha);
+		// Write an emissive material where there's bloom:
+		output.ssaoMask.r = lerp(output.ssaoMask.r, 0, bloom_alpha);
+		//output.ssMask.ba  = bloom_alpha; // Shadeless area
+		output.ssMask.b = lerp(output.ssMask.b, 1, bloom_alpha); // Shadeless area
+		// Replace the current color with the lightmap color, where appropriate:
+		output.color.rgb = lerp(output.color.rgb, illumColor, bloom_alpha);
 		if (bInHyperspace && output.bloom.a < 0.5)
 			discard;
 

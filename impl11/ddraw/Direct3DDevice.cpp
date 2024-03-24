@@ -3286,7 +3286,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false, bIsEngineGlow = false;
-				bool bIsHitEffect = false;
+				bool bIsHitEffect = false, bIsTrail = false;
 				bool bDCElemAlwaysVisible = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -3338,6 +3338,7 @@ HRESULT Direct3DDevice::Execute(
 					if (bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 					bIsEngineGlow = lastTextureSelected->is_EngineGlow;
 					bIsHitEffect = lastTextureSelected->is_HitEffect;
+					bIsTrail = lastTextureSelected->is_Trail;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -4539,7 +4540,9 @@ HRESULT Direct3DDevice::Execute(
 				// also don't have to resolve it here).
 
 				resources->_overrideRTV = nullptr;
-				if (bIsHitEffect || bIsEngineGlow || bIsExplosion)
+				// Missiles are rendered in two phases. There's an OPT which gets rendered in EffectsRenderer,
+				// and there's a trail that gets rendered here. Let's put the trail on the transp layer.
+				if (bIsHitEffect || bIsEngineGlow || bIsExplosion || bIsTrail)
 				{
 					// Override the RTV for hit effects, engine glow, explosions and other shadeless/transparent
 					// objects --> let's render them directly on the transparent layer!
@@ -4882,16 +4885,10 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fSpecVal     = 0.0f;
 						g_PSCBuffer.bIsShadeless = 1;
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-
-						// DEBUG
-						//g_PSCBuffer.bIsBackground = bIsAimingHUD;
-						// DEBUG
 					} 
 					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Spark || 
-						lastTextureSelected->is_Chaff || lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */
-						/* || (lastTextureSelected->is_Explosion && !g_bTransparentExplosions) */
-						)
+						lastTextureSelected->is_Chaff)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = 0;
@@ -5165,12 +5162,6 @@ HRESULT Direct3DDevice::Execute(
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = 4.0f * g_BloomConfig.fSparksStrength;
-						g_PSCBuffer.bIsEngineGlow = 1;
-					}
-					else if (lastTextureSelected->is_Missile)
-					{
-						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 					else if (lastTextureSelected->is_SkydomeLight) {
