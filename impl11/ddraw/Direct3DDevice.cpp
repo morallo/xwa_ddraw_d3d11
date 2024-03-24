@@ -882,7 +882,7 @@ public:
 		return desc;
 	}
 
-	D3D11_BLEND_DESC GetBlendDesc(bool hitEffect=false)
+	D3D11_BLEND_DESC GetBlendDesc()
 	{
 		D3D11_BLEND_DESC desc{};
 
@@ -895,12 +895,7 @@ public:
 
 		desc.RenderTarget[0].SrcBlendAlpha = this->TextureMapBlend == D3DTBLEND_MODULATEALPHA ? D3D11_BLEND_SRC_ALPHA : D3D11_BLEND_ONE;
 		desc.RenderTarget[0].DestBlendAlpha = this->TextureMapBlend == D3DTBLEND_MODULATEALPHA ? D3D11_BLEND_INV_SRC_ALPHA : D3D11_BLEND_ZERO;
-		if (!hitEffect)
-			desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-		else
-			// Hit effects need this BlendOpAlpha or they will apply transparency over solid surfaces!
-			desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
-
+		desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 		desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
 		return desc;
@@ -2545,7 +2540,7 @@ void DisplayBox(char *name, Box box) {
  If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
-inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye = false) {
+inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMaskable) {
 	auto& resources = this->_deviceResources;
 	//auto& context = resources->_d3dDeviceContext;
 
@@ -2560,15 +2555,15 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMas
 	// DEBUG
 	*/
 
-	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
-	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
+	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
+	ID3D11RenderTargetView *shadertoyRTV = resources->_shadertoyRTV.Get();
 	//if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
 	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
 		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
 		return shadertoyRTV;
 	else
 		// Normal output buffer (_offscreenBuffer)
-		return regularRTV;
+		return (resources->_overrideRTV != nullptr) ? resources->_overrideRTV : regularRTV;
 }
 
 inline void Direct3DDevice::EnableTransparency() {
@@ -3203,8 +3198,7 @@ HRESULT Direct3DDevice::Execute(
 					break;
 
 				step = "BlendState";
-				bool bIsHitEffect = (lastTextureSelected != nullptr) && (lastTextureSelected->is_HitEffect);
-				D3D11_BLEND_DESC blendDesc = this->_renderStates->GetBlendDesc(bIsHitEffect);
+				D3D11_BLEND_DESC blendDesc = this->_renderStates->GetBlendDesc();
 				if (FAILED(hr = this->_deviceResources->InitBlendState(nullptr, &blendDesc))) {
 					log_debug("[DBG] Caught error at Execute:BlendState");
 					hr = device->GetDeviceRemovedReason();
@@ -3292,6 +3286,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false, bIsEngineGlow = false;
+				bool bIsHitEffect = false;
 				bool bDCElemAlwaysVisible = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -3342,6 +3337,7 @@ HRESULT Direct3DDevice::Execute(
 					bIsExplosion = lastTextureSelected->is_Explosion;
 					if (bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 					bIsEngineGlow = lastTextureSelected->is_EngineGlow;
+					bIsHitEffect = lastTextureSelected->is_HitEffect;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -4541,6 +4537,13 @@ HRESULT Direct3DDevice::Execute(
 				// _offscreenAsInputSRVDynCockpit is resolved in PrimarySurface.cpp, right before we
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
+
+				resources->_overrideRTV = nullptr;
+				if (bIsHitEffect)
+				{
+					// Override the RTV for hit effects --> let's render them directly to the transparent layer!
+					resources->_overrideRTV = resources->_transp1RTV;
+				}
 
 				// If we're rendering 3D contents in the Tech Room and some form of SSAO is enabled, 
 				// then disable the pre-computed diffuse component:
