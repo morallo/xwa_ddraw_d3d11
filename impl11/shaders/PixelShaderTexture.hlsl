@@ -116,14 +116,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (ExclusiveMask == SPECIAL_CONTROL_EXPLOSION)
 	{
 		alpha = sqrt(alpha); // Gamma correction (approx)
-		output.ssaoMask  = float4(0, 0, 0, alpha);
-		output.ssMask.ba = alpha; // Shadeless material
-		// Areas where the normals are transparent are treated as "background" when doing the
-		// DeferredPass() blending. So here, let's make sure there's a non-transparent void
-		// normal to prevent that:
-		output.normal = float4(0, 0, 0, 0.5);
-		output.pos3D  = 0;
-		output.bloom  = float4(fBloomStrength * output.color.rgb, output.color.a);
+		// Explosions are now rendered to the first transparent layer. We don't need to
+		// worry about materials or normals anymore -- they're shadeless and blended in post
+		output.ssaoMask = 0;
+		output.ssMask   = 0;
+		output.normal   = 0;
+		output.pos3D    = 0;
+		output.bloom    = float4(fBloomStrength * output.color.rgb, output.color.a);
 		return output;
 	}
 
@@ -131,18 +130,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	// the hue. The engine glow is also used to render smoke, so that's why the smoke
 	// glows.
 	if (bIsEngineGlow) {
-		// Disable depth-buffer write for engine glow textures
-		output.pos3D.a = 0;
-		output.normal.a = 0;
-		// The reason explosions look "washed out" is that the ssao/ssMask is fully transparent, meaning
-		// that whatever is behind the explosion will affect how it looks. To fix that problem, we just
-		// need to use the explosion's transparency and blend its material properties. That way, the
-		// explosion becomes solid.
-		if (ExclusiveMask != SPECIAL_CONTROL_EXPLOSION)
-		{
-			output.ssaoMask.a = 0;
-			output.ssMask.a = 0;
-		}
+		// Disable depth-buffer and materials write for engine glow textures: they are now
+		// rendered to their own separate transparent layer.
+		output.pos3D    = 0;
+		output.normal   = 0;
+		output.ssaoMask = 0;
+		output.ssMask   = 0;
 
 		float3 color = texelColor.rgb * input.color.xyz;
 		// This is an engine glow, process the bloom mask accordingly

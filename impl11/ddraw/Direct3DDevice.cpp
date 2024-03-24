@@ -4539,9 +4539,10 @@ HRESULT Direct3DDevice::Execute(
 				// also don't have to resolve it here).
 
 				resources->_overrideRTV = nullptr;
-				if (bIsHitEffect)
+				if (bIsHitEffect || bIsEngineGlow || bIsExplosion)
 				{
-					// Override the RTV for hit effects --> let's render them directly to the transparent layer!
+					// Override the RTV for hit effects, engine glow, explosions and other shadeless/transparent
+					// objects --> let's render them directly on the transparent layer!
 					resources->_overrideRTV = resources->_transp1RTV;
 				}
 
