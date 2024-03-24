@@ -313,7 +313,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  spec_val_mask  = ssMask.y;
 	float  shadeless      = ssMask.z;
 
-	const float blendAlpha = saturate(2.0 * Normal.w);
+	// The pow() term makes the alpha drop faster from 1 to 0, this reduces
+	// the halos around objects
+	//const float blendAlpha = pow(saturate(2.0 * Normal.w), 1.4);
+	const float blendAlphaSat = saturate(2.0 * Normal.w);
+	const float blendAlpha = blendAlphaSat * blendAlphaSat;
 
 	// This shader is shared between the SSDO pass and the Deferred/PBR pass.
 	// For the deferred pass, we don't have an SSDO component, so:
