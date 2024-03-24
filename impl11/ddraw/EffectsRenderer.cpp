@@ -1970,7 +1970,6 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
-	_overrideRTV = nullptr;
 
 #ifdef DISABLED
 	{
@@ -5098,6 +5097,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
+
+	_overrideRTV = nullptr;
 
 	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
 	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
