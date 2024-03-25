@@ -66,8 +66,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 	
 	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
+	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 	output.normal = float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity

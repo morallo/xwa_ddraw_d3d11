@@ -4593,6 +4593,8 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bIsDS2CoreExplosion) {
+					resources->_overrideRTV = resources->_transp1RTV;
+
 					if (!bStateD3dAnnotationOpen) {
 						_deviceResources->BeginAnnotatedEvent(L"DrawDS2CoreExplosion");
 						bStateD3dAnnotationOpen = true;

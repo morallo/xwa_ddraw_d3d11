@@ -3293,7 +3293,11 @@ void EffectsRenderer::ApplyMaterialProperties()
 	}
 
 	// lastTextureSelected can't be a lightmap anymore, so we don't need (?) to test bIsLightTexture
-	if (_lastTextureSelected->material.AlphaIsntGlass /* && !bIsLightTexture */) {
+	if (_lastTextureSelected->material.AlphaIsntGlass)
+		// I feel like the AlphaIsntGlass property only makes sense when there's transparency, but
+		// that's now how I coded it, so there may be artifacts if I enable the following line:
+		// && _lastTextureSelected->is_Transparent)
+	{
 		_bModifiedPixelShader = true;
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = 0.0f;
@@ -5302,18 +5306,19 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	*/
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
-	g_PSCBuffer.fBloomStrength = 1.0f;
+	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
-	g_PSCBuffer.fSSAOAlphaMult = g_fSSAOAlphaOfs;
-	g_PSCBuffer.fSSAOMaskVal = g_DefaultGlobalMaterial.Metallic * 0.5f;
-	g_PSCBuffer.fGlossiness = g_DefaultGlobalMaterial.Glossiness;
-	g_PSCBuffer.fSpecInt = g_DefaultGlobalMaterial.Intensity;  // DEFAULT_SPEC_INT;
-	g_PSCBuffer.fNMIntensity = g_DefaultGlobalMaterial.NMIntensity;
-	g_PSCBuffer.AuxColor.x = 1.0f;
-	g_PSCBuffer.AuxColor.y = 1.0f;
-	g_PSCBuffer.AuxColor.z = 1.0f;
-	g_PSCBuffer.AuxColor.w = 1.0f;
+	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+	g_PSCBuffer.fSSAOMaskVal    = g_DefaultGlobalMaterial.Metallic * 0.5f;
+	g_PSCBuffer.fGlossiness     = g_DefaultGlobalMaterial.Glossiness;
+	g_PSCBuffer.fSpecInt        = g_DefaultGlobalMaterial.Intensity;  // DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity    = g_DefaultGlobalMaterial.NMIntensity;
+	g_PSCBuffer.AuxColor.x  = 1.0f;
+	g_PSCBuffer.AuxColor.y  = 1.0f;
+	g_PSCBuffer.AuxColor.z  = 1.0f;
+	g_PSCBuffer.AuxColor.w  = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
+	g_PSCBuffer.Offset      = float2(0, 0);
 	g_PSCBuffer.uvSrc1.x = g_PSCBuffer.uvSrc1.y = 1.0f;
 	if (g_config.OnlyGrayscaleInTechRoom)
 		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_GRAYSCALE;
@@ -5929,7 +5934,7 @@ void EffectsRenderer::RenderScene()
 	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
-		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || _bIsReticle */), // Select the main RTV
+		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner), // Select the main RTV
 
 		_deviceResources->_renderTargetViewBloomMask.Get(),
 		g_bAOEnabled ? _deviceResources->_renderTargetViewDepthBuf.Get() : NULL,
@@ -5984,9 +5989,13 @@ void EffectsRenderer::RenderLasers()
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
-	g_PSCBuffer.fBloomStrength = 1.0f;
+	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
-	g_PSCBuffer.fSSAOAlphaMult = g_fSSAOAlphaOfs;
+	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+	g_PSCBuffer.AuxColor.x  = 1.0f;
+	g_PSCBuffer.AuxColor.y  = 1.0f;
+	g_PSCBuffer.AuxColor.z  = 1.0f;
+	g_PSCBuffer.AuxColor.w  = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
 
 	// Laser-specific stuff from ApplySpecialMaterials():
@@ -5999,7 +6008,6 @@ void EffectsRenderer::RenderLasers()
 	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	// Laser-specific stuff from ApplyBloomSettings():
 	g_PSCBuffer.fBloomStrength = g_BloomConfig.fLasersStrength;
-	//g_PSCBuffer.bIsLaser			= 2; // Enhance lasers by default
 
 	g_OPTMeshTransformCB.MeshTransform.identity();
 
