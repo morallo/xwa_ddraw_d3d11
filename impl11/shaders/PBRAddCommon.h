@@ -226,8 +226,7 @@ inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize,
 	return shadow / samples;
 }
 
-// See:
-// https://wickedengine.net/2017/10/22/which-blend-state-for-me/
+// See: https://wickedengine.net/2017/10/22/which-blend-state-for-me/
 inline float4 PreMulBlend(in float4 src, in float4 dst)
 {
 	// Equivalent DX11 state:
