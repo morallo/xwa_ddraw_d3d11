@@ -3267,7 +3267,13 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 // Apply specific material properties for the current texture
 void EffectsRenderer::ApplyMaterialProperties()
 {
-	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL)
+	if (!_bLastTextureSelectedNotNULL)
+		return;
+
+	// Some properties can be applied even if there's no associated material:
+	g_PSCBuffer.bIsTransparent = _lastTextureSelected->is_Transparent;
+
+	if (!_bHasMaterial)
 		return;
 
 	auto &resources = _deviceResources;
@@ -3276,7 +3282,6 @@ void EffectsRenderer::ApplyMaterialProperties()
 
 	g_PSCBuffer.fSSAOMaskVal   = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
 	g_PSCBuffer.bIsShadeless   = _lastTextureSelected->material.IsShadeless;
-	g_PSCBuffer.bIsTransparent = _lastTextureSelected->is_Transparent;
 	g_PSCBuffer.fGlossiness    = _lastTextureSelected->material.Glossiness;
 	g_PSCBuffer.fSpecInt       = _lastTextureSelected->material.Intensity;
 	g_PSCBuffer.fNMIntensity   = _lastTextureSelected->material.NMIntensity;

@@ -80,7 +80,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// We have a lightmap texture
 		const float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
 		// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to make it [0, 1]
-		const float alpha = texelColorIllum.a * 5.0;
+		const float alphaLight = texelColorIllum.a * 5.0;
 		float3 illumColor = texelColorIllum.rgb;
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(illumColor);
@@ -90,10 +90,13 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		illumColor = HSVtoRGB(HSV);
 
-		const float bloom_alpha = smoothstep(0.2, 0.90, alpha);
-		//const float bloom_alpha = alpha;
+		const float valFactor = bIsTransparent ? 1.0 : smoothstep(0.75, 0.85, val);
+		// The first term below uses "val" (lightness) to apply bloom on light areas. That's how we avoid
+		// applying bloom on dark areas.
+		//const float bloom_alpha = valFactor * smoothstep(0.45, 0.55, alphaLight);
+		const float bloom_alpha = valFactor * smoothstep(0.2, 0.90, alphaLight);
 		// Apply the bloom strength to this lightmap
-		output.bloom = fBloomStrength * float4(bloom_alpha * val * illumColor, bloom_alpha);
+		output.bloom = float4(fBloomStrength * bloom_alpha * val * illumColor, bloom_alpha);
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = lerp(output.ssaoMask.r, 0, bloom_alpha);
 		//output.ssMask.ba  = bloom_alpha; // Shadeless area

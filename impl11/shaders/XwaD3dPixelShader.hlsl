@@ -146,17 +146,20 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		illumColor = HSVtoRGB(HSV);
 
-		//const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
-		const float bloom_alpha = smoothstep(0.2, 0.90, alpha);
-		//const float bloom_alpha = alpha;
+		const float valFactor = bIsTransparent ? 1.0 : smoothstep(0.75, 0.85, val);
+		// The first term below uses "val" (lightness) to apply bloom on light areas. That's how we avoid
+		// applying bloom on dark areas.
+		//const float bloom_alpha = valFactor * smoothstep(0.45, 0.55, alpha);
+		const float bloom_alpha = valFactor * smoothstep(0.2, 0.90, alpha);
 		// Apply the bloom strength to this lightmap
-		output.bloom = fBloomStrength * float4(bloom_alpha * val * illumColor, bloom_alpha);
+		output.bloom = float4(fBloomStrength * bloom_alpha * val * illumColor, bloom_alpha);
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = lerp(output.ssaoMask.r, 0, bloom_alpha);
 		//output.ssMask.ba  = bloom_alpha; // Shadeless area
 		output.ssMask.b = lerp(output.ssMask.b, 1, bloom_alpha); // Shadeless area
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, illumColor, bloom_alpha);
+
 		if (bInHyperspace && output.bloom.a < 0.5)
 			discard;
 		return output;
@@ -170,8 +173,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	    !bIsBlastMark) // Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK
 	{
 		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask.r   = 0;
-		output.ssaoMask.gba = 1.0;
+		output.ssaoMask = float4(0, 1, 1, 1);
 
 		// Also write the normals of this surface over the current background
 		output.normal.a = 1.0;
