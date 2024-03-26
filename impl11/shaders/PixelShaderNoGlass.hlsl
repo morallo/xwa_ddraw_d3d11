@@ -6,6 +6,7 @@
 // of the texture.
 // Light Textures are not handled in this shader. This shader should not be used with
 // illumination textures.
+#include "XwaD3dCommon.hlsl"
 #include "shader_common.h"
 #include "HSV.h"
 #include "shading_system.h"
@@ -61,7 +62,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, alpha);
-	output.color = texelColor;
+	output.color = float4(brightness * texelColor.xyz, alpha);
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 	
@@ -71,11 +72,45 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
-	
-	// bloom
-	if (HSV.z >= 0.8) {
+	// SS Mask: Glass, Specular Value, Shadeless
+	output.ssMask = float4(0, fSpecVal, max(fAmbient, bIsShadeless), alpha);
+
+	if (renderTypeIllum == 1)
+	{
+		// We have a lightmap texture
+		const float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
+		// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to make it [0, 1]
+		const float alpha = texelColorIllum.a * 5.0;
+		float3 illumColor = texelColorIllum.rgb;
+		// This is a light texture, process the bloom mask accordingly
+		float3 HSV = RGBtoHSV(illumColor);
+		float val = HSV.z;
+		// Make the light textures brighter in 32-bit mode
+		HSV.z *= 1.25;
+
+		illumColor = HSVtoRGB(HSV);
+
+		const float bloom_alpha = smoothstep(0.2, 0.90, alpha);
+		//const float bloom_alpha = alpha;
+		// Apply the bloom strength to this lightmap
+		output.bloom = fBloomStrength * float4(bloom_alpha * val * illumColor, bloom_alpha);
+		// Write an emissive material where there's bloom:
+		output.ssaoMask.r = lerp(output.ssaoMask.r, 0, bloom_alpha);
+		//output.ssMask.ba  = bloom_alpha; // Shadeless area
+		output.ssMask.b = lerp(output.ssMask.b, 1, bloom_alpha); // Shadeless area
+		// Replace the current color with the lightmap color, where appropriate:
+		output.color.rgb = lerp(output.color.rgb, illumColor, bloom_alpha);
+		if (bInHyperspace && output.bloom.a < 0.5)
+			discard;
+		return output;
+	}
+
+	// Compute bloom from value:
+	// The old code used the color's value to compute bloom, but now we're actually using
+	// the lightmap. Some differences may happen because of this change.
+	/*
+	if (HSV.z >= 0.8)
+	{
 		float bloom_alpha = saturate(fBloomStrength);
 		output.bloom = float4(fBloomStrength * texelColor.rgb, alpha);
 		output.ssMask.b = bloom_alpha;
@@ -84,6 +119,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		//output.ssaoMask.b = 0.15; // Low spec intensity
 		output.ssaoMask.b = 0.15 * bloom_alpha; // Low spec intensity
 	}
-	output.color = float4(brightness * texelColor.xyz, texelColor.w);
+	*/
+
 	return output;
 }

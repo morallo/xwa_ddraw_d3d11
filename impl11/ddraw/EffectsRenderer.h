@@ -62,7 +62,7 @@ protected:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState, _bIsActiveCockpit;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
-	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady; // _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
+	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady;
 	bool _bHangarShadowsRenderedInCurrentFrame;
 
 	Direct3DTexture *_lastTextureSelected = nullptr;

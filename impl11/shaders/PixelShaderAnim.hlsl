@@ -106,7 +106,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		alpha = dot(float3(0.299, 0.587, 0.114), texelColor.rgb);
 		// Using the new render strategy (redirecting transparent output to its own layer)
 		// requires the gamma compensation to be done here...
-		alpha = sqrt(alpha);
+		//alpha = sqrt(alpha);
 	}
 
 	float4 texelColorLight = AuxColorLight * texture1.Sample(sampler0, UV);
@@ -164,7 +164,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		//alpha *= 10.0; <-- Main difference with XwaD3dPixelShader
 		colorLight = saturate(HSVtoRGB(HSVLight)); // <-- Difference wrt XwaD3dPixelShader
 		
-		float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
+		//float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
+		const float bloom_alpha = smoothstep(0.2, 0.90, alpha);
 		output.bloom = float4(bloom_alpha * val * colorLight, bloom_alpha);
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = 0;

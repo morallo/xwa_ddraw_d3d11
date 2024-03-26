@@ -57,7 +57,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (bIsShadeless && bIsTransparent &&
 		renderType != 2) // Do not process lasers (they are also transparent and shadeless!)
 	{
-		// Shadeless and transparent texture. This is cockpit glass or similar.
+		// Shadeless and transparent texture, this is cockpit glass or similar, we don't need to
+		// worry about setting fAmbient because this draw call will be rendered on transpBuffer1
 		// ssaoMask: Material, Glossiness, Specular Intensity
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 		//output.color.a = sqrt(output.color.a); // Gamma correction (approx)
@@ -89,7 +90,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: unused (Normal Mapping Intensity), Specular Value, Shadeless
-	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
+	output.ssMask = float4(0, fSpecVal, max(fAmbient, bIsShadeless), alpha);
 
 	// Process lasers and missiles and probably other forms of ordinance as well...
 	// That's right, renderType is 2 for missiles!
@@ -135,7 +136,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// We have a lightmap texture
 		const float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
 		// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to make it [0, 1]
-		const float alpha = texelColorIllum.a * 10.0;
+		const float alpha = texelColorIllum.a * 5.0;
 		float3 illumColor = texelColorIllum.rgb;
 		// This is a light texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(illumColor);
@@ -145,7 +146,9 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		illumColor = HSVtoRGB(HSV);
 
-		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
+		//const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
+		const float bloom_alpha = smoothstep(0.2, 0.90, alpha);
+		//const float bloom_alpha = alpha;
 		// Apply the bloom strength to this lightmap
 		output.bloom = fBloomStrength * float4(bloom_alpha * val * illumColor, bloom_alpha);
 		// Write an emissive material where there's bloom:
@@ -156,7 +159,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.rgb = lerp(output.color.rgb, illumColor, bloom_alpha);
 		if (bInHyperspace && output.bloom.a < 0.5)
 			discard;
-
 		return output;
 	}
 
