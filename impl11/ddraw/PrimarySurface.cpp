@@ -9385,22 +9385,19 @@ HRESULT PrimarySurface::Flip(
 					g_bRendering3D = false;
 					g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
 					if (g_bDumpSSAOBuffers) {
-						/*
-						if (colorFile != NULL) {
-							fflush(colorFile);
-							fclose(colorFile);
-							colorFile = NULL;
-						}
-
-						if (lightFile != NULL) {
-							fflush(lightFile);
-							fclose(lightFile);
-							lightFile = NULL;
-						}
-						*/
+						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"C:\\Temp\\_depthBuf.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_depthStencilL, L"C:\\Temp\\_depthStencilL.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuf.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask.dds");
+						log_debug("[DBG] [AO] Captured debug buffers");
 
 						g_bDumpSSAOBuffers = false;
 					}
+
 					//if (g_bDumpOptNodes)
 					//	g_bDumpOptNodes = false;
 

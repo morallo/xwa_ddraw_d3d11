@@ -41,14 +41,9 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	// This is the per-vertex Gouraud-shaded color coming from the VR:
-	//float4 color			= float4(input.color.xyz, 1.0f);
-	float4 texelColor		= texture0.Sample(sampler0, input.tex);
-	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
-	//uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
-	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
-	// TODO: Do we need blast marks in the Tech Room?
-	//if (bIsBlastMark) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+	float4 texelColor     = texture0.Sample(sampler0, input.tex);
+	float3 normalMapColor = bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
+	uint   ExclusiveMask  = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 
 	float alpha = texelColor.w;
 	const float3 P = input.pos3D.xyz;
@@ -180,7 +175,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//	discard;
 		return output;
 	}
-
 
 	return output;
 }

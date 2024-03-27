@@ -5749,9 +5749,11 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		bool bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
 
-		if (!g_bEnableVR || bRenderToDC) {
+		if (!g_bEnableVR || bRenderToDC)
+		{
 			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
 			// The map lines (both the grid and the vertical lines) are drawn here
+			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 			if (bMapMode)
 				_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 
