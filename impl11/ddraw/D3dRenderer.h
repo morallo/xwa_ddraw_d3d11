@@ -75,7 +75,7 @@ struct DrawCommand {
 	ID3D11ShaderResourceView *SRVs[2];
 	PixelShaderCBuffer PSCBuffer;
 	DCPixelShaderCBuffer DCPSCBuffer;
-	bool bIsCockpit, bIsGunner, bIsBlastMark;
+	bool bIsCockpit, bIsGunner, bIsBlastMark, bForceShaded;
 	ID3D11PixelShader* pixelShader;
 	Matrix4 meshTransformMatrix;
 };

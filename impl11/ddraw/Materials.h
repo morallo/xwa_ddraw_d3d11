@@ -485,6 +485,7 @@ struct Material {
 	float NMIntensity;
 	float SpecValue;
 	bool  IsShadeless;
+	bool  ForceShaded;
 	bool  NoBloom;
 	Vector3 Light;
 	Vector2 LightUVCoordPos;
@@ -584,6 +585,7 @@ struct Material {
 		NMIntensity = DEFAULT_NM_INT;
 		SpecValue = DEFAULT_SPEC_VALUE;
 		IsShadeless = false;
+		ForceShaded = false;
 		Light = Vector3(0.0f, 0.0f, 0.0f);
 		LightUVCoordPos = Vector2(0.1f, 0.5f);
 		LightFalloff = 0.0f;

@@ -3182,6 +3182,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bIsHologram = false;
 	_bIsNoisyHolo = false;
 	_bIsActiveCockpit = false;
+	_bForceShaded = false;
 	_bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 	_bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	_bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
@@ -3234,6 +3235,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		//bIsElectricity = lastTextureSelected->is_Electricity;
 		_bHasMaterial = _lastTextureSelected->bHasMaterial;
 		_bIsExplosion = _lastTextureSelected->is_Explosion;
+		if (_bHasMaterial) _bForceShaded = _lastTextureSelected->material.ForceShaded;
 		if (_bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 	}
 
@@ -4917,8 +4919,6 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 				// we can transform from WorldView to OPT-coords
 				Matrix4 WInv = W;
 				WInv = WInv.invert();
-				// HLSL needs matrices to be stored transposed
-				//WInv = WInv.transpose();
 				if (matrixSlot >= (int)g_TLASMatrices.size())
 					g_TLASMatrices.resize(g_TLASMatrices.size() + 128);
 				g_TLASMatrices[matrixSlot] = WInv;
@@ -5596,6 +5596,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.bIsCockpit = _bIsCockpit;
 		command.bIsGunner = _bIsGunner;
 		command.bIsBlastMark = _bIsBlastMark;
+		command.bForceShaded = _bForceShaded;
 		command.pixelShader = resources->GetCurrentPixelShader();
 		command.meshTransformMatrix = g_OPTMeshTransformCB.MeshTransform;
 		// Add the command to the list of deferred commands
@@ -5647,7 +5648,7 @@ inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMa
 		return shadertoyRTV;
 	else
 		// Normal output buffer (_offscreenBuffer)
-		return _overrideRTV != nullptr ? _overrideRTV : regularRTV;
+		return (_overrideRTV != nullptr && !_bForceShaded) ? _overrideRTV : regularRTV;
 }
 
 // This function should only be called when the miniature (targetted craft) is being rendered.
@@ -6102,6 +6103,7 @@ void EffectsRenderer::RenderTransparency()
 		_bIsCockpit = command.bIsCockpit;
 		_bIsGunner = command.bIsGunner;
 		_bIsBlastMark = command.bIsBlastMark;
+		_bForceShaded = command.bForceShaded;
 
 		// Apply the VS and PS constants
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);

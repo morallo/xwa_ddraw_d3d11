@@ -1346,6 +1346,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		curMaterial->IsShadeless = (bool)fValue;
 		//log_debug("[DBG] Shadeless texture loaded");
 	}
+	else if (_stricmp(param, "ForceShaded") == 0) {
+		curMaterial->ForceShaded = (bool)fValue;
+	}
 	else if (_stricmp(param, "Light") == 0) {
 		LoadLightColor(buf, &(curMaterial->Light));
 		curMaterial->IsLightEmitter = true;
