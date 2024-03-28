@@ -3100,7 +3100,7 @@ void EffectsRenderer::RestoreContext()
 	for (int i = 0; i < 16; i++)
 		_CockpitConstants.transformWorldView[i] = _oldTransformWorldView[i];
 
-	_overrideRTV = nullptr;
+	_overrideRTV = TRANSP_LYR_NONE;
 }
 
 void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
@@ -5106,7 +5106,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	auto &context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
 
-	_overrideRTV = nullptr;
+	_overrideRTV = TRANSP_LYR_NONE;
 
 	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
 	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
@@ -5615,7 +5615,7 @@ out:
 
 	if (_bModifiedPixelShader)
 		resources->InitPixelShader(lastPixelShader);
-	_overrideRTV = nullptr;
+	_overrideRTV = TRANSP_LYR_NONE;
 
 	// Decrease the refcount of all the objects we queried at the prologue. (Is this
 	// really necessary? They live on the stack, so maybe they are auto-released?)
@@ -5644,11 +5644,18 @@ inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMa
 	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
 	ID3D11RenderTargetView *shadertoyRTV = resources->_shadertoyRTV.Get();
 	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
+	{
 		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
 		return shadertoyRTV;
+	}
 	else
+	{
+		//return (_overrideRTV != nullptr && !_bForceShaded) ? _overrideRTV : regularRTV;
+		if (_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
+		if (_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
 		// Normal output buffer (_offscreenBuffer)
-		return (_overrideRTV != nullptr && !_bForceShaded) ? _overrideRTV : regularRTV;
+		return regularRTV;
+	}
 }
 
 // This function should only be called when the miniature (targetted craft) is being rendered.
@@ -6051,7 +6058,7 @@ void EffectsRenderer::RenderLasers()
 		// Set the number of triangles
 		_trianglesCount = command.trianglesCount;
 
-		_overrideRTV = resources->_transp1RTV;
+		_overrideRTV = TRANSP_LYR_1;
 		// Render the deferred commands
 		RenderScene();
 	}
@@ -6137,7 +6144,11 @@ void EffectsRenderer::RenderTransparency()
 		_deviceResources->InitPixelShader(command.pixelShader);
 
 		if (!g_bInTechRoom)
-			_overrideRTV = _bIsCockpit ? resources->_transp2RTV : resources->_transp1RTV;
+		{
+			//_overrideRTV = _bIsCockpit ? resources->_transp2RTV : resources->_transp1RTV;
+			//_overrideRTV = _bIsCockpit ? resources->_transp2RTV : nullptr;
+			_overrideRTV = _bIsCockpit ? TRANSP_LYR_2 : TRANSP_LYR_NONE;
+		}
 		// Render the deferred commands
 		RenderScene();
 

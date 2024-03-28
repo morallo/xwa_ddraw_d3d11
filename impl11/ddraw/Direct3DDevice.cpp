@@ -2562,8 +2562,13 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMas
 		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
 		return shadertoyRTV;
 	else
+	{
+		//return (resources->_overrideRTV != nullptr) ? resources->_overrideRTV : regularRTV;
+		if (resources->_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
+		if (resources->_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
 		// Normal output buffer (_offscreenBuffer)
-		return (resources->_overrideRTV != nullptr) ? resources->_overrideRTV : regularRTV;
+		return regularRTV;
+	}
 }
 
 inline void Direct3DDevice::EnableTransparency() {
@@ -4539,14 +4544,14 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
-				resources->_overrideRTV = nullptr;
+				resources->_overrideRTV = TRANSP_LYR_NONE;
 				// Missiles are rendered in two phases. There's an OPT which gets rendered in EffectsRenderer,
 				// and there's a trail that gets rendered here. Let's put the trail on the transp layer.
 				if (bIsHitEffect || bIsEngineGlow || bIsExplosion || bIsTrail || g_bIsTrianglePointer)
 				{
 					// Override the RTV for hit effects, engine glow, explosions and other shadeless/transparent
 					// objects --> let's render them directly on the transparent layer!
-					resources->_overrideRTV = resources->_transp1RTV;
+					resources->_overrideRTV = TRANSP_LYR_1;
 				}
 
 				// If we're rendering 3D contents in the Tech Room and some form of SSAO is enabled, 
@@ -4593,7 +4598,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bIsDS2CoreExplosion) {
-					resources->_overrideRTV = resources->_transp1RTV;
+					resources->_overrideRTV = TRANSP_LYR_1;
 
 					if (!bStateD3dAnnotationOpen) {
 						_deviceResources->BeginAnnotatedEvent(L"DrawDS2CoreExplosion");
