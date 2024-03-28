@@ -173,14 +173,23 @@ PixelShaderOutput main(PixelShaderInput input)
 	    !bIsBlastMark) // Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK
 	{
 		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask = float4(0, 1, 1, 1);
+		//output.ssaoMask = float4(0, 1, 1, 1);
+		// If alpha < 0.95, then we have a glassy surface, so let's do a smooth threshold for
+		// the transition:
+		// glassThreshold: 0 --> glass
+		// glassThreshold: 1 --> opaque
+		const float glassThreshold = smoothstep(0.95, 1.0, alpha);
+		output.ssaoMask = float4(lerp(float3(0, 1, 1), output.ssaoMask.rgb, glassThreshold), 1);
 
 		// Also write the normals of this surface over the current background
 		output.normal.a = 1.0;
 
-		output.ssMask.r = 1.0; // Glass material
-		output.ssMask.g = 1.0; // White specular value
-		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
+		float3 glass = float3(1.0, // Glass material
+		                      1.0, // White specular value
+		                      output.ssMask.b); // Shadeless/Ambient
+		output.ssMask = float4(lerp(glass, output.ssMask.rgb, glassThreshold), 1);
+		// The bloom should only be pass-through on transparent areas:
+		output.bloom = lerp(output.bloom, float4(0, 0, 0, alpha), glassThreshold);
 	}
 
 	return output;
