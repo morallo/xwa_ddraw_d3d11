@@ -170,7 +170,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// So glass is a non-shadeless surface with transparency:
 	if (!bIsShadeless  &&
 	    bIsTransparent &&
-	    !bIsBlastMark) // Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK
+	    !bIsBlastMark) // Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for "special_control.bBlastMark = 1;"
 	{
 		// Change the material and do max glossiness and spec_intensity
 		//output.ssaoMask = float4(0, 1, 1, 1);

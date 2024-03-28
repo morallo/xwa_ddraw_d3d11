@@ -4594,6 +4594,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.special_control.bBlastMark = 1;
 						//g_PSCBuffer.GreebleDist1 = g_fBlastMarkOfsX;
 						//g_PSCBuffer.GreebleDist2 = g_fBlastMarkOfsY;
+						resources->_overrideRTV = TRANSP_LYR_1;
 					}
 				}
 
