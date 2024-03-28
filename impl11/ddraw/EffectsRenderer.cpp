@@ -3182,7 +3182,6 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bIsHologram = false;
 	_bIsNoisyHolo = false;
 	_bIsActiveCockpit = false;
-	_bForceShaded = false;
 	_bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 	_bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	_bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
@@ -3235,7 +3234,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		//bIsElectricity = lastTextureSelected->is_Electricity;
 		_bHasMaterial = _lastTextureSelected->bHasMaterial;
 		_bIsExplosion = _lastTextureSelected->is_Explosion;
-		if (_bHasMaterial) _bForceShaded = _lastTextureSelected->material.ForceShaded;
+		//if (_bHasMaterial) _bForceShaded = _lastTextureSelected->material.ForceShaded;
 		if (_bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 	}
 
@@ -5596,7 +5595,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.bIsCockpit = _bIsCockpit;
 		command.bIsGunner = _bIsGunner;
 		command.bIsBlastMark = _bIsBlastMark;
-		command.bForceShaded = _bForceShaded;
 		command.pixelShader = resources->GetCurrentPixelShader();
 		command.meshTransformMatrix = g_OPTMeshTransformCB.MeshTransform;
 		// Add the command to the list of deferred commands
@@ -6110,7 +6108,6 @@ void EffectsRenderer::RenderTransparency()
 		_bIsCockpit = command.bIsCockpit;
 		_bIsGunner = command.bIsGunner;
 		_bIsBlastMark = command.bIsBlastMark;
-		_bForceShaded = command.bForceShaded;
 
 		// Apply the VS and PS constants
 		resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
