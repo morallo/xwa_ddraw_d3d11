@@ -8870,6 +8870,9 @@ void PrimarySurface::RenderRTShadowMask()
 	resources->InitViewport(&viewport);
 	SetScissoRectFullScreen();
 
+	// Don't forget to set the lights!
+	SetLights(0.0f);
+
 	// Reset the vertex shader to regular 2D post-process
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -8894,6 +8897,16 @@ void PrimarySurface::RenderRTShadowMask()
 	};
 	context->OMSetRenderTargets(5, rtvs_null, NULL);
 	context->ClearRenderTargetView(resources->_rtShadowMaskRTV, bgColor);
+
+	// I need to Resolve by Resolves... I'm pretty sure some of these are redundant:
+	context->ResolveSubresource(resources->_normBuf, 0, resources->_normBufMSAA, 0, AO_DEPTH_BUFFER_FORMAT);
+	context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+	if (g_bUseSteamVR) {
+		context->ResolveSubresource(resources->_normBuf, D3D11CalcSubresource(0, 1, 1),
+			resources->_normBufMSAA, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+		context->ResolveSubresource(resources->_depthBufAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+	}
 
 	// Set the SRVs:
 	ID3D11ShaderResourceView* srvs[2] = {
