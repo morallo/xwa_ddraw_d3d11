@@ -148,6 +148,7 @@ Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out
 	ac_uv_coords* coords, int contIdx);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
+void SetLights(DeviceResources* resources, float fSSDOEnabled);
 
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
@@ -2160,6 +2161,10 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		g_ACtlasLeaves.clear();
 		g_TLASMap.clear();
 		RTResetMatrixSlotCounter();
+		/*log_debug("[DBG] EffectsRenderer::SceneBegin: %0.3f, %0.3f, %0.3f",
+			g_pSharedDataCockpitLook->Yaw, g_pSharedDataCockpitLook->Pitch, g_pSharedDataCockpitLook->Roll);*/
+		//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneBegin");
+
 		if (g_TLASTree != nullptr)
 		{
 			delete g_TLASTree;
@@ -2849,6 +2854,9 @@ void EffectsRenderer::SceneEnd()
 		_BLASNeedsUpdate = false;
 	}
 
+	if (g_bRTEnabled)
+		SetLights(_deviceResources, 0.0f);
+
 	if ((g_bRTEnabled || g_bActiveCockpitEnabled) && !g_bInTechRoom && !(*g_playerInHangar))
 	{
 		// We may need to reallocate the matrices buffer depending on how many
@@ -2889,6 +2897,9 @@ void EffectsRenderer::SceneEnd()
 			//log_debug("[DBG] [BVH] Matrices Realloc'ed");
 			ReAllocateAndPopulateTLASBvhBuffers();
 			//log_debug("[DBG] [BVH] TLAS Buffers Realloc'ed");
+			/*log_debug("[DBG] EffectsRenderer::SceneEnd: %0.3f, %0.3f, %0.3f",
+				g_pSharedDataCockpitLook->Yaw, g_pSharedDataCockpitLook->Pitch, g_pSharedDataCockpitLook->Roll);*/
+			//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneEnd");
 		}
 	}
 

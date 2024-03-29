@@ -95,7 +95,7 @@ public:
 
 	void DrawHUDVertices();
 
-	void SetLights(float fSSDOEnabled);
+	//void SetLights(float fSSDOEnabled);
 	
 	void SSAOPass(float fZoomFactor);
 
@@ -113,7 +113,7 @@ public:
 
 	void GetHyperspaceEffectMatrix(Matrix4 *result);
 
-	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
+	//void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
 
 	//void GetGunnerTurretViewMatrix(Matrix4 * result);
 
@@ -234,3 +234,6 @@ public:
 
 	UINT _flipFrames;
 };
+
+void GetCockpitViewMatrixSpeedEffect(Matrix4* result, bool invert);
+void SetLights(DeviceResources *resources, float fSSDOEnabled);

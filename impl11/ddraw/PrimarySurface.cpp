@@ -1970,13 +1970,84 @@ out:
 
 }
 
+/// <summary>
+/// Uses mobileObject->transformMatrix to get the player's craft orientation.
+/// When invert=false, the matrix returned maps world OPT coords to viewspace OPT coords
+/// When invert=true, the matrix returned maps viewspace OPT coords to world OPT coords
+/// World OPT coords in this case look like this:
+/// X+ --> Right
+/// Y+ --> Up
+/// Z+ --> Foward <-- OPT coords normally have Z- mapped to forwards, but here we are...
+/// </summary>
+Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, bool invert=false, bool debug=false)
+{
+	ObjectEntry* object = NULL;
+	MobileObjectEntry* mobileObject = NULL;
+	Matrix4 H;
+
+	if (GetPlayerCraftInstanceSafe(&object, &mobileObject) != NULL)
+	{
+		Rs.x = mobileObject->transformMatrix.Right_X / 32768.0f;
+		Rs.y = mobileObject->transformMatrix.Right_Y / 32768.0f;
+		Rs.z = mobileObject->transformMatrix.Right_Z / 32768.0f;
+
+		Us.x = mobileObject->transformMatrix.Up_X / 32768.0f;
+		Us.y = mobileObject->transformMatrix.Up_Y / 32768.0f;
+		Us.z = mobileObject->transformMatrix.Up_Z / 32768.0f;
+
+		Fs.x = mobileObject->transformMatrix.Front_X / 32768.0f;
+		Fs.y = mobileObject->transformMatrix.Front_Y / 32768.0f;
+		Fs.z = mobileObject->transformMatrix.Front_Z / 32768.0f;
+
+		if (!invert)
+		{
+			H = Matrix4(
+				Rs.x, Fs.x, Us.x, 0,
+				Rs.y, Fs.y, Us.y, 0,
+				Rs.z, Fs.z, Us.z, 0,
+				0, 0, 0, 1
+			);
+		}
+		else
+		{
+			H = Matrix4(
+				Rs.x, Rs.y, Rs.z, 0,
+				Fs.x, Fs.y, Fs.z, 0,
+				Us.x, Us.y, Us.z, 0,
+				0, 0, 0, 1
+			);
+		}
+
+		if (debug)
+		{
+			log_debug("[DBG] RUF: [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f]",
+				Rs.x, Rs.y, Rs.z,
+				Us.x, Us.y, Us.z,
+				Fs.x, Fs.y, Fs.z);
+		}
+	}
+
+	return H;
+}
+
 /*
  * Sets the lights in the constant buffer used in the New Shading System.
  */
-void PrimarySurface::SetLights(float fSSDOEnabled) {
-	const auto &resources = this->_deviceResources;
+void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 	Vector4 light;
 	int i;
+
+	// XWA's world coord system *for this case*:
+	// X+: Right
+	// Y+: Forwards
+	// Z+: Up
+	Vector4 Rs, Us, Fs;
+	Matrix4 H = GetPlayerCraftMatrix(Rs, Us, Fs, false, false);
+	// Normally, Y- points forwards in OPT coords, but in this case, Y+ points forwards.
+	// So, in this case, we only flip the Z coord to convert to SteamVR coords:
+	const static Matrix4 swapFlip({ 1,0,0,0,  0,0,-1,0,  0,1,0,0,  0,0,0,1 });
+	Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
+	Vinv.invert();
 
 	const bool bDS2Mission = (missionIndexLoaded != nullptr) && (*missionIndexLoaded == DEATH_STAR_MISSION_INDEX);
 
@@ -2030,14 +2101,36 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		{
 			Vector4 col;
 			float intensity, value;
+
 			Vector4 xwaLight = Vector4(
 				s_XwaGlobalLights[i].PositionX / 32768.0f,
 				s_XwaGlobalLights[i].PositionY / 32768.0f,
 				s_XwaGlobalLights[i].PositionZ / 32768.0f,
 				0.0f);
 
-			light = g_CurrentHeadingViewMatrix * xwaLight;
-			light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+			if (g_bUseSteamVR)
+			{
+				Vector4 tmpL = H * xwaLight;
+				Vector4 svrL = swapFlip * tmpL;
+				/*log_debug_vr("xwa[%d]: [%0.3f, %0.3f, %0.3f] --> [%0.3f, %0.3f, %0.3f] --> [%0.3f, %0.3f, %0.3f]",
+					i, xwaLight.x, xwaLight.y, xwaLight.z,
+					tmpL.x, tmpL.y, tmpL.z,
+					svrL.x, svrL.y, svrL.z);*/
+				light = Vinv * svrL;
+			}
+			else
+			{
+				light = g_CurrentHeadingViewMatrix * xwaLight;
+				light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+			}
+
+			//Vector4 xwaLight = Vector4(-0.2f, 0.2f, 0.6f, 0.0f);
+			//xwaLight.normalize();
+			//light = g_VSMatrixCB.fullViewMat * xwaLight;
+			//Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
+			//Vinv.invert();
+			//light = Vinv * xwaLight;
+
 			// Forward: -Z, Up: +Y, Right: +X
 			//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
 			//	s_XwaGlobalLights[i].Intensity, light.x, light.y, light.z);
@@ -2362,7 +2455,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Set the lights and set the Shading System Constant Buffer
 	g_ShadingSys_PSBuffer.spec_intensity       = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
 	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
-	SetLights(0.0f);
+	SetLights(resources, 0.0f);
 
 	// SSAO Computation, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
@@ -2618,7 +2711,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	resources->InitViewport(&viewport);
 	
 	// Set the lights and set the Shading System Constant Buffer
-	SetLights(1.0f);
+	SetLights(resources, 1.0f);
 
 #ifdef DEATH_STAR
 	static float iTime = 0.0f;
@@ -3089,7 +3182,8 @@ void PrimarySurface::DeferredPass()
 	resources->InitViewport(&viewport);
 
 	// Set the lights and the Shading System Constant Buffer
-	SetLights(0.0f);
+	if (!g_bRTEnabled) // When RT is on, we set the lights when the BVH is built. See EffectsRenderer::SceneEnd()
+		SetLights(_deviceResources, 0.0f);
 
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -3117,6 +3211,8 @@ void PrimarySurface::DeferredPass()
 	{
 		resources->InitPixelShader(g_bUseSteamVR ? resources->_headLightsPS_VR : resources->_headLightsPS);
 	}
+
+	//ShowMatrix4(g_VSMatrixCB.fullViewMat, "DeferredPass");
 
 	// Set the PCF sampler state
 	if (g_ShadowMapping.bEnabled)
@@ -3828,7 +3924,7 @@ void GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
  * different from the one used in the shadertoy pixel shaders, so we need a new version of
  * GetCockpitViewMatrix.
  */
-void PrimarySurface::GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert = true) {
+void GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert=true) {
 	
 	Matrix4 rotMatrixFull;
 
@@ -8871,7 +8967,7 @@ void PrimarySurface::RenderRTShadowMask()
 	SetScissoRectFullScreen();
 
 	// Don't forget to set the lights!
-	SetLights(0.0f);
+	//SetLights(0.0f);
 
 	// Reset the vertex shader to regular 2D post-process
 	// Set the Vertex Shader Constant buffers
