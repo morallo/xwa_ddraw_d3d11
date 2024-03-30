@@ -148,6 +148,7 @@ Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out
 	ac_uv_coords* coords, int contIdx);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
+void SetLights(DeviceResources* resources, float fSSDOEnabled);
 
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
@@ -2160,6 +2161,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		g_ACtlasLeaves.clear();
 		g_TLASMap.clear();
 		RTResetMatrixSlotCounter();
+		//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneBegin");
+
 		if (g_TLASTree != nullptr)
 		{
 			delete g_TLASTree;
@@ -2889,6 +2892,7 @@ void EffectsRenderer::SceneEnd()
 			//log_debug("[DBG] [BVH] Matrices Realloc'ed");
 			ReAllocateAndPopulateTLASBvhBuffers();
 			//log_debug("[DBG] [BVH] TLAS Buffers Realloc'ed");
+			//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneEnd");
 		}
 	}
 
@@ -5924,6 +5928,7 @@ void EffectsRenderer::RenderScene()
 
 		// Wipe out the background:
 		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		g_bBackgroundCaptured = true;
 	}
 
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
