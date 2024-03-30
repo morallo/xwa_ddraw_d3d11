@@ -2161,8 +2161,6 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		g_ACtlasLeaves.clear();
 		g_TLASMap.clear();
 		RTResetMatrixSlotCounter();
-		/*log_debug("[DBG] EffectsRenderer::SceneBegin: %0.3f, %0.3f, %0.3f",
-			g_pSharedDataCockpitLook->Yaw, g_pSharedDataCockpitLook->Pitch, g_pSharedDataCockpitLook->Roll);*/
 		//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneBegin");
 
 		if (g_TLASTree != nullptr)
@@ -2897,8 +2895,6 @@ void EffectsRenderer::SceneEnd()
 			//log_debug("[DBG] [BVH] Matrices Realloc'ed");
 			ReAllocateAndPopulateTLASBvhBuffers();
 			//log_debug("[DBG] [BVH] TLAS Buffers Realloc'ed");
-			/*log_debug("[DBG] EffectsRenderer::SceneEnd: %0.3f, %0.3f, %0.3f",
-				g_pSharedDataCockpitLook->Yaw, g_pSharedDataCockpitLook->Pitch, g_pSharedDataCockpitLook->Roll);*/
 			//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneEnd");
 		}
 	}

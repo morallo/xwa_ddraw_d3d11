@@ -2043,6 +2043,30 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 	// Z+: Up
 	Vector4 Rs, Us, Fs;
 	Matrix4 H = GetPlayerCraftMatrix(Rs, Us, Fs, false, false);
+	// I tried reading the 3x3 matrix from CockpitLook before the roll inertia was applied and putting
+	// that in SharedMem in order to fix "dancing RT shadows". Didn't work. Still, this code might be
+	// useful later.
+#ifdef DISABLED
+	if (g_bUseSteamVR)
+	{
+		const float* h = g_pSharedDataCockpitLook->headRotation;
+		const float m[16] = {
+			-h[0], h[6], -h[3], 0,
+			-h[1], h[7], -h[4], 0,
+			-h[2], h[8], -h[5], 0,
+			0, 0, 0, 1 };
+		H.set(m);
+		log_debug_vr(0xFFFFFF, "R:[%0.3f, %0.3f, %0.3f]", Rs.x, Rs.y, Rs.z);
+		log_debug_vr(0x10FF10, "R:[%0.3f, %0.3f, %0.3f]", -h[0], -h[1], -h[2]);
+
+		log_debug_vr(0xFFFFFF, "F:[%0.3f, %0.3f, %0.3f]", Fs.x, Fs.y, Fs.z);
+		log_debug_vr(0x10FF10, "F:[%0.3f, %0.3f, %0.3f]", h[6], h[7], h[8]);
+
+		log_debug_vr(0xFFFFFF, "U:[%0.3f, %0.3f, %0.3f]", Us.x, Us.y, Us.z);
+		log_debug_vr(0x10FF10, "U:[%0.3f, %0.3f, %0.3f]", -h[3], -h[4], -h[5]);
+	}
+#endif
+
 	// Normally, Y- points forwards in OPT coords, but in this case, Y+ points forwards.
 	// So, in this case, we only flip the Z coord to convert to SteamVR coords:
 	const static Matrix4 swapFlip({ 1,0,0,0,  0,0,-1,0,  0,1,0,0,  0,0,0,1 });
@@ -2110,26 +2134,13 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 
 			if (g_bUseSteamVR)
 			{
-				Vector4 tmpL = H * xwaLight;
-				Vector4 svrL = swapFlip * tmpL;
-				/*log_debug_vr("xwa[%d]: [%0.3f, %0.3f, %0.3f] --> [%0.3f, %0.3f, %0.3f] --> [%0.3f, %0.3f, %0.3f]",
-					i, xwaLight.x, xwaLight.y, xwaLight.z,
-					tmpL.x, tmpL.y, tmpL.z,
-					svrL.x, svrL.y, svrL.z);*/
-				light = Vinv * svrL;
+				light = Vinv * swapFlip * H * xwaLight;
 			}
 			else
 			{
 				light = g_CurrentHeadingViewMatrix * xwaLight;
 				light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
 			}
-
-			//Vector4 xwaLight = Vector4(-0.2f, 0.2f, 0.6f, 0.0f);
-			//xwaLight.normalize();
-			//light = g_VSMatrixCB.fullViewMat * xwaLight;
-			//Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
-			//Vinv.invert();
-			//light = Vinv * xwaLight;
 
 			// Forward: -Z, Up: +Y, Right: +X
 			//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
