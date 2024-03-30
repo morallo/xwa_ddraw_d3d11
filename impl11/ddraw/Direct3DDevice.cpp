@@ -2540,7 +2540,7 @@ void DisplayBox(char *name, Box box) {
  If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
-inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye = false) {
+inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMaskable) {
 	auto& resources = this->_deviceResources;
 	//auto& context = resources->_d3dDeviceContext;
 
@@ -2555,15 +2555,20 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMas
 	// DEBUG
 	*/
 
-	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
-	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
+	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
+	ID3D11RenderTargetView *shadertoyRTV = resources->_shadertoyRTV.Get();
 	//if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
 	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
 		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
 		return shadertoyRTV;
 	else
+	{
+		//return (resources->_overrideRTV != nullptr) ? resources->_overrideRTV : regularRTV;
+		if (resources->_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
+		if (resources->_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
 		// Normal output buffer (_offscreenBuffer)
 		return regularRTV;
+	}
 }
 
 inline void Direct3DDevice::EnableTransparency() {
@@ -2598,21 +2603,6 @@ inline void Direct3DDevice::EnableHoloTransparency() {
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	resources->InitBlendState(nullptr, &blendDesc);
-}
-
-/*
- * Saves the current blend state to m_SavedBlendDesc
- */
-inline void Direct3DDevice::SaveBlendState() {
-	m_SavedBlendDesc = this->_renderStates->GetBlendDesc();
-}
-
-/*
- * Restore a previously-saved blend state in m_SavedBlendDesc
- */
-inline void Direct3DDevice::RestoreBlendState() {
-	auto& resources = this->_deviceResources;
-	resources->InitBlendState(nullptr, &m_SavedBlendDesc);
 }
 
 inline void UpdateDCHologramState() {
@@ -2809,7 +2799,7 @@ HRESULT Direct3DDevice::Execute(
 	UINT vertexBufferStride = sizeof(D3DTLVERTEX), vertexBufferOffset = 0;
 	D3D11_VIEWPORT viewport;
 	bool bModifiedShaders = false, bModifiedPixelShader = false, bZWriteEnabled = false;
-	bool bModifiedBlendState = false, bModifiedVertexShader = false;
+	bool bModifiedVertexShader = false;
 	float FullTransform = g_bEnableVR && g_bInTechRoom ? 1.0f : 0.0f;
 
 	g_VSCBuffer = { 0 };
@@ -3301,6 +3291,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsHologram = false, bIsNoisyHolo = false, bIsTransparent = false, bIsDS2CoreExplosion = false;
 				bool bWarheadLocked = PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].warheadLockState == 3;
 				bool bIsElectricity = false, bIsExplosion = false, bHasMaterial = false, bIsEngineGlow = false;
+				bool bIsHitEffect = false, bIsTrail = false;
 				bool bDCElemAlwaysVisible = false;
 				if (bLastTextureSelectedNotNULL) {
 					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
@@ -3351,6 +3342,8 @@ HRESULT Direct3DDevice::Execute(
 					bIsExplosion = lastTextureSelected->is_Explosion;
 					if (bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 					bIsEngineGlow = lastTextureSelected->is_EngineGlow;
+					bIsHitEffect = lastTextureSelected->is_HitEffect;
+					bIsTrail = lastTextureSelected->is_Trail;
 				}
 				g_bPrevIsSkyBox = g_bIsSkyBox;
 				// bIsSkyBox is true if we're about to render the SkyBox
@@ -4528,7 +4521,6 @@ HRESULT Direct3DDevice::Execute(
 				// so that we can restore the state at the end of the draw call.
 				bModifiedShaders      = false;
 				bModifiedPixelShader  = false;
-				bModifiedBlendState   = false;
 				bModifiedVertexShader = false;
 
 				// DEBUG
@@ -4552,6 +4544,16 @@ HRESULT Direct3DDevice::Execute(
 				// present the backbuffer. That prevents resolving the texture multiple times (and we
 				// also don't have to resolve it here).
 
+				resources->_overrideRTV = TRANSP_LYR_NONE;
+				// Missiles are rendered in two phases. There's an OPT which gets rendered in EffectsRenderer,
+				// and there's a trail that gets rendered here. Let's put the trail on the transp layer.
+				if (bIsHitEffect || bIsEngineGlow || bIsExplosion || bIsTrail || g_bIsTrianglePointer)
+				{
+					// Override the RTV for hit effects, engine glow, explosions and other shadeless/transparent
+					// objects --> let's render them directly on the transparent layer!
+					resources->_overrideRTV = TRANSP_LYR_1;
+				}
+
 				// If we're rendering 3D contents in the Tech Room and some form of SSAO is enabled, 
 				// then disable the pre-computed diffuse component:
 				//if (g_bAOEnabled && !g_bRendering3D) {
@@ -4566,49 +4568,6 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				if (bIsXWAHangarShadow) {
-					// For hangar shadows we need to change the blending operation (it's set to force alpha = 1)
-					// EDIT (after a few months) I'm not sure the fix below works very well. This was paired with
-					// an alpha of 0.25 in PixelShaderSolid, but that caused overlapping shadows to look darker.
-					// I changed the blend op to min and max and that only caused shadows to go full black. I ended
-					// up disabling this block and using the original settings -- except I changed the color of the
-					// shadow to black (because otherwise it's rendered blue). See PixelShaderSolid.hlsl.
-					/*
-					D3D11_BLEND_DESC blendDesc{};
-					blendDesc.AlphaToCoverageEnable = FALSE;
-					blendDesc.IndependentBlendEnable = FALSE;
-					blendDesc.RenderTarget[0].BlendEnable = TRUE;
-					blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-					//blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-					blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_MIN;
-					blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-					blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-					blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MIN;
-					blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-					hr = resources->InitBlendState(nullptr, &blendDesc);
-					*/
-
-					//D3D11_BLEND_DESC desc = this->_renderStates->GetBlendDesc();
-					/*
-					log_debug("[DBG] ******************************");
-					log_debug("[DBG] BlendEnable: %d, BlendOp: %d, BlendOpAlpha: %d", 
-						desc.RenderTarget->BlendEnable, desc.RenderTarget->BlendOp, desc.RenderTarget->BlendOpAlpha);
-					log_debug("[DBG] SrcBlend: %d, SrcBlendAlpha: %d",
-						desc.RenderTarget->SrcBlend, desc.RenderTarget->SrcBlendAlpha);
-					log_debug("[DBG] DestBlend: %d, DestBlendAlpha: %d",
-						desc.RenderTarget->DestBlend, desc.RenderTarget->DestBlendAlpha);
-					log_debug("[DBG] ******************************");*/
-					/*
-					This is the blend state for hangar shadows (they are forced to be alpha 1):
-					[16360] [DBG] BlendEnable: 1, BlendOp: 1, BlendOpAlpha: 1
-					[16360] [DBG] SrcBlend: 5, SrcBlendAlpha: 2
-					[16360] [DBG] DestBlend: 6, DestBlendAlpha: 1
-					*/
-					//D3D11_BLEND_OP_ADD == 1
-					//D3D11_BLEND_ZERO == 1
-					//D3D11_BLEND_ONE == 2
-					//D3D11_BLEND_SRC_ALPHA == 5
-					//D3D11_BLEND_INV_SRC_ALPHA == 6
 					bModifiedShaders = true;
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_XWA_SHADOW;
 				}
@@ -4635,10 +4594,13 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.special_control.bBlastMark = 1;
 						//g_PSCBuffer.GreebleDist1 = g_fBlastMarkOfsX;
 						//g_PSCBuffer.GreebleDist2 = g_fBlastMarkOfsY;
+						resources->_overrideRTV = TRANSP_LYR_1;
 					}
 				}
 
 				if (bIsDS2CoreExplosion) {
+					resources->_overrideRTV = TRANSP_LYR_1;
+
 					if (!bStateD3dAnnotationOpen) {
 						_deviceResources->BeginAnnotatedEvent(L"DrawDS2CoreExplosion");
 						bStateD3dAnnotationOpen = true;
@@ -4902,12 +4864,11 @@ HRESULT Direct3DDevice::Execute(
 					//DisplayCoords(instruction, currentIndexLocation);
 					// DEBUG
 
-					// If we make the skybox a bit bigger to enable roll, it "swims" -- it's probably not going to work.
-					//g_VSCBuffer.viewportScale[3] = g_fGlobalScale + 0.2f;
 					// Send the skybox to infinity:
 					g_VSCBuffer.sz_override = 1.52590219E-05f;
 					g_VSCBuffer.mult_z_override = 5000.0f; // Infinity is probably at 65535, we can probably multiply by something bigger here.
 					g_PSCBuffer.bIsShadeless = 1;
+					g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BACKGROUND;
 					// Suns are pushed to infinity too:
 					//if (bIsSun) log_debug("[DBG] Sun pushed to infinity");
@@ -4925,43 +4886,34 @@ HRESULT Direct3DDevice::Execute(
 						lastTextureSelected->is_Smoke)
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+						g_PSCBuffer.fSSAOMaskVal = 0;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
 						g_PSCBuffer.bIsShadeless = 1;
-
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
-
-						// DEBUG
-						//g_PSCBuffer.bIsBackground = bIsAimingHUD;
-						// DEBUG
 					} 
 					else if (lastTextureSelected->is_Debris || lastTextureSelected->is_Trail ||
 						lastTextureSelected->is_CockpitSpark || lastTextureSelected->is_Spark || 
-						lastTextureSelected->is_Chaff || lastTextureSelected->is_Missile /* || lastTextureSelected->is_GenericSSAOTransparent */
-						/* || (lastTextureSelected->is_Explosion && !g_bTransparentExplosions) */
-						)
+						lastTextureSelected->is_Chaff)
 					{
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
+						g_PSCBuffer.fSSAOMaskVal = 0;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
-
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
 					else if (lastTextureSelected->is_Laser) {
 						bModifiedShaders = true;
-						g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
+						g_PSCBuffer.fSSAOMaskVal = 0;
 						g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
 						g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 						g_PSCBuffer.fNMIntensity = 0.0f;
 						g_PSCBuffer.fSpecVal     = 0.0f;
 						g_PSCBuffer.bIsShadeless = 1;
-
 						g_PSCBuffer.fPosNormalAlpha = 0.0f;
 					}
 				}
@@ -5053,7 +5005,7 @@ HRESULT Direct3DDevice::Execute(
 				}
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
-				bool bRenderReticleToBuffer = g_bEnableVR && bIsReticle; // && !bExternalCamera;
+				bool bRenderReticleToBuffer = bIsReticle; // && !bExternalCamera;
 				if (g_bDynCockpitEnabled &&
 					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
 				   )
@@ -5204,7 +5156,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-					else if (lastTextureSelected->is_Spark) {
+					else if (lastTextureSelected->is_Spark || lastTextureSelected->is_HitEffect) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
@@ -5218,12 +5170,6 @@ HRESULT Direct3DDevice::Execute(
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = 4.0f * g_BloomConfig.fSparksStrength;
-						g_PSCBuffer.bIsEngineGlow = 1;
-					}
-					else if (lastTextureSelected->is_Missile)
-					{
-						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 					else if (lastTextureSelected->is_SkydomeLight) {
@@ -5340,7 +5286,7 @@ HRESULT Direct3DDevice::Execute(
 						ID3D11RenderTargetView *rtvs[1] = {
 							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
 						};
-						context->OMSetRenderTargets(1, 
+						context->OMSetRenderTargets(1,
 							//resources->_renderTargetView.GetAddressOf(),
 							rtvs, resources->_depthStencilViewL.Get());
 					} else {
@@ -5695,11 +5641,6 @@ HRESULT Direct3DDevice::Execute(
 						resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 					else
 						resources->InitVertexShader(resources->_vertexShader);
-				}
-
-				if (bModifiedBlendState) {
-					RestoreBlendState();
-					bModifiedBlendState = false;
 				}
 
 				currentIndexLocation += 3 * instruction->wCount;
@@ -6304,9 +6245,9 @@ HRESULT Direct3DDevice::BeginScene()
 	if (!bTransitionToHyperspace) {
 		context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
 		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
-		if (g_bEnableVR) {
-			context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
-		}
+		context->ClearRenderTargetView(resources->_transp1RTV, resources->clearColor);
+		context->ClearRenderTargetView(resources->_transp2RTV, resources->clearColor);
+		context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
 			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
@@ -6323,12 +6264,12 @@ HRESULT Direct3DDevice::BeginScene()
 		}
 
 	if (g_bReshadeEnabled && !bTransitionToHyperspace) {
-		float infinity[4] = { 0, 0, 32000.0f, 0 };
+		//float infinity[4] = { 0, 0, 32000.0f, 0 };
 		float zero[4] = { 0, 0, 0, 0 };
-		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, infinity);
+		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, zero /* infinity */);
 		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
 		if (g_bUseSteamVR) {
-			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, infinity);
+			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, zero /* infinity */);
 			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
 		}
 	}
@@ -6338,7 +6279,7 @@ HRESULT Direct3DDevice::BeginScene()
 		// Filling up the ZBuffer with large values prevents artifacts in SSAO when black bars are drawn
 		// on the sides of the screen
 		float infinity[4] = { 0, 0, 32000.0f, 0 };
-		float zero[4] = { 0, 0, 0, 0 };
+		//float zero[4] = { 0, 0, 0, 0 };
 
 		context->ClearRenderTargetView(resources->_renderTargetViewDepthBuf, infinity);
 		if (g_bUseSteamVR)

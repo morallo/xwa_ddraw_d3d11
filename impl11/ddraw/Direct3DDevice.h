@@ -52,15 +52,11 @@ public:
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
 
-	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable);
 
 	void EnableTransparency();
 
 	void EnableHoloTransparency();
-
-	void SaveBlendState();
-
-	void RestoreBlendState();
 
 	uint32_t GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT currentIndexLocation, Direct3DTexture * lastTextureSelected);
 
@@ -103,5 +99,4 @@ public:
 	DWORD _maxExecuteBufferSize;
 	ComPtr<ID3D11Buffer> _vertexBuffer;
 	ComPtr<ID3D11Buffer> _indexBuffer;
-	D3D11_BLEND_DESC m_SavedBlendDesc;
 };

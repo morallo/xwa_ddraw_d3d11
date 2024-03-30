@@ -55,6 +55,7 @@ extern std::vector<char*>Explosion_ResNames;
 // Smoke from explosions:
 extern std::vector<char*> Smoke_ResNames;
 extern std::vector<char*> Sparks_ResNames;
+extern std::vector<char*> HitEffects_ResNames;
 // List of Lens Flare effects
 extern std::vector<char*> LensFlare_ResNames;
 // List of Suns in the Backdrop.dat file

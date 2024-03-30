@@ -69,14 +69,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	// DEBUG
-		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
-		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
-		//output.ssMask = 0;
-		//output.normal = 0;
-		//return output;
-	// DEBUG
-
 	// Original code:
 	//float3 N = normalize(cross(ddx(P), ddy(P)));
 	// Since Z increases away from the camera, the normals end up being negative when facing the
@@ -102,12 +94,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask.b: Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, alpha);
+	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
-	// DEBUG
-	//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-	//return output;
-	// DEBUG
+	// Make GUI elements (reticle, triangle pointer, etc), explosions, debris, etc shadeless:
+	if (bIsShadeless)
+	{
+		output.ssMask.ba = alpha; // Shadeless material
+		output.normal = 0;
+	}
 
 	if (ExclusiveMask == SPECIAL_CONTROL_SMOKE)
 	{
@@ -115,35 +109,33 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float a   = 0.1 * alpha;
 		output.color    = float4(texelColor.rgb, a);
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, a);
-		output.ssMask   = float4(fNMIntensity, fSpecVal, 0.0, a);
+		output.ssMask   = float4(0, fSpecVal, 0.0, a);
 		return output;
 	}
 
-	/*
 	if (ExclusiveMask == SPECIAL_CONTROL_EXPLOSION)
 	{
-		output.color = float4(0, 1, 0, alpha);
-		output.bloom = output.color;
+		alpha = sqrt(alpha); // Gamma correction (approx)
+		// Explosions are now rendered to the first transparent layer. We don't need to
+		// worry about materials or normals anymore -- they're shadeless and blended in post
+		output.ssaoMask = 0;
+		output.ssMask   = 0;
+		output.normal   = 0;
+		output.pos3D    = 0;
+		output.bloom    = float4(fBloomStrength * output.color.rgb, output.color.a);
 		return output;
 	}
-	*/
 
 	// Enhance the engine glow. In this texture, the diffuse component also provides
 	// the hue. The engine glow is also used to render smoke, so that's why the smoke
 	// glows.
 	if (bIsEngineGlow) {
-		// Disable depth-buffer write for engine glow textures
-		output.pos3D.a = 0;
-		output.normal.a = 0;
-		// The reason explosions look "washed out" is that the ssao/ssMask is fully transparent, meaning
-		// that whatever is behind the explosion will affect how it looks. To fix that problem, we just
-		// need to use the explosion's transparency and blend its material properties. That way, the
-		// explosion becomes solid.
-		if (ExclusiveMask != SPECIAL_CONTROL_EXPLOSION)
-		{
-			output.ssaoMask.a = 0;
-			output.ssMask.a = 0;
-		}
+		// Disable depth-buffer and materials write for engine glow textures: they are now
+		// rendered to their own separate transparent layer.
+		output.pos3D    = 0;
+		output.normal   = 0;
+		output.ssaoMask = 0;
+		output.ssMask   = 0;
 
 		float3 color = texelColor.rgb * input.color.xyz;
 		// This is an engine glow, process the bloom mask accordingly
@@ -168,24 +160,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 
 		return output;
-	}
-
-	// The HUD is shadeless and has transparency. Some planets in the background are also 
-	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
-	// So glass is a non-shadeless surface with transparency:
-	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
-		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
-		&& alpha < 0.95 /* This texture has transparency */
-		&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
-	{
-		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask.r = GLASS_MAT;
-		output.ssaoMask.gba = 1.0;
-		// Also write the normals of this surface over the current background
-		output.normal.a = 1.0;
-		output.ssMask.r = 0.0; // No normal mapping
-		output.ssMask.g = 1.0; // White specular value
-		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
 	}
 
 	// Original code:

@@ -222,6 +222,8 @@ extern int g_iForceAltExplosion;
 extern float4 g_SunColors[MAX_SUN_FLARES];
 extern int g_iSunFlareCount;
 
+extern bool g_bBackgroundCaptured;
+
 // D3DRendererHook draw call counter;
 extern int g_iD3DExecuteCounter;
 constexpr float OPT_TO_METERS = 1.0f / 40.96f;

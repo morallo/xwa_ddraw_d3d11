@@ -148,6 +148,7 @@ Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out
 	ac_uv_coords* coords, int contIdx);
 
 Vector4 SteamVRToOPTCoords(Vector4 P);
+void SetLights(DeviceResources* resources, float fSSDOEnabled);
 
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
@@ -2160,6 +2161,8 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		g_ACtlasLeaves.clear();
 		g_TLASMap.clear();
 		RTResetMatrixSlotCounter();
+		//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneBegin");
+
 		if (g_TLASTree != nullptr)
 		{
 			delete g_TLASTree;
@@ -2889,6 +2892,7 @@ void EffectsRenderer::SceneEnd()
 			//log_debug("[DBG] [BVH] Matrices Realloc'ed");
 			ReAllocateAndPopulateTLASBvhBuffers();
 			//log_debug("[DBG] [BVH] TLAS Buffers Realloc'ed");
+			//ShowMatrix4(g_VSMatrixCB.fullViewMat, "SceneEnd");
 		}
 	}
 
@@ -3099,6 +3103,8 @@ void EffectsRenderer::RestoreContext()
 	g_OPTMeshTransformCB.MeshTransform = _oldPose;
 	for (int i = 0; i < 16; i++)
 		_CockpitConstants.transformWorldView[i] = _oldTransformWorldView[i];
+
+	_overrideRTV = TRANSP_LYR_NONE;
 }
 
 void EffectsRenderer::UpdateTextures(const SceneCompData* scene)
@@ -3189,7 +3195,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	_bIsTargetHighlighted = false;
 	//bool bIsExterior = false, bIsDAT = false;
 	//bool bIsDS2CoreExplosion = false;
-	bool bIsElectricity = false, bHasMaterial = false;
+	bool bHasMaterial = false;
 
 	if (_bLastTextureSelectedNotNULL) {
 		if (g_bDynCockpitEnabled && _lastTextureSelected->is_DynCockpitDst)
@@ -3232,6 +3238,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 		//bIsElectricity = lastTextureSelected->is_Electricity;
 		_bHasMaterial = _lastTextureSelected->bHasMaterial;
 		_bIsExplosion = _lastTextureSelected->is_Explosion;
+		//if (_bHasMaterial) _bForceShaded = _lastTextureSelected->material.ForceShaded;
 		if (_bIsExplosion) g_bExplosionsDisplayedOnCurrentFrame = true;
 	}
 
@@ -3265,22 +3272,26 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 // Apply specific material properties for the current texture
 void EffectsRenderer::ApplyMaterialProperties()
 {
-	if (!_bHasMaterial || !_bLastTextureSelectedNotNULL)
+	if (!_bLastTextureSelectedNotNULL)
+		return;
+
+	// Some properties can be applied even if there's no associated material:
+	g_PSCBuffer.bIsTransparent = _lastTextureSelected->is_Transparent;
+
+	if (!_bHasMaterial)
 		return;
 
 	auto &resources = _deviceResources;
 
 	_bModifiedShaders = true;
 
-	if (_lastTextureSelected->material.IsShadeless)
-		g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-	else
-		g_PSCBuffer.fSSAOMaskVal = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
-	g_PSCBuffer.fGlossiness = _lastTextureSelected->material.Glossiness;
-	g_PSCBuffer.fSpecInt = _lastTextureSelected->material.Intensity;
-	g_PSCBuffer.fNMIntensity = _lastTextureSelected->material.NMIntensity;
-	g_PSCBuffer.fSpecVal = _lastTextureSelected->material.SpecValue;
-	g_PSCBuffer.fAmbient = _lastTextureSelected->material.Ambient;
+	g_PSCBuffer.fSSAOMaskVal   = _lastTextureSelected->material.Metallic * 0.5f; // Metallicity is encoded in the range 0..0.5 of the SSAOMask
+	g_PSCBuffer.bIsShadeless   = _lastTextureSelected->material.IsShadeless;
+	g_PSCBuffer.fGlossiness    = _lastTextureSelected->material.Glossiness;
+	g_PSCBuffer.fSpecInt       = _lastTextureSelected->material.Intensity;
+	g_PSCBuffer.fNMIntensity   = _lastTextureSelected->material.NMIntensity;
+	g_PSCBuffer.fSpecVal       = _lastTextureSelected->material.SpecValue;
+	g_PSCBuffer.fAmbient       = _lastTextureSelected->material.Ambient;
 
 	if (_lastTextureSelected->material.AlphaToBloom) {
 		_bModifiedPixelShader = true;
@@ -3292,7 +3303,11 @@ void EffectsRenderer::ApplyMaterialProperties()
 	}
 
 	// lastTextureSelected can't be a lightmap anymore, so we don't need (?) to test bIsLightTexture
-	if (_lastTextureSelected->material.AlphaIsntGlass /* && !bIsLightTexture */) {
+	if (_lastTextureSelected->material.AlphaIsntGlass)
+		// I feel like the AlphaIsntGlass property only makes sense when there's transparency, but
+		// that's now how I coded it, so there may be artifacts if I enable the following line:
+		// && _lastTextureSelected->is_Transparent)
+	{
 		_bModifiedPixelShader = true;
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = 0.0f;
@@ -3306,44 +3321,42 @@ void EffectsRenderer::ApplySpecialMaterials()
 	if (!_bLastTextureSelectedNotNULL)
 		return;
 
-	if (g_bIsScaleableGUIElem || /* bIsReticle || bIsText || */ g_bIsTrianglePointer ||
+	if (g_bIsScaleableGUIElem || g_bIsTrianglePointer || _bIsExplosion ||
 		_lastTextureSelected->is_Debris || _lastTextureSelected->is_GenericSSAOMasked ||
-		_lastTextureSelected->is_Electricity || _bIsExplosion ||
-		_lastTextureSelected->is_Smoke)
+		_lastTextureSelected->is_Electricity || _lastTextureSelected->is_Smoke)
 	{
 		_bModifiedShaders = true;
-		g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
-		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fSSAOMaskVal = 0;
+		g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 		g_PSCBuffer.fNMIntensity = 0.0f;
-		g_PSCBuffer.fSpecVal = 0.0f;
+		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.bIsShadeless = 1;
-
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
-	else if (_lastTextureSelected->is_Debris || _lastTextureSelected->is_Trail ||
+	else if (_lastTextureSelected->is_Debris ||
 		_lastTextureSelected->is_CockpitSpark || _lastTextureSelected->is_Spark ||
-		_lastTextureSelected->is_Chaff || _lastTextureSelected->is_Missile
-		)
+		_lastTextureSelected->is_Chaff)
 	{
 		_bModifiedShaders = true;
-		g_PSCBuffer.fSSAOMaskVal = PLASTIC_MAT;
-		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fSSAOMaskVal = 0;
+		g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 		g_PSCBuffer.fNMIntensity = 0.0f;
-		g_PSCBuffer.fSpecVal = 0.0f;
-
+		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
+	}
+	else if (_lastTextureSelected->is_Missile) {
+		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_MISSILE;
 	}
 	else if (_lastTextureSelected->is_Laser) {
 		_bModifiedShaders = true;
-		g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
-		g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-		g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
+		g_PSCBuffer.fSSAOMaskVal = 0;
+		g_PSCBuffer.fGlossiness  = DEFAULT_GLOSSINESS;
+		g_PSCBuffer.fSpecInt     = DEFAULT_SPEC_INT;
 		g_PSCBuffer.fNMIntensity = 0.0f;
-		g_PSCBuffer.fSpecVal = 0.0f;
+		g_PSCBuffer.fSpecVal     = 0.0f;
 		g_PSCBuffer.bIsShadeless = 1;
-
 		g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	}
 }
@@ -4049,7 +4062,7 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 		g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
 	} */
-	else if (_lastTextureSelected->is_Spark) {
+	else if (_lastTextureSelected->is_Spark || _lastTextureSelected->is_HitEffect) {
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
@@ -4069,7 +4082,7 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 	{
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
-		g_PSCBuffer.bIsEngineGlow = 1;
+		//g_PSCBuffer.bIsEngineGlow = 1;
 	}
 	else if (_lastTextureSelected->is_SkydomeLight) {
 		_bModifiedShaders = true;
@@ -4909,8 +4922,6 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 				// we can transform from WorldView to OPT-coords
 				Matrix4 WInv = W;
 				WInv = WInv.invert();
-				// HLSL needs matrices to be stored transposed
-				//WInv = WInv.transpose();
 				if (matrixSlot >= (int)g_TLASMatrices.size())
 					g_TLASMatrices.resize(g_TLASMatrices.size() + 128);
 				g_TLASMatrices[matrixSlot] = WInv;
@@ -5097,6 +5108,8 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 {
 	auto &context = _deviceResources->_d3dDeviceContext;
 	auto &resources = _deviceResources;
+
+	_overrideRTV = TRANSP_LYR_NONE;
 
 	ComPtr<ID3D11Buffer> oldVSConstantBuffer;
 	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
@@ -5300,18 +5313,19 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	*/
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
-	g_PSCBuffer.fBloomStrength = 1.0f;
+	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
-	g_PSCBuffer.fSSAOAlphaMult = g_fSSAOAlphaOfs;
-	g_PSCBuffer.fSSAOMaskVal = g_DefaultGlobalMaterial.Metallic * 0.5f;
-	g_PSCBuffer.fGlossiness = g_DefaultGlobalMaterial.Glossiness;
-	g_PSCBuffer.fSpecInt = g_DefaultGlobalMaterial.Intensity;  // DEFAULT_SPEC_INT;
-	g_PSCBuffer.fNMIntensity = g_DefaultGlobalMaterial.NMIntensity;
-	g_PSCBuffer.AuxColor.x = 1.0f;
-	g_PSCBuffer.AuxColor.y = 1.0f;
-	g_PSCBuffer.AuxColor.z = 1.0f;
-	g_PSCBuffer.AuxColor.w = 1.0f;
+	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+	g_PSCBuffer.fSSAOMaskVal    = g_DefaultGlobalMaterial.Metallic * 0.5f;
+	g_PSCBuffer.fGlossiness     = g_DefaultGlobalMaterial.Glossiness;
+	g_PSCBuffer.fSpecInt        = g_DefaultGlobalMaterial.Intensity;  // DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity    = g_DefaultGlobalMaterial.NMIntensity;
+	g_PSCBuffer.AuxColor.x  = 1.0f;
+	g_PSCBuffer.AuxColor.y  = 1.0f;
+	g_PSCBuffer.AuxColor.z  = 1.0f;
+	g_PSCBuffer.AuxColor.w  = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
+	g_PSCBuffer.Offset      = float2(0, 0);
 	g_PSCBuffer.uvSrc1.x = g_PSCBuffer.uvSrc1.y = 1.0f;
 	if (g_config.OnlyGrayscaleInTechRoom)
 		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_GRAYSCALE;
@@ -5589,15 +5603,6 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		command.meshTransformMatrix = g_OPTMeshTransformCB.MeshTransform;
 		// Add the command to the list of deferred commands
 		_TransparentDrawCommands.push_back(command);
-
-#ifdef DISABLED
-		if (!_vrKeyboardConstantsCaptured /* && _bIsCockpit */)
-		{
-			_vrKeybCommand = command;
-			_vrKeyboardConstantsCaptured = true;
-		}
-#endif
-
 		goto out;
 	}
 
@@ -5612,6 +5617,7 @@ out:
 
 	if (_bModifiedPixelShader)
 		resources->InitPixelShader(lastPixelShader);
+	_overrideRTV = TRANSP_LYR_NONE;
 
 	// Decrease the refcount of all the objects we queried at the prologue. (Is this
 	// really necessary? They live on the stack, so maybe they are auto-released?)
@@ -5620,12 +5626,6 @@ out:
 	oldPSConstantBuffer.Release();
 	for (int i = 0; i < 3; i++)
 		oldVSSRV[i].Release();
-	*/
-	/*
-	if (bModifiedBlendState) {
-		RestoreBlendState();
-		bModifiedBlendState = false;
-	}
 	*/
 
 #if LOGGER_DUMP
@@ -5640,17 +5640,24 @@ out:
  If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
-inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye) {
+inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable) {
 	auto& resources = this->_deviceResources;
 
-	ID3D11RenderTargetView *regularRTV = bSteamVRRightEye ? resources->_renderTargetViewR.Get() : resources->_renderTargetView.Get();
-	ID3D11RenderTargetView *shadertoyRTV = bSteamVRRightEye ? resources->_shadertoyRTV_R.Get() : resources->_shadertoyRTV.Get();
+	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
+	ID3D11RenderTargetView *shadertoyRTV = resources->_shadertoyRTV.Get();
 	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
+	{
 		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
 		return shadertoyRTV;
+	}
 	else
+	{
+		//return (_overrideRTV != nullptr && !_bForceShaded) ? _overrideRTV : regularRTV;
+		if (_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
+		if (_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
 		// Normal output buffer (_offscreenBuffer)
 		return regularRTV;
+	}
 }
 
 // This function should only be called when the miniature (targetted craft) is being rendered.
@@ -5876,9 +5883,6 @@ bool EffectsRenderer::DCReplaceTextures()
 			if (g_PSCBuffer.DynCockpitSlots > 0) {
 				_bModifiedPixelShader = true;
 				if (_bIsHologram) {
-					// Holograms require alpha blending to be enabled, but we also need to save the current
-					// blending state so that it gets restored at the end of this draw call.
-					//SaveBlendState();
 					EnableHoloTransparency();
 					_bModifiedBlendState = true;
 					uint32_t hud_color = (*g_XwaFlightHudColor) & 0x00FFFFFF;
@@ -5913,7 +5917,19 @@ void EffectsRenderer::RenderScene()
 	if (g_rendererType == RendererType_Shadow && !g_config.HangarShadowsEnabled)
 		return;
 
-	auto &context = _deviceResources->_d3dDeviceContext;
+	auto& resources = _deviceResources;
+	auto& context = _deviceResources->_d3dDeviceContext;
+
+	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
+	{
+		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+		if (g_bDumpSSAOBuffers)
+			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+
+		// Wipe out the background:
+		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		g_bBackgroundCaptured = true;
+	}
 
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
 	unsigned short scissorTop = *(unsigned short*)0x07CA354;
@@ -5933,7 +5949,8 @@ void EffectsRenderer::RenderScene()
 	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
-		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || _bIsReticle */), // Select the main RTV
+		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner), // Select the main RTV
+
 		_deviceResources->_renderTargetViewBloomMask.Get(),
 		g_bAOEnabled ? _deviceResources->_renderTargetViewDepthBuf.Get() : NULL,
 		// The normals hook should not be allowed to write normals for light textures. This is now implemented
@@ -5959,7 +5976,7 @@ void EffectsRenderer::RenderScene()
 
 //out:
 	g_iD3DExecuteCounter++;
-	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
+	g_iDrawCounter++; // EffectsRenderer. We need this counter to enable proper Tech Room detection
 }
 
 void EffectsRenderer::RenderLasers()
@@ -5987,22 +6004,25 @@ void EffectsRenderer::RenderLasers()
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
-	g_PSCBuffer.fBloomStrength = 1.0f;
+	g_PSCBuffer.fBloomStrength  = 1.0f;
 	g_PSCBuffer.fPosNormalAlpha = 1.0f;
-	g_PSCBuffer.fSSAOAlphaMult = g_fSSAOAlphaOfs;
+	g_PSCBuffer.fSSAOAlphaMult  = g_fSSAOAlphaOfs;
+	g_PSCBuffer.AuxColor.x  = 1.0f;
+	g_PSCBuffer.AuxColor.y  = 1.0f;
+	g_PSCBuffer.AuxColor.z  = 1.0f;
+	g_PSCBuffer.AuxColor.w  = 1.0f;
 	g_PSCBuffer.AspectRatio = 1.0f;
 
 	// Laser-specific stuff from ApplySpecialMaterials():
-	g_PSCBuffer.fSSAOMaskVal = EMISSION_MAT;
-	g_PSCBuffer.fGlossiness = DEFAULT_GLOSSINESS;
-	g_PSCBuffer.fSpecInt = DEFAULT_SPEC_INT;
-	g_PSCBuffer.fNMIntensity = 0.0f;
-	g_PSCBuffer.fSpecVal = 0.0f;
-	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fSSAOMaskVal    = 0;
+	g_PSCBuffer.fGlossiness     = DEFAULT_GLOSSINESS;
+	g_PSCBuffer.fSpecInt        = DEFAULT_SPEC_INT;
+	g_PSCBuffer.fNMIntensity    = 0.0f;
+	g_PSCBuffer.fSpecVal        = 0.0f;
+	g_PSCBuffer.bIsShadeless    = 1;
 	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	// Laser-specific stuff from ApplyBloomSettings():
 	g_PSCBuffer.fBloomStrength = g_BloomConfig.fLasersStrength;
-	//g_PSCBuffer.bIsLaser			= 2; // Enhance lasers by default
 
 	g_OPTMeshTransformCB.MeshTransform.identity();
 
@@ -6010,9 +6030,6 @@ void EffectsRenderer::RenderLasers()
 	_bIsCockpit = false;
 	_bIsGunner = false;
 	_bIsBlastMark = false;
-
-	// Just in case we need to do anything for VR or other alternative display devices...
-	ExtraPreprocessing();
 
 	// Apply the VS and PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
@@ -6044,6 +6061,7 @@ void EffectsRenderer::RenderLasers()
 		// Set the number of triangles
 		_trianglesCount = command.trianglesCount;
 
+		_overrideRTV = TRANSP_LYR_1;
 		// Render the deferred commands
 		RenderScene();
 	}
@@ -6051,6 +6069,11 @@ void EffectsRenderer::RenderLasers()
 	// Clear the command list and restore the previous state
 	_LaserDrawCommands.clear();
 	RestoreContext();
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_transpBuffer1, L"C:\\Temp\\_transpBuffer1Lasers.dds");
+	}
 	_deviceResources->EndAnnotatedEvent();
 }
 
@@ -6076,9 +6099,6 @@ void EffectsRenderer::RenderTransparency()
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_deviceResources->InitInputLayout(_inputLayout);
 	_deviceResources->InitVertexShader(_vertexShader);
-
-	// Just in case we need to do anything for VR or other alternative display devices...
-	ExtraPreprocessing();
 
 	// Other stuff that is common in the loop below
 	UINT vertexBufferStride = sizeof(D3dVertex);
@@ -6125,6 +6145,12 @@ void EffectsRenderer::RenderTransparency()
 		// Set the right pixel shader
 		_deviceResources->InitPixelShader(command.pixelShader);
 
+		if (!g_bInTechRoom)
+		{
+			//_overrideRTV = _bIsCockpit ? resources->_transp2RTV : resources->_transp1RTV;
+			//_overrideRTV = _bIsCockpit ? resources->_transp2RTV : nullptr;
+			_overrideRTV = _bIsCockpit ? TRANSP_LYR_2 : TRANSP_LYR_NONE;
+		}
 		// Render the deferred commands
 		RenderScene();
 
@@ -6136,6 +6162,12 @@ void EffectsRenderer::RenderTransparency()
 	// Clear the command list and restore the previous state
 	_TransparentDrawCommands.clear();
 	RestoreContext();
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_transpBuffer1, L"C:\\Temp\\_transpBuffer1.dds");
+		DirectX::SaveDDSTextureToFile(context, resources->_transpBuffer2, L"C:\\Temp\\_transpBuffer2.dds");
+	}
 
 	_deviceResources->EndAnnotatedEvent();
 }
@@ -6165,8 +6197,7 @@ void EffectsRenderer::RenderVRDots()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
-	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
 	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
@@ -6180,7 +6211,7 @@ void EffectsRenderer::RenderVRDots()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?
 	// fPosNormalAlpha ?
@@ -6357,7 +6388,7 @@ void EffectsRenderer::RenderVRBrackets()
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
 	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
@@ -6371,7 +6402,7 @@ void EffectsRenderer::RenderVRBrackets()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	g_VRGeometryCBuffer.bRenderBracket = 1;
@@ -6546,7 +6577,7 @@ void EffectsRenderer::RenderVRHUD()
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
-	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
 	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
@@ -6560,7 +6591,7 @@ void EffectsRenderer::RenderVRHUD()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	// Disable region highlighting
@@ -6839,7 +6870,9 @@ void EffectsRenderer::RenderVRKeyboard()
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	// Set the proper rastersizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
-	_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	//_deviceResources->InitBlendState(_solidBlendState, nullptr);
+	_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 
 	_deviceResources->InitViewport(&_viewport);
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -6852,7 +6885,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
 	g_PSCBuffer.bIsShadeless = 1;
-	g_PSCBuffer.fSSAOMaskVal = SHADELESS_MAT;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 	g_PSCBuffer.rand0 = fadeIn;
 	// fSSAOAlphaMult ?
 	// fSSAOMaskVal ?
@@ -7822,11 +7855,21 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 	g_rendererType = RendererType_Main;
 	RenderCockpitShadowMap();
 	RenderHangarShadowMap();
-	RenderLasers();
-	RenderTransparency();
-	RenderVRGloves();
+
 	RenderVRKeyboard();
-	RenderVRDots();
+	// We can't render the VR dots here because they will get obscured by the transparency
+	// layers. They have to be rendered after the DeferredPass() has been executed.
+	//RenderVRDots();
+	RenderVRGloves();
+
+	// RenderLasers() has to be executed after RenderTransparency(). The reason is that in
+	// RenderTransparency() we're rendering glass on external objects and the cockpit, and
+	// the lasers are rendered to the first transparent layer afterwards. So, the order is:
+	// External Glass --> Lasers --> Cockpit Glass
+	// RenderTransparency() renders both the External Glass and Cockpit Glass to different layers.
+	RenderTransparency();
+	RenderLasers();
+
 	//RenderVRHUD();
 	_deviceResources->EndAnnotatedEvent();
 }

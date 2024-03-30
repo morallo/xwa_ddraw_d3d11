@@ -101,7 +101,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask.b: Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, unused
-	output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, alpha);
+	output.ssMask = float4(0, fSpecVal, 0.0, alpha);
 
 	// Sun Shader
 	// Disable depth-buffer write, etc. for sun textures

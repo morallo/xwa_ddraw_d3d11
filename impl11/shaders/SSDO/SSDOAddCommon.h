@@ -30,8 +30,10 @@ Texture2DArray texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
 
 // The SSDO Indirect buffer
-Texture2DArray texSSDOInd : register(t2);
-SamplerState samplerSSDOInd : register(s2);
+//Texture2DArray texSSDOInd : register(t2);
+//SamplerState samplerSSDOInd : register(s2);
+// The Background buffer
+Texture2DArray texBackground : register(t2);
 
 // The SSAO mask
 Texture2DArray texSSAOMask : register(t3);
@@ -55,6 +57,11 @@ SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2DArray rtShadowMask : register(t17);
+
+// Transparent layer 1
+Texture2DArray transp1 : register(t18);
+// Transparent layer 2
+Texture2DArray transp2 : register(t19);
 #else
 // The color buffer
 Texture2D texColor : register(t0);
@@ -65,8 +72,10 @@ Texture2D texSSDO : register(t1);
 SamplerState samplerSSDO : register(s1);
 
 // The SSDO Indirect buffer
-Texture2D texSSDOInd : register(t2);
-SamplerState samplerSSDOInd : register(s2);
+//Texture2D texSSDOInd : register(t2);
+//SamplerState samplerSSDOInd : register(s2);
+// The Background buffer
+Texture2D texBackground : register(t2);
 
 // The SSAO mask
 Texture2D texSSAOMask : register(t3);
@@ -86,6 +95,14 @@ SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2D rtShadowMask : register(t17);
+
+// Transparent layer 1
+Texture2D transp1 : register(t18);
+// Transparent layer 2
+Texture2D transp2 : register(t19);
+
+// Reticle (only available in non VR mode)
+Texture2D reticleTex : register(t20);
 #endif
 
 // The Shadow Map buffer
@@ -182,97 +199,6 @@ inline float3 reinhard_extended(float3 v, float max_white)
 	return numerator / (1.0f + v);
 }
 
-#ifdef DISABLED
-// (Sorry, don't remember very well) I think this function projects a 3D point back
-// into 2D and then converts the 2D coord into its equivalent UV-coord used in post
-// processing. This function is going to be useful to project 3D into 2D when trying
-// to make iteractions with controllers in VR or just when adding extra geometry to
-// the game later on.
-inline float2 projectToUV(in float3 pos3D) {
-	float3 P = pos3D;
-	//float w = P.z / (METRIC_SCALE_FACTOR * metric_mult);
-	//float w = P.z / METRIC_SCALE_FACTOR;
-	P.xy = /* g_fFocalDist * */ P.xy / P.z;
-	// Convert to vertex pos:
-	//P.xy = ((P.xy / (vpScale.z * float2(aspect_ratio, 1))) - float2(-0.5, 0.5)) / vpScale.xy;
-	// (-1,-1)-(1, 1)
-	P.xy /= (vpScale.z * float2(aspect_ratio, 1));
-	//P.xy -= float2(-0.5, 0.5); // Is this wrong? I think the y axis is inverted, so adding 0.5 would be fine (?)
-	P.xy -= float2(-1.0, 1.0); // DirectSBS may be different
-	P.xy /= vpScale.xy;
-	// We now have P = input.pos
-	//P.x = (P.x * vpScale.x - 1.0f) * vpScale.z;
-	//P.y = (P.y * vpScale.y + 1.0f) * vpScale.z;
-	P.xy = (P.xy * vpScale.xy + float2(-1.0f, 1.0f)) * vpScale.z;
-
-	// Now convert to UV coords: (0, 1)-(1, 0):
-	//P.xy = lerp(float2(0, 1), float2(1, 0), (P.xy + 1) / 2);
-	// The viewport used to render the original offscreenBuffer may not cover the full
-	// screen, so the uv coords have to be adjusted to the limits of the viewport within
-	// the full-screen quad:
-	//P.xy = lerp(float2(x0, y1), float2(x1, y0), (P.xy + 1.0) / 2.0);
-	P.xy = lerp(float2(p0.x, p1.y), float2(p1.x, p0.y), (P.xy + 1.0) / 2.0);
-	return P.xy;
-}
-#endif
-
-/*
-float3 shadow_factor(in float3 P, float max_dist_sqr) {
-	float3 cur_pos = P, occluder, diff;
-	float2 cur_uv;
-	float3 ray_step = shadow_step_size * float3(LightVector[0].xy, -LightVector[0].z);
-	//float3 ray_step = shadow_step_size * LightVector[0].xyz;
-	int steps = (int)shadow_steps;
-	float max_shadow_length = shadow_step_size * shadow_steps;
-	float max_shadow_length_sqr = max_shadow_length * 0.75; // Fade the shadow a little before it reaches a hard edge
-	max_shadow_length_sqr *= max_shadow_length_sqr;
-	float cur_length = 0, length_at_res = INFINITY_Z1;
-	float res = 1.0;
-	float weight = 1.0;
-	//float occ_dot;
-
-	// Handle samples that land outside the bounds of the image
-	// "negative" cur_diff should be ignored
-	[loop]
-	for (int i = 1; i <= steps; i++) {
-		cur_pos += ray_step;
-		cur_length += shadow_step_size;
-		cur_uv = projectToUV(cur_pos);
-
-		// If the ray has exited the current viewport, we're done:
-		//if (cur_uv.x < x0 || cur_uv.x > x1 ||
-		//	cur_uv.y < y0 || cur_uv.y > y1) 
-		if (any(cur_uv < p0) ||
-			any(cur_uv > p1))
-		{
-			weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
-			res = lerp(1, res, weight);
-			return float3(res, cur_length / max_shadow_length, 1);
-		}
-
-		occluder = texPos.SampleLevel(sampPos, cur_uv, 0).xyz;
-		diff = cur_pos - occluder; // ATTENTION: The substraction is inverted wrt to SSDO!
-		//v        = normalize(diff);
-		//occ_dot  = max(0.0, dot(LightVector.xyz, v) - bias);
-
-		if (diff.z > shadow_epsilon) { // Ignore negative z-diffs: the occluder is behind the ray
-			// If diff.z is too large, ignore it. Or rather, fade with distance
-			//float weight = saturate(1.0 - (diff.z * diff.z / max_dist_sqr));
-			//float dist = saturate(lerp(1, diff.z), weight);
-			float cur_res = saturate(shadow_k * diff.z / (cur_length + 0.00001));
-			//cur_res = saturate(lerp(1, cur_res, weight)); // Fadeout if diff.z is too big
-			if (cur_res < res) {
-				res = cur_res;
-				length_at_res = cur_length;
-			}
-		}
-	}
-	weight = saturate(1 - length_at_res * length_at_res / max_shadow_length_sqr);
-	res = lerp(1, res, weight);
-	return float3(res, cur_length / max_shadow_length, 0);
-}
-*/
-
 // From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
 /*
  * We expect Q.xy to be 2D coords; but Q.z must be a depth stencil value in the range 0...1
@@ -343,69 +269,48 @@ inline float ShadowMapPCF_HW(float idx, float3 Q, int filterSize, float radius)
 	return shadow / samples;
 }
 
-// From http://developer.download.nvidia.com/whitepapers/2008/PCSS_Integration.pdf
-inline float PenumbraSize(float zReceiver, float zBlocker)
+// See:
+// https://wickedengine.net/2017/10/22/which-blend-state-for-me/
+inline float4 PreMulBlend(in float4 src, in float4 dst)
 {
-	return (zReceiver - zBlocker) / zBlocker;
+	// Equivalent DX11 state:
+	// desc.SrcBlend       = D3D11_BLEND_ONE;
+	// desc.DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
+	// desc.BlendOp        = D3D11_BLEND_OP_ADD;
+	// Final alpha value settings:
+	// desc.SrcBlendAlpha  = D3D11_BLEND_ONE;
+	// desc.DestBlendAlpha = D3D11_BLEND_ONE;
+	// desc.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+	dst.rgb = src.rgb + (1 - src.a) * dst.rgb;
+	return dst;
 }
 
-#ifdef DISABLED
-inline void FindBlocker(float idx, float3 Q, out float d_blocker, out float samples) 
+float4 BlendTransparentLayers(in float4 color, in float4 transpColor1, in float4 transpColor2)
 {
-	d_blocker = 0.0;
-	samples = 0.0;
-
-	// Convert to texture coords: this maps -1..1 to 0..1:
-	float2 sm_pos = lerp(0, 1, Q.xy * float2(0.5, -0.5) + 0.5);
-	float z = MetricZToDepth(idx, Q.z/* + sm_bias*/);
-	float2 ofs = 0;
-
-	ofs.y = -sm_blocker_radius;
-	for (int i = -1; i <= 1; i++) 
+	// Blend the transparent layers now
+	//if (!ssao_debug)
 	{
-		ofs.x = -sm_blocker_radius;
-		for (int j = -1; j <= 1; j++)
-		{
-			float sm_Z = texShadowMap.SampleLevel(sampPos, //samplerShadowMap,
-				float3(sm_pos + ofs, idx), 0).x;
-			// Convert the depth-stencil coord (0..1) to metric Z and compare
-			if (sm_Z < z) // This sample is a blocker
-			{
-				d_blocker += sm_Z;
-				samples++;
-			}
-			ofs.x += sm_blocker_radius;
-		}
-		ofs.y += sm_blocker_radius;
+		color = PreMulBlend(transpColor1, color);
+		color = PreMulBlend(transpColor2, color);
 	}
-
-	if (samples > 0.0) {
-		d_blocker /= samples;
-		d_blocker = DepthToMetricZ(idx, d_blocker);
-	}
+	return color;
 }
 
-inline float PCSS(float idx, float3 Q)
+float4 BlendTransparentLayers(
+	in float4 color,
+	in float4 transpColor1,
+	in float4 transpColor2,
+	in float4 transpColor3)
 {
-	float samples, zBlocker; // Metric Z
-	// Step 1: Blocker search
-	FindBlocker(idx, Q, zBlocker, samples);
-	if (samples < 1.0)
-		return 1.0;
-
-	// Step 2: Penumbra size
-	float penumbraRatio = clamp(PenumbraSize(Q.z, zBlocker), 0.0, 5.0);
-	//float filterRadiusUV = sm_light_size * penumbraRatio / sm_pcss_samples; // / MetricZToDepth(Q.z);
-	float filterRadiusUV = sm_pcss_radius * sm_light_size * penumbraRatio;
-	float radius = sm_pcss_radius + filterRadiusUV;
-	float filter_samples = sm_pcss_samples + penumbraRatio / 2.0;
-
-	// Step 3: Filtering
-	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, filterRadiusUV);
-	return ShadowMapPCF(idx, float3(Q.xy, MetricZToDepth(idx, Q.z/* + sm_bias*/)), sm_resolution, filter_samples, radius);
-	//return ShadowMapPCF(float3(Q.xy, MetricZToDepth(Q.z + sm_bias)), sm_resolution, sm_pcss_samples, penumbraRatio * sm_light_size * sm_pcss_radius);
+	// Blend the transparent layers now
+	//if (!ssao_debug)
+	{
+		color = PreMulBlend(transpColor1, color);
+		color = PreMulBlend(transpColor2, color);
+		color = PreMulBlend(transpColor3, color);
+	}
+	return color;
 }
-#endif
 
 PixelShaderOutput main(PixelShaderInput input)
 {
@@ -418,54 +323,58 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float2 input_uv_sub2 = input.uv * amplifyFactor2;
 	float2 input_uv_sub2  = input.uv * amplifyFactor;
 #ifdef INSTANCED_RENDERING
-	float3 color          = texColor.Sample(sampColor, float3(input.uv,input.viewId)).xyz;
-	float4 Normal         = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
-	float3 pos3D	      = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
-	float3 ssdo           = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
-	float3 ssdoInd        = texSSDOInd.Sample(samplerSSDOInd, float3(input_uv_sub2, input.viewId)).rgb;
+	float4 texelColor   = texColor.Sample(sampColor, float3(input.uv,input.viewId));
+	float4 Normal       = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
+	float3 pos3D	    = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
+	float3 ssdo         = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
+	//float3 ssdoInd    = texSSDOInd.Sample(samplerSSDOInd, float3(input_uv_sub2, input.viewId)).rgb;
+	float3 background   = texBackground.Sample(sampColor, float3(input.uv, input.viewId)).rgb;
+
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
-	float3 ssMask         = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
+	float3 ssaoMask     = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
+	float3 ssMask       = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
+	float4 transpColor1 = transp1.Sample(sampColor, float3(input.uv, input.viewId));
+	float4 transpColor2 = transp2.Sample(sampColor, float3(input.uv, input.viewId));
 #else
-    float3 color    = texColor.Sample(sampColor, input.uv).xyz;
-    float4 Normal   = texNormal.Sample(samplerNormal, input.uv);
-    float3 pos3D    = texPos.Sample(sampPos, input.uv).xyz;
-    float3 ssdo     = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-    float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float4 texelColor = texColor.Sample(sampColor, input.uv);
+	float4 Normal     = texNormal.Sample(samplerNormal, input.uv);
+	float3 pos3D      = texPos.Sample(sampPos, input.uv).xyz;
+	float3 ssdo       = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
+	//float3 ssdoInd  = texSSDOInd.Sample(samplerSSDOInd, input_uv_sub2).rgb;
+	float3 background = texBackground.Sample(sampColor, input.uv).rgb;
+
 	// Bent normals are supposed to encode the obscurance in their length, so
 	// let's enforce that condition by multiplying by the AO component: (I think it's already weighed; but this kind of enhances the effect)
 	//float3 bentN         = /* ssdo.y * */ texBent.Sample(samplerBent, input_uv_sub).xyz; // TBV
-    float3 ssaoMask = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-    float3 ssMask   = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float3 ssaoMask     = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
+	float3 ssMask       = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float4 transpColor1 = transp1.Sample(sampColor, input.uv);
+	float4 transpColor2 = transp2.Sample(sampColor, input.uv);
+	float4 reticleColor = reticleTex.Sample(sampColor, input.uv);
 #endif
+	float3 color          = texelColor.rgb;
 	float  mask           = ssaoMask.x;
 	float  gloss_mask     = ssaoMask.y;
 	float  spec_int_mask  = ssaoMask.z;
 	float  diff_int       = 1.0;
 	float  metallic       = mask / METAL_MAT;
-	float  nm_int_mask    = ssMask.x;
+	float  glass          = ssMask.x;
 	float  spec_val_mask  = ssMask.y;
-	float  shadeless_mask = ssMask.z;
-	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	// An area is "shadeless" if it's GLASS_MAT or above
-	float  shadeless      = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
-	shadeless = max(shadeless, shadeless_mask);
-	if (mask > EMISSION_LO) {
-		output.color = float4(color, 1);
-		return output;
-	}
+	float  shadeless      = ssMask.z;
+
+	const float blendAlpha = saturate(2.0 * Normal.w);
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
 	// For the deferred pass, we don't have an SSDO component, so:
 	// Set the ssdo component to 1 if ssdo is disabled
 	ssdo = lerp(1.0, ssdo, ssdo_enabled);
-	ssdoInd = lerp(0.0, ssdoInd, ssdo_enabled);
+	//ssdoInd = lerp(0.0, ssdoInd, ssdo_enabled);
 
 	// Toggle the SSDO component for debugging purposes:
 	ssdo = lerp(ssdo, 1.0, sso_disable);
-	ssdoInd = lerp(ssdoInd, 0.0, sso_disable);
+	//ssdoInd = lerp(ssdoInd, 0.0, sso_disable);
 
 	// Recompute the contact shadow here...
 	
@@ -483,25 +392,40 @@ PixelShaderOutput main(PixelShaderInput input)
 	//if (mask > 0.9 || Normal.w < 0.01) {
 	// If I remove the following, then the bloom mask is messed up!
 	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
+	/*
 	if (Normal.w < 0.475) {
 		output.color = float4(color, 1);
 		return output;
 	}
+	*/
+
+	if (shadeless >= 0.95)
+	{
+		output.color = float4(lerp(background, color, texelColor.a), 1);
+#ifdef INSTANCED_RENDERING
+		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
+#else
+		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2, reticleColor);
+#endif
+		return output;
+	}
+
 	// Avoid harsh transitions
 	// The substraction below should be 1.0 - Normal.w; but I see alpha = 0.5 coming from the normals buf
 	// because that gets written in PixelShaderTexture.hlsl in the alpha channel... I've got to check why
 	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
 	// or I'll get negative numbers
-	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
+	//shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
 	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
 	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
 	float distance_fade = enable_dist_fade * saturate((P.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
-	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
+	//shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
 	color = color * color; // Gamma correction (approx pow 2.2)
+
 	//float3 N = normalize(Normal.xyz);
-	float3 N = Normal.xyz;
+	float3 N = blendAlpha * Normal.xyz;
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
@@ -713,7 +637,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
 	float exponent = max(global_glossiness * gloss_mask, 0.05);
 	float spec_bloom_int = global_spec_bloom_intensity;
-	if (GLASS_LO <= mask && mask < GLASS_HI) {
+	//if (GLASS_LO <= mask && mask < GLASS_HI)
+	if (glass > 0.01)
+	{
 		exponent *= 2.0;
 		spec_bloom_int *= 3.0; // Make the glass bloom more
 	}
@@ -793,7 +719,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		// shadeless surfaces should still receive some amount of shadows
 		diffuse = lerp(diffuse, min(total_shadow_factor + 0.5, 1.0), shadeless);
 		contactShadow = lerp(contactShadow, 1.0, shadeless);
-		ssdoInd = lerp(ssdoInd, 0.0, shadeless);
+		//ssdoInd = lerp(ssdoInd, 0.0, shadeless);
 
 		// specular component
 		float3 eye_vec = normalize(-pos3D); // normalize(eye - pos3D);
@@ -815,16 +741,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		//spec_col = lerp(spec_col, 0.0, shadeless);
 		//spec_bloom = lerp(spec_bloom, 0.0, shadeless);
 
-		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
-		// intact
-		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
-		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
-
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * saturate(
 			color * diffuse +
-			global_spec_intensity * spec_col * spec +
-			/* diffuse_difference * */ /* color * */ ssdoInd); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
+			global_spec_intensity * spec_col * spec
+			/* + diffuse_difference * */ /* color * */ /* ssdoInd */); // diffuse_diff makes it look cartoonish, and mult by color destroys the effect
 		//tmp_bloom += /* min(shadow, contactShadow) */ contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 		tmp_bloom += total_shadow_factor * contactShadow * float4(LightIntensity * spec_col * spec_bloom, spec_bloom);
 	}
@@ -956,27 +877,17 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = 0.5 * ssdoInd;
 #endif
 
+	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
+	// In other words, this helps reduce halos around objects.
+	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
+	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
+	// In other words, this helps reduce halos around objects.
+	//output.color.a = texelColor.a;
+	//output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
+#ifdef INSTANCED_RENDERING
+	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
+#else
+	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2, reticleColor);
+#endif
 	return output;
-	//return float4(pow(abs(color), 1/gamma) * ssdo + ssdoInd, 1);
-
-
-	//color = saturate((ambient + diffuse) * color);
-	//ssao = enableSSAO ? ssao : 1.0f;
-
-	//return float4(ssdo, 1);
-
-	//return float4(color * ssao, 1);
-	//return float4(saturate(color * ssao + bentN * light_factor), 1);
-	//return float4(ssao, 1);
-
-	// Let's use SSAO to also lighten some areas:
-	//float3 screen_layer = 1 - (1 - color) * (1 - ssao * white_point);
-	//float3 mix = lerp(mult_layer, screen_layer, ssao.r);
-	//return float4(mix, 1);
-
-	//float3 HSV = RGBtoHSV(color);
-	//HSV.z *= ssao.r;
-	//HSV.z = ssao.r;
-	//color = HSVtoRGB(HSV);
-	//return float4(color, 1);
 }

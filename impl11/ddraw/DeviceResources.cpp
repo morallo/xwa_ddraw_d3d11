@@ -1738,10 +1738,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_renderTargetView.Release();
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
+	this->_backgroundBufferSRV.Release();
+	this->_transp1SRV.Release();
+	this->_transp2SRV.Release();
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferHdBackground.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
+	this->_backgroundBuffer.Release();
+	this->_backgroundBufferAsInput.Release();
+	this->_transpBuffer1.Release();
+	this->_transpBuffer2.Release();
+	this->_transpBufferAsInput1.Release();
+	this->_transpBufferAsInput2.Release();
 	if (this->_useMultisampling)
 		this->_shadertoyBufMSAA.Release();
 	this->_shadertoyBuf.Release();
@@ -1830,7 +1839,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_DCTextAsInputRTV.Release();
 	}
 
-	if (g_bEnableVR) {
+	{
 		this->_ReticleBufMSAA.Release();
 		this->_ReticleBufAsInput.Release();
 		this->_ReticleRTV.Release();
@@ -1869,6 +1878,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewNormBuf.Release();
 		this->_renderTargetViewSSAOMask.Release();
 		this->_renderTargetViewSSMask.Release();
+		this->_transp1RTV.Release();
+		this->_transp2RTV.Release();
 		//this->_renderTargetViewEmissionMask.Release();
 		if (g_bUseSteamVR) {
 			this->_offscreenBufferBloomMaskR.Release();
@@ -2183,7 +2194,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			BACKBUFFER_FORMAT,
 			this->_backbufferWidth,
 			this->_backbufferHeight,
-			(g_bUseSteamVR)? 2 : 1, //If we want to render in single-pass instanced stereo, we need Texture2DArray with 1 slice per eye
+			g_bUseSteamVR ? 2 : 1, // If we want to render in single-pass instanced stereo, we need Texture2DArray with 1 slice per eye
 			1,
 			D3D11_BIND_RENDER_TARGET,
 			D3D11_USAGE_DEFAULT,
@@ -2226,6 +2237,21 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
 			}
+
+			step = "Background";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_backgroundBuffer);
+			if (FAILED(hr))
+				goto out;
+
+			step = "Transparency1";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBuffer1);
+			if (FAILED(hr))
+				goto out;
+
+			step = "Transparency2";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBuffer2);
+			if (FAILED(hr))
+				goto out;
 
 			if (g_bUseSteamVR) {
 				step = "_offscreenBufferR";
@@ -2273,7 +2299,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// ReticleBufMSAA
-			if (g_bEnableVR) {
+			{
 				step = "_ReticleBufMSAA";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ReticleBufMSAA);
 				if (FAILED(hr)) {
@@ -2499,10 +2525,25 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
+			step = "backgroundBufferAsInput";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_backgroundBufferAsInput);
+			if (FAILED(hr))
+				goto out;
+
+			step = "transpBufferAsInput1";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBufferAsInput1);
+			if (FAILED(hr))
+				goto out;
+
+			step = "transpBufferAsInput2";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBufferAsInput2);
+			if (FAILED(hr))
+				goto out;
+
 			// ReticleBufAsInput
 			// Not rendered in stereo.
 			desc.ArraySize = 1;
-			if (g_bEnableVR) {
+			{
 				step = "_ReticleBufAsInput";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ReticleBufAsInput);
 				if (FAILED(hr)) {
@@ -3004,6 +3045,22 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
+			step = "backgroundBufferSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_backgroundBufferAsInput,
+				&shaderResourceViewDesc, &this->_backgroundBufferSRV);
+			if (FAILED(hr))
+				goto out;
+
+			step = "transp1SRV";
+			if (FAILED(this->_d3dDevice->CreateShaderResourceView(this->_transpBufferAsInput1,
+				&shaderResourceViewDesc, &this->_transp1SRV)))
+				goto out;
+
+			step = "transp2SRV";
+			if (FAILED(this->_d3dDevice->CreateShaderResourceView(this->_transpBufferAsInput2,
+				&shaderResourceViewDesc, &this->_transp2SRV)))
+				goto out;
+
 			step = "_shadertoySRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBuf, &shaderResourceViewDesc, &this->_shadertoySRV);
 			if (FAILED(hr)) {
@@ -3021,9 +3078,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// _ReticleSRV
-			// The reticle is not rendered in stereo
+			// The reticle is not rendered in stereo:
 			shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			if (g_bEnableVR) {
+			{
 				step = "_ReticleSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_ReticleBufAsInput, &shaderResourceViewDesc, &this->_ReticleSRV);
 				if (FAILED(hr)) {
@@ -3444,8 +3501,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			goto out;
 		}
 
+		step = "_transp1RTV";
+		if (FAILED(this->_d3dDevice->CreateRenderTargetView(this->_transpBuffer1,
+			&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_transp1RTV)))
+			goto out;
+
+		step = "_transp2RTV";
+		if (FAILED(this->_d3dDevice->CreateRenderTargetView(this->_transpBuffer2,
+			&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_transp2RTV)))
+			goto out;
+
 		// _ReticleRTV
-		if (g_bEnableVR) {
+		{
 			step = "_ReticleRTV";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_ReticleBufMSAA, &GetRtvDesc(this->_useMultisampling, false), &this->_ReticleRTV);
 			if (FAILED(hr)) goto out;
@@ -5682,9 +5749,11 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		bool bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
 
-		if (!g_bEnableVR || bRenderToDC) {
+		if (!g_bEnableVR || bRenderToDC)
+		{
 			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
 			// The map lines (both the grid and the vertical lines) are drawn here
+			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 			if (bMapMode)
 				_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 

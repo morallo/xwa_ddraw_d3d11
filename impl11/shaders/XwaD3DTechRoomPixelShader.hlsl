@@ -41,14 +41,9 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	// This is the per-vertex Gouraud-shaded color coming from the VR:
-	//float4 color			= float4(input.color.xyz, 1.0f);
-	float4 texelColor		= texture0.Sample(sampler0, input.tex);
-	float3 normalMapColor	= bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
-	//uint bIsBlastMark		= special_control & SPECIAL_CONTROL_BLAST_MARK;
-	uint ExclusiveMask		= special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
-	// TODO: Do we need blast marks in the Tech Room?
-	//if (bIsBlastMark) texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+	float4 texelColor     = texture0.Sample(sampler0, input.tex);
+	float3 normalMapColor = bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
+	uint   ExclusiveMask  = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 
 	float alpha = texelColor.w;
 	const float3 P = input.pos3D.xyz;
@@ -170,9 +165,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.rgb = lerp(output.color.rgb, texelColor.rgb, V);
 
 		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
+		output.ssaoMask.r = 0;
+		output.ssMask.ba  = bloom_alpha;
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
 		// Apply the bloom strength to this lightmap
@@ -181,26 +175,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		//	discard;
 		return output;
 	}
-
-	// The HUD is shadeless and has transparency. Some planets in the background are also 
-	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
-	// So glass is a non-shadeless surface with transparency:
-#ifdef DISABLED
-	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
-		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
-		&& alpha < 0.95) /* This texture has transparency */
-		//&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
-	{
-		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask.r = GLASS_MAT;
-		output.ssaoMask.gba = 1.0;
-		// Also write the normals of this surface over the current background
-		output.normal.a = 1.0;
-		output.ssMask.r = 0.0; // No normal mapping
-		output.ssMask.g = 1.0; // White specular value
-		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
-	}
-#endif
 
 	return output;
 }

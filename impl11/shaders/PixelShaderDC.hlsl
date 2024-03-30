@@ -135,15 +135,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
 
-	// DEBUG: Display uvs as colors. Some meshes have UVs beyond the range [0..1]
-		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
-		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
-		//output.ssMask = 0;
-		//return output;
-	// DEBUG
-		//return 0.7*hud_texelColor + 0.3*texelColor; // DEBUG DEBUG DEBUG!!! Remove this later! This helps position the elements easily
-	
-
 	// HLSL packs each element in an array in its own 4-vector (16-byte) row. So src[0].xy is the
 	// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
 	// dst uv coords
@@ -208,9 +199,10 @@ PixelShaderOutput main(PixelShaderInput input)
 			coverColor.xyz = HSVtoRGB(HSV);
 			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
 			brightness = 1.0;
-			output.ssaoMask.r  = SHADELESS_MAT;
-			output.ssaoMask.ga = 1; // Maximum glossiness on light areas?
+			output.ssaoMask.r  = 0;
+			output.ssaoMask.ga = 1;    // Maximum glossiness on light areas?
 			output.ssaoMask.b  = 0.15; // Low spec intensity
+			output.ssMask.b    = 1.0;  // Shadeless material
 		}
 		// Display the dynamic cockpit element only where the texture cover is transparent:
 		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
@@ -224,13 +216,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		// DC areas are shadeless, have high glossiness and low spec intensity
 		// if coverAlpha is 1, this is the cover texture
 		// if coverAlpha is 0, this is the hole in the cover texture
-		output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
+		//output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
+		output.ssaoMask.rgb = lerp(float3(0, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
 		output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, coverAlpha); // Normal Mapping intensity, Specular Value
 		output.ssaoMask.a   = max(output.ssaoMask.a, (1.0 - coverAlpha));
 		output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
+		output.ssMask.b     = 1.0 - coverAlpha; // Make this area shadeless
 		// After all the blending with the cover texture is finished, the final color should
 		// be opaque. Otherwise transparent areas will look black when shading is off.
-		coverColor.a			= 1.0f;
+		coverColor.a		= 1.0f;
 		coverAlpha			= coverColor.a;
 	}
 	else {
@@ -242,22 +236,23 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 		//diffuse = 1.0;
 		// SSAOMask, Glossiness x 128, Spec_Intensity, alpha
-		output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
-		output.ssMask = float4(0.0, 1.0, 0.0, 1.0); // (unused), White Spec Val, unused
+		//output.ssaoMask = float4(SHADELESS_MAT, 1, 0.15, 1);
+		output.ssaoMask = float4(0, 1, 0.15, 1);
+		output.ssMask = float4(0.0, 1.0, 1.0, 1.0); // Glass, White Spec Val, shadeless
 	}
 	// Let's make the text and other DC elements emissive so that they are readable even in low lighting conditions
-	output.ssaoMask.r = lerp(output.ssaoMask.r, EMISSION_MAT, hud_Lightness);
+	output.ssMask.b = lerp(output.ssMask.b, 1.0, hud_Lightness);
 	
 	// At this point, coverColor is the blended cover texture (if it exists) and the HUD contents
 	if (dc_bloom) {
 		// coverColor may have changed, we need to convert to HSV again
 		float3 HSV = RGBtoHSV(coverColor.xyz);
 		if (HSV.z >= 0.8) {
-			//diffuse = 1.0;
-			output.bloom = float4(fBloomStrength * coverColor.xyz, 1);
-			output.ssaoMask.r = SHADELESS_MAT;
+			output.bloom       = float4(fBloomStrength * coverColor.xyz, 1);
+			output.ssaoMask.r  = 0;
 			output.ssaoMask.ga = 1; // Maximum glossiness on light areas
-			output.ssaoMask.b = 0.15; // Low spec intensity
+			output.ssaoMask.b  = 0.15; // Low spec intensity
+			output.ssMask.ba   = 1; // shadeless
 		}
 	}
 
@@ -267,7 +262,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Text DC elements can be made to float inside the cockpit. In that case, we might want
 	// them to be transparent and this code achieves that.
 	if (transparent) {
-		float alpha = 4.0 * dot(0.333, output.color.rgb);
+		const float alpha = 4.0 * dot(0.333, output.color.rgb);
 		output.color.a    = alpha;
 		output.bloom      = 0;
 		output.pos3D      = 0;

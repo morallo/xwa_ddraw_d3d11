@@ -253,10 +253,10 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_LensFlare = false;
 	this->is_Sun = false;
 	this->is_3DSun = false;
-	//this->AssociatedXWALight = -1;
 	this->is_Debris = false;
 	this->is_Trail = false;
 	this->is_Spark = false;
+	this->is_HitEffect = false;
 	this->is_CockpitSpark = false;
 	this->is_Chaff = false;
 	this->is_Missile = false;
@@ -265,7 +265,6 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_SkydomeLight = false;
 	this->is_BlastMark = false;
 	this->is_DS2_Reactor_Explosion = false;
-	//this->is_DS2_Energy_Field = false;
 	this->is_MapIcon = false;
 	this->WarningLightType = NONE_WLIGHT;
 	this->ActiveCockpitIdx = -1;
@@ -980,6 +979,8 @@ void Direct3DTexture::TagTexture() {
 		// Catch the sparks
 		if (isInVector(surface->_cname, Sparks_ResNames))
 			this->is_Spark = true;
+		if (isInVector(surface->_cname, HitEffects_ResNames))
+			this->is_HitEffect = true;
 		if (strstr(surface->_cname, "dat,22007,") != NULL)
 			this->is_CockpitSpark = true;
 		if ((strstr(surface->_cname, "dat,5000,") != NULL) ||
@@ -1585,10 +1586,10 @@ HRESULT Direct3DTexture::Load(
 	this->is_LensFlare = d3dTexture->is_LensFlare;
 	this->is_Sun = d3dTexture->is_Sun;
 	this->is_3DSun = d3dTexture->is_3DSun;
-	//this->AssociatedXWALight = d3dTexture->AssociatedXWALight;
 	this->is_Debris = d3dTexture->is_Debris;
 	this->is_Trail = d3dTexture->is_Trail;
 	this->is_Spark = d3dTexture->is_Spark;
+	this->is_HitEffect = d3dTexture->is_HitEffect;
 	this->is_CockpitSpark = d3dTexture->is_CockpitSpark;
 	this->is_Chaff = d3dTexture->is_Chaff;
 	this->is_Missile = d3dTexture->is_Missile;
@@ -1598,7 +1599,6 @@ HRESULT Direct3DTexture::Load(
 	this->is_DAT = d3dTexture->is_DAT;
 	this->is_BlastMark = d3dTexture->is_BlastMark;
 	this->is_DS2_Reactor_Explosion = d3dTexture->is_DS2_Reactor_Explosion;
-	//this->is_DS2_Energy_Field = d3dTexture->is_DS2_Energy_Field;
 	this->is_MapIcon = d3dTexture->is_MapIcon;
 	this->WarningLightType = d3dTexture->WarningLightType;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;

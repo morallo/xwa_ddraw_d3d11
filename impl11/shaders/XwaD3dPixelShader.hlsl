@@ -11,51 +11,12 @@ SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D normalMap : register(t13);
 
-//#define ORIGINAL_D3D_RENDERER_SHADERS
-#ifdef ORIGINAL_D3D_RENDERER_SHADERS
-// This is the original PixelShaderInput used in the D3dRendererHook
-struct PixelShaderInput
-{
-	float4 pos		: SV_POSITION;
-	float4 position : COLOR2;
-	float4 normal	: COLOR1;
-	float2 tex		: TEXCOORD;
-	float4 color		: COLOR0;
-};
-
-// This is the original Pixel shader used in the D3dRendererHook
-float4 main(PixelShaderInput input) : SV_TARGET
-{
-	//if (input.color.w == 1.0f)
-	//{
-	//	return input.color;
-	//}
-
-	float4 color = float4(input.color.xyz, 1.0f);
-	float4 texelColor = texture0.Sample(sampler0, input.tex);
-
-	float4 c = texelColor * color;
-
-	if (renderTypeIllum == 1)
-	{
-		float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
-		c.xyz += texelColorIllum.xyz * texelColorIllum.w;
-		c = saturate(c);
-	}
-
-	// DEBUG: Display normal data
-	c.rgb = (normalize(input.normal.xyz) + 1.0) * 0.5;
-	return c;
-}
-#else
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
 	float2 tex	  : TEXCOORD;
-	//float4 color  : COLOR0;
-	//float4 tangent : TANGENT;
 };
 
 struct PixelShaderOutput
@@ -71,27 +32,39 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	// This is the per-vertex Gouraud-shaded color coming from the VR:
-	//float4 color			= float4(input.color.xyz, 1.0f);
-	float4 texelColor		= texture0.Sample(sampler0, input.tex);
+	// This is the per-vertex Gouraud-shaded color coming from the VS:
+	//float4 color = float4(input.color.xyz, 1.0f);
+	float4 texelColor = texture0.Sample(sampler0, input.tex);
 
-	const uint bIsBlastMark	 = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	const uint bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
 	const uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	if (bIsBlastMark)
-		texelColor			= texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
-	float  alpha			= texelColor.w;
-	float3 P				= input.pos3D.xyz;
-	float  SSAOAlpha		= saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	const float alpha = texelColor.w;
+	float3 P = input.pos3D.xyz;
+	float SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	
 	// Zero-out the bloom mask and provide default output values
-	output.bloom			= 0;
-	output.color			= float4(brightness * texelColor.xyz, texelColor.w);
-	output.pos3D			= float4(P, SSAOAlpha);
-	output.ssMask			= 0;
+	output.bloom = 0;
+	output.color = float4(brightness * texelColor.xyz, texelColor.w);
+	output.pos3D = float4(P, SSAOAlpha);
+	output.ssMask = 0;
 
 	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE && alpha >= 0.95)
 		output.color.rgb = float3(0.7, 0.7, 0.7);
+
+	if (bIsShadeless && bIsTransparent &&
+		renderType != 2) // Do not process lasers (they are also transparent and shadeless!)
+	{
+		// Shadeless and transparent texture, this is cockpit glass or similar, we don't need to
+		// worry about setting fAmbient because this draw call will be rendered on transpBuffer1
+		// ssaoMask: Material, Glossiness, Specular Intensity
+		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
+		//output.color.a = sqrt(output.color.a); // Gamma correction (approx)
+		output.normal = 0;
+		return output;
+	}
 
 	float3 N = normalize(input.normal.xyz);
 	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
@@ -117,20 +90,20 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: unused (Normal Mapping Intensity), Specular Value, Shadeless
-	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
+	output.ssMask = float4(0, fSpecVal, max(fAmbient, bIsShadeless), alpha);
 
-	// Process lasers
-	if (renderType == 2)
+	// Process lasers and missiles and probably other forms of ordinance as well...
+	// That's right, renderType is 2 for missiles!
+	if (renderType == 2 && ExclusiveMask != SPECIAL_CONTROL_MISSILE)
 	{
 		// Do not write the 3D position
 		output.pos3D.a = 0;
 		// Do not write the normal
 		output.normal.a = 0;
-		output.ssaoMask.rgb = 0;
-		output.ssaoMask.a = alpha; // We should let the regular material properties on lasers
-
-		output.ssMask.rg = 0;
-		output.ssMask.ba = alpha; // Make lasers shadeless and blend these properties with the current background
+		// Lasers are now rendered to a separate shadeless layer, so we don't need to
+		// write any material properties:
+		output.ssaoMask = 0;
+		output.ssMask = 0;
 
 		// This is a laser texture, process the bloom mask accordingly
 		float3 HSV = RGBtoHSV(texelColor.xyz);
@@ -140,8 +113,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		HSV.z *= 2.0;
 		float3 color = HSVtoRGB(HSV);
 		output.color = float4(color, alpha);
-		output.bloom = float4(color, alpha);
-		output.bloom.rgb *= fBloomStrength;
+		output.bloom = float4(fBloomStrength * color, alpha);
 		return output;
 	}
 
@@ -149,57 +121,76 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.color.rgb = 0.75;
 	//return output;
 
+	if (ExclusiveMask == SPECIAL_CONTROL_MISSILE)
+	{
+		output.color.a = alpha;
+		output.normal.a = 0.5 * alpha;
+		output.ssMask.ba = alpha; // Make it all shadeless
+		// Missiles may have illumination maps, so the next block sometimes is executed too:
+	}
+
 	// In the D3dRendererHook, lightmaps and regular textures are rendered on the same draw call.
 	// Here's the case where a lightmap has been provided:
 	if (renderTypeIllum == 1)
 	{
 		// We have a lightmap texture
-		float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
-		float3 color = texelColorIllum.rgb;
-		float alpha = texelColorIllum.a;
+		const float4 texelColorIllum = texture1.Sample(sampler0, input.tex);
+		// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to make it [0, 1]
+		const float alpha = texelColorIllum.a * 5.0;
+		float3 illumColor = texelColorIllum.rgb;
 		// This is a light texture, process the bloom mask accordingly
-		float3 HSV = RGBtoHSV(color);
+		float3 HSV = RGBtoHSV(illumColor);
 		float val = HSV.z;
 		// Make the light textures brighter in 32-bit mode
 		HSV.z *= 1.25;
-		// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to make it [0, 1]
-		alpha *= 10.0;
-		color = HSVtoRGB(HSV);
 
-		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
-		output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
-		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
-		// Replace the current color with the lightmap color, where appropriate:
-		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
+		illumColor = HSVtoRGB(HSV);
+
+		const float valFactor = bIsTransparent ? 1.0 : smoothstep(0.75, 0.85, val);
+		// The first term below uses "val" (lightness) to apply bloom on light areas. That's how we avoid
+		// applying bloom on dark areas.
+		//const float bloom_alpha = valFactor * smoothstep(0.45, 0.55, alpha);
+		const float bloom_alpha = valFactor * smoothstep(0.2, 0.90, alpha);
 		// Apply the bloom strength to this lightmap
-		output.bloom.rgb *= fBloomStrength;
+		output.bloom = float4(fBloomStrength * bloom_alpha * val * illumColor, bloom_alpha);
+		// Write an emissive material where there's bloom:
+		output.ssaoMask.r = lerp(output.ssaoMask.r, 0, bloom_alpha);
+		//output.ssMask.ba  = bloom_alpha; // Shadeless area
+		output.ssMask.b = lerp(output.ssMask.b, 1, bloom_alpha); // Shadeless area
+		// Replace the current color with the lightmap color, where appropriate:
+		output.color.rgb = lerp(output.color.rgb, illumColor, bloom_alpha);
+
 		if (bInHyperspace && output.bloom.a < 0.5)
 			discard;
-
 		return output;
 	}
 
 	// The HUD is shadeless and has transparency. Some planets in the background are also 
 	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
 	// So glass is a non-shadeless surface with transparency:
-	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
-		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
-		&& alpha < 0.95 /* This texture has transparency */
-		&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
+	if (!bIsShadeless  &&
+	    bIsTransparent &&
+	    !bIsBlastMark) // Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for "special_control.bBlastMark = 1;"
 	{
 		// Change the material and do max glossiness and spec_intensity
-		output.ssaoMask.r = GLASS_MAT;
-		output.ssaoMask.gba = 1.0;
+		//output.ssaoMask = float4(0, 1, 1, 1);
+		// If alpha < 0.95, then we have a glassy surface, so let's do a smooth threshold for
+		// the transition:
+		// glassThreshold: 0 --> glass
+		// glassThreshold: 1 --> opaque
+		const float glassThreshold = smoothstep(0.95, 1.0, alpha);
+		output.ssaoMask = float4(lerp(float3(0, 1, 1), output.ssaoMask.rgb, glassThreshold), 1);
+
 		// Also write the normals of this surface over the current background
 		output.normal.a = 1.0;
-		output.ssMask.r = 0.0; // No normal mapping
-		output.ssMask.g = 1.0; // White specular value
-		output.ssMask.a = 1.0; // Make glass "solid" in the mask texture
+
+		float3 glass = float3(1.0, // Glass material
+		                      1.0, // White specular value
+		                      output.ssMask.b); // Shadeless/Ambient
+		output.ssMask = float4(lerp(glass, output.ssMask.rgb, glassThreshold), 1);
+		// The bloom should only be pass-through on transparent areas:
+		output.bloom = lerp(output.bloom, float4(0, 0, 0, alpha), glassThreshold);
 	}
 
 	return output;
 }
-#endif

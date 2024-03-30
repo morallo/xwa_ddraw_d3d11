@@ -1365,20 +1365,20 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	}
 	else if (_stricmp(param, "NoBloom") == 0) {
 		curMaterial->NoBloom = (bool)fValue;
-		log_debug("[DBG] NoBloom: %d", curMaterial->NoBloom);
+		//log_debug("[DBG] NoBloom: %d", curMaterial->NoBloom);
 	}
 	// Shadow Mapping settings
 	else if (_stricmp(param, "shadow_map_mult_x") == 0) {
 		g_ShadowMapping.shadow_map_mult_x = fValue;
-		log_debug("[DBG] [SHW] shadow_map_mult_x: %0.3f", fValue);
+		//log_debug("[DBG] [SHW] shadow_map_mult_x: %0.3f", fValue);
 	}
 	else if (_stricmp(param, "shadow_map_mult_y") == 0) {
 		g_ShadowMapping.shadow_map_mult_y = fValue;
-		log_debug("[DBG] [SHW] shadow_map_mult_y: %0.3f", fValue);
+		//log_debug("[DBG] [SHW] shadow_map_mult_y: %0.3f", fValue);
 	}
 	else if (_stricmp(param, "shadow_map_mult_z") == 0) {
 		g_ShadowMapping.shadow_map_mult_z = fValue;
-		log_debug("[DBG] [SHW] shadow_map_mult_z: %0.3f", fValue);
+		//log_debug("[DBG] [SHW] shadow_map_mult_z: %0.3f", fValue);
 	}
 	// Lava Settings
 	else if (_stricmp(param, "Lava") == 0) {

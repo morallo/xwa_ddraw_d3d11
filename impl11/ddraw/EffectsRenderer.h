@@ -62,7 +62,7 @@ protected:
 	bool _bModifiedShaders, _bModifiedPixelShader, _bModifiedBlendState, _bModifiedSamplerState, _bIsActiveCockpit;
 	bool _bIsNoisyHolo, _bWarheadLocked, _bIsTargetHighlighted, _bIsHologram, _bRenderingLightingEffect;
 	bool _bExternalCamera, _bCockpitDisplayed, _bIsTransparentCall;
-	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady; // _bThrottleTransformReady, _bThrottleRotAxisToZPlusReady;
+	bool _bShadowsRenderedInCurrentFrame, _bJoystickTransformReady;
 	bool _bHangarShadowsRenderedInCurrentFrame;
 
 	Direct3DTexture *_lastTextureSelected = nullptr;
@@ -74,6 +74,7 @@ protected:
 	Matrix4 _throttleMeshTransform;
 	AABB _hangarShadowAABB;
 	Matrix4 _hangarShadowMapRotation;
+	TransparentLayerSelector _overrideRTV = TRANSP_LYR_NONE;
 
 	VertexShaderCBuffer _oldVSCBuffer;
 	PixelShaderCBuffer _oldPSCBuffer;
@@ -130,7 +131,7 @@ protected:
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
-	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye=false);
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable);
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 	Matrix4 GetShadowMapLimits(const AABB &aabb, float *OBJrange, float *OBJminZ);
 

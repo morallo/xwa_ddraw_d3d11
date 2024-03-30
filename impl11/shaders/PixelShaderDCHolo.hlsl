@@ -153,7 +153,7 @@ float4 hologram(float2 p, float4 bgColor, out float shadeless_alpha)
 	//bgColor.rgb *= scans;
 	//bgColor.a *= saturate(scans);
 
-	bgColor.a = lerp(bgColor.a, 0.0, dout);
+	bgColor.a = HOLOGRAM_ALPHA * lerp(bgColor.a, 0.0, dout);
 	//shadeless_alpha = lerp(1.0, 0.0, din);
 	//din = lerp(din, 0.0, din); --> This creates a square margin
 	return bgColor;
@@ -222,38 +222,17 @@ PixelShaderOutput main(PixelShaderInput input)
 	bgColor.rgb *= 0.2 * (0.5 + 0.5 * noise2(input.tex.xy));
 
 	float holo_alpha = bgColor.a;
-	//float holo_alpha = 1.0;
 
-	//output.ssaoMask.r = PLASTIC_MAT;
-	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
-	//output.ssaoMask.b = DEFAULT_SPEC_INT;   // Default spec intensity
-	//output.ssaoMask.a = 0.0;
-	// The material is Plastic because that's material 0. If we set it to SHADELESS_MAT,
-	// that's 0.75, so this material will get blended from 0.75 down 0.0, making a hard
-	// edge as the material properties change. Blending non-plastic materials makes no
-	// sense. Using a plastic material, we avoid blending the material and keep the soft
-	// edges -- we just need to kill all the glossiness.
-	output.ssaoMask = float4(PLASTIC_MAT, 0.0, 0.0, 0.0 /* coverAlpha */);
-
-	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(0.0, 0.0, 1.0, 0.0);
-
-	output.color      = bgColor;
-	output.bloom	  = 0.5 * bgColor;
-	output.bloom.a    = holo_alpha;
-	output.ssaoMask.a = holo_alpha;
-	output.ssMask.a   = shadeless_alpha;
+	output.color    = bgColor;
+	output.bloom	= 0.5 * bgColor;
+	output.bloom.a  = holo_alpha;
+	// The holograms are now rendered to a transparent layer which is itself shadeless.
+	// No need to specify a material or make this render shadeless explicitly.
+	output.ssaoMask = 0;
+	output.ssMask   = 0;
 
 	// Render the captured Dynamic Cockpit buffer into the cockpit destination textures. 
 	// We assume this shader will be called iff DynCockpitSlots > 0
-
-	// DEBUG: Display uvs as colors. Some meshes have UVs beyond the range [0..1]
-		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
-		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
-		//output.ssMask = 0;
-		//return output;
-	// DEBUG
-		//return 0.7*hud_texelColor + 0.3*texelColor; // DEBUG DEBUG DEBUG!!! Remove this later! This helps position the elements easily
 
 	// HLSL packs each element in an array in its own 4-vector (16-byte) row. So src[0].xy is the
 	// upper-left corner of the box and src[0].zw is the lower-right corner. The same applies to
@@ -284,11 +263,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			hud_texelColor.a = saturate(dc_brightness * max(hud_texelColor.a, textAlpha));
 			hud_texelColor = saturate(intensity * hud_texelColor);
 			float hud_alpha = hud_texelColor.a;
-			// We can make the text shadeless so that it's easier to read.
+			// We can make the text bloom so that it's easier to read.
 			if (hud_alpha > 0.5) {
-				output.ssaoMask.r = SHADELESS_MAT;
-				output.ssaoMask.a = 1.0;
-				output.bloom = 0.7 * float4(hud_texelColor);
+				output.bloom      = 0.7 * float4(hud_texelColor);
 			}
 			
 			// Add the background color to the dynamic cockpit display:
@@ -310,7 +287,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		float4 nvideo = output.color * lerp(speckle_noise, 1.0, fadeIn);
 		output.color = lerp(0.0, nvideo, clamp(fadeIn * 3.0, 0.0, 1.0));
 		output.bloom = lerp(0.0, 2.0 * nvideo, clamp(fadeIn, 0.0, 1.0));
-		output.ssMask.a = min(output.ssMask.a, output.color.a);
 	}
 	//output.color = clamp(3.0 * (noise(30.0 * float3(input.tex, 20.0 * iTime)) - 0.5), 0.0, 1.0);
 	//output.bloom = 0.15 * output.color;

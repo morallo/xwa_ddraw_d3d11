@@ -412,7 +412,7 @@ typedef struct {
 } special_control_bitfield;
 
 // See PixelShaderTextureCommon.h for an explanation of these settings
-typedef struct PixelShaderCBStruct {
+struct PixelShaderCBuffer {
 	float brightness;			// Used to control the brightness of some elements -- mostly for ReShade compatibility
 	uint32_t DynCockpitSlots;
 	uint32_t bUseCoverTexture;
@@ -465,7 +465,7 @@ typedef struct PixelShaderCBStruct {
 	float rand0;
 	float rand1;
 	float rand2;
-	float PS_unused0;
+	bool  bIsTransparent;
 	// 192 bytes
 
 	float2 uvSrc0;
@@ -475,7 +475,7 @@ typedef struct PixelShaderCBStruct {
 	float2 uvOffset;
 	float2 uvScale;
 	// 224 bytes
-} PixelShaderCBuffer;
+};
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
 typedef struct DCPixelShaderCBStruct {

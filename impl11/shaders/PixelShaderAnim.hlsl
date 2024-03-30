@@ -94,11 +94,20 @@ PixelShaderOutput main(PixelShaderInput input)
 		ScreenLyrBloom = fOverlayBloomPower * val * layerColor;
 	}
 
-	float  alpha = texelColor.a;
+	//float  alpha = texelColor.a;
+	// The offscreenBuffer can now have transparency because nothing has been rendered to it.
+	// Previously, it always had a solid color. So now we need to check if there is actually
+	// transparency to keep the alpha, otherwise we force the surface to be opaque.
+	float alpha = bIsTransparent ? texelColor.a : 1;
 	float3 HSV = RGBtoHSV(texelColor.rgb);
 
 	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
-		alpha = HSV.z;
+	{
+		alpha = dot(float3(0.299, 0.587, 0.114), texelColor.rgb);
+		// Using the new render strategy (redirecting transparent output to its own layer)
+		// requires the gamma compensation to be done here...
+		//alpha = sqrt(alpha);
+	}
 
 	float4 texelColorLight = AuxColorLight * texture1.Sample(sampler0, UV);
 	float  alphaLight = texelColorLight.a;
@@ -135,7 +144,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// material stays shadeless. This isn't a proper fix. Instead, we should get rid of
 	// the multiple materials in channel ssaoMask.r and instead just keep separate channels
 	// for metallicity, glossiness, etc. This should work for now, though.
-	output.ssaoMask = float4(fSSAOMaskVal/alpha, glossiness, specInt, texelColor.a);
+	//output.ssaoMask = float4(fSSAOMaskVal/alpha, glossiness, specInt, texelColor.a);
+	// We now have separate channels for metallicity and glass, so let's use the regular formula:
+	output.ssaoMask = float4(fSSAOMaskVal, glossiness, specInt, texelColor.a);
 	// SS Mask: unused, Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, fAmbient, texelColor.a);
 
@@ -153,18 +164,21 @@ PixelShaderOutput main(PixelShaderInput input)
 		//alpha *= 10.0; <-- Main difference with XwaD3dPixelShader
 		colorLight = saturate(HSVtoRGB(HSVLight)); // <-- Difference wrt XwaD3dPixelShader
 		
-		float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
+		// The first term uses "val" (lightness) to apply bloom on light areas. That's how we avoid
+		// applying bloom on dark areas.
+		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
+		//const float bloom_alpha = smoothstep(0.2, 0.90, alpha);
 		output.bloom = float4(bloom_alpha * val * colorLight, bloom_alpha);
 		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
+		output.ssaoMask.r = 0;
+		output.ssMask.ba = bloom_alpha;
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, colorLight, alphaLight);
 		//output.color.a = max(output.color.a, alphaLight);
 		// Apply the bloom strength to this lightmap
 		output.bloom.rgb *= fBloomStrength;
-		if (ExclusiveMaskLight == SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK) {
+		if (ExclusiveMaskLight == SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK)
+		{
 			output.bloom = lerp(output.bloom, float4(0, 0, 0, 1), alphaLight);
 			output.ssaoMask = lerp(float4(0, 0, 0, 1), float4(output.ssaoMask.rgb, alphaLight), alphaLight);
 			output.ssMask = lerp(float4(0, 0, 0, 1), float4(output.ssMask.rgb, alphaLight), alphaLight);
@@ -176,6 +190,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		//	discard;
 	}
 	output.bloom = max(output.bloom, ScreenLyrBloom);
+
+	//if (bIsShadeless)
+	//	output.ssMask.ba = alpha;
 
 	return output;
 }

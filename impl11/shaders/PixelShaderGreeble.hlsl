@@ -213,14 +213,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	// DEBUG
-		//output.color = float4(frac(input.tex.xy), 0, 1); // DEBUG: Display the uvs as colors
-		//output.ssaoMask = float4(SHADELESS_MAT, 0, 0, 1);
-		//output.ssMask = 0;
-		//output.normal = 0;
-		//return output;
-	// DEBUG
-
 	float3 N = normalize(input.normal.xyz);
 	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 
@@ -243,14 +235,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = float4(0, fSpecVal, fAmbient, alpha);
 
 	// We shouldn't call this shader for smoke, lasers or engine glow
-	
-	// Never call this shader for the following:
-	// The HUD is shadeless and has transparency. Some planets in the background are also 
-	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
-	// So glass is a non-shadeless surface with transparency:
-	//if (fSSAOMaskVal < SHADELESS_LO && !bIsShadeless && alpha < 0.95) {
-	
-	// Original code:
 	output.color = float4(brightness * texelColor.xyz, texelColor.w);
 
 	bool bIsLightmapGreeble = (GreebleControl & 0x20000) != 0x0;
@@ -283,9 +267,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
 		output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
 		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
+		output.ssaoMask.r = 0;
+		output.ssMask.ba  = bloom_alpha;
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, color, bloom_alpha);
 		// Apply the bloom strength to this lightmap

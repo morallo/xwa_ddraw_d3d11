@@ -96,6 +96,8 @@ public:
 	bool is_Trail;
 	// True for sparks (to control Bloom)
 	bool is_Spark;
+	// True for hit effects
+	bool is_HitEffect;
 	// True for cockpit sparks (to control Bloom)
 	bool is_CockpitSpark;
 	// True for the chaff dat
@@ -114,8 +116,6 @@ public:
 	bool is_BlastMark;
 	// True if this is a reactor-core explosion texture
 	bool is_DS2_Reactor_Explosion;
-	// True if this is the energy field surrounding the reactor core.
-	//bool is_DS2_Energy_Field;
 	// True if this is a map icon
 	bool is_MapIcon;
 	// The following encodes whether this is a warning light or not (and which type)

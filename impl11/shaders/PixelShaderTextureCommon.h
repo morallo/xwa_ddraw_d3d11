@@ -61,7 +61,7 @@ cbuffer ConstantBuffer : register(b9)
 	float rand0;				// Used as a random values in PixelShaderAnim.hlsl, also used for Tech Room holos
 	float rand1;				// Used for Tech Room holos
 	float rand2;
-	float PS_unused0;
+	bool  bIsTransparent;
 	// 192 bytes
 
 	float2 uvSrc0; // Used in animated textures to constrain the area where damage textures will be applied

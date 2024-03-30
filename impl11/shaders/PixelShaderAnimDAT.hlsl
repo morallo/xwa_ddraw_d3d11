@@ -76,7 +76,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, texelColor.a);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
-	output.ssMask = float4(fNMIntensity, fSpecVal, fAmbient, texelColor.a);
+	output.ssMask = float4(0, fSpecVal, fAmbient, texelColor.a);
 
 	// Looks like we don't need to blend with a black background anymore.
 	//if (bInHyperspace) output.color = float4(lerp(float3(0, 0, 0), output.color.rgb, alpha), 1);
@@ -92,9 +92,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
 		output.bloom = float4(bloom_alpha * val * colorLight, bloom_alpha);
 		// Write an emissive material where there's bloom:
-		output.ssaoMask.r = lerp(output.ssaoMask.r, bloom_alpha, bloom_alpha);
-		// Set fNMIntensity to 0 where we have bloom:
-		output.ssMask.r = lerp(output.ssMask.r, 0, bloom_alpha);
+		output.ssaoMask.r = 0;
+		output.ssMask.ba  = bloom_alpha;
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, colorLight, alphaLight);
 		//output.color.a = max(output.color.a, alphaLight);

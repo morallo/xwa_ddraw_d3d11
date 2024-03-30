@@ -1970,13 +1970,108 @@ out:
 
 }
 
+/// <summary>
+/// Uses mobileObject->transformMatrix to get the player's craft orientation.
+/// When invert=false, the matrix returned maps world OPT coords to viewspace OPT coords
+/// When invert=true, the matrix returned maps viewspace OPT coords to world OPT coords
+/// World OPT coords in this case look like this:
+/// X+ --> Right
+/// Y+ --> Up
+/// Z+ --> Foward <-- OPT coords normally have Z- mapped to forwards, but here we are...
+/// </summary>
+Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, bool invert=false, bool debug=false)
+{
+	ObjectEntry* object = NULL;
+	MobileObjectEntry* mobileObject = NULL;
+	Matrix4 H;
+
+	if (GetPlayerCraftInstanceSafe(&object, &mobileObject) != NULL)
+	{
+		Rs.x = mobileObject->transformMatrix.Right_X / 32768.0f;
+		Rs.y = mobileObject->transformMatrix.Right_Y / 32768.0f;
+		Rs.z = mobileObject->transformMatrix.Right_Z / 32768.0f;
+
+		Us.x = mobileObject->transformMatrix.Up_X / 32768.0f;
+		Us.y = mobileObject->transformMatrix.Up_Y / 32768.0f;
+		Us.z = mobileObject->transformMatrix.Up_Z / 32768.0f;
+
+		Fs.x = mobileObject->transformMatrix.Front_X / 32768.0f;
+		Fs.y = mobileObject->transformMatrix.Front_Y / 32768.0f;
+		Fs.z = mobileObject->transformMatrix.Front_Z / 32768.0f;
+
+		if (!invert)
+		{
+			H = Matrix4(
+				Rs.x, Fs.x, Us.x, 0,
+				Rs.y, Fs.y, Us.y, 0,
+				Rs.z, Fs.z, Us.z, 0,
+				0, 0, 0, 1
+			);
+		}
+		else
+		{
+			H = Matrix4(
+				Rs.x, Rs.y, Rs.z, 0,
+				Fs.x, Fs.y, Fs.z, 0,
+				Us.x, Us.y, Us.z, 0,
+				0, 0, 0, 1
+			);
+		}
+
+		if (debug)
+		{
+			log_debug("[DBG] RUF: [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f], [%0.3f, %0.3f, %0.3f]",
+				Rs.x, Rs.y, Rs.z,
+				Us.x, Us.y, Us.z,
+				Fs.x, Fs.y, Fs.z);
+		}
+	}
+
+	return H;
+}
+
 /*
  * Sets the lights in the constant buffer used in the New Shading System.
  */
-void PrimarySurface::SetLights(float fSSDOEnabled) {
-	const auto &resources = this->_deviceResources;
+void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 	Vector4 light;
 	int i;
+
+	// XWA's world coord system *for this case*:
+	// X+: Right
+	// Y+: Forwards
+	// Z+: Up
+	Vector4 Rs, Us, Fs;
+	Matrix4 H = GetPlayerCraftMatrix(Rs, Us, Fs, false, false);
+	// I tried reading the 3x3 matrix from CockpitLook before the roll inertia was applied and putting
+	// that in SharedMem in order to fix "dancing RT shadows". Didn't work. Still, this code might be
+	// useful later.
+#ifdef DISABLED
+	if (g_bUseSteamVR)
+	{
+		const float* h = g_pSharedDataCockpitLook->headRotation;
+		const float m[16] = {
+			-h[0], h[6], -h[3], 0,
+			-h[1], h[7], -h[4], 0,
+			-h[2], h[8], -h[5], 0,
+			0, 0, 0, 1 };
+		H.set(m);
+		log_debug_vr(0xFFFFFF, "R:[%0.3f, %0.3f, %0.3f]", Rs.x, Rs.y, Rs.z);
+		log_debug_vr(0x10FF10, "R:[%0.3f, %0.3f, %0.3f]", -h[0], -h[1], -h[2]);
+
+		log_debug_vr(0xFFFFFF, "F:[%0.3f, %0.3f, %0.3f]", Fs.x, Fs.y, Fs.z);
+		log_debug_vr(0x10FF10, "F:[%0.3f, %0.3f, %0.3f]", h[6], h[7], h[8]);
+
+		log_debug_vr(0xFFFFFF, "U:[%0.3f, %0.3f, %0.3f]", Us.x, Us.y, Us.z);
+		log_debug_vr(0x10FF10, "U:[%0.3f, %0.3f, %0.3f]", -h[3], -h[4], -h[5]);
+	}
+#endif
+
+	// Normally, Y- points forwards in OPT coords, but in this case, Y+ points forwards.
+	// So, in this case, we only flip the Z coord to convert to SteamVR coords:
+	const static Matrix4 swapFlip({ 1,0,0,0,  0,0,-1,0,  0,1,0,0,  0,0,0,1 });
+	Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
+	Vinv.invert();
 
 	const bool bDS2Mission = (missionIndexLoaded != nullptr) && (*missionIndexLoaded == DEATH_STAR_MISSION_INDEX);
 
@@ -2030,14 +2125,23 @@ void PrimarySurface::SetLights(float fSSDOEnabled) {
 		{
 			Vector4 col;
 			float intensity, value;
+
 			Vector4 xwaLight = Vector4(
 				s_XwaGlobalLights[i].PositionX / 32768.0f,
 				s_XwaGlobalLights[i].PositionY / 32768.0f,
 				s_XwaGlobalLights[i].PositionZ / 32768.0f,
 				0.0f);
 
-			light = g_CurrentHeadingViewMatrix * xwaLight;
-			light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+			if (g_bUseSteamVR)
+			{
+				light = Vinv * swapFlip * H * xwaLight;
+			}
+			else
+			{
+				light = g_CurrentHeadingViewMatrix * xwaLight;
+				light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+			}
+
 			// Forward: -Z, Up: +Y, Right: +X
 			//log_debug("[DBG] light, I: %0.3f, [%0.3f, %0.3f, %0.3f]",
 			//	s_XwaGlobalLights[i].Intensity, light.x, light.y, light.z);
@@ -2362,7 +2466,7 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 	// Set the lights and set the Shading System Constant Buffer
 	g_ShadingSys_PSBuffer.spec_intensity       = g_bGlobalSpecToggle ? g_fSpecIntensity : 0.0f;
 	g_ShadingSys_PSBuffer.spec_bloom_intensity = g_bGlobalSpecToggle ? g_fSpecBloomIntensity : 0.0f;
-	SetLights(0.0f);
+	SetLights(resources, 0.0f);
 
 	// SSAO Computation, Left Image
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
@@ -2477,26 +2581,34 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
+			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR) {
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[9] = {
-			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			resources->_ssaoBufSRV.Get(),							// SSAO component
-			NULL,													// SSDO Indirect
-			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			context->ResolveSubresource(
+				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
+		else {
+			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
+				0, BACKBUFFER_FORMAT);
+		}
 
-			resources->_depthBufSRV.Get(),							// Depth buffer
-			resources->_normBufSRV.Get(),							// Normals
-			NULL,													// Bent Normals
-			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
+		ID3D11ShaderResourceView *srvs_pass2[8] = {
+			resources->_offscreenAsInputShaderResourceView.Get(), // 0: Color buffer
+			resources->_ssaoBufSRV.Get(),                         // 1: SSAO component
+			resources->_backgroundBufferSRV.Get(),                // 2: Background buffer
+			resources->_ssaoMaskSRV.Get(),                        // 3: SSAO Mask
 
-			g_ShadowMapping.bEnabled ? 
-				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
+			resources->_depthBufSRV.Get(),                        // 4: Depth buffer
+			resources->_normBufSRV.Get(),                         // 5: Normals
+			resources->_ssMaskSRV.Get(),                          // 6: Shading System Mask buffer
+			g_ShadowMapping.bEnabled ?                            // 7: The shadow map
+				resources->_shadowMapArraySRV.Get() : NULL,
 		};
-		context->PSSetShaderResources(0, 9, srvs_pass2);
-
+		context->PSSetShaderResources(0, 8, srvs_pass2);
 
 		if (g_bRTEnabled)
 		{
@@ -2509,6 +2621,16 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
 			context->PSSetShaderResources(14, 4, srvs);
 		}
+
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_transp1SRV.Get(), // 18
+				resources->_transp2SRV.Get(), // 19
+				resources->_ReticleSRV.Get(), // 20
+			};
+			context->PSSetShaderResources(18, 3, srvs);
+		}
+
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
@@ -2600,7 +2722,7 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 	resources->InitViewport(&viewport);
 	
 	// Set the lights and set the Shading System Constant Buffer
-	SetLights(1.0f);
+	SetLights(resources, 1.0f);
 
 #ifdef DEATH_STAR
 	static float iTime = 0.0f;
@@ -2637,10 +2759,21 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
+			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR) {
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
+		else {
+			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
+				0, BACKBUFFER_FORMAT);
+		}
+
 		ID3D11ShaderResourceView *srvs_pass1[5] = {
 			resources->_depthBufSRV.Get(),
 			resources->_normBufSRV.Get(),
@@ -2957,20 +3090,29 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
-			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			resources->_ssaoBufSRV.Get(),							// SSDO Direct Component
-			resources->_ssaoBufSRV_R.Get(),							// SSDO Indirect
-			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			resources->_offscreenAsInputShaderResourceView.Get(),	// 0: Color buffer
+			resources->_ssaoBufSRV.Get(),                           // 1: SSDO Direct Component
+			//resources->_ssaoBufSRV_R.Get(),                       // SSDO Indirect
+			resources->_backgroundBufferSRV.Get(),                  // 2: Background buffer
+			resources->_ssaoMaskSRV.Get(),                          // 3: SSAO Mask
 
-			resources->_depthBufSRV.Get(),							// Depth buffer
-			resources->_normBufSRV.Get(),							// Normals buffer
-			//resources->_bentBufSRV.Get(),							// Bent Normals
-			resources->_ssMaskSRV.Get(),							// Shading System Mask buffer
-
-			g_ShadowMapping.bEnabled ? 
-				resources->_shadowMapArraySRV.Get() : NULL,			// The shadow map
+			resources->_depthBufSRV.Get(),                          // 4: Depth buffer
+			resources->_normBufSRV.Get(),                           // 5: Normals buffer
+			resources->_ssMaskSRV.Get(),                            // 6: Shading System Mask buffer
+			g_ShadowMapping.bEnabled ?                              // 7: The shadow map
+				resources->_shadowMapArraySRV.Get() : NULL,
 		};
 		context->PSSetShaderResources(0, 8, srvs_pass2);
+
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_transp1SRV.Get(), // 18
+				resources->_transp2SRV.Get(), // 19
+				resources->_ReticleSRV.Get(), // 20
+			};
+			context->PSSetShaderResources(18, 3, srvs);
+		}
+
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
@@ -3002,6 +3144,11 @@ void PrimarySurface::DeferredPass()
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
 	float x0, y0, x1, y1;
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBufferBeforeDeferredPass.dds");
+	}
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_SSAO_PSCBuffer.x0 = x0;
@@ -3046,7 +3193,7 @@ void PrimarySurface::DeferredPass()
 	resources->InitViewport(&viewport);
 
 	// Set the lights and the Shading System Constant Buffer
-	SetLights(0.0f);
+	SetLights(_deviceResources, 0.0f);
 
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -3096,31 +3243,41 @@ void PrimarySurface::DeferredPass()
 		ID3D11RenderTargetView *rtvs[5] = {
 			resources->_renderTargetView.Get(),
 			resources->_renderTargetViewBloomMask.Get(),
-			NULL, // resources->_renderTargetViewBentBuf.Get(), // DEBUG REMOVE THIS LATER! 
-			NULL, NULL,
+			NULL, NULL, NULL,
 		};
 		context->OMSetRenderTargets(5, rtvs, NULL);
 
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
+			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR) {
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
-		ID3D11ShaderResourceView *srvs_pass2[8] = {
-			resources->_offscreenAsInputShaderResourceView.Get(),	// Color buffer
-			NULL,													// SSDO Direct Component (LDR)
-			NULL, //resources->_ssaoBufSRV_R.Get(),					// SSDO Indirect
-			resources->_ssaoMaskSRV.Get(),							// SSAO Mask
+			context->ResolveSubresource(
+				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
+		else {
+			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
+				0, BACKBUFFER_FORMAT);
+		}
 
-			resources->_depthBufSRV.Get(),							// Depth buffer
-			resources->_normBufSRV.Get(),							// Normals buffer
-			resources->_ssMaskSRV.Get(),							// Shading System buffer
-			g_ShadowMapping.bEnabled ?								// The shadow map
+		ID3D11ShaderResourceView *srvs_pass[10] = {
+			resources->_offscreenAsInputShaderResourceView.Get(), // 0: Color buffer
+			NULL,                                                 // 1: SSDO Direct Component (LDR)
+			resources->_backgroundBufferSRV.Get(),                // 2: Background buffer
+			resources->_ssaoMaskSRV.Get(),                        // 3: SSAO Mask
+
+			resources->_depthBufSRV.Get(),                        // 4: Depth buffer
+			resources->_normBufSRV.Get(),                         // 5: Normals buffer
+			resources->_ssMaskSRV.Get(),                          // 6: Shading System buffer
+			g_ShadowMapping.bEnabled ?                            // 7: The shadow map
 				resources->_shadowMapArraySRV.Get() : NULL,
 		};
-		context->PSSetShaderResources(0, 8, srvs_pass2);
+		context->PSSetShaderResources(0, 8, srvs_pass);
 
 		if (g_bRTEnabled)
 		{
@@ -3132,6 +3289,15 @@ void PrimarySurface::DeferredPass()
 			};
 			// Slots 14-17 are used for Raytracing buffers (BLASes, Matrices, TLAS, RTShadowMask)
 			context->PSSetShaderResources(14, 4, srvs);
+		}
+
+		{
+			ID3D11ShaderResourceView* srvs[] = {
+				resources->_transp1SRV.Get(), // 18
+				resources->_transp2SRV.Get(), // 19
+				resources->_ReticleSRV.Get(), // 20
+			};
+			context->PSSetShaderResources(18, 3, srvs);
 		}
 
 		if (g_bUseSteamVR)
@@ -3152,6 +3318,11 @@ void PrimarySurface::DeferredPass()
 	resources->InitInputLayout(resources->_inputLayout);
 	context->OMSetRenderTargets(1, this->_deviceResources->_renderTargetView.GetAddressOf(),
 		this->_deviceResources->_depthStencilViewL.Get());
+
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBufferAfterDeferredPass.dds");
+	}
 
 	this->_deviceResources->EndAnnotatedEvent();
 }
@@ -3761,7 +3932,7 @@ void GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
  * different from the one used in the shadertoy pixel shaders, so we need a new version of
  * GetCockpitViewMatrix.
  */
-void PrimarySurface::GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert = true) {
+void GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert=true) {
 	
 	Matrix4 rotMatrixFull;
 
@@ -5188,7 +5359,7 @@ void PrimarySurface::RenderExternalHUD()
 			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1), 
 			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	// Resolve the Reticle buffer
-	if (g_bEnableVR) {
+	{
 		context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA, 0, BACKBUFFER_FORMAT);
 		if (g_bDumpSSAOBuffers) {
 			DirectX::SaveWICTextureToFile(context, resources->_ReticleBufAsInput, GUID_ContainerFormatPng,
@@ -8803,6 +8974,9 @@ void PrimarySurface::RenderRTShadowMask()
 	resources->InitViewport(&viewport);
 	SetScissoRectFullScreen();
 
+	// Don't forget to set the lights!
+	SetLights(resources, 0.0f);
+
 	// Reset the vertex shader to regular 2D post-process
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -8827,6 +9001,16 @@ void PrimarySurface::RenderRTShadowMask()
 	};
 	context->OMSetRenderTargets(5, rtvs_null, NULL);
 	context->ClearRenderTargetView(resources->_rtShadowMaskRTV, bgColor);
+
+	// I need to Resolve by Resolves... I'm pretty sure some of these are redundant:
+	context->ResolveSubresource(resources->_normBuf, 0, resources->_normBufMSAA, 0, AO_DEPTH_BUFFER_FORMAT);
+	context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+	if (g_bUseSteamVR) {
+		context->ResolveSubresource(resources->_normBuf, D3D11CalcSubresource(0, 1, 1),
+			resources->_normBufMSAA, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+		context->ResolveSubresource(resources->_depthBufAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+	}
 
 	// Set the SRVs:
 	ID3D11ShaderResourceView* srvs[2] = {
@@ -9318,22 +9502,19 @@ HRESULT PrimarySurface::Flip(
 					g_bRendering3D = false;
 					g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
 					if (g_bDumpSSAOBuffers) {
-						/*
-						if (colorFile != NULL) {
-							fflush(colorFile);
-							fclose(colorFile);
-							colorFile = NULL;
-						}
-
-						if (lightFile != NULL) {
-							fflush(lightFile);
-							fclose(lightFile);
-							lightFile = NULL;
-						}
-						*/
+						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"C:\\Temp\\_depthBuf.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_depthStencilL, L"C:\\Temp\\_depthStencilL.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuf.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
+						DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask.dds");
+						log_debug("[DBG] [AO] Captured debug buffers");
 
 						g_bDumpSSAOBuffers = false;
 					}
+
 					//if (g_bDumpOptNodes)
 					//	g_bDumpOptNodes = false;
 
@@ -9620,6 +9801,33 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
+			if (!g_bBackgroundCaptured)
+			{
+				g_bBackgroundCaptured = true;
+				context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+				if (g_bDumpSSAOBuffers)
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBufferP.dds");
+
+				// Wipe out the background:
+				context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+			}
+
+			context->ResolveSubresource(resources->_transpBufferAsInput1, 0, resources->_transpBuffer1, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(resources->_transpBufferAsInput2, 0, resources->_transpBuffer2, 0, BACKBUFFER_FORMAT);
+			if (g_bUseSteamVR)
+			{
+				context->ResolveSubresource(resources->_transpBufferAsInput1, D3D11CalcSubresource(0, 1, 1),
+					resources->_transpBuffer1, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+				context->ResolveSubresource(resources->_transpBufferAsInput2, D3D11CalcSubresource(0, 1, 1),
+					resources->_transpBuffer2, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			}
+
+			if (g_bDumpSSAOBuffers)
+			{
+				DirectX::SaveDDSTextureToFile(context, resources->_transpBufferAsInput1, L"c:\\Temp\\_transpBufferAsInput1.dds");
+				DirectX::SaveDDSTextureToFile(context, resources->_transpBufferAsInput2, L"c:\\Temp\\_transpBufferAsInput2.dds");
+			}
+
 			// Render the Raytraced shadow mask
 			if (g_bRTEnabled && g_bRTEnableSoftShadows)
 			{
@@ -9710,7 +9918,19 @@ HRESULT PrimarySurface::Flip(
 						if (g_bUseSteamVR)
 							context->ResolveSubresource(resources->_offscreenBufferAsInputBloomMask, D3D11CalcSubresource(0, 1, 1),
 								resources->_offscreenBufferBloomMask, D3D11CalcSubresource(0, 1, 1), BLOOM_BUFFER_FORMAT);
+						if (g_bDumpSSAOBuffers)
+						{
+							DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatPng, L"C:\\Temp\\_sunFlare.png");
+						}
 						break;
+				}
+
+				// The VR dots are shadeless and should appear on top of everything else, so we render
+				// them after the Deferred/SSAO pass above
+				if (g_bUseSteamVR && g_bActiveCockpitEnabled)
+				{
+					EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+					renderer->RenderVRDots();
 				}
 
 				if (g_bDumpSSAOBuffers) {
@@ -10277,6 +10497,7 @@ HRESULT PrimarySurface::Flip(
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				g_iReactorExplosionCount = 0;
 				g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
+				g_bBackgroundCaptured = false;
 
 				if (*g_playerInHangar && !g_bPrevPlayerInHangar)
 				{

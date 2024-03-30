@@ -22,8 +22,8 @@ SamplerState sampColor : register(s0);
 Texture2D texSSAO : register(t1);
 SamplerState samplerSSAO : register(s1);
 
-// s2/t2: 
-// indirect SSDO buffer
+// The Background buffer
+Texture2D texBackground : register(t2);
 
 // The SSAO mask
 Texture2D texSSAOMask : register(t3);
@@ -38,19 +38,24 @@ SamplerState sampPos : register(s4);
 Texture2D texNormal : register(t5);
 SamplerState samplerNormal : register(s5);
 
-// s6/t6: 
-// Bent Normals buffer
-
 // The Shading System Mask buffer
-Texture2D texSSMask : register(t7);
-SamplerState samplerSSMask : register(s7);
-
-// The Shadow Map buffer
-Texture2DArray<float> texShadowMap : register(t8);
-SamplerComparisonState cmpSampler : register(s8);
+Texture2D texSSMask : register(t6);
+SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2D rtShadowMask : register(t17);
+
+// Transparent layer 1
+Texture2D transp1 : register(t18);
+// Transparent layer 2
+Texture2D transp2 : register(t19);
+
+// Reticle (only available in non VR mode)
+Texture2D reticleTex : register(t20);
+
+// The Shadow Map buffer
+Texture2DArray<float> texShadowMap : register(t7);
+SamplerComparisonState cmpSampler : register(s7);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -138,34 +143,78 @@ inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize,
 	return shadow / samples;
 }
 
+// See:
+// https://wickedengine.net/2017/10/22/which-blend-state-for-me/
+inline float4 PreMulBlend(in float4 src, in float4 dst)
+{
+	// Equivalent DX11 state:
+	// desc.SrcBlend       = D3D11_BLEND_ONE;
+	// desc.DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
+	// desc.BlendOp        = D3D11_BLEND_OP_ADD;
+	// Final alpha value settings:
+	// desc.SrcBlendAlpha  = D3D11_BLEND_ONE;
+	// desc.DestBlendAlpha = D3D11_BLEND_ONE;
+	// desc.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+	dst.rgb = src.rgb + (1 - src.a) * dst.rgb;
+	return dst;
+}
+
+float4 BlendTransparentLayers(in float4 color, in float4 transpColor1, in float4 transpColor2)
+{
+	// Blend the transparent layers now
+	//if (!ssao_debug)
+	{
+		color = PreMulBlend(transpColor1, color);
+		color = PreMulBlend(transpColor2, color);
+	}
+	return color;
+}
+
+float4 BlendTransparentLayers(
+	in float4 color,
+	in float4 transpColor1,
+	in float4 transpColor2,
+	in float4 transpColor3)
+{
+	// Blend the transparent layers now
+	//if (!ssao_debug)
+	{
+		color = PreMulBlend(transpColor1, color);
+		color = PreMulBlend(transpColor2, color);
+		color = PreMulBlend(transpColor3, color);
+	}
+	return color;
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
-	float2 input_uv_sub	  = input.uv * amplifyFactor;
-	float3 color          = texColor.Sample(sampColor, input.uv).xyz;
+	float2 input_uv_sub   = input.uv * amplifyFactor;
+	float4 texelColor     = texColor.Sample(sampColor, input.uv);
 	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
 	float3 ssao           = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
+	float3 background     = texBackground.Sample(sampColor, input.uv).rgb;
 	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
 	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
+	float4 transpColor1   = transp1.Sample(sampColor, input.uv);
+	float4 transpColor2   = transp2.Sample(sampColor, input.uv);
+	float4 reticleColor   = reticleTex.Sample(sampColor, input.uv);
+
+	float3 color          = texelColor.rgb;
 	float  mask           = ssaoMask.x;
 	float  gloss_mask     = ssaoMask.y;
 	float  spec_int_mask  = ssaoMask.z;
 	float  diff_int       = 1.0;
-	//bool   shadeless     = mask > GLASS_LO; // SHADELESS_LO;
-	float  shadeless      = saturate((mask - GLASS_LO) / (GLASS_MAT - GLASS_LO)); // Avoid harsh transitions
 	float  metallic       = mask / METAL_MAT;
-	float  nm_int         = ssMask.x;
+	float  glass          = ssMask.x;
 	float  spec_val       = ssMask.y;
-	float  shadeless_mask = ssMask.z;
+	float  shadeless      = ssMask.z;
 	float3 pos3D;
+
+	const float blendAlpha = saturate(2.0 * Normal.w);
 
 	PixelShaderOutput output;
 	output.color = 0;
 	output.bloom = 0;
-
-	if (mask > EMISSION_LO) {
-		output.color = float4(color, 1);
-		return output;
-	}
 
 	// DEBUG
 	//output.color = float4(ssao, 1);
@@ -176,21 +225,32 @@ PixelShaderOutput main(PixelShaderInput input)
 	// normals, like the skybox
 	//if (mask > 0.9 || Normal.w < 0.01) {
 	// The skybox gets alpha = 0, but when MSAA is on, alpha goes from 0 to 0.5
-	if (Normal.w < 0.475) {
+	/*if (Normal.w < 0.475) {
 		output.color = float4(color, 1);
 		return output;
+	}*/
+
+	if (shadeless >= 0.95)
+	{
+		output.color = float4(lerp(background, color, texelColor.a), 1);
+#ifdef INSTANCED_RENDERING
+		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
+#else
+		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2, reticleColor);
+#endif
+		return output;
 	}
+
 	// Avoid harsh transitions
 	// The substraction below should be 1.0 - Normal.w; but I see alpha = 0.5 coming from the normals buf
 	// because that gets written in PixelShaderTexture.hlsl in the alpha channel... I've got to check why
 	// later. On the other hand, DC elements have alpha = 1.0 in their normals, so I've got to clamp too
 	// or I'll get negative numbers
-	shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
-	shadeless = max(shadeless, shadeless_mask);
+	//shadeless = saturate(shadeless + saturate(2.0 * (0.5 - Normal.w)));
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast
-	float3 N = normalize(Normal.xyz);
+	float3 N = blendAlpha * normalize(Normal.xyz);
 
 	// For shadeless areas, make ssao 1
 	//ssao = shadeless ? 1.0 : ssao;
@@ -213,7 +273,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Fade shading with distance: works for Yavin, doesn't work for large space missions with planets on them
 	// like "Enemy at the Gates"... so maybe enable distance_fade for planetary missions? Those with skydomes...
 	float distance_fade = enable_dist_fade * saturate((pos3D.z - INFINITY_Z0) / INFINITY_FADEOUT_RANGE);
-	shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
+	//shadeless = saturate(lerp(shadeless, 1.0, distance_fade));
 
 	// Raytraced shadows. The output of this section is written to rt_shadow_factor
 	float rt_shadow_factor = 1.0f;
@@ -369,7 +429,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// We can't have exponent == 0 or we'll see a lot of shading artifacts:
 	float exponent = max(global_glossiness * gloss_mask, 0.05);
 	float spec_bloom_int = global_spec_bloom_intensity;
-	if (GLASS_LO <= mask && mask < GLASS_HI) {
+	//if (GLASS_LO <= mask && mask < GLASS_HI)
+	if (glass > 0.01)
+	{
 		exponent *= 2.0;
 		spec_bloom_int *= 3.0; // Make the glass bloom more
 	}
@@ -408,11 +470,6 @@ PixelShaderOutput main(PixelShaderInput input)
 
 		float spec_bloom = spec_int_mask * spec_bloom_int * pow(spec, exponent * global_bloom_glossiness_mult);
 		spec = total_shadow_factor * LightIntensity * spec_int_mask * pow(spec, exponent);
-
-		// The following lines MAY be an alternative to remove spec on shadeless surfaces; keeping glass
-		// intact
-		//spec_col = mask > SHADELESS_LO ? 0.0 : spec_col;
-		//spec_bloom = mask > SHADELESS_LO ? 0.0 : spec_bloom;
 
 		//color = color * ssdo + ssdoInd + ssdo * spec_col * spec;
 		tmp_color += LightColor[i].rgb * (color * diffuse + global_spec_intensity * spec_col * spec);
@@ -477,6 +534,18 @@ PixelShaderOutput main(PixelShaderInput input)
 		tmp_color = tmp_color / (HDR_white_point + tmp_color);
 		//tmp_color = reinhard_extended(tmp_color, HDR_white_point);
 	}
-	output.color = float4(sqrt(tmp_color), 1); // Invert gamma correction (approx pow 1/2.2)
+	output.color = float4(sqrt(tmp_color), texelColor.a); // Invert gamma correction (approx pow 1/2.2)
+
+	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
+	// In other words, this helps reduce halos around objects.
+	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
+	// These lines, althought apparently correct, re-introduce small white halos around objects.
+	// This is easier to see in VR or low resolutions:
+	//output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
+#ifdef INSTANCED_RENDERING
+	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
+#else
+	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2, reticleColor);
+#endif
 	return output;
 }

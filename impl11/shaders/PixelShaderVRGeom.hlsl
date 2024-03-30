@@ -142,22 +142,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		}
 	}
 
-	float3 P = input.pos3D.xyz;
-	output.pos3D = float4(P, 1);
-
-	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
-	output.normal = float4(N, 1);
-
-	//output.ssaoMask = 0;
 	//output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	output.ssaoMask = float4(fSSAOMaskVal, 0.1, 0, alpha);
-	//output.diffuse = input.color;
 
 	// SS Mask: Normal Mapping Intensity (overriden), Specular Value, Shadeless
-	//output.ssMask = float4(fNMIntensity, fSpecVal, 0.0, 0.0);
-	output.ssMask = float4(0, 0, 0, 0);
+	output.ssMask = float4(0, 0, bIsShadeless, alpha);
 
 	// Black-noise fade in/out -- this part will be played when turning the VR keyboard
 	// on and off.
@@ -171,6 +160,23 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom = lerp(0.0, 2.0 * nvideo, clamp(fadeIn, 0.0, 1.0));
 		output.ssMask.a = min(output.ssMask.a, output.color.a);
 	}
+
+	if (bIsShadeless)
+	{
+		output.normal = 0;
+		output.pos3D  = 0;
+		return output;
+	}
+
+	float3 P = input.pos3D.xyz;
+	output.pos3D = float4(P, 1);
+
+	float3 N = normalize(input.normal.xyz);
+	N.y = -N.y; // Invert the Y axis, originally Y+ is down
+	N.z = -N.z;
+	// The hook_normals hook sets alpha to 0.5, so we must follow suit here.
+	// If I set the alpha to 1, I'll get a white halo around the VR gloves!
+	output.normal = float4(N, 0.5);
 
 	return output;
 }
