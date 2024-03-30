@@ -3193,8 +3193,7 @@ void PrimarySurface::DeferredPass()
 	resources->InitViewport(&viewport);
 
 	// Set the lights and the Shading System Constant Buffer
-	if (!g_bRTEnabled) // When RT is on, we set the lights when the BVH is built. See EffectsRenderer::SceneEnd()
-		SetLights(_deviceResources, 0.0f);
+	SetLights(_deviceResources, 0.0f);
 
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -8978,7 +8977,7 @@ void PrimarySurface::RenderRTShadowMask()
 	SetScissoRectFullScreen();
 
 	// Don't forget to set the lights!
-	//SetLights(0.0f);
+	SetLights(resources, 0.0f);
 
 	// Reset the vertex shader to regular 2D post-process
 	// Set the Vertex Shader Constant buffers

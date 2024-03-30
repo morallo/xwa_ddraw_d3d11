@@ -2852,9 +2852,6 @@ void EffectsRenderer::SceneEnd()
 		_BLASNeedsUpdate = false;
 	}
 
-	if (g_bRTEnabled)
-		SetLights(_deviceResources, 0.0f);
-
 	if ((g_bRTEnabled || g_bActiveCockpitEnabled) && !g_bInTechRoom && !(*g_playerInHangar))
 	{
 		// We may need to reallocate the matrices buffer depending on how many
