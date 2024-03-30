@@ -79,6 +79,7 @@ void SteamVRRenderer::RenderScene()
 
 		// Wipe out the background:
 		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		g_bBackgroundCaptured = true;
 	}
 
 	/*

@@ -247,7 +247,7 @@ float g_fInterdictionShakeInVR = 0.0f;
 float g_fInterdictionAngleScale = 0.25f;
 
 int g_iDelayedDumpDebugBuffers = 0;
-//float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
+bool g_bBackgroundCaptured = false; // Reset on every frame
 
 // white_point = 1 --> OK
 // white_point = 0.5 --> Makes everything bright

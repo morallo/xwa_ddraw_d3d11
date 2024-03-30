@@ -3222,8 +3222,6 @@ void PrimarySurface::DeferredPass()
 		resources->InitPixelShader(g_bUseSteamVR ? resources->_headLightsPS_VR : resources->_headLightsPS);
 	}
 
-	//ShowMatrix4(g_VSMatrixCB.fullViewMat, "DeferredPass");
-
 	// Set the PCF sampler state
 	if (g_ShadowMapping.bEnabled)
 		context->PSSetSamplers(7, 1, resources->_shadowPCFSamplerState.GetAddressOf());
@@ -9803,6 +9801,17 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
+			if (!g_bBackgroundCaptured)
+			{
+				g_bBackgroundCaptured = true;
+				context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+				if (g_bDumpSSAOBuffers)
+					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBufferP.dds");
+
+				// Wipe out the background:
+				context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+			}
+
 			context->ResolveSubresource(resources->_transpBufferAsInput1, 0, resources->_transpBuffer1, 0, BACKBUFFER_FORMAT);
 			context->ResolveSubresource(resources->_transpBufferAsInput2, 0, resources->_transpBuffer2, 0, BACKBUFFER_FORMAT);
 			if (g_bUseSteamVR)
@@ -10488,6 +10497,7 @@ HRESULT PrimarySurface::Flip(
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				g_iReactorExplosionCount = 0;
 				g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
+				g_bBackgroundCaptured = false;
 
 				if (*g_playerInHangar && !g_bPrevPlayerInHangar)
 				{

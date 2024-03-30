@@ -5928,6 +5928,7 @@ void EffectsRenderer::RenderScene()
 
 		// Wipe out the background:
 		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		g_bBackgroundCaptured = true;
 	}
 
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
