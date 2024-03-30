@@ -179,10 +179,10 @@ void EmulMouseWithVRControllers()
 	if (bFirstTime)
 	{
 		char action1[] = "ESC";
-		TranslateACAction(escScanCodes, action1, nullptr);
+		TranslateACAction(-1, escScanCodes, action1, nullptr);
 
 		char action2[] = "PERIOD";
-		TranslateACAction(periodScanCodes, action2, nullptr);
+		TranslateACAction(-1, periodScanCodes, action2, nullptr);
 		bFirstTime = false;
 	}
 
@@ -838,7 +838,7 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 						// Instead of using JOYBUTTON1, let's use Alt+2. JOYBUTTON1 may be mapped to something
 						// other than firing weapons, but Alt+2 is always just "fire"
 						char action[] = "ALT+2";
-						TranslateACAction(joyButton1ScanCodes, action, nullptr);
+						TranslateACAction(-1, joyButton1ScanCodes, action, nullptr);
 						bFirstTime = false;
 					}
 

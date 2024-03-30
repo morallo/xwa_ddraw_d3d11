@@ -349,16 +349,31 @@ void ACRunAction(WORD* action, const uvfloat4& coords, int ACSlot, int contIdx, 
 /*
  * Converts a string representation of a hotkey to a series of scan codes
  */
-void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) {
+bool TranslateACAction(int lineNum, WORD* scanCodes, char* actionIn, bool* bIsVRKeybActivator) {
 	// XWA keyboard reference:
 	// http://isometricland.net/keyboard/keyboard-diagram-star-wars-x-wing-alliance.php?sty=15&lay=1&fmt=0&ten=1
 	// Scan code tables:
 	// http://www.philipstorr.id.au/pcbook/book3/scancode.htm
 	// https://www.shsu.edu/~csc_tjm/fall2000/cs272/scan_codes.html
 	// https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
+	int i, j;
+
+	// Remove white spaces from "actionIn":
+	char action[128];
+	i = j = 0;
+	while (actionIn[i])
+	{
+		if (actionIn[i] != ' ' && actionIn[i] != '\t')
+		{
+			action[j] = actionIn[i]; j++;
+		}
+		i++;
+	}
+	action[j] = 0;
+	i = j = 0;
+
 	int len = strlen(action);
 	const char* ptr = action, *cursor;
-	int i, j;
 
 	if (bIsVRKeybActivator != nullptr)
 		*bIsVRKeybActivator = false;
@@ -372,28 +387,28 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 	if (strstr(action, "VOID") != NULL)
 	{
 		scanCodes[0] = 0;
-		return;
+		return true;
 	}
 
 	if (strstr(action, "HOLD_CTRL") != NULL)
 	{
 		scanCodes[0] = 0xFF;
 		scanCodes[1] = AC_HOLD_CTRL_FAKE_VK_CODE;
-		return;
+		return true;
 	}
 
 	if (strstr(action, "HOLD_ALT") != NULL)
 	{
 		scanCodes[0] = 0xFF;
 		scanCodes[1] = AC_HOLD_ALT_FAKE_VK_CODE;
-		return;
+		return true;
 	}
 
 	if (strstr(action, "HOLD_SHIFT") != NULL)
 	{
 		scanCodes[0] = 0xFF;
 		scanCodes[1] = AC_HOLD_SHIFT_FAKE_VK_CODE;
-		return;
+		return true;
 	}
 
 	j = 0;
@@ -419,7 +434,7 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 			int numkey = atoi(ptr + 1);
 			scanCodes[j++] = 0x3B + numkey - 1;
 			scanCodes[j] = 0; // Terminate the scan code list
-			return;
+			return true;
 		}
 	}
 
@@ -437,7 +452,7 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 		//if (strstr(ptr, "UP") != NULL)  		scanCodes[j++] = MapVirtualKey(VK_UP, MAPVK_VK_TO_VSC);		// CONFIRMED: 0x48
 		//if (strstr(ptr, "DOWN") != NULL) 	scanCodes[j++] = MapVirtualKey(VK_DOWN, MAPVK_VK_TO_VSC);	// CONFIRMED: 0x50
 		scanCodes[j] = 0;
-		return;
+		return true;
 	}
 
 	// Process other special keys
@@ -446,28 +461,28 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 		{
 			scanCodes[j++] = MapVirtualKey(VK_TAB, MAPVK_VK_TO_VSC);
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "ENTER") != NULL)
 		{
 			scanCodes[j++] = MapVirtualKey(VK_RETURN, MAPVK_VK_TO_VSC);
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "PLUS") != NULL)
 		{
 			scanCodes[j++] = MapVirtualKey(VK_OEM_PLUS, MAPVK_VK_TO_VSC);
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "MINUS") != NULL)
 		{
 			scanCodes[j++] = MapVirtualKey(VK_OEM_MINUS, MAPVK_VK_TO_VSC);
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (isdigit(*ptr)) { // CONFIRMED
@@ -475,49 +490,49 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 			if (digit == 0) digit += 10;
 			scanCodes[j++] = 0x02 - 1 + digit;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, ";") != NULL) {
 			scanCodes[j++] = 0x27;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "'") != NULL) {
 			scanCodes[j++] = 0x28;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "COMMA") != NULL) {
 			scanCodes[j++] = 0x33;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "PERIOD") != NULL) {
 			scanCodes[j++] = 0x34;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "BACKSPACE") != NULL) {
 			scanCodes[j++] = MapVirtualKey(VK_BACK, MAPVK_VK_TO_VSC);
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "SPACE") != NULL) {
 			scanCodes[j++] = 0x39;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "HOLOGRAM") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_HOLOGRAM_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "VRKEYB_TOGGLE") != NULL) {
@@ -525,121 +540,124 @@ void TranslateACAction(WORD* scanCodes, char* action, bool* bIsVRKeybActivator) 
 			scanCodes[1] = AC_VRKEYB_TOGGLE_FAKE_VK_CODE;
 			if (bIsVRKeybActivator != nullptr)
 				*bIsVRKeybActivator = true;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "VRKEYB_ON") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_VRKEYB_HOVER_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "VRKEYB_PLACE") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_VRKEYB_PLACE_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "VRKEYB_OFF") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_VRKEYB_OFF_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "JOYBUTTON1") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_JOYBUTTON1_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "JOYBUTTON2") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_JOYBUTTON2_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "JOYBUTTON3") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_JOYBUTTON3_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "JOYBUTTON4") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_JOYBUTTON4_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "JOYBUTTON5") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_JOYBUTTON5_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "[") != NULL) {
 			scanCodes[j++] = 0x1A;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "]") != NULL) {
 			scanCodes[j++] = 0x1B;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "\\") != NULL) {
 			scanCodes[j++] = 0x2B;
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "ESC") != NULL) {
 			scanCodes[j++] = MapVirtualKey(VK_ESCAPE, MAPVK_VK_TO_VSC);
 			scanCodes[j] = 0;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "POV_UP") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_POV_UP_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "POV_DOWN") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_POV_DN_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "POV_FORWARD") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_POV_FD_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "POV_BACKWARD") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_POV_BK_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 
 		if (strstr(ptr, "POV_RESET") != NULL) {
 			scanCodes[0] = 0xFF;
 			scanCodes[1] = AC_POV_RESET_FAKE_VK_CODE;
-			return;
+			return true;
 		}
 	}
 
+	bool res = true;
 	if (strlen(ptr) > 1)
 	{
-		log_debug("[DBG] [AC] WARNING: Parsing a probably unknown action: [%s]", ptr);
+		log_debug("[DBG] [AC] WARNING: Parsing a probably unknown action [%s] at line %d: [%s]", action, lineNum, ptr);
+		res = false;
 	}
 
 	// Regular single-char keys
 	scanCodes[j++] = (WORD)MapVirtualKey(*ptr, MAPVK_VK_TO_VSC);
 	if (j < MAX_AC_ACTION_LEN)
 		scanCodes[j] = 0; // Terminate the scan code list
+	return res;
 }
 
 void DisplayACAction(WORD* scanCodes) {
@@ -657,10 +675,11 @@ void DisplayACAction(WORD* scanCodes) {
  * Loads an "action" row:
  * "action" = ACTION, x0,y0, x1,y1
  */
-bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bool mirror)
+bool LoadACAction(int lineNum, char* buf, float width, float height, ac_uv_coords* coords, bool mirror)
 {
 	float x0, y0, x1, y1;
 	int res = 0, idx = coords->numCoords;
+	bool result = true;
 	char* substr = NULL;
 	char action[50];
 
@@ -697,7 +716,7 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bo
 		}
 		else {
 			strcpy_s(&(coords->action_name[idx][0]), 16, action);
-			TranslateACAction(&(coords->action[idx][0]), action, nullptr);
+			result = TranslateACAction(lineNum, &(coords->action[idx][0]), action, nullptr);
 			//DisplayACAction(&(coords->action[idx][0]));
 
 			x0 /= width;
@@ -750,7 +769,7 @@ bool LoadACAction(char* buf, float width, float height, ac_uv_coords* coords, bo
 		log_debug("[DBG] [AC] Could not read uv coords from: %s", buf);
 		return false;
 	}
-	return true;
+	return result;
 }
 
 /*
@@ -841,7 +860,10 @@ bool LoadIndividualACParams(char* sFileName) {
 					continue;
 				}
 				//log_debug("[DBG] [AC] Loading action for: [%s]", g_ACElements[lastACElemSelected].name);
-				LoadACAction(buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords));
+				if (!LoadACAction(line, buf, tex_width, tex_height, &(g_ACElements[lastACElemSelected].coords)))
+				{
+					log_debug("[DBG] [AC] Error at line: [%s]", buf);
+				}
 				// DEBUG
 				//g_ACElements[lastACElemSelected].width = (short)tex_width;
 				//g_ACElements[lastACElemSelected].height = (short)tex_height;

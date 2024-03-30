@@ -1609,10 +1609,10 @@ bool LoadDCParams() {
 	return true;
 }
 
-void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
+void TranslateACActionForVRController(int lineNum, int contIdx, int buttonId, char *svalue)
 {
 	bool bIsVRKeybActivator = false;
-	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsVRKeybActivator);
+	TranslateACAction(lineNum, g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsVRKeybActivator);
 
 	if (bIsVRKeybActivator)
 	{
@@ -1624,7 +1624,7 @@ void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
 bool LoadACParams() {
 	log_debug("[DBG] [AC] Loading Active Cockpit params...");
 	FILE* file;
-	int error = 0, line = 0;
+	int error = 0, line = 1;
 
 	// Clear all the VR controller mappings
 	for (int i = 0; i < 2; i++)
@@ -1851,23 +1851,23 @@ bool LoadACParams() {
 			// VR controller configuration
 			if (_stricmp(param, "leftpad_up") == 0)
 			{
-				TranslateACActionForVRController(0, VRButtons::PAD_UP, svalue);
+				TranslateACActionForVRController(line, 0, VRButtons::PAD_UP, svalue);
 			}
 			if (_stricmp(param, "leftpad_down") == 0)
 			{
-				TranslateACActionForVRController(0, VRButtons::PAD_DOWN, svalue);
+				TranslateACActionForVRController(line, 0, VRButtons::PAD_DOWN, svalue);
 			}
 			if (_stricmp(param, "leftpad_left") == 0)
 			{
-				TranslateACActionForVRController(0, VRButtons::PAD_LEFT, svalue);
+				TranslateACActionForVRController(line, 0, VRButtons::PAD_LEFT, svalue);
 			}
 			if (_stricmp(param, "leftpad_right") == 0)
 			{
-				TranslateACActionForVRController(0, VRButtons::PAD_RIGHT, svalue);
+				TranslateACActionForVRController(line, 0, VRButtons::PAD_RIGHT, svalue);
 			}
 			if (_stricmp(param, "leftpad_click") == 0)
 			{
-				TranslateACActionForVRController(0, VRButtons::PAD_CLICK, svalue);
+				TranslateACActionForVRController(line, 0, VRButtons::PAD_CLICK, svalue);
 			}
 			/*if (_stricmp(param, "left_trigger") == 0)
 			{
@@ -1875,32 +1875,32 @@ bool LoadACParams() {
 			}*/
 			if (_stricmp(param, "left_button_1") == 0)
 			{
-				TranslateACActionForVRController(0, VRButtons::BUTTON_1, svalue);
+				TranslateACActionForVRController(line, 0, VRButtons::BUTTON_1, svalue);
 			}
 			if (_stricmp(param, "left_button_2") == 0)
 			{
-				TranslateACActionForVRController(0, VRButtons::BUTTON_2, svalue);
+				TranslateACActionForVRController(line, 0, VRButtons::BUTTON_2, svalue);
 			}
 
 			if (_stricmp(param, "rightpad_up") == 0)
 			{
-				TranslateACActionForVRController(1, VRButtons::PAD_UP, svalue);
+				TranslateACActionForVRController(line, 1, VRButtons::PAD_UP, svalue);
 			}
 			if (_stricmp(param, "rightpad_down") == 0)
 			{
-				TranslateACActionForVRController(1, VRButtons::PAD_DOWN, svalue);
+				TranslateACActionForVRController(line, 1, VRButtons::PAD_DOWN, svalue);
 			}
 			if (_stricmp(param, "rightpad_left") == 0)
 			{
-				TranslateACActionForVRController(1, VRButtons::PAD_LEFT, svalue);
+				TranslateACActionForVRController(line, 1, VRButtons::PAD_LEFT, svalue);
 			}
 			if (_stricmp(param, "rightpad_right") == 0)
 			{
-				TranslateACActionForVRController(1, VRButtons::PAD_RIGHT, svalue);
+				TranslateACActionForVRController(line, 1, VRButtons::PAD_RIGHT, svalue);
 			}
 			if (_stricmp(param, "rightpad_click") == 0)
 			{
-				TranslateACActionForVRController(1, VRButtons::PAD_CLICK, svalue);
+				TranslateACActionForVRController(line, 1, VRButtons::PAD_CLICK, svalue);
 			}
 			/*if (_stricmp(param, "right_trigger") == 0)
 			{
@@ -1908,11 +1908,11 @@ bool LoadACParams() {
 			}*/
 			if (_stricmp(param, "right_button_1") == 0)
 			{
-				TranslateACActionForVRController(1, VRButtons::BUTTON_1, svalue);
+				TranslateACActionForVRController(line, 1, VRButtons::BUTTON_1, svalue);
 			}
 			if (_stricmp(param, "right_button_2") == 0)
 			{
-				TranslateACActionForVRController(1, VRButtons::BUTTON_2, svalue);
+				TranslateACActionForVRController(line, 1, VRButtons::BUTTON_2, svalue);
 			}
 
 			if (_stricmp(param, "mouse_speed_x") == 0)
@@ -1989,7 +1989,7 @@ bool LoadACParams() {
 				{
 					/*log_debug("[DBG] [AC] Loading action for: [%s], W,H: %0.1f, %0.1f",
 						g_ACElements[curSlot].name, ac_tex_width, ac_tex_height);*/
-					LoadACAction(buf, ac_tex_width, ac_tex_height, &(g_ACElements[curSlot].coords), false);
+					LoadACAction(line, buf, ac_tex_width, ac_tex_height, &(g_ACElements[curSlot].coords), false);
 
 					/*int lastIdx = g_ACElements[curSlot].coords.numCoords - 1;
 					log_debug("[DBG] [AC] numCoords: %d, [%s], (%0.2f, %0.2f)-(%0.2f, %0.2f)",
