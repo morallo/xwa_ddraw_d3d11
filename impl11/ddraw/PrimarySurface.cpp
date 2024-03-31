@@ -4670,6 +4670,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 		};
+
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
@@ -4747,14 +4748,15 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		resources->InitPixelShader(g_bUseSteamVR ? resources->_hyperComposePS_VR : resources->_hyperComposePS);
 		// Clear all the render target views
-		ID3D11RenderTargetView *rtvs_null[5] = {
+		ID3D11RenderTargetView *rtvs_null[6] = {
 			NULL, // Main RTV
 			NULL, // Bloom
 			NULL, // Depth
 			NULL, // Norm Buf
 			NULL, // SSAO Mask
+			NULL, // SS Mask
 		};
-		context->OMSetRenderTargets(5, rtvs_null, NULL);
+		context->OMSetRenderTargets(6, rtvs_null, NULL);
 
 		// DEBUG
 		/*
@@ -4788,19 +4790,21 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			context->OMSetRenderTargets(1, rtvs, NULL);
 		}
 		else {
-			ID3D11RenderTargetView *rtvs[5] = {
+			ID3D11RenderTargetView *rtvs[6] = {
 				resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 				resources->_renderTargetViewBloomMask.Get(),
 				NULL, // Depth
 				NULL, // Norm Buf
 				NULL, // SSAO Mask
+				resources->_renderTargetViewSSMask.Get(),
 			};
-			context->OMSetRenderTargets(5, rtvs, NULL);
+			context->OMSetRenderTargets(6, rtvs, NULL);
 		}
 		if (g_bDumpSSAOBuffers) {
 			// This is the foreground of the hyperspace effect (the cockpit). We can dump this texture to check
 			// that the transparency is OK.
 			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"c:\\temp\\_hyperFG.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"c:\\temp\\_hyperBG.dds");
 		}
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[3] = {

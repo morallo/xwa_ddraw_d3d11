@@ -44,8 +44,12 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color : SV_TARGET0;
-	float4 bloom : SV_TARGET1;
+	float4 color    : SV_TARGET0;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
+	float4 ssaoMask : SV_TARGET4;
+	float4 ssMask   : SV_TARGET5;
 };
 
 // The HyperZoom effect probably can't be applied in this shader because it works
@@ -59,8 +63,12 @@ static const float3 red_col = float3(0.90, 0.15, 0.15);
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.bloom = 0.0;
-	float bloom = 0.0;
+	output.bloom    = 0;
+	output.normal   = 0;
+	output.pos3D    = 0;
+	output.ssaoMask = 0;
+	output.ssMask   = 0;
+	float bloom     = 0;
 
 #ifdef INSTANCED_RENDERING
 	float4 fgColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
@@ -110,6 +118,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Combine the previous textures with the foreground (cockpit)
 	color = lerp(color, fgColor.rgb, fg_alpha);
 	output.color = float4(color, 1.0);
+	output.ssMask.ba = 1.0 - fg_alpha;
 
 	// Fix the bloom
 	if (hyperspace_phase == 1 || hyperspace_phase == 3 || hyperspace_phase == 4) {
