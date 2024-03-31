@@ -51,7 +51,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	const uint ExclusiveMask      = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	const uint ExclusiveMaskLight = special_control_light & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 
-	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
+	// The following lines normalize input.tex to the range [0..1]:
+	// frac(input.tex) handles coords above 1
+	// 1 + frac(input.tex) handles negative coords
+	// The final frac() ensures we're still in the range [0..1]
+	const float2 input_tex = frac(1.0 + frac(input.tex));
+
+	float2 UV = input_tex * float2(AspectRatio, 1) + Offset.xy;
 	if (Clamp) UV = saturate(UV);
 	float specInt = fSpecInt;
 	float glossiness = fGlossiness;
@@ -59,24 +65,24 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	if (bIsBlastMark)
-		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+		texelColor = texture0.Sample(sampler0, (input_tex * 0.35) + 0.3);
 	//if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE)
 	//	texelColor.rgb = float3(0.7, 0.7, 0.7);
 
-	const bool uvActive = uvSrc0.x <= input.tex.x && input.tex.x <= uvSrc1.x &&
-			              uvSrc0.y <= input.tex.y && input.tex.y <= uvSrc1.y;
+	const bool uvActive = uvSrc0.x <= input_tex.x && input_tex.x <= uvSrc1.x &&
+			              uvSrc0.y <= input_tex.y && input_tex.y <= uvSrc1.y;
 	const float2 uvRange = uvSrc1 - uvSrc0;
 
 	// Apply the damage texture
 	if ((OverlayCtrl & OVERLAY_CTRL_MULT) != 0)
 	{
-		const float2 uv = frac((input.tex - uvSrc0) / uvRange);
+		const float2 uv = frac((input_tex - uvSrc0) / uvRange);
 		const float4 multColor = uvActive ? overlayTexA.Sample(sampler0, uv) : 1.0;
 		texelColor.rgb *= multColor.rgb;
 		specInt *= multColor.r;
 		glossiness *= multColor.r;
 	}
-	
+
 	if ((OverlayCtrl & OVERLAY_CTRL_SCREEN) != 0)
 	{
 		// rand is a random value provided by the CPU in the range 0..1
@@ -85,7 +91,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		float s, c, ang = rand0;
 		sincos(ang, s, c);
 		float2x2 mat = float2x2(c, s, -s, c);
-		float2 uv = frac(mul(input.tex.xy, mat) + float2(rand1, rand2));
+		float2 uv = frac(mul(input_tex.xy, mat) + float2(rand1, rand2));
 		// The screen layer will need its own set of uvSrc coords and uvActive.
 		//const float4 layerColor = uvActive ? overlayTexB.Sample(sampler0, uv) : 0.0;
 		const float4 layerColor = overlayTexB.Sample(sampler0, uv);
@@ -128,8 +134,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 
 	if (bDoNormalMapping) {
-		float3 normalMapColor = normalMap.Sample(sampler0, input.tex).rgb;
-		const float3x3 TBN = cotangent_frame(N, P, input.tex);
+		float3 normalMapColor = normalMap.Sample(sampler0, input_tex).rgb;
+		const float3x3 TBN = cotangent_frame(N, P, input_tex);
 		const float3 NM = normalize(mul((normalMapColor * 2.0) - 1.0, TBN));
 		N = lerp(N, NM, fNMIntensity);
 	}
