@@ -1691,15 +1691,17 @@ bool LoadACParams() {
 			if (_stricmp(param, "active_cockpit_enabled") == 0) {
 				g_bActiveCockpitEnabled = (bool)fValue;
 				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
-				if (!g_bActiveCockpitEnabled)
-				{
-					// Early abort: stop reading coordinates if the active cockpit is disabled
-					fclose(file);
-					return false;
-				}
 			}
 			else if (_stricmp(param, "enable_vr_pointer_in_concourse") == 0) {
 				g_bEnableVRPointerInConcourse = (bool)fValue;
+				if (!g_bActiveCockpitEnabled)
+				{
+					// Early abort: stop reading more stuff if the active cockpit is disabled
+					g_vrGlovesMeshes[0].visible = false;
+					g_vrGlovesMeshes[1].visible = false;
+					fclose(file);
+					return false;
+				}
 			}
 			else if (_stricmp(param, "freepie_controller_slot") == 0) {
 				g_iFreePIEControllerSlot = (int)fValue;
