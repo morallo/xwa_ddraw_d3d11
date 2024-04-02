@@ -210,7 +210,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  shadeless      = ssMask.z;
 	float3 pos3D;
 
-	const float blendAlpha = saturate(2.0 * Normal.w);
+	const float blendAlphaSat = saturate(2.0 * Normal.w);
+	const float blendAlpha = blendAlphaSat * blendAlphaSat;
 
 	PixelShaderOutput output;
 	output.color = 0;
@@ -250,7 +251,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 	ssao = saturate(pow(abs(ssao), power)); // Increase ssao contrast
-	float3 N = blendAlpha * normalize(Normal.xyz);
+	float3 N = normalize(Normal.xyz);
 
 	// For shadeless areas, make ssao 1
 	//ssao = shadeless ? 1.0 : ssao;
@@ -536,12 +537,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.color = float4(sqrt(tmp_color), texelColor.a); // Invert gamma correction (approx pow 1/2.2)
 
-	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
-	// In other words, this helps reduce halos around objects.
-	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
-	// These lines, althought apparently correct, re-introduce small white halos around objects.
-	// This is easier to see in VR or low resolutions:
-	//output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
+	output.color = float4(lerp(background, output.color.rgb, blendAlpha), 1);
 #ifdef INSTANCED_RENDERING
 	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
 #else

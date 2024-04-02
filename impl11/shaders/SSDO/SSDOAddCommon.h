@@ -364,7 +364,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float  spec_val_mask  = ssMask.y;
 	float  shadeless      = ssMask.z;
 
-	const float blendAlpha = saturate(2.0 * Normal.w);
+	const float blendAlphaSat = saturate(2.0 * Normal.w);
+	const float blendAlpha = blendAlphaSat * blendAlphaSat;
 
 	// This shader is shared between the SSDO pass and the Deferred pass.
 	// For the deferred pass, we don't have an SSDO component, so:
@@ -424,8 +425,7 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 
-	//float3 N = normalize(Normal.xyz);
-	float3 N = blendAlpha * Normal.xyz;
+	float3 N = normalize(Normal.xyz);
 	const float3 smoothN = N;
 	//const float3 smoothB = bentN;
 
@@ -877,13 +877,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.xyz = 0.5 * ssdoInd;
 #endif
 
-	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
-	// In other words, this helps reduce halos around objects.
-	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
-	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
-	// In other words, this helps reduce halos around objects.
-	//output.color.a = texelColor.a;
-	//output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
+	output.color = float4(lerp(background, output.color.rgb, blendAlpha), 1);
 #ifdef INSTANCED_RENDERING
 	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
 #else

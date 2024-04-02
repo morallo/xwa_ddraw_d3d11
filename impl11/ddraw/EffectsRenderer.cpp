@@ -5922,6 +5922,12 @@ void EffectsRenderer::RenderScene()
 
 	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
 	{
+		// Temporarily replace the background with a solid color to debug MSAA:
+		//float bgColor[4] = { 0.6f, 0.6f, 1.0f, 1.0f };
+		//float bgColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		//float bgColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		//context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+
 		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 		if (g_bDumpSSAOBuffers)
 			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");

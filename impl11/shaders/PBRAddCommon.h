@@ -378,8 +378,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	color = color * color; // Gamma correction (approx pow 2.2)
 
-	//float3 N = normalize(Normal.xyz);
-	float3 N = blendAlpha * Normal.xyz;
+	float3 N = normalize(Normal.xyz);
+	//float3 N = blendAlpha * Normal.xyz;
 	const float3 smoothN = N;
 
 	// Raytraced shadows. The output of this section is written to rt_shadow_factor
@@ -728,13 +728,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	tmp_color = tmp_color / (HDR_white_point + tmp_color);
 	//output.color = float4(sqrt(tmp_color /* * exposure*/), 1); // Invert gamma approx
 	output.color.rgb = sqrt(tmp_color /* * exposure*/); // Invert gamma approx
-	// Multiplying by blendAlpha reduces the shading around the edges of the geometry.
-	// In other words, this helps reduce halos around objects.
-	output.color = float4(lerp(background, blendAlpha * output.color.rgb, texelColor.a), 1);
-	// These lines, althought apparently correct, re-introduce small white halos around objects.
-	// This is easier to see in VR or low resolutions:
-	//output.color.a = texelColor.a;
-	//output.color = PreMulBlend(blendAlpha * output.color, float4(background, 1));
+	//output.color = float4(lerp(background, output.color.rgb, texelColor.a), 1);
+	output.color = float4(lerp(background, output.color.rgb, blendAlpha), 1);
 
 #ifdef INSTANCED_RENDERING
 	output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
