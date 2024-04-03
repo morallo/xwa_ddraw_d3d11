@@ -64,36 +64,23 @@ uint getBGColor(uint i) {
 	return bgColor[idx][sub_idx];
 }
 
-/*
-// Old PixelShaderInput (pre-D3DRendererHook):
-struct PixelShaderInput
-{
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
-	float4 pos3D  : COLOR1;
-	float4 normal : NORMAL;
-};
-*/
-
 // New PixelShaderInput needed for the D3DRendererHook
 struct PixelShaderInput
 {
-	float4 pos		: SV_POSITION;
-	float4 pos3D		: COLOR1;
-	float4 normal	: NORMAL;
-	float2 tex		: TEXCOORD;
-	//float4 color  : COLOR0;
+	float4 pos    : SV_POSITION;
+	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL;
+	float2 tex    : TEXCOORD;
 };
 
 struct PixelShaderOutput
 {
-	float4 color		: SV_TARGET0;
-	float4 bloom		: SV_TARGET1;
-	float4 pos3D		: SV_TARGET2;
-	float4 normal	: SV_TARGET3;
+	float4 color    : SV_TARGET0;
+	float4 bloom    : SV_TARGET1;
+	float4 pos3D    : SV_TARGET2;
+	float4 normal   : SV_TARGET3;
 	float4 ssaoMask : SV_TARGET4;
-	float4 ssMask	: SV_TARGET5;
+	float4 ssMask   : SV_TARGET5;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -121,7 +108,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
-	output.normal = float4(N, SSAOAlpha);
+	//output.normal = float4(N, SSAOAlpha);
+	output.normal = float4(N, 0.5);
 
 	//output.ssaoMask.r = PLASTIC_MAT;
 	//output.ssaoMask.g = DEFAULT_GLOSSINESS; // Default glossiness
@@ -252,7 +240,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.ssaoMask.r  = 0;
 			output.ssaoMask.ga = 1; // Maximum glossiness on light areas
 			output.ssaoMask.b  = 0.15; // Low spec intensity
-			output.ssMask.ba   = 1; // shadeless
+			output.ssMask.b    = 1; // shadeless
 		}
 	}
 
