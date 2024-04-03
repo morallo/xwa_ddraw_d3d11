@@ -118,7 +118,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Combine the previous textures with the foreground (cockpit)
 	color = lerp(color, fgColor.rgb, fg_alpha);
 	output.color = float4(color, 1.0);
-	output.ssMask.ba = 1.0 - fg_alpha;
+	output.ssMask.b = 1.0 - fg_alpha;
 
 	// Fix the bloom
 	if (hyperspace_phase == 1 || hyperspace_phase == 3 || hyperspace_phase == 4) {
