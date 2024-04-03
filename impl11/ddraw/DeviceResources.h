@@ -354,9 +354,7 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewNormBufR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMask;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
 	// Raytracing
 	ComPtr<ID3D11RenderTargetView> _rtShadowMaskRTV;
 	ComPtr<ID3D11RenderTargetView> _rtShadowMaskRTV_R;

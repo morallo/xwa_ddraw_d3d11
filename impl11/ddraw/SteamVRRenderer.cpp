@@ -73,6 +73,11 @@ void SteamVRRenderer::RenderScene()
 
 	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
 	{
+		float blankMaterial[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		float shadelessMaterial[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, blankMaterial);
+		context->ClearRenderTargetView(resources->_renderTargetViewSSMask, shadelessMaterial);
+
 		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 		if (g_bDumpSSAOBuffers)
 			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
@@ -158,32 +163,6 @@ void SteamVRRenderer::RenderScene()
 		context->DrawIndexedInstanced(_trianglesCount * 3, 2, 0, 0, 1); // Already in the SteamVR path
 	}
 
-	// ****************************************************************************
-	// Render the right image
-	// ****************************************************************************
-	//{
-	//	ID3D11RenderTargetView *rtvs[6] = {
-	//		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || bIsReticle */, true),
-	//		resources->_renderTargetViewBloomMaskR.Get(),
-	//		resources->_renderTargetViewDepthBufR.Get(),
-	//		// The normals hook should not be allowed to write normals for light textures. This is now implemented
-	//		// in XwaD3dPixelShader
-	//		_deviceResources->_renderTargetViewNormBufR.Get(),
-	//		// Blast Marks are confused with glass because they are not shadeless; but they have transparency
-	//		_bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
-	//		_bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
-	//	};
-	//	context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
-
-	//	// Set the right projection matrix
-	//	g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
-	//	// The viewMatrix is set at the beginning of the frame
-	//	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-
-	//	context->DrawIndexed(_trianglesCount * 3, 0, 0);
-	//}
-
-//out:
 	g_iD3DExecuteCounter++;
 	g_iDrawCounter++; // We need this counter to enable proper Tech Room detection
 }

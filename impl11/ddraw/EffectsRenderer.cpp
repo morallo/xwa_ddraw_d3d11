@@ -5928,6 +5928,14 @@ void EffectsRenderer::RenderScene()
 		//float bgColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		//context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 
+		// Populate the SSAOMask and SSMask buffers with default materials
+		// This is also done in Direct3DDevice::BeginScene(), but if we don't clean these RTVs here
+		// we see some artifacts when doing a hyperjump.
+		float blankMaterial[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		float shadelessMaterial[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, blankMaterial);
+		context->ClearRenderTargetView(resources->_renderTargetViewSSMask, shadelessMaterial);
+
 		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 		if (g_bDumpSSAOBuffers)
 			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");

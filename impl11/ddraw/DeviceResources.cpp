@@ -1903,8 +1903,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			//this->_ssEmissionMaskSRV_R.Release();
 
 			this->_renderTargetViewNormBufR.Release();
-			this->_renderTargetViewSSAOMaskR.Release();
-			this->_renderTargetViewSSMaskR.Release();
 			//this->_renderTargetViewEmissionMaskR.Release();
 		}
 		ClearOPTnames();
@@ -3630,21 +3628,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR,
 					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BLOOM_BUFFER_FORMAT),
 					&this->_renderTargetViewBloomMaskR);
-				if (FAILED(hr)) goto out;
-
-
-				step = "_renderTargetViewSSAOMaskR";
-				hr = this->_d3dDevice->CreateRenderTargetView(
-					this->_useMultisampling ? this->_ssaoMaskMSAA_R : this->_ssaoMaskR,
-					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_MASK_FORMAT),
-					&this->_renderTargetViewSSAOMaskR);
-				if (FAILED(hr)) goto out;
-
-				step = "_renderTargetViewSSMaskR";
-				hr = this->_d3dDevice->CreateRenderTargetView(
-					this->_useMultisampling ? this->_ssMaskMSAA_R : this->_ssMaskR,
-					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_MASK_FORMAT),
-					&this->_renderTargetViewSSMaskR);
 				if (FAILED(hr)) goto out;
 
 				//step = "_renderTargetViewEmissionMaskR";

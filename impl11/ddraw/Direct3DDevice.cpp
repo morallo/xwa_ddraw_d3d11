@@ -5506,25 +5506,6 @@ HRESULT Direct3DDevice::Execute(
 					//	resources->_depthStencilViewR.Get());
 					if (g_bUseSteamVR) {
 						goto out;
-						//if (!g_bReshadeEnabled) {
-						//	ID3D11RenderTargetView *rtvs[1] = {
-						//		SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
-						//	};
-						//	context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewR.Get());
-						//} else {
-						//	// SteamVR, Reshade is enabled, render to multiple output targets
-						//	ID3D11RenderTargetView *rtvs[6] = {
-						//		SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle, true),
-						//		resources->_renderTargetViewBloomMaskR.Get(),
-						//		resources->_renderTargetViewDepthBufR.Get(),
-						//		// The normals hook should not be allowed to write normals for light textures
-						//		bIsLightTexture ? NULL : resources->_renderTargetViewNormBufR.Get(),
-						//		// Blast Marks are confused with glass because they are not shadeless; but they have transparency
-						//		bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMaskR.Get(),
-						//		bIsBlastMark ? NULL : resources->_renderTargetViewSSMaskR.Get(),
-						//	};
-						//	context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewR.Get());
-						//}
 					} else {
 						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
@@ -6268,11 +6249,14 @@ HRESULT Direct3DDevice::BeginScene()
 	if (g_bReshadeEnabled && !bTransitionToHyperspace) {
 		//float infinity[4] = { 0, 0, 32000.0f, 0 };
 		float zero[4] = { 0, 0, 0, 0 };
+		float blankMaterial[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		float shadelessMaterial[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 		context->ClearRenderTargetView(resources->_renderTargetViewNormBuf, zero /* infinity */);
-		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, zero);
+		// Populate the SSAOMask and SSMask buffers with default materials
+		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, blankMaterial);
+		context->ClearRenderTargetView(resources->_renderTargetViewSSMask, shadelessMaterial);
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(resources->_renderTargetViewNormBufR, zero /* infinity */);
-			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMaskR, zero);
 		}
 	}
 
