@@ -4547,7 +4547,9 @@ HRESULT Direct3DDevice::Execute(
 				resources->_overrideRTV = TRANSP_LYR_NONE;
 				// Missiles are rendered in two phases. There's an OPT which gets rendered in EffectsRenderer,
 				// and there's a trail that gets rendered here. Let's put the trail on the transp layer.
-				if (bIsHitEffect || bIsEngineGlow || bIsExplosion || bIsTrail || g_bIsTrianglePointer)
+				// bIsElectricity contains group 22000 which is also an explosion that is used like "flak"
+				if (bIsHitEffect || bIsEngineGlow || bIsExplosion || bIsElectricity ||
+					bIsTrail || g_bIsTrianglePointer)
 				{
 					// Override the RTV for hit effects, engine glow, explosions and other shadeless/transparent
 					// objects --> let's render them directly on the transparent layer!
