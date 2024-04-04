@@ -21,12 +21,13 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
-	float4 pos3D    : SV_TARGET2;
-	float4 normal   : SV_TARGET3;
-	float4 ssaoMask : SV_TARGET4;
-	float4 ssMask   : SV_TARGET5;
+	float4 color      : SV_TARGET0;
+	float4 bloom      : SV_TARGET1;
+	float4 pos3D      : SV_TARGET2;
+	float4 normal     : SV_TARGET3;
+	float4 ssaoMask   : SV_TARGET4;
+	float4 ssMask     : SV_TARGET5;
+	float4 transp1Lyr : SV_TARGET6;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -50,6 +51,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.color = float4(brightness * texelColor.xyz, texelColor.w);
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
+	output.transp1Lyr = 0;
 
 	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE && alpha >= 0.95)
 		output.color.rgb = float3(0.7, 0.7, 0.7);
@@ -63,6 +65,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 		//output.color.a = sqrt(output.color.a); // Gamma correction (approx)
 		output.normal = 0;
+		// Cockpit glass gets rendered to transp layer 2, so we don't need to write
+		// anything to transp1Lyr.
 		return output;
 	}
 
@@ -182,7 +186,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = float4(lerp(float3(0, 1, 1), output.ssaoMask.rgb, glassThreshold), 1);
 
 		// Also write the normals of this surface over the current background
-		output.normal.a = 1.0;
+		// 0.5 is what we get from hook_normals for a solid normal
+		output.normal.a = 0.5;
 
 		float3 glass = float3(1.0, // Glass material
 		                      1.0, // White specular value
@@ -190,6 +195,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask = float4(lerp(glass, output.ssMask.rgb, glassThreshold), 1);
 		// The bloom should only be pass-through on transparent areas:
 		output.bloom = lerp(output.bloom, float4(0, 0, 0, alpha), glassThreshold);
+		output.transp1Lyr = lerp(output.color, 0, glassThreshold);
 	}
 
 	return output;

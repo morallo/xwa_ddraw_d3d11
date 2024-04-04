@@ -5954,7 +5954,7 @@ void EffectsRenderer::RenderScene()
 	// This method isn't called to draw the hyperstreaks or the hypertunnel. A different
 	// (unknown, maybe RenderMain?) path is taken instead.
 
-	ID3D11RenderTargetView *rtvs[6] = {
+	ID3D11RenderTargetView *rtvs[7] = {
 		SelectOffscreenBuffer(), // Select the main RTV
 
 		_deviceResources->_renderTargetViewBloomMask.Get(),
@@ -5965,8 +5965,9 @@ void EffectsRenderer::RenderScene()
 		// Blast Marks are confused with glass because they are not shadeless; but they have transparency
 		_bIsBlastMark ? NULL : _deviceResources->_renderTargetViewSSAOMask.Get(),
 		_bIsBlastMark ? NULL : _deviceResources->_renderTargetViewSSMask.Get(),
+		resources->_transp1RTV.Get(),
 	};
-	context->OMSetRenderTargets(6, rtvs, _deviceResources->_depthStencilViewL.Get());
+	context->OMSetRenderTargets(7, rtvs, _deviceResources->_depthStencilViewL.Get());
 
 	// DEBUG: Skip draw calls if we're debugging the process
 	/*
@@ -6153,8 +6154,11 @@ void EffectsRenderer::RenderTransparency()
 
 		if (!g_bInTechRoom)
 		{
-			//_overrideRTV = _bIsCockpit ? resources->_transp2RTV : resources->_transp1RTV;
-			//_overrideRTV = _bIsCockpit ? resources->_transp2RTV : nullptr;
+			// We can't select TRANSP_LYR_1 here, because some OPTs have solid areas with transparency,
+			// like the windows on the CRS. If we do the following, then the whole window is rendered
+			// on a transparent layer which is later blended without shading and the whole window section
+			// lacks proper shadows. Instead, we bind transp1RTV during RenderTransparency() so that we
+			// can selectively render to that layer or offscreenBuffer depending on the alpha channel.
 			_overrideRTV = _bIsCockpit ? TRANSP_LYR_2 : TRANSP_LYR_NONE;
 		}
 		// Render the deferred commands
