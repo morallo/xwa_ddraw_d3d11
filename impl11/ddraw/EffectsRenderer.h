@@ -157,7 +157,7 @@ public:
 	virtual void SceneEnd();
 	virtual void MainSceneHook(const SceneCompData* scene);
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
-	virtual void RenderScene();
+	virtual void RenderScene(bool bBindTranspLyr1);
 	virtual void UpdateTextures(const SceneCompData* scene);
 	
 	// State Management

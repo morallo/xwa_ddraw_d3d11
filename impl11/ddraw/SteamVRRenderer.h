@@ -7,7 +7,7 @@ public:
 	SteamVRRenderer();
 	virtual void SceneBegin(DeviceResources* deviceResources);
 	virtual void SceneEnd();
-	virtual void RenderScene();
+	virtual void RenderScene(bool bBindTranspLyr1);
 	virtual void CreateShaders();
 
 protected:

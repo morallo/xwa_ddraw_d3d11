@@ -5605,7 +5605,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		goto out;
 	}
 
-	RenderScene();
+	RenderScene(false);
 
 out:
 	// The hyperspace effect needs the current VS constants to work properly
@@ -5898,7 +5898,7 @@ out:
 	return bSkip;
 }
 
-void EffectsRenderer::RenderScene()
+void EffectsRenderer::RenderScene(bool bBindTranspLyr1)
 {
 	if (_deviceResources->_displayWidth == 0 || _deviceResources->_displayHeight == 0)
 	{
@@ -5964,7 +5964,7 @@ void EffectsRenderer::RenderScene()
 		// Blast Marks are confused with glass because they are not shadeless; but they have transparency
 		_bIsBlastMark ? NULL : _deviceResources->_renderTargetViewSSAOMask.Get(),
 		_bIsBlastMark ? NULL : _deviceResources->_renderTargetViewSSMask.Get(),
-		resources->_transp1RTV.Get(),
+		bBindTranspLyr1 ? resources->_transp1RTV.Get() : NULL,
 	};
 	context->OMSetRenderTargets(7, rtvs, _deviceResources->_depthStencilViewL.Get());
 
@@ -6067,9 +6067,11 @@ void EffectsRenderer::RenderLasers()
 		// Set the number of triangles
 		_trianglesCount = command.trianglesCount;
 
+		// Never set TRANSP_LYR_1 and RenderScene(true) at the same time!
+		// That'll cause transp1RTV to be bound to two slots!
 		_overrideRTV = TRANSP_LYR_1;
 		// Render the deferred commands
-		RenderScene();
+		RenderScene(false);
 	}
 
 	// Clear the command list and restore the previous state
@@ -6153,15 +6155,15 @@ void EffectsRenderer::RenderTransparency()
 
 		if (!g_bInTechRoom)
 		{
-			// We can't select TRANSP_LYR_1 here, because some OPTs have solid areas with transparency,
-			// like the windows on the CRS. If we do the following, then the whole window is rendered
-			// on a transparent layer which is later blended without shading and the whole window section
-			// lacks proper shadows. Instead, we bind transp1RTV during RenderTransparency() so that we
-			// can selectively render to that layer or offscreenBuffer depending on the alpha channel.
+			// We can't select TRANSP_LYR_1 here, because some OPTs have solid areas and transparency,
+			// like the windows on the CRS. If we set _overrideRTV to TRANSP_LRY_1, then the whole window
+			// is rendered on a transparent layer which is later blended without shading the solid areas.
+			// Instead, we bind transp1RTV during RenderScene() below so that we can selectively render
+			// to that layer or offscreenBuffer depending on the alpha channel.
 			_overrideRTV = _bIsCockpit ? TRANSP_LYR_2 : TRANSP_LYR_NONE;
 		}
 		// Render the deferred commands
-		RenderScene();
+		RenderScene(true);
 
 		// Decrease the refcount of the textures
 		for (int i = 0; i < 2; i++)
@@ -6170,6 +6172,8 @@ void EffectsRenderer::RenderTransparency()
 
 	// Clear the command list and restore the previous state
 	_TransparentDrawCommands.clear();
+	ID3D11RenderTargetView* rtvs[7] = { NULL, NULL, NULL, NULL,  NULL, NULL, NULL };
+	context->OMSetRenderTargets(7, rtvs, resources->_depthStencilViewL.Get());
 	RestoreContext();
 
 	if (g_bDumpSSAOBuffers)
@@ -6370,7 +6374,7 @@ void EffectsRenderer::RenderVRDots()
 		// Apply the VS and PS constants
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
-		RenderScene();
+		RenderScene(false);
 	}
 
 	_bDotsbRendered = true;
@@ -6551,7 +6555,7 @@ void EffectsRenderer::RenderVRBrackets()
 		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
-		RenderScene();
+		RenderScene(false);
 	}
 
 	_bBracketsRendered = true;
@@ -6737,7 +6741,7 @@ void EffectsRenderer::RenderVRHUD()
 
 	// Apply the VS and PS constants
 	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
-	RenderScene();
+	RenderScene(false);
 
 	_bHUDRendered = true;
 	RestoreContext();
@@ -6956,7 +6960,7 @@ void EffectsRenderer::RenderVRKeyboard()
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
 	// Render the VR keyboard
-	RenderScene();
+	RenderScene(false);
 
 	// Decrease the refcount of the textures
 	/*for (int i = 0; i < 2; i++)
@@ -7158,7 +7162,7 @@ void EffectsRenderer::RenderVRGloves()
 		_trianglesCount = g_vrGlovesMeshes[i].numTriangles;
 
 		// Render the gloves
-		RenderScene();
+		RenderScene(false);
 
 		// Decrease the refcount of the textures
 		/*for (int i = 0; i < 2; i++)

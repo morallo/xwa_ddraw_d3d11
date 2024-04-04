@@ -96,8 +96,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	// SS Mask: unused (Normal Mapping Intensity), Specular Value, Shadeless
 	output.ssMask = float4(0, fSpecVal, max(fAmbient, bIsShadeless), alpha);
 
-	// Process lasers and missiles and probably other forms of ordinance as well...
-	// That's right, renderType is 2 for missiles!
+	// renderType == 2 is for lasers and missiles (and probably other ordinance as well)
+	// Here we make an exception for missiles as they are handled separately
 	if (renderType == 2 && ExclusiveMask != SPECIAL_CONTROL_MISSILE)
 	{
 		// Do not write the 3D position

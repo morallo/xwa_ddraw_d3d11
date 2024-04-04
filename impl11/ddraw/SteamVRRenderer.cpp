@@ -55,7 +55,7 @@ void SteamVRRenderer::SceneEnd()
 	EffectsRenderer::SceneEnd();
 }
 
-void SteamVRRenderer::RenderScene()
+void SteamVRRenderer::RenderScene(bool bBindTranspLyr1)
 {
 	if (_deviceResources->_displayWidth == 0 || _deviceResources->_displayHeight == 0)
 	{
@@ -140,7 +140,7 @@ void SteamVRRenderer::RenderScene()
 	// Render the left image
 	// ****************************************************************************
 	{
-		ID3D11RenderTargetView *rtvs[6] = {
+		ID3D11RenderTargetView *rtvs[7] = {
 			SelectOffscreenBuffer(),
 			resources->_renderTargetViewBloomMask.Get(),
 			resources->_renderTargetViewDepthBuf.Get(), 
@@ -150,8 +150,9 @@ void SteamVRRenderer::RenderScene()
 			// Blast Marks are confused with glass because they are not shadeless; but they have transparency
 			_bIsBlastMark ? NULL : resources->_renderTargetViewSSAOMask.Get(),
 			_bIsBlastMark ? NULL : resources->_renderTargetViewSSMask.Get(),
+			bBindTranspLyr1 ? resources->_transp1RTV.Get() : NULL,
 		};
-		context->OMSetRenderTargets(6, rtvs, resources->_depthStencilViewL.Get());
+		context->OMSetRenderTargets(7, rtvs, resources->_depthStencilViewL.Get());
 
 		// Set the left projection matrix		
 		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
