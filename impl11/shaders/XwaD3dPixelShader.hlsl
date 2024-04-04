@@ -186,8 +186,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = float4(lerp(float3(0, 1, 1), output.ssaoMask.rgb, glassThreshold), 1);
 
 		// Also write the normals of this surface over the current background
-		// 0.5 is what we get from hook_normals for a solid normal
-		output.normal.a = 0.5;
+		// 0.5 is what we get from hook_normals for a solid normal, but here
+		// we need to use 1.0, or the normal will be blended with the current
+		// background... go figure!
+		output.normal.a = 1.0;
 
 		float3 glass = float3(1.0, // Glass material
 		                      1.0, // White specular value
