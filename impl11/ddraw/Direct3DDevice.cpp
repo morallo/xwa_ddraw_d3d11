@@ -2540,35 +2540,17 @@ void DisplayBox(char *name, Box box) {
  If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
-inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer(bool bIsMaskable) {
+inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer() {
 	auto& resources = this->_deviceResources;
-	//auto& context = resources->_d3dDeviceContext;
 
-	/*
-	// DEBUG
-	static bool bFirstTime = true;
-	if (bFirstTime) {
-		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferPost,
-			L"C:\\Temp\\_offscreenBufferPost-First-Time.dds");
-		bFirstTime = false;
-	}
-	// DEBUG
-	*/
-
-	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
-	ID3D11RenderTargetView *shadertoyRTV = resources->_shadertoyRTV.Get();
-	//if (g_HyperspacePhaseFSM != HS_POST_HYPER_EXIT_ST || !bIsCockpit)
-	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
-		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
-		return shadertoyRTV;
-	else
-	{
-		//return (resources->_overrideRTV != nullptr) ? resources->_overrideRTV : regularRTV;
-		if (resources->_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
-		if (resources->_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
-		// Normal output buffer (_offscreenBuffer)
-		return regularRTV;
-	}
+	ID3D11RenderTargetView* regularRTV = resources->_renderTargetView.Get();
+	// Since we're now splitting the background and the 3D content, we don't need the shadertoyRTV
+	// anymore. When hyperspace is activated, no external OPTs are rendered, so we still just get
+	// the cockpit on the regularRTV
+	if (resources->_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
+	if (resources->_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
+	// Normal output buffer (_offscreenBuffer)
+	return regularRTV;
 }
 
 inline void Direct3DDevice::EnableTransparency() {
@@ -5286,7 +5268,7 @@ HRESULT Direct3DDevice::Execute(
 					if (!g_bReshadeEnabled) {
 						// The original 2D vertices are already in the GPU, so just render as usual
 						ID3D11RenderTargetView *rtvs[1] = {
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
+							SelectOffscreenBuffer(),
 						};
 						context->OMSetRenderTargets(1,
 							//resources->_renderTargetView.GetAddressOf(),
@@ -5295,7 +5277,7 @@ HRESULT Direct3DDevice::Execute(
 						// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 						// NON-VR with effects:
 						ID3D11RenderTargetView *rtvs[6] = {
-							SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
+							SelectOffscreenBuffer(), //resources->_renderTargetView.Get(),
 
 							resources->_renderTargetViewBloomMask.Get(),
 							//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
@@ -5431,13 +5413,13 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bUseSteamVR) {
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
+								SelectOffscreenBuffer(),
 							};
 							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// SteamVR, left image. Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(), // Don't use dual SSAO anymore
 								// The normals hook should not be allowed to write normals for light textures
@@ -5452,13 +5434,13 @@ HRESULT Direct3DDevice::Execute(
 						// Direct SBS mode
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
+								SelectOffscreenBuffer(),
 							};
 							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// DirectSBS, Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle), //resources->_renderTargetView.Get(),
+								SelectOffscreenBuffer(), //resources->_renderTargetView.Get(),
 								resources->_renderTargetViewBloomMask.Get(),
 								//g_bIsPlayerObject || g_bDisableDualSSAO ? resources->_renderTargetViewDepthBuf.Get() : resources->_renderTargetViewDepthBuf2.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
@@ -5510,13 +5492,13 @@ HRESULT Direct3DDevice::Execute(
 						// DirectSBS Mode
 						if (!g_bReshadeEnabled) {
 							ID3D11RenderTargetView *rtvs[1] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
+								SelectOffscreenBuffer(),
 							};
 							context->OMSetRenderTargets(1, rtvs, resources->_depthStencilViewL.Get());
 						} else {
 							// Reshade is enabled, render to multiple output targets (bloom mask, depth buffer)
 							ID3D11RenderTargetView *rtvs[6] = {
-								SelectOffscreenBuffer(bIsCockpit || bIsGunner || bIsReticle),
+								SelectOffscreenBuffer(),
 								resources->_renderTargetViewBloomMask.Get(),
 								resources->_renderTargetViewDepthBuf.Get(),
 								// The normals hook should not be allowed to write normals for light textures

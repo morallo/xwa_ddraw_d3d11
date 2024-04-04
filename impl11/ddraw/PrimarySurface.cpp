@@ -4707,6 +4707,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	}*/
 	// DEBUG
 
+	// We can't capture the background here (yet). The hyper effects needs to be combined with the
+	// hyperzoom effect and that happens when we call hyperComposePS
+
 	// Second render: compose the cockpit over the previous effect
 	{
 		// Reset the viewport for non-VR mode:
@@ -4777,10 +4780,16 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
 		// to _offscreenBufferAsInput to re-use in the next step:
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
+		{
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
 
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		if (!g_bReshadeEnabled) {
@@ -4796,7 +4805,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				NULL, // Depth
 				NULL, // Norm Buf
 				NULL, // SSAO Mask
-				resources->_renderTargetViewSSMask.Get(),
+				NULL, // SS Mask //resources->_renderTargetViewSSMask.Get(),
 			};
 			context->OMSetRenderTargets(6, rtvs, NULL);
 		}
@@ -4804,34 +4813,28 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			// This is the foreground of the hyperspace effect (the cockpit). We can dump this texture to check
 			// that the transparency is OK.
 			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"c:\\temp\\_hyperFG.dds");
-			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"c:\\temp\\_hyperBG.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBufR, L"c:\\temp\\_hyperBG.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInput, L"c:\\temp\\_hyperEffect.dds");
 		}
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[3] = {
-			resources->_shadertoySRV.Get(),		// Foreground (cockpit)
-			resources->_shadertoyAuxSRV.Get(),  // Background
-			resources->_offscreenAsInputShaderResourceView.Get(), // Previous effect (trails or tunnel)
+			resources->_shadertoySRV.Get(),    // Foreground (cockpit)
+			resources->_shadertoyAuxSRV.Get(), // Background (stellar background, hyperzoomed)
+			resources->_offscreenAsInputShaderResourceView.Get(), // Previous hyper effect (trails or tunnel)
 		};
 		context->PSSetShaderResources(0, 3, srvs);
-		// TODO: Handle SteamVR cases
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
 			context->Draw(6, 0);
+
+		// Capture the background buffer: it should contain the hyper effect + hyper zoom, and we'll
+		// need it for the final DeferredPass() below
+		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBufferPost);
+		g_bBackgroundCaptured = true;
+		if (g_bDumpSSAOBuffers)
+			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBuffer.dds");
 	}
-
-	
-	// DEBUG
-	/*if (g_iPresentCounter == CAPTURE_FRAME) {
-		DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
-			L"C:\\Temp\\_offscreenBufferPost-2.jpg");
-	}*/
-	// DEBUG
-	
-
-//out:
-	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
-	context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
 
 	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
 	resources->InitViewport(lastViewport);

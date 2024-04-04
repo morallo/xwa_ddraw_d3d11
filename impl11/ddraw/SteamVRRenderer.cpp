@@ -80,7 +80,7 @@ void SteamVRRenderer::RenderScene()
 
 		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 		if (g_bDumpSSAOBuffers)
-			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBuffer.dds");
 
 		// Wipe out the background:
 		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
@@ -141,7 +141,7 @@ void SteamVRRenderer::RenderScene()
 	// ****************************************************************************
 	{
 		ID3D11RenderTargetView *rtvs[6] = {
-			SelectOffscreenBuffer(_bIsCockpit || _bIsGunner /* || bIsReticle */),
+			SelectOffscreenBuffer(),
 			resources->_renderTargetViewBloomMask.Get(),
 			resources->_renderTargetViewDepthBuf.Get(), 
 			// The normals hook should not be allowed to write normals for light textures. This is now implemented

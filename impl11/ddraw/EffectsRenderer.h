@@ -131,7 +131,7 @@ protected:
 	HRESULT QuickSetZWriteEnabled(BOOL Enabled);
 	void EnableTransparency();
 	void EnableHoloTransparency();
-	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable);
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer();
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 	Matrix4 GetShadowMapLimits(const AABB &aabb, float *OBJrange, float *OBJminZ);
 

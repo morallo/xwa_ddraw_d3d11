@@ -35,8 +35,8 @@ SamplerState effectSampler : register(s2);
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float4 pos    : SV_POSITION;
+	float2 uv     : TEXCOORD;
 #ifdef INSTANCED_RENDERING
 	uint   viewId : SV_RenderTargetArrayIndex;
 #endif
@@ -46,10 +46,6 @@ struct PixelShaderOutput
 {
 	float4 color    : SV_TARGET0;
 	float4 bloom    : SV_TARGET1;
-	float4 pos3D    : SV_TARGET2;
-	float4 normal   : SV_TARGET3;
-	float4 ssaoMask : SV_TARGET4;
-	float4 ssMask   : SV_TARGET5;
 };
 
 // The HyperZoom effect probably can't be applied in this shader because it works
@@ -63,12 +59,8 @@ static const float3 red_col = float3(0.90, 0.15, 0.15);
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.bloom    = 0;
-	output.normal   = 0;
-	output.pos3D    = 0;
-	output.ssaoMask = 0;
-	output.ssMask   = 0;
-	float bloom     = 0;
+	output.bloom = 0;
+	float bloom  = 0;
 
 #ifdef INSTANCED_RENDERING
 	float4 fgColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
@@ -103,36 +95,33 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Fast-forward several months into the future, and the stupid stupid stupid (stupid) hack
 	// above appears to have been resolved finally. The fix is really in the DestBlendAlpha/BlendOpAlpha
 	// settings in XwaD3dRenderHook and how they control blending between semi-transparent surfaces like
-	// the cockpit glass and the holograms. The following appear to work fine now:
-	float fg_alpha = fgColor.a;
+	// the cockpit glass and the holograms. The following appears to work fine now:
 	float lightness = dot(0.333, effectColor.rgb);
 	// Combine the background with the hyperspace effect
-	if (hyperspace_phase == 2) {
+	if (hyperspace_phase == 2)
 		// Replace the background with the tunnel
 		color = effectColor.rgb;
-	}
-	else {
+	else
 		// Blend the trails with the background
 		color = lerp(bgColor.rgb, effectColor.rgb, lightness);
-	}
-	// Combine the previous textures with the foreground (cockpit)
-	color = lerp(color, fgColor.rgb, fg_alpha);
+
+	// We don't combine the foreground (cockpit) with the background anymore in
+	// this shader. That's taken care of in the DeferredPass() now. Here, we're
+	// only interested in the alpha channel of the foreground so that we know
+	// where bloom can be applied
 	output.color = float4(color, 1.0);
-	output.ssMask.b = 1.0 - fg_alpha;
 
 	// Fix the bloom
-	if (hyperspace_phase == 1 || hyperspace_phase == 3 || hyperspace_phase == 4) {
+	if (hyperspace_phase == 1 || hyperspace_phase == 3 || hyperspace_phase == 4)
 		bloom = lightness;
-	}
-	else {
+	else
 		bloom = 0.65 * smoothstep(0.55, 1.0, lightness);
-	}
 
 	// Render red streaks during an interdiction
 	// TODO: Lerp the color, but only when entering the hypertunnel
 	float3 bloom_col = lerp(blue_col, red_col, interdict_mix);
 	output.bloom = float4(bloom_strength * bloom_col * bloom, bloom);
 
-	output.bloom *= 1.0 - fg_alpha; // Hide the bloom mask wherever the foreground is solid
+	output.bloom *= 1.0 - fgColor.a; // Hide the bloom mask wherever the foreground is solid
 	return output;
 }

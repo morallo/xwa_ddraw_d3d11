@@ -231,9 +231,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}*/
 
-	if (shadeless >= 0.95)
+	if (shadeless >= 1.0)
 	{
-		output.color = float4(lerp(background, color, texelColor.a), 1);
+		output.color = float4(lerp(background, color, blendAlpha), 1);
 #ifdef INSTANCED_RENDERING
 		output.color = BlendTransparentLayers(output.color, transpColor1, transpColor2);
 #else

@@ -122,7 +122,7 @@ void DirectSBSRenderer::RenderScene()
 
 		ID3D11RenderTargetView *rtvs[6] = {
 			// TODO: Check SelectOffscreenBuffer for DirectSBS mode
-			SelectOffscreenBuffer(_bIsCockpit || _bIsGunner),
+			SelectOffscreenBuffer(),
 			resources->_renderTargetViewBloomMask.Get(),
 			resources->_renderTargetViewDepthBuf.Get(), 
 			// The normals hook should not be allowed to write normals for light textures. This is now implemented
@@ -156,7 +156,7 @@ void DirectSBSRenderer::RenderScene()
 
 		ID3D11RenderTargetView *rtvs[6] = {
 			// TODO: Check SelectOffscreenBuffer for DirectSBS mode
-			SelectOffscreenBuffer(_bIsCockpit || _bIsGunner),
+			SelectOffscreenBuffer(),
 			resources->_renderTargetViewBloomMask.Get(),
 			resources->_renderTargetViewDepthBuf.Get(),
 			// The normals hook should not be allowed to write normals for light textures. This is now implemented

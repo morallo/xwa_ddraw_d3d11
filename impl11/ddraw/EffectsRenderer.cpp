@@ -5640,24 +5640,17 @@ out:
  If the game is rendering the hyperspace effect, this function will select shaderToyBuf
  when rendering the cockpit. Otherwise it will select the regular offscreenBuffer
  */
-inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer(bool bIsMaskable) {
+inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer() {
 	auto& resources = this->_deviceResources;
 
 	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
-	ID3D11RenderTargetView *shadertoyRTV = resources->_shadertoyRTV.Get();
-	if (g_HyperspacePhaseFSM != HS_INIT_ST && bIsMaskable)
-	{
-		// If we reach this point, then the game is in hyperspace AND this is a cockpit texture
-		return shadertoyRTV;
-	}
-	else
-	{
-		//return (_overrideRTV != nullptr && !_bForceShaded) ? _overrideRTV : regularRTV;
-		if (_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
-		if (_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
-		// Normal output buffer (_offscreenBuffer)
-		return regularRTV;
-	}
+	// Since we're now splitting the background and the 3D content, we don't need the shadertoyRTV
+	// anymore. When hyperspace is activated, no external OPTs are rendered, so we still just get
+	// the cockpit on the regularRTV
+	if (_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
+	if (_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
+	// Normal output buffer (_offscreenBuffer)
+	return regularRTV;
 }
 
 // This function should only be called when the miniature (targetted craft) is being rendered.
@@ -5692,7 +5685,7 @@ void EffectsRenderer::DCCaptureMiniature()
 
 	// Apply the brightness settings to the pixel shader
 	g_PSCBuffer.brightness = g_fBrightness;
-	// Restore the non-VR dimensions:`
+	// Restore the non-VR dimensions:
 	_deviceResources->InitViewport(&_viewport);
 	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
@@ -5922,8 +5915,7 @@ void EffectsRenderer::RenderScene()
 
 	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
 	{
-		// Temporarily replace the background with a solid color to debug MSAA:
-		//float bgColor[4] = { 0.6f, 0.6f, 1.0f, 1.0f };
+		// Temporarily replace the background with a solid color to debug MSAA halos:
 		//float bgColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 		//float bgColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		//context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
@@ -5938,7 +5930,7 @@ void EffectsRenderer::RenderScene()
 
 		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 		if (g_bDumpSSAOBuffers)
-			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBuffer.dds");
 
 		// Wipe out the background:
 		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
@@ -5963,7 +5955,7 @@ void EffectsRenderer::RenderScene()
 	// (unknown, maybe RenderMain?) path is taken instead.
 
 	ID3D11RenderTargetView *rtvs[6] = {
-		SelectOffscreenBuffer(_bIsCockpit || _bIsGunner), // Select the main RTV
+		SelectOffscreenBuffer(), // Select the main RTV
 
 		_deviceResources->_renderTargetViewBloomMask.Get(),
 		g_bAOEnabled ? _deviceResources->_renderTargetViewDepthBuf.Get() : NULL,
