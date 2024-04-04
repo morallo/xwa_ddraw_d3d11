@@ -184,6 +184,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		// glassThreshold: 0 --> glass
 		// glassThreshold: 1 --> opaque
 		const float glassThreshold = smoothstep(0.95, 1.0, alpha);
+		// We can make glass a bit more transparent. This might help external glass to be less
+		// dark:
+		const float adjustedGlassAlpha = alpha * alpha;
+		output.color.a = lerp(adjustedGlassAlpha, alpha, glassThreshold);
 		output.ssaoMask = float4(lerp(float3(0, 1, 1), output.ssaoMask.rgb, glassThreshold), 1);
 
 		// Also write the normals of this surface over the current background
