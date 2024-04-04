@@ -130,7 +130,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.color.a = alpha;
 		output.normal.a = 0.5 * alpha;
 		output.ssMask.ba = alpha; // Make it all shadeless
-		// Missiles may have illumination maps, so the next block sometimes is executed too:
+		// Missiles may have illumination maps, so the next block sometimes is executed too and
+		// that adds bloom to the OPT part of the missile
 	}
 
 	// In the D3dRendererHook, lightmaps and regular textures are rendered on the same draw call.
@@ -197,6 +198,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssMask = float4(lerp(glass, output.ssMask.rgb, glassThreshold), 1);
 		// The bloom should only be pass-through on transparent areas:
 		output.bloom = lerp(output.bloom, float4(0, 0, 0, alpha), glassThreshold);
+		// Render transparent areas to transp1Lyr, solid areas still go to _offscreenBuffer
 		output.transp1Lyr = lerp(output.color, 0, glassThreshold);
 	}
 

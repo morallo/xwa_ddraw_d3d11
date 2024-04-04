@@ -112,6 +112,14 @@ PixelShaderOutput main(PixelShaderInput input)
 		return output;
 	}
 
+	if (ExclusiveMask == SPECIAL_CONTROL_MISSILE)
+	{
+		// I'm not quite sure, but I _think_ missiles used to be rendered as "engine glow".
+		// The engine glow path below increases the value by 1.25, so let's do that here
+		// to recover the original look.
+		output.bloom = float4(1.25 * fBloomStrength * output.color.rgb, alpha);
+	}
+
 	if (ExclusiveMask == SPECIAL_CONTROL_EXPLOSION)
 	{
 		alpha = sqrt(alpha); // Gamma correction (approx)

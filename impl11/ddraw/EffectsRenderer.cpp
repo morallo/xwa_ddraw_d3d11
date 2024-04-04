@@ -4082,7 +4082,6 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 	{
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
-		//g_PSCBuffer.bIsEngineGlow = 1;
 	}
 	else if (_lastTextureSelected->is_SkydomeLight) {
 		_bModifiedShaders = true;

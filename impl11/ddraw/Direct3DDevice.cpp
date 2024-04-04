@@ -4536,6 +4536,12 @@ HRESULT Direct3DDevice::Execute(
 					// Override the RTV for hit effects, engine glow, explosions and other shadeless/transparent
 					// objects --> let's render them directly on the transparent layer!
 					resources->_overrideRTV = TRANSP_LYR_1;
+					if (bIsTrail)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fMissileStrength;
+						g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_MISSILE;
+					}
 				}
 
 				// If we're rendering 3D contents in the Tech Room and some form of SSAO is enabled, 
