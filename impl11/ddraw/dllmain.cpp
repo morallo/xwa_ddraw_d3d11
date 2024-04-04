@@ -1019,8 +1019,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//SaveVRParams();
 
 					//IncreaseAspectRatio(0.05f);
-					IncreaseReticleScale(0.1f);
-					SaveVRParams();
+					//IncreaseReticleScale(0.1f);
+					//SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z += 0.1f;
@@ -1058,8 +1058,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//SaveVRParams();
 
 					//IncreaseAspectRatio(-0.05f);
-					IncreaseReticleScale(-0.1f);
-					SaveVRParams();
+					//IncreaseReticleScale(-0.1f);
+					//SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z -= 0.1f;
