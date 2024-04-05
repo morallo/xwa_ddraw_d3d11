@@ -196,9 +196,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		// background... go figure!
 		output.normal.a = 1.0;
 
-		float3 glass = float3(1.0, // Glass material
-		                      1.0, // White specular value
-		                      output.ssMask.b); // Shadeless/Ambient
+		float3 glass = float3(1.0,  // Glass material
+		                      1.0,  // White specular value
+		                      0.8); // Almost shadeless (we're doing this to make the inside of cockpits easier to see
+		                      //output.ssMask.b); // Keep the current ambient setting
 		output.ssMask = float4(lerp(glass, output.ssMask.rgb, glassThreshold), 1);
 		// The bloom should only be pass-through on transparent areas:
 		output.bloom = lerp(output.bloom, float4(0, 0, 0, alpha), glassThreshold);
