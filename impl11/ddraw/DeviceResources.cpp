@@ -5824,8 +5824,16 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+
+		bool bDefaultStarField = (g_bRendering3D && g_ExecuteCount == 0);
 		if (g_bUseSteamVR)
-			this->_d3dDeviceContext->DrawIndexedInstanced(6, 2, 0, 0, 0); // if (g_bUseSteamVR)
+		{
+			// In VR mode, do not render the default starfield. Most of the time, some backdrop will
+			// cover it, but in some missions, there's backdrops with transparency and the default
+			// starfield shows through. We don't want that.
+			if (!bDefaultStarField)
+				this->_d3dDeviceContext->DrawIndexedInstanced(6, 2, 0, 0, 0); // if (g_bUseSteamVR)
+		}
 		else
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 
