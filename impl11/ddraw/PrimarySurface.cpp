@@ -9977,7 +9977,8 @@ HRESULT PrimarySurface::Flip(
 
 			// Render the sun flare (if applicable)
 			if (g_bReshadeEnabled && g_bProceduralSuns && !g_b3DSunPresent && !g_b3DSkydomePresent &&
-				g_ShadertoyBuffer.SunFlareCount > 0 && g_ShadertoyBuffer.flare_intensity > 0.01f)
+				g_ShadertoyBuffer.SunFlareCount > 0 && g_ShadertoyBuffer.flare_intensity > 0.01f &&
+				!g_bUseSteamVR) // Temporary: sun flares don't worki well in VR mode.
 			{
 				// We need to set the blend state properly for Bloom, or else we might get
 				// different results when brackets are rendered because they alter the 
