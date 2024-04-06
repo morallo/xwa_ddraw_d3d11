@@ -2596,6 +2596,9 @@ void PrimarySurface::SSAOPass(float fZoomFactor) {
 				0, BACKBUFFER_FORMAT);
 		}
 
+		// In map mode, the background is empty, so we'll pass offscreenBuffer for the background SRV instead:
+		if (g_bMapMode) context->CopyResource(resources->_backgroundBufferAsInput, resources->_offscreenBufferAsInput);
+
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(), // 0: Color buffer
 			resources->_ssaoBufSRV.Get(),                         // 1: SSAO component
@@ -3084,10 +3087,21 @@ void PrimarySurface::SSDOPass(float fZoomFactor, float fZoomFactor2) {
 		// Resolve offscreenBuf
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
+		if (g_bUseSteamVR) {
 			context->ResolveSubresource(
 				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			context->ResolveSubresource(
+				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
+		else {
+			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
+				0, BACKBUFFER_FORMAT);
+		}
+
+		// In map mode, the background is empty, so we'll pass offscreenBuffer for the background SRV instead:
+		if (g_bMapMode) context->CopyResource(resources->_backgroundBufferAsInput, resources->_offscreenBufferAsInput);
 
 		ID3D11ShaderResourceView *srvs_pass2[8] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),	// 0: Color buffer
@@ -3264,6 +3278,9 @@ void PrimarySurface::DeferredPass()
 			context->ResolveSubresource(resources->_ReticleBufAsInput, 0, resources->_ReticleBufMSAA,
 				0, BACKBUFFER_FORMAT);
 		}
+
+		// In map mode, the background is empty, so we'll pass offscreenBuffer for the background SRV instead:
+		if (g_bMapMode) context->CopyResource(resources->_backgroundBufferAsInput, resources->_offscreenBufferAsInput);
 
 		ID3D11ShaderResourceView *srvs_pass[10] = {
 			resources->_offscreenAsInputShaderResourceView.Get(), // 0: Color buffer
@@ -9626,7 +9643,6 @@ HRESULT PrimarySurface::Flip(
 		auto &device = resources->_d3dDevice;
 		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 		const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
-		const bool bMapOFF = PlayerDataTable[*g_playerIndex].mapState == 0;
 		const int cameraObjIdx = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
 		int FlyByCameraTime = PlayerDataTable[*g_playerIndex].Camera.FlyByCameraTime;
 
@@ -9811,12 +9827,16 @@ HRESULT PrimarySurface::Flip(
 			if (!g_bBackgroundCaptured)
 			{
 				g_bBackgroundCaptured = true;
-				context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+
+				if (!g_bMapMode)
+				{
+					context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+					// Wipe out the background:
+					context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+				}
+
 				if (g_bDumpSSAOBuffers)
 					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBufferP.dds");
-
-				// Wipe out the background:
-				context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
 			}
 
 			context->ResolveSubresource(resources->_transpBufferAsInput1, 0, resources->_transpBuffer1, 0, BACKBUFFER_FORMAT);
@@ -10100,7 +10120,7 @@ HRESULT PrimarySurface::Flip(
 			// Apply the speed shader
 			// Adding g_bCustomFOVApplied to condition below prevents this effect from getting rendered 
 			// on the first frame (sometimes it can happen and it's quite visible/ugly)
-			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar && bMapOFF &&
+			if (g_bCustomFOVApplied && g_bEnableSpeedShader && !*g_playerInHangar && !g_bMapMode &&
 				(!bExternalCamera || (bExternalCamera && *g_playerIndex == cameraObjIdx)) &&
 				(g_HyperspacePhaseFSM == HS_INIT_ST || g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST) &&
 				FlyByCameraTime == 0)

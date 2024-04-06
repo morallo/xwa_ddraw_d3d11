@@ -223,6 +223,7 @@ extern float4 g_SunColors[MAX_SUN_FLARES];
 extern int g_iSunFlareCount;
 
 extern bool g_bBackgroundCaptured;
+extern bool g_bMapMode;
 
 // D3DRendererHook draw call counter;
 extern int g_iD3DExecuteCounter;

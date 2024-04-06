@@ -5358,8 +5358,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	BeginAnnotatedEvent(L"RenderMain");
 
-	const bool bMapMode = PlayerDataTable[*g_playerIndex].mapState != 0;
-
 	if (SUCCEEDED(hr))
 	{
 		if ((width == this->_displayWidth) && (height == this->_displayHeight) && (bpp == this->_mainDisplayTextureBpp))
@@ -5735,10 +5733,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		if (!g_bEnableVR || bRenderToDC)
 		{
 			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
-			// The map lines (both the grid and the vertical lines) are drawn here
+			// The map lines (both the grid and the vertical lines) are drawn here too
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
-			if (bMapMode)
-				_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)

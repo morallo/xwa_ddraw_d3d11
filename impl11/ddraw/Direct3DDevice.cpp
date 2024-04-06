@@ -5962,6 +5962,8 @@ HRESULT Direct3DDevice::BeginScene()
 	bPrevHyperspaceState = bCurHyperspaceState;
 	bCurHyperspaceState = PlayerDataTable[*g_playerIndex].hyperspacePhase != 0;
 	bTransitionToHyperspace = !bPrevHyperspaceState && bCurHyperspaceState;
+	if (g_iPresentCounter >= PLAYERDATATABLE_MIN_SAFE_FRAME && g_playerIndex != nullptr)
+		g_bMapMode = (PlayerDataTable[*g_playerIndex].mapState != 0);
 	// We want to capture the transition to hyperspace because we don't want to clear some buffers
 	// when this happens. The problem is that the game snaps the camera to the forward position as soon
 	// as we jump into hyperspace; but that causes glitches with the new hyperspace effect. To solve this

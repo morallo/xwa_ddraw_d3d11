@@ -248,6 +248,7 @@ float g_fInterdictionAngleScale = 0.25f;
 
 int g_iDelayedDumpDebugBuffers = 0;
 bool g_bBackgroundCaptured = false; // Reset on every frame
+bool g_bMapMode = false; // Recomputed on every frame
 
 // white_point = 1 --> OK
 // white_point = 0.5 --> Makes everything bright

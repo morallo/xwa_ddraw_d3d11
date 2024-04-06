@@ -75,15 +75,19 @@ void SteamVRRenderer::RenderScene(bool bBindTranspLyr1)
 	{
 		float blankMaterial[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 		float shadelessMaterial[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
-		context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, blankMaterial);
-		context->ClearRenderTargetView(resources->_renderTargetViewSSMask, shadelessMaterial);
 
-		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+		if (!g_bMapMode)
+		{
+			context->ClearRenderTargetView(resources->_renderTargetViewSSAOMask, blankMaterial);
+			context->ClearRenderTargetView(resources->_renderTargetViewSSMask, shadelessMaterial);
+
+			context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
+			// Wipe out the background:
+			context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+		}
+
 		if (g_bDumpSSAOBuffers)
 			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBuffer.dds");
-
-		// Wipe out the background:
-		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
 		g_bBackgroundCaptured = true;
 	}
 
