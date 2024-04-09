@@ -4350,7 +4350,7 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 {
 	// Do not apply animations if there's no material or there's a greeble in the current
 	// texture. All textures with a .mat file have at least the default material.
-	if (!_bHasMaterial || _lastTextureSelected->material.GreebleDataIdx != -1)
+	if (!_bHasMaterial || _lastTextureSelected->material.GreebleDataIdx != -1 || g_bInTechRoom)
 		return;
 
 	bool bIsDCDamageTex = false;
