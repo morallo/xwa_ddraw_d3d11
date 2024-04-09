@@ -5440,6 +5440,12 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	if (g_bEnableAnimations)
 		ApplyAnimatedTextures(objectId, bInstanceEvent, fixedInstanceData);
 
+	if (g_bInTechRoom)
+	{
+		g_PSCBuffer.AuxColor.x = g_config.TechRoomMetallicity;
+		g_PSCBuffer.AuxColor.y = g_config.TechRoomAmbient;
+	}
+
 	// BLAS/TLAS construction
 	// Only add these vertices to the BLAS if the texture is not transparent
 	// (engine glows are transparent and may both cast and catch shadows

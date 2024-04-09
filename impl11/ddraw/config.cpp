@@ -86,6 +86,9 @@ Config::Config()
 	this->ProjectionParameterB = 256.0f;
 	this->ProjectionParameterC = 0.33f;
 
+	this->TechRoomMetallicity = 0.15f;
+	this->TechRoomAmbient = 0.2f;
+
 	CreateDirectory("Screenshots", nullptr);
 	this->ScreenshotsDirectory = "Screenshots";
 
@@ -296,6 +299,14 @@ Config::Config()
 				{
 					this->ScreenshotsDirectory = value;
 				}
+			}
+			else if (name == "TechRoomMetallicity")
+			{
+				this->TechRoomMetallicity = stof(value);
+			}
+			else if (name == "TechRoomAmbient")
+			{
+				this->TechRoomAmbient = stof(value);
 			}
 		}
 	}

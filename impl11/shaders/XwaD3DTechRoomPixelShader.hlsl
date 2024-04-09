@@ -18,6 +18,9 @@ SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D normalMap : register(t13);
 
+#define METALLICITY AuxColor.x
+#define AMBIENT AuxColor.y
+
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -101,11 +104,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float exposure = 1.0;
 	const float blackish = smoothstep(0.3, 0.0, dot(0.333, texelColor.rgb));
 	//float glossiness = output.ssaoMask.g + 0.5;
-	const float metallicity = 0.25;
+	//const float metallicity = 0.25;
 	float glossiness = lerp(0.7, 0.6, blackish);
 	//float reflectance = 0.6;
 	float reflectance = lerp(0.6, 0.5, blackish);
-	const float ambient = 0.1;
+	//const float ambient = 0.1;
 	float final_alpha = alpha;
 	// Make glass more glossy
 	if (alpha < 0.98)
@@ -118,10 +121,10 @@ PixelShaderOutput main(PixelShaderInput input)
 		srgb_to_linear(texelColor.rgb),
 		globalLights[0].direction.xyz,
 		globalLights[0].color,
-		metallicity,
+		METALLICITY,
 		glossiness, // Glossiness: 0 matte, 1 glossy/glass
 		reflectance,
-		ambient
+		AMBIENT
 	);
 	output.color.rgb = linear_to_srgb(ToneMapFilmic_Hejl2015(col * exposure, 1.0));
 	// Make glass reflections more visible (non-transparent)

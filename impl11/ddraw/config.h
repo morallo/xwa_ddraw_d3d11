@@ -64,6 +64,9 @@ public:
 	float ProjectionParameterB;
 	float ProjectionParameterC;
 
+	float TechRoomMetallicity;
+	float TechRoomAmbient;
+
 	std::string ScreenshotsDirectory;
 };
 
