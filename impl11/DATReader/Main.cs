@@ -316,5 +316,34 @@ namespace DATReader
 
             return false;
         }
-    }
+
+		[DllExport(CallingConvention.Cdecl)]
+		public static unsafe int GetDATGroupCount()
+		{
+			if (m_DATFile == null)
+			{
+				Trace.WriteLine("[DBG] [C#] Load a DAT file first");
+				return -1;
+			}
+
+			return m_DATFile.Groups.Count;
+		}
+
+		[DllExport(CallingConvention.Cdecl)]
+		public static unsafe bool GetDATGroupList(short* GroupIds_out)
+		{
+			if (m_DATFile == null)
+			{
+				Trace.WriteLine("[DBG] [C#] Load a DAT file first");
+				return false;
+			}
+
+			int i = 0;
+			foreach (var group in m_DATFile.Groups)
+			{
+				GroupIds_out[i++] = group.GroupId;
+			}
+			return true;
+		}
+	}
 }
