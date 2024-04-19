@@ -75,14 +75,14 @@
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="JeremyAnsel.BcnSharp, Version=1.0.3.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\JeremyAnsel.BcnSharp.1.0.3\lib\net48\JeremyAnsel.BcnSharp.dll</HintPath>
+    <Reference Include="JeremyAnsel.BcnSharp, Version=1.0.6.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\JeremyAnsel.BcnSharp.1.0.6\lib\net48\JeremyAnsel.BcnSharp.dll</HintPath>
     </Reference>
     <Reference Include="JeremyAnsel.ColorQuant, Version=3.0.70.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\JeremyAnsel.ColorQuant.3.0.70\lib\net48\JeremyAnsel.ColorQuant.dll</HintPath>
     </Reference>
-    <Reference Include="JeremyAnsel.Xwa.Dat, Version=3.0.19.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\JeremyAnsel.Xwa.Dat.3.0.19\lib\net48\JeremyAnsel.Xwa.Dat.dll</HintPath>
+    <Reference Include="JeremyAnsel.Xwa.Dat, Version=3.0.22.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\JeremyAnsel.Xwa.Dat.3.0.22\lib\net48\JeremyAnsel.Xwa.Dat.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -106,7 +106,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ImportGroup Label=".NET DllExport">
     <Import Project="$(SolutionDir)packages\DllExport.1.7.4\tools\net.r_eg.DllExport.targets" Condition="Exists($([MSBuild]::Escape('$(SolutionDir)packages\DllExport.1.7.4\tools\net.r_eg.DllExport.targets')))" Label="8337224c9ad9e356" />
-    <Import Project="packages\JeremyAnsel.BcnSharp.1.0.3\build\JeremyAnsel.BcnSharp.targets" Condition="Exists('packages\JeremyAnsel.BcnSharp.1.0.3\build\JeremyAnsel.BcnSharp.targets')" />
+    <Import Project="packages\JeremyAnsel.BcnSharp.1.0.6\build\JeremyAnsel.BcnSharp.targets" Condition="Exists('packages\JeremyAnsel.BcnSharp.1.0.6\build\JeremyAnsel.BcnSharp.targets')" />
   </ImportGroup>
   <Target Name="DllExportRestorePkg" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('$(SolutionDir)DllExport.bat')" Text="DllExport.bat is not found. Path: '$(SolutionDir)' - https://github.com/3F/DllExport" />
@@ -126,13 +126,12 @@
     <MSBuild BuildInParallel="true" UseResultsCache="true" Projects="$(MSBuildProjectFullPath)" Properties="DllExportRPkgDyn=true" Targets="Build" />
   </Target>
   <PropertyGroup>
-    <PostBuildEvent>copy /Y $(TargetPath) "C:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance 5.6.2"
-copy /Y $(TargetPath) "D:\Star Wars - X-Wing Alliance 5.7 Test"</PostBuildEvent>
+    <PostBuildEvent>copy /Y $(TargetPath) "C:\Program Files (x86)\GOG Galaxy\Games\Star Wars - X-Wing Alliance 6.0.2"</PostBuildEvent>
   </PropertyGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('packages\JeremyAnsel.BcnSharp.1.0.3\build\JeremyAnsel.BcnSharp.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\JeremyAnsel.BcnSharp.1.0.3\build\JeremyAnsel.BcnSharp.targets'))" />
+    <Error Condition="!Exists('packages\JeremyAnsel.BcnSharp.1.0.6\build\JeremyAnsel.BcnSharp.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\JeremyAnsel.BcnSharp.1.0.6\build\JeremyAnsel.BcnSharp.targets'))" />
   </Target>
 </Project>

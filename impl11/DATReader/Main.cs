@@ -170,6 +170,24 @@ namespace DATReader
                 data = m_DATImage.GetImageData();
             }
 
+            if (m_DATImage.Format == DatImageFormat.FormatBc5)
+            {
+                // Format is BGRA with B = 0 and A = 255 (for opaque colors).
+                // For this format, we assume it's a normal map, so we reconstruct
+                // the blue channel here:
+                int pixels = W * H;
+                int Ofs = 0;
+                for (int i = 0; i < pixels; i++)
+                {
+                    float B = data[Ofs + 0];
+					float G = data[Ofs + 1] / 255.0f;
+					float R = data[Ofs + 2] / 255.0f;
+                    B = (float)Math.Sqrt(1.0f - G * G - R * R);
+                    data[Ofs + 0] = (byte)(B * 255.0f);
+                    Ofs += 4;
+				}
+            }
+
             if (m_Verbose)
             {
                 Trace.WriteLine("[DBG] [C#] RawData, W*H*4 = " + (W * H * 4) + ", len: " + data.Length + ", Format: " + m_DATImage.Format);
