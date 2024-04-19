@@ -87,7 +87,7 @@ Config::Config()
 	this->ProjectionParameterC = 0.33f;
 
 	this->TechRoomMetallicity = 0.15f;
-	this->TechRoomAmbient = 0.2f;
+	this->TechRoomAmbient = 0.18f;
 
 	CreateDirectory("Screenshots", nullptr);
 	this->ScreenshotsDirectory = "Screenshots";
