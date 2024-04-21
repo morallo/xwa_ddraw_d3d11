@@ -5,6 +5,7 @@
 #include <ScreenGrab.h>
 #include <wincodec.h>
 
+#include "hook_config.h"
 #include "DeviceResources.h"
 #include "PrimarySurface.h"
 #include "BackbufferSurface.h"
@@ -2073,9 +2074,38 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 	Matrix4 Vinv = g_VSMatrixCB.fullViewMat;
 	Vinv.invert();
 
-	const bool bDS2Mission = (missionIndexLoaded != nullptr) && (*missionIndexLoaded == DEATH_STAR_MISSION_INDEX);
+	static int prevMissionIndex = -1;
+	const char* xwaMissionFileName = (const char*)0x06002E8;
+	//const int missionFileNameIndex = *(int*)0x06002E4;
+	if (*missionIndexLoaded != prevMissionIndex)
+	{
+		log_debug("[DBG] [MSN] Mission index changed. Previous: %d, New: %d",
+			prevMissionIndex, *missionIndexLoaded);
+		if (*missionIndexLoaded != 0) // Skirmish missions are index 0
+		{
+			log_debug("[DBG] [MSN] Mission: %s", xwaMissionFileName);
+			std::string mission = xwaMissionFileName;
+			int dot = mission.find_last_of('.');
+			mission = mission.substr(0, dot) + ".ini";
+			log_debug("[DBG] [MSN] Loading ini: %s", mission.c_str());
+			auto lines = GetFileLines(mission, "Headlights");
+			g_bCurrentMissionUsesHeadLights = GetFileKeyValueInt(lines, "Enabled");
+			log_debug("[DBG] [MSN] g_bCurrentMissionUsesHeadLights: %d", g_bCurrentMissionUsesHeadLights);
+		}
+		else
+		{
+			// Skirmish mission, disable headlights
+			g_bCurrentMissionUsesHeadLights = false;
+		}
+		prevMissionIndex = *missionIndexLoaded;
+	}
 
-	if (g_bHeadLightsAutoTurnOn) {
+	const bool bDS2Mission = (missionIndexLoaded != nullptr) && (*missionIndexLoaded == DEATH_STAR_MISSION_INDEX);
+	const bool autoTurnOn = g_bCurrentMissionUsesHeadLights ? false : g_bHeadLightsAutoTurnOn;
+
+	g_bEnableHeadLights = (g_bCurrentMissionUsesHeadLights && !*g_playerInHangar);
+
+	if (autoTurnOn) {
 		if (*s_XwaGlobalLightsCount == 0) {
 			//log_debug("[DBG] AUTO Turning headlights ON");
 			g_bEnableHeadLights = true;

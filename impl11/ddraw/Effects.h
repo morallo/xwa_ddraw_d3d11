@@ -104,6 +104,7 @@ extern Vector3 g_LaserPointDebug;
 extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
 extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
 extern bool g_bHeadLightsAutoTurnOn;
+extern bool g_bCurrentMissionUsesHeadLights;
 extern const float DEFAULT_DYNAMIC_LIGHT_FALLOFF;
 extern const Vector3 DEFAULT_EXPLOSION_COLOR;
 

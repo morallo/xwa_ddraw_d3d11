@@ -193,6 +193,7 @@ Vector3 g_LaserPointDebug(0.0f, 0.0f, 0.0f);
 Vector3 g_HeadLightsPosition(0.0f, 0.0f, 20.0f), g_HeadLightsColor(0.85f, 0.85f, 0.90f);
 float g_fHeadLightsAmbient = 0.05f, g_fHeadLightsDistance = 5000.0f, g_fHeadLightsAngleCos = 0.25f; // Approx cos(75)
 bool g_bHeadLightsAutoTurnOn = true;
+bool g_bCurrentMissionUsesHeadLights = false;
 const float DEFAULT_DYNAMIC_LIGHT_FALLOFF = 4.0f;
 const Vector3 DEFAULT_EXPLOSION_COLOR = Vector3(1.0f, 0.75f, 0.375f);
 
