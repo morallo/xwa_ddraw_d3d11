@@ -415,9 +415,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	// TOOD: The new D3DRendererHook provides the OPT -> Viewspace transform matrix, we can probably
 	// do parallax mapping with that matrix now
 	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
-	output.normal = 0; //  float4(N, SSAOAlpha);
+	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
+	//output.normal = 0; // float4(N, SSAOAlpha);
+	output.normal = float4(N, 1); // float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
