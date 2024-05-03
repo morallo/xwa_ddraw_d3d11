@@ -408,13 +408,18 @@ HRESULT OffscreenSurface::GetDC(
 			SurfaceDC* pDC = (SurfaceDC*)lphDC;
 
 			pDC->buffer32 = 0;
-			// Pre-HD Concourse values:
-			//pDC->width = this->_deviceResources->_backbufferWidth;
-			//pDC->height = this->_deviceResources->_backbufferHeight;
-			// For the HD Concourse, we need to specify HD width/height or else
-			// the resulting image will be cropped
-			pDC->width = HD_CONCOURSE_WIDTH;
-			pDC->height = HD_CONCOURSE_HEIGHT;
+			if (g_bUseSteamVR)
+			{
+				// For the HD Concourse, we need to specify HD width/height or else
+				// the resulting image will be cropped
+				pDC->width = HD_CONCOURSE_WIDTH;
+				pDC->height = HD_CONCOURSE_HEIGHT;
+			}
+			else
+			{
+				pDC->width = this->_deviceResources->_backbufferWidth;
+				pDC->height = this->_deviceResources->_backbufferHeight;
+			}
 
 			pDC->displayWidth = this->_deviceResources->_displayWidth;
 			pDC->displayHeight = this->_deviceResources->_displayHeight;
@@ -783,6 +788,8 @@ HRESULT OffscreenSurface::Unlock(
 		if (copyHdBackground)
 		{
 			this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHdBackground, this->_deviceResources->_offscreenBuffer);
+			if (g_bUseSteamVR)
+				this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHdBackground, this->_deviceResources->_offscreenBufferHd);
 		}
 	}
 

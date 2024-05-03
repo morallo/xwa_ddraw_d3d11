@@ -315,6 +315,7 @@ public:
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewHd; // Used to render to offscreenBufferHd
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewR; // When SteamVR is used, _renderTargetView is the left eye, and this one is the right eye
 	// Dynamic Cockpit
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDynCockpit; // Used to render the HUD to an offscreen buffer

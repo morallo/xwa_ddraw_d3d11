@@ -1736,6 +1736,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_d2d1OffscreenRenderTarget.Release();
 	this->_d2d1DCRenderTarget.Release();
 	this->_renderTargetView.Release();
+	if (g_bUseSteamVR)
+		this->_renderTargetViewHd.Release();
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
 	this->_backgroundBufferSRV.Release();
@@ -2229,13 +2231,25 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			step = "OffscreenBufferBackground";
-			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferHdBackground);
-			log_debug("[DBG] OffscreenBufferBackground: %u, %u", desc.Width, desc.Height);
-			if (FAILED(hr)) {
-				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-				log_err_desc(step, hWnd, hr, desc);
-				goto out;
+			{
+				CD3D11_TEXTURE2D_DESC tmp = desc;
+				if (g_bUseSteamVR)
+				{
+					desc.Width     = HD_CONCOURSE_WIDTH;
+					desc.Height    = HD_CONCOURSE_HEIGHT;
+					desc.ArraySize = 1;
+					desc.SampleDesc.Count = 1;
+					desc.SampleDesc.Quality = 0;
+				}
+				step = "OffscreenBufferHdBackground";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferHdBackground);
+				log_debug("[DBG] OffscreenBufferHdBackground: %u, %u", desc.Width, desc.Height);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				desc = tmp;
 			}
 
 			step = "Background";
@@ -3513,6 +3527,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		step = "_renderTargetView";
 		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBuffer, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BACKBUFFER_FORMAT), &this->_renderTargetView);
 		if (FAILED(hr)) goto out;
+
+		if (g_bUseSteamVR)
+		{
+			step = "_renderTargetViewHd";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferHd,
+				&GetRtvDesc(this->_useMultisampling, false /* no instanced rendering */, BACKBUFFER_FORMAT), &this->_renderTargetViewHd);
+			if (FAILED(hr)) goto out;
+		}
 
 		step = "_renderTargetViewPost";
 		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BACKBUFFER_FORMAT), &this->_renderTargetViewPost);

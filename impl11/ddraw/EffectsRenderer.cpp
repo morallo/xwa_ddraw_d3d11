@@ -5939,6 +5939,8 @@ void EffectsRenderer::RenderScene(bool bBindTranspLyr1)
 			context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 			// Wipe out the background:
 			context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+			//if (g_bUseSteamVR)
+				//context->ClearRenderTargetView(resources->_renderTargetViewHd, resources->clearColor); // Probably not necessary
 		}
 
 		if (g_bDumpSSAOBuffers)

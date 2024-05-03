@@ -9005,7 +9005,6 @@ nochange:
 	// Copy or resolve the result
 	if (g_config.MultisamplingAntialiasingEnabled)
 		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		
 	else
 		context->CopySubresourceRegion(resources->_offscreenAsInputDynCockpit, 0, 0, 0, 0, resources->_offscreenBufferPost, 0, NULL);
 
@@ -9243,6 +9242,7 @@ HRESULT PrimarySurface::Flip(
 				if (!g_bHyperspaceFirstFrame) {
 					context->ClearRenderTargetView(resources->_renderTargetViewR, resources->clearColor);
 					context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
+					context->ClearRenderTargetView(resources->_renderTargetViewHd, resources->clearColor);
 				}
 				context->ClearRenderTargetView(resources->_renderTargetViewPostR, resources->clearColorRGBA);
 			}
@@ -9678,7 +9678,10 @@ HRESULT PrimarySurface::Flip(
 
 				if (!isConfigMenuGameStateUpdate && this->_deviceResources->IsInConcourseHd())
 				{
-					this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer, this->_deviceResources->_offscreenBufferHdBackground);
+					if (g_bUseSteamVR)
+						this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHd, this->_deviceResources->_offscreenBufferHdBackground);
+					else
+						this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer, this->_deviceResources->_offscreenBufferHdBackground);
 				}
 			}
 			else
@@ -9889,6 +9892,8 @@ HRESULT PrimarySurface::Flip(
 					context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 					// Wipe out the background:
 					context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
+					if (g_bUseSteamVR)
+						context->ClearRenderTargetView(resources->_renderTargetViewHd, resources->clearColor);
 				}
 
 				if (g_bDumpSSAOBuffers)

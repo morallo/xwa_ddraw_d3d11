@@ -6223,6 +6223,7 @@ HRESULT Direct3DDevice::BeginScene()
 		context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
+			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewHd, this->_deviceResources->clearColor);
 			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 		}
 	}
@@ -6272,7 +6273,10 @@ HRESULT Direct3DDevice::BeginScene()
 	{
 		if (this->_deviceResources->IsInConcourseHd())
 		{
-			this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer, this->_deviceResources->_offscreenBufferHdBackground);
+			if (g_bUseSteamVR)
+				this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHd, this->_deviceResources->_offscreenBufferHdBackground);
+			else
+				this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBuffer, this->_deviceResources->_offscreenBufferHdBackground);
 		}
 	}
 	else
