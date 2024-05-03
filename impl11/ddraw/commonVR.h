@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 #include <stdio.h>
-#include <headers/openvr.h>
+#include <openvr.h>
 #include "common.h"
 #include "utils.h"
 #include "config.h"
@@ -14,10 +14,11 @@
 #include "Vectors.h"
 #include "Matrices.h"
 #include "DirectXMath.h"
+#include "xwa_structures.h"
 
-//extern const float PI;
-//extern const float DEG2RAD;
+const float MAX_BRIGHTNESS = 1.0f;
 extern const float RAD_TO_DEG;
+extern const float DEG_TO_RAD;
 extern const float DEFAULT_IPD; // Ignored in SteamVR mode.
 extern const float IPD_SCALE_FACTOR;
 extern Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
@@ -29,6 +30,7 @@ extern float g_fVR_FOV;
 extern float g_fIPD;
 extern float g_fHalfIPD;
 extern bool g_bInTechRoom; // Set to true in PrimarySurface Present 2D (Flip)
+extern bool g_bInBriefingRoom;
 
 extern float g_fPitchMultiplier, g_fYawMultiplier, g_fRollMultiplier;
 extern float g_fYawOffset, g_fPitchOffset;
@@ -57,3 +59,42 @@ typedef enum {
 	TRACKER_OPENXR,
 	TRACKER_TRACKIR,	
 } TrackerType;
+
+namespace VRGlovesProfile
+{
+	enum VRGlovesProfile
+	{
+		NEUTRAL = 0,
+		POINT,
+		GRASP,
+		MAX // Sentinel, do not remove
+	};
+};
+
+struct VRGlovesMesh
+{
+	// Gloved hands:
+	ComPtr<ID3D11Buffer> vertexBuffer;
+	ComPtr<ID3D11Buffer> indexBuffer;
+	//ComPtr<ID3D11Buffer> meshVerticesBuffer;
+	ComPtr<ID3D11Buffer> meshVerticesBuffers[VRGlovesProfile::MAX];
+	ComPtr<ID3D11Buffer> meshNormalsBuffer;
+	ComPtr<ID3D11Buffer> meshTexCoordsBuffer;
+	//ComPtr<ID3D11ShaderResourceView> meshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> meshVerticesSRVs[VRGlovesProfile::MAX];
+	ComPtr<ID3D11ShaderResourceView> meshNormalsSRV;
+	ComPtr<ID3D11ShaderResourceView> meshTexCoordsSRV;
+	ComPtr<ID3D11ShaderResourceView> textureSRV;
+	int numTriangles;
+	Matrix4 pose;
+	bool visible;
+	bool rendered;
+	float forwardPmeters[VRGlovesProfile::MAX]; // The forward-most point in this mesh, in meters. Used to push buttons
+	char texName[128];
+	int texGroupId, texImageId;
+	void* bvh;
+	std::vector<XwaTextureVertex> texCoords;
+	std::vector<int> texIndices;
+};
+
+extern VRGlovesMesh g_vrGlovesMeshes[2];

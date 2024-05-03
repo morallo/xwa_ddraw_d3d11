@@ -205,7 +205,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	// Interpolate between near_sample_radius at z == 0 and far_sample_radius at 1km+
 	// We need to use saturate() here or we actually get negative numbers!
 	radius = lerp(near_sample_radius, far_sample_radius, saturate(p.z / 1000.0));
-	//float nm_intensity = (1 - ssao_mask) * lerp(nm_intensity_near, nm_intensity_far, saturate(p.z / 4000.0));
 
 	float sample_jitter = dot(floor(input.pos.xy % 4 + 0.1), float2(0.0625, 0.25)) + 0.0625;
 	float2 sample_uv, sample_direction;

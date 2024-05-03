@@ -1,6 +1,5 @@
-#include "DynamicCockpit.h"
-
 #include "common.h"
+#include "DynamicCockpit.h"
 #include "globals.h"
 #include "VRConfig.h"
 
@@ -25,6 +24,9 @@ bool g_bEdgeEffectApplied = false;
 extern int g_WindowWidth, g_WindowHeight;
 float4 g_DCTargetingColor, g_DCWireframeLuminance;
 float4 g_DCTargetingIFFColors[6];
+float4 g_DCTargetingFriend;
+float4 g_DCTargetingFoe;
+bool g_bGreenAndRedForIFFColorsOnly = false;
 float g_DCWireframeContrast = 3.0f;
 float g_fReticleScale = DEFAULT_RETICLE_SCALE;
 bool g_bRenderLaserIonEnergyLevels = false, g_bRenderThrottle = false;
@@ -33,6 +35,8 @@ extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-C
 // HOLOGRAMS
 float g_fDCHologramFadeIn = 0.0f, g_fDCHologramFadeInIncr = 0.04f, g_fDCHologramTime = 0.0f;
 bool g_bDCHologramsVisible = true, g_bDCHologramsVisiblePrev = true;
+// DIEGETIC JOYSTICK
+bool g_bDiegeticCockpitEnabled = true;
 
 Vector2 g_TriangleCentroid;
 
@@ -331,6 +335,7 @@ bool LoadIndividualDCParams(char* sFileName) {
 					dc_elem.bHologram = false;
 					dc_elem.bNoisyHolo = false;
 					dc_elem.bTransparent = false;
+					dc_elem.bAlwaysVisible = false;
 					//g_DCElements.push_back(dc_elem);
 					g_DCElements[g_iNumDCElements] = dc_elem;
 					//lastDCElemSelected = (int)g_DCElements.size() - 1;
@@ -442,6 +447,9 @@ bool LoadIndividualDCParams(char* sFileName) {
 			}
 			else if (_stricmp(param, "transparent") == 0) {
 				g_DCElements[lastDCElemSelected].bTransparent = (bool)fValue;
+			}
+			else if (_stricmp(param, "always_visible") == 0) {
+				g_DCElements[lastDCElemSelected].bAlwaysVisible = (bool)fValue;
 			}
 			else if (_stricmp(param, "render_laser_ions") == 0) {
 				g_bRenderLaserIonEnergyLevels = (bool)fValue;

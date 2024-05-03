@@ -20,13 +20,14 @@ SamplerState sampler0 : register(s0);
 // Z+: Away from the camera
 // (0,0,0) is the camera center, (0,0,Z) is the center of the screen
 
+// D3DRendererHook PS input:
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
+	float2 tex	  : TEXCOORD;
+	//float4 color  : COLOR0;
 };
 
 struct PixelShaderOutput
@@ -44,12 +45,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float  alpha = texelColor.a;
+	uint   ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 
 	output.bloom = float4(fBloomStrength * texelColor.rgb, alpha);
 	output.normal = 0;
 	output.pos3D = 0;
 
-	if (special_control == SPECIAL_CONTROL_NO_COLOR_ALPHA) {
+	if (ExclusiveMask == SPECIAL_CONTROL_NO_COLOR_ALPHA) {
 		output.color = 0;
 		output.ssMask = 0;
 		output.ssaoMask = 0;

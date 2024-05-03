@@ -21,6 +21,8 @@ SamplerState sampler1 : register(s1);
 // texture0 == cover texture and
 // texture1 == HUD offscreen buffer
 
+/*
+// Old PixelShaderInput (pre-D3DRendererHook):
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -29,15 +31,26 @@ struct PixelShaderInput
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
 };
+*/
+
+// New PixelShaderInput needed for the D3DRendererHook
+struct PixelShaderInput
+{
+	float4 pos		: SV_POSITION;
+	float4 pos3D		: COLOR1;
+	float4 normal	: NORMAL;
+	float2 tex		: TEXCOORD;
+	//float4 color  : COLOR0;
+};
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
-	float4 pos3D    : SV_TARGET2;
-	float4 normal   : SV_TARGET3;
+	float4 color		: SV_TARGET0;
+	float4 bloom		: SV_TARGET1;
+	float4 pos3D		: SV_TARGET2;
+	float4 normal	: SV_TARGET3;
 	float4 ssaoMask : SV_TARGET4;
-	float4 ssMask   : SV_TARGET5;
+	float4 ssMask	: SV_TARGET5;
 };
 
 PixelShaderOutput main(PixelShaderInput input)
@@ -48,9 +61,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	float alpha = texelColor.w;
 	float3 HSV = RGBtoHSV(texelColor.rgb); // texelColor is the cover texture
-	if (special_control == SPECIAL_CONTROL_BLACK_TO_ALPHA)
+	uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	if (ExclusiveMask == SPECIAL_CONTROL_BLACK_TO_ALPHA)
 		alpha = HSV.z;
-	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	// Zero-out the bloom mask.
 	output.bloom = float4(0, 0, 0, 0);
 	output.color = texelColor;
@@ -58,8 +71,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float3 P = input.pos3D.xyz;
 	output.pos3D = float4(P, 1);
 
-	// hook_normals code:
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	output.normal = float4(N, 1);
@@ -82,9 +94,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	float brightness = ct_brightness;
 	if (HSV.z * alpha >= 0.8) {
 		// The cover texture is bright enough, go shadeless and make it brighter
-		diffuse = float3(1, 1, 1);
 		// Increase the brightness:
-		//HSV = RGBtoHSV(texelColor.xyz); // Redundant line
 		HSV.z *= 1.2;
 		texelColor.xyz = HSVtoRGB(HSV);
 		output.bloom = float4(fBloomStrength * texelColor.xyz, 1);
@@ -97,8 +107,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	
 	texelColor = lerp(hud_texelColor, brightness * texelColor, alpha);
 	// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
-	diffuse = lerp(1.0, diffuse, alpha);
-	output.color = float4(diffuse * texelColor.xyz, alpha);
+	//diffuse = lerp(1.0, diffuse, alpha);
+	output.color = float4(/* diffuse * */ texelColor.xyz, alpha);
 	output.bloom = lerp(float4(0, 0, 0, 0), output.bloom, alpha);
 
 	// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha

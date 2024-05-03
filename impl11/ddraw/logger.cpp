@@ -1,9 +1,10 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 
+#include "common.h"
 #include "logger.h"
 
-#if LOGGER
+#if LOGGER || LOGGER_DUMP
 
 #include <fstream>
 #include <ctime>
@@ -29,7 +30,9 @@ void InitLogFile()
 		file.close();
 	}
 
-	g_file.open(filename, std::ios::app);
+	// TODO
+	//g_file.open(filename, std::ios::app);
+	g_file.open(filename);
 }
 
 void LogText(std::string text)

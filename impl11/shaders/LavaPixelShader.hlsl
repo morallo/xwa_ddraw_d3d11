@@ -25,7 +25,7 @@ SamplerState noiseSamp : register(s1);
 #define LavaSize iResolution.x
 #define LavaBloom iResolution.y
 #define LavaColor SunColor[0]
-#define LavaTiling bDisneyStyle
+#define LavaTiling Style
 // DEBUG properties, remove later
 //#define LavaNormalMult SunColor[1]
 //#define LavaPosMult SunColor[2]
@@ -34,10 +34,10 @@ SamplerState noiseSamp : register(s1);
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 tex    : TEXCOORD0;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
+	float2 tex	  : TEXCOORD;
+	//float4 color  : COLOR0;
 };
 
 struct PixelShaderOutput
@@ -399,7 +399,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 	float  alpha = texelColor.w;
-	float3 diffuse = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P = input.pos3D.xyz;
 	float  SSAOAlpha = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
 	vec2 p;
@@ -413,18 +412,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	// hook_normals code. In this shader we zero-out the normal in the output, because this is
 	// a shadeless effect. However, we *do* need the Normal in this shader to compute parallax
 	// mapping.
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	// TOOD: The new D3DRendererHook provides the OPT -> Viewspace transform matrix, we can probably
+	// do parallax mapping with that matrix now
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
-
 	output.normal = 0; //  float4(N, SSAOAlpha);
 
-	// SSAO Mask/Material, Glossiness, Spec_Intensity
-	// Glossiness is multiplied by 128 to compute the exponent
-	//output.ssaoMask = float4(fSSAOMaskVal, DEFAULT_GLOSSINESS, DEFAULT_SPEC_INT, alpha);
-	// ssaoMask.r: Material
-	// ssaoMask.g: Glossiness
-	// ssaoMask.b: Specular Intensity
+	// ssaoMask: Material, Glossiness, Specular Intensity
 	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
 	// SS Mask: Normal Mapping Intensity, Specular Value, Shadeless
 	output.ssMask = float4(fNMIntensity, fSpecVal, 1.0, alpha);

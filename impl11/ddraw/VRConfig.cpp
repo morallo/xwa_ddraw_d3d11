@@ -1,3 +1,4 @@
+#include "common.h"
 #include "VRConfig.h"
 #include "config.h"
 #include "utils.h"
@@ -9,6 +10,9 @@
 #include "materials.h"
 #include "Direct3DTexture.h"
 #include "TextureSurface.h"
+#include "SharedMem.h"
+
+#include <map>
 
 // This value (2.0f) was determined experimentally. It provides an almost 1:1 metric reconstruction when compared with the original models
 //const float DEFAULT_FOCAL_DIST = 2.0f; 
@@ -35,7 +39,7 @@ const float DEFAULT_GUI_SCALE = 0.7f;
 const float GAME_SCALE_FACTOR = 60.0f; // Estimated empirically
 const float GAME_SCALE_FACTOR_Z = 60.0f; // Estimated empirically
 
-										 /*
+/*
 const float DEFAULT_LENS_K1 = 2.0f;
 const float DEFAULT_LENS_K2 = 0.22f;
 const float DEFAULT_LENS_K3 = 0.0f;
@@ -50,7 +54,6 @@ const int DEFAULT_SKYBOX_INDEX = 2;
 const bool DEFAULT_BARREL_EFFECT_STATE = true;
 const bool DEFAULT_BARREL_EFFECT_STATE_STEAMVR = false; // SteamVR provides its own lens correction, only enable it if the user really wants it
 const float DEFAULT_BRIGHTNESS = 0.95f;
-const float MAX_BRIGHTNESS = 1.0f;
 const bool DEFAULT_FLOATING_AIMING_HUD = true;
 const int DEFAULT_NATURAL_CONCOURSE_ANIM = 1;
 const bool DEFAULT_DYNAMIC_COCKPIT_ENABLED = false;
@@ -147,7 +150,8 @@ bool g_bOverrideAspectRatio = false;
 /*
 true if either DirectSBS or SteamVR are enabled. false for original display mode
 */
-bool g_bEnableVR = true;
+bool g_bEnableVR = false;
+bool g_b3DVisionEnabled = false, g_b3DVisionForceFullScreen = true;
 TrackerType g_TrackerType = TRACKER_NONE;
 
 float g_fDebugFOVscale = 1.0f;
@@ -155,6 +159,8 @@ float g_fDebugYCenter = 0.0f;
 
 float g_fCockpitPZThreshold = DEFAULT_COCKPIT_PZ_THRESHOLD; // The TIE-Interceptor needs this thresold!
 float g_fBackupCockpitPZThreshold = g_fCockpitPZThreshold; // Backup of the cockpit threshold, used when toggling this effect on or off.
+
+const float POVOffsetIncr = 0.025f;
 
 // METRIC 3D RECONSTRUCTION
 // The following values were determined by comparing the back-projected 3D reconstructed
@@ -193,6 +199,9 @@ int g_iBloomPasses[MAX_BLOOM_PASSES + 1] = {
 
 //extern FILE *colorFile, *lightFile;
 
+// Debugging (personal): I'm tired of the mouse moving outside the window!
+bool g_bKeepMouseInsideWindow = false;
+
 // SSAO
 float g_fMoireOffsetDir = 0.02f, g_fMoireOffsetInd = 0.1f;
 SSAOTypeEnum g_SSAO_Type = SSO_AMBIENT;
@@ -200,24 +209,42 @@ float g_fHangarAmbient = 0.05f, g_fGlobalAmbient = 0.005f;
 
 extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 bool g_bAOEnabled = DEFAULT_AO_ENABLED_STATE;
-bool g_bDisableDiffuse = false;
 int g_iSSDODebug = 0, g_iSSAOBlurPasses = 1;
 float g_fSSAOZoomFactor = 2.0f, g_fSSAOZoomFactor2 = 4.0f, g_fSSAOWhitePoint = 0.7f, g_fNormWeight = 1.0f, g_fNormalBlurRadius = 0.01f;
 float g_fSSAOAlphaOfs = 0.5f;
 //float g_fViewYawSign = 1.0f, g_fViewPitchSign = -1.0f; // Old values for SSAO.cfg-based lightsf
 float g_fViewYawSign = -1.0f, g_fViewPitchSign = 1.0f; // New values for XwaLights
 float g_fSpecIntensity = 1.0f, g_fSpecBloomIntensity = 1.25f, g_fXWALightsSaturation = 0.8f, g_fXWALightsIntensity = 1.0f;
+float g_fMinLightIntensity = 0.1f; // When lights are faded, this is the minimum intensity they will get
 bool g_bApplyXWALightsIntensity = true, g_bProceduralSuns = true, g_bEnableHeadLights = false, g_bProceduralLava = true;
+bool g_bNormalizeLights = false;
 bool g_bBlurSSAO = true, g_bDepthBufferResolved = false; // g_bDepthBufferResolved gets reset to false at the end of each frame
-bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true;
+bool g_bShowSSAODebug = false, g_bDumpSSAOBuffers = false, g_bEnableIndirectSSDO = false, g_bFNEnable = true, g_bFadeLights = false, g_bDisplayGlowMarks = true;
 bool g_bDisableDualSSAO = false, g_bEnableSSAOInShader = true, g_bEnableBentNormalsInShader = true;
-bool g_bOverrideLightPos = false, g_bShadowEnable = true, g_bEnableSpeedShader = true, g_bEnableAdditionalGeometry = false;
+bool g_bOverrideLightPos = false, g_bEnableSpeedShader = true, g_bEnableAdditionalGeometry = false;
 float g_fSpeedShaderScaleFactor = 35.0f, g_fSpeedShaderParticleSize = 0.0075f, g_fSpeedShaderMaxIntensity = 0.6f, g_fSpeedShaderTrailSize = 0.1f;
 float g_fSpeedShaderParticleRange = 50.0f; // This used to be 10.0
 float g_fCockpitTranslationScale = 0.0025f; // 1.0f / 400.0f;
+float g_fGlowMarkZOfs = -1.0f; // Small offset to make the hit effects more visible (avoids Z-Fighting a little bit)
 int g_iSpeedShaderMaxParticles = MAX_SPEED_PARTICLES;
 Vector4 g_LightVector[2], g_TempLightVector[2];
 Vector4 g_LightColor[2], g_TempLightColor[2];
+int g_iHyperStyle = 1; // 0 = Regular, 1 = Disney style, 2 = Interdiction
+bool g_bInterdictionActive; // If true, then the current hyperjump must render an interdiction
+// The global interdiction bitfield. Each time a mission changes, this bitfield
+// is populated from the mission's ini file and bits are turned on for regions
+// that contain interdictors. For instance a value of 0x5 means regions 0 and 2
+// contain interdictors. This information is used to render the Interdiction Effect.
+uint8_t g_iInterdictionBitfield = 0;
+// Modulates the magnitude of the cockpit shake when an interdiction is happening.
+// Set to 0 to remove the shake effect
+float g_fInterdictionShake = 0.5f;
+// Modulates the cockpit shake when an interdiction is happening in VR
+float g_fInterdictionShakeInVR = 0.0f;
+// Controls the angle of the sin/cos used to shake the cockpit during an interdiction
+float g_fInterdictionAngleScale = 0.25f;
+
+int g_iDelayedDumpDebugBuffers = 0;
 //float g_fFlareAspectMult = 1.0f; // DEBUG: Fudge factor to place the flares on the right spot...
 
 // white_point = 1 --> OK
@@ -282,6 +309,29 @@ bool g_bStickyArrowKeys = false, g_bYawPitchFromMouseOverride = false;
 
 float g_f2DYawMul = 1.0f, g_f2DPitchMul = 1.0f, g_f2DRollMul = 1.0f;
 
+bool g_bEnableLevelsShader = false;
+float g_fLevelsWhitePoint = 235.0f;
+float g_fLevelsBlackPoint = 16.0f;
+
+#include "D3dRenderer.h"
+
+inline float lerp(float x, float y, float s)
+{
+	return x + s * (y - x);
+}
+
+inline float clamp(float val, float min, float max)
+{
+	if (val < min) val = min;
+	if (val > max) val = max;
+	return val;
+}
+
+void SetHDRState(bool state)
+{
+	g_bHDREnabled = state;
+	g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+}
 
 /* Loads the VR parameters from vrparams.cfg */
 void LoadVRParams() {
@@ -289,6 +339,8 @@ void LoadVRParams() {
 	FILE* file;
 	int error = 0, line = 0;
 	static int lastDCElemSelected = -1;
+	// Initialize the current renderer to use Effects by default.
+	g_D3dRendererType = D3dRendererType::EFFECTS;
 
 	try {
 		error = fopen_s(&file, "./vrparams.cfg", "rt");
@@ -416,6 +468,7 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_DIRECT_SBS;
 					g_bSteamVREnabled = false;
 					g_bEnableVR = true;
+					g_D3dRendererType = D3dRendererType::DIRECTSBS;
 					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
 					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using Direct SBS mode");
@@ -424,6 +477,7 @@ void LoadVRParams() {
 					//g_VRMode = VR_MODE_STEAMVR;
 					g_bSteamVREnabled = true;
 					g_bEnableVR = true;
+					g_D3dRendererType = D3dRendererType::STEAMVR;
 					// Let's force AspectRatioPreserved in VR mode. The aspect ratio is easier to compute that way
 					g_config.AspectRatioPreserved = true;
 					log_debug("[DBG] Using SteamVR");
@@ -513,6 +567,8 @@ next:
 	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
 	*g_rawFOVDist = (uint32_t)g_fDefaultFOVDist;*/
 
+	// Load the 3D Vision params
+	Load3DVisionParams();
 	// Load cockpit look params
 	LoadCockpitLookParams();
 	// Load the global dynamic cockpit coordinates
@@ -531,6 +587,10 @@ next:
 	LoadFocalLength();
 	// Load the default global material
 	LoadDefaultGlobalMaterial();
+	// Load hook_tourmultiplayer.cfg
+	LoadMultiplayerConfig();
+	// Load gimbal lock fix parameters
+	LoadGimbaLockFixConfig();
 	// Reload the materials
 	ReloadMaterials();
 }
@@ -657,7 +717,7 @@ void SaveVRParams() {
 			fprintf(file, "%s = %s\n", VR_MODE_VRPARAM, VR_MODE_STEAMVR_SVAL);
 	}
 	fprintf(file, "\n");
-
+	
 	//fprintf(file, "focal_dist = %0.6f # Try not to modify this value, change IPD instead.\n", focal_dist);
 
 	fprintf(file, "; %s is measured in cms. Set it to 0 to remove the stereoscopy effect.\n", IPD_VRPARAM);
@@ -958,8 +1018,13 @@ float RealVertFOVToRawFocalLength(float real_FOV_deg) {
 
 /**
  * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
+ * This function is no longer used, but since it took *a lot* of effort to get it right, I'm keeping it
+ * just in case we need to review how it worked later.
+ * This function needs to capture the reticle's position on the screen, so it's a bit complicated.
  */
-void ComputeHyperFOVParams() {
+void ComputeHyperFOVParamsOld() {
+	// m0rgg found this variable. We can use it to calibrate the camera without having to capture the reticle.
+	DWORD *ReticleYCenter = (DWORD *)0x68C55C;
 	float y_center_raw, FOVscale_raw;
 	// Find the current center of the screen after it has been displaced by the cockpit camera.
 	// We only care about the y-coordinate, as we're going to use it along with the reticle to
@@ -968,10 +1033,11 @@ void ComputeHyperFOVParams() {
 	// To find the y-center of the screen, we're going to use math. The tangent of the current
 	// pitch can give us the information right away. This is closely related to the FOV and
 	// is easy to see if you draw the focal length and the in-game height to form a right triangle.
-	float pitch = (float)PlayerDataTable[*g_playerIndex].cockpitCameraPitch / 65536.0f * 2.0f * PI;
+	float pitch = (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 2.0f * PI;
 	float H = *g_fRawFOVDist * tan(pitch); // This will give us the height, in pixels, measured from the center of the screen
 	H += g_fCurInGameHeight / 2.0f;
-	log_debug("[DBG] [FOV] Screen Y-Center: %0.3f, ReticleCentroid: %0.3f, pitch: %0.3f, ", H, g_ReticleCentroid.y, pitch / DEG2RAD);
+	log_debug("[DBG] [FOV] ReticleYCenter: %u, Screen Y-Center: %0.3f, ReticleCentroid: %0.3f, pitch: %0.3f",
+		*ReticleYCenter, H, g_ReticleCentroid.y, pitch / DEG2RAD);
 	if (g_ReticleCentroid.y > -1.0f) {
 		// *sigh* for whatever stupid reason, sometimes we can have ReticleCentroid.y == 0.0 while looking straight ahead (pitch == 0)
 		// This situation completely destroys the calculation below, so we need to make sure that the camera pitch and the centroid
@@ -1136,6 +1202,186 @@ void ComputeHyperFOVParams() {
 	// DEBUG
 }
 
+/**
+ * Compute FOVscale and y_center for the hyperspace effect (and others that may need the FOVscale)
+ * This function superseeds ComputeHyperFOVParamsOld. It's using a variable that m0rgg found that gives us
+ * the vertical offset for the reticle. We need to test this more thoroughly before we remove the old version.
+ * The BIG advantage of this method is that we no longer need to capture the reticle to calibrate the camera
+ * since we can read the vertical offset directly from XWA's heap.
+ */
+void ComputeHyperFOVParams() {
+	// m0rgg found this variable. We can use it to calibrate the camera without having to capture the reticle.
+	DWORD *ReticleYCenter = (DWORD *)0x68C55C;
+	float ReticleCentroidY = (float)*ReticleYCenter;
+	float y_center_raw, FOVscale_raw;
+
+	// H is the y-center of the screen, in in-game coordinates.
+	float H = g_fCurInGameHeight / 2.0f;
+	log_debug("[DBG] [FOV] ReticleYCenter: %u, Screen Y-Center: %0.3f", *ReticleYCenter, H);
+	if (ReticleCentroidY > -1.0f) {
+		// *sigh* for whatever stupid reason, sometimes we can have ReticleCentroid.y == 0.0 while looking straight ahead (pitch == 0)
+		// This situation completely destroys the calculation below, so we need to make sure that the camera pitch and the centroid
+		// are consistent.
+		// Another way to solve this problem is to prevent this calculation until the reticle centroid is close-ish to the center
+		// of the screen
+		float y_dist_from_screen_center = (float)fabs(ReticleCentroidY - g_fCurInGameHeight / 2.0f);
+		if (y_dist_from_screen_center < g_fCurInGameHeight / 2.0f) {
+			// The reticle center visible this frame and it's not close to the edge of the screen.
+			// We can use it to compute y_center...
+
+			// The formula to compute y_center seems to be:
+			// (in-game-center - HUD_center) / in-game-height * 2.0f * comp_factor.
+			// The in-game-center has to be computer properly if the cockpit isn't facing forward
+			y_center_raw = 2.0f * (H - ReticleCentroidY) / g_fCurInGameHeight;
+			log_debug("[DBG] [FOV] HUD_center to y_center: %0.3f", y_center_raw);
+			// We can stop looking for the reticle center now:
+			g_bYCenterHasBeenFixed = true;
+		}
+		else
+			log_debug("[DBG] [FOV] RETICLE COULD NOT BE USED COMPUTE Y_CENTER. WILL RETRY. Frame: %d", g_iPresentCounter);
+		// If the reticle center can't be used to compute y_center, then g_bYCenterHasBeenFixed will stay false, and we'll
+		// come back to this path on the next frame where a reticle is visible.
+	}
+
+	if (!g_bYCenterHasBeenFixed) {
+		// Provide a default value if we couldn't compute y_center:
+		y_center_raw = 153.0f / g_fCurInGameHeight;
+		//y_center_raw = 0.0f; // I can't do this because the cockpits look wrong in the hangar. They look skewed
+	}
+	FOVscale_raw = 2.0f * *g_fRawFOVDist / g_fCurInGameHeight;
+
+	// Compute the aspect-ratio fix factors
+	float g_fWindowAspectRatio = max(1.0f, (float)g_WindowWidth / (float)g_WindowHeight);
+	if (g_bUseSteamVR)
+		g_fWindowAspectRatio = max(1.0f, (float)g_steamVRWidth / (float)g_steamVRHeight);
+	// The point where fixed and non-fixed params are about the same is given by the window aspect ratio
+	bool bFixFactors = g_fCurInGameAspectRatio > g_fWindowAspectRatio;
+	// The compensation factor is given by the ratio between the window aspect ratio and the in-game's 
+	// aspect ratio. In other words, the size of the display window will stretch the view, so we
+	// have to compensate for that.
+	float comp_factor = bFixFactors ? g_fWindowAspectRatio / g_fCurInGameAspectRatio : 1.0f;
+
+	log_debug("[DBG] [FOV] y_center raw: %0.3f, FOVscale raw: %0.3f, W/H: %0.0f, %0.0f, a/r: %0.3f, FIX: %d, comp_factor: %0.3f",
+		y_center_raw, FOVscale_raw, g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, bFixFactors, comp_factor);
+
+	// Compute the compensated FOV and y_center:
+	g_fFOVscale = comp_factor * FOVscale_raw;
+	g_fYCenter = comp_factor * y_center_raw;
+
+	// Store the global FOVscale, y_center in the CB:
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+	g_ShadertoyBuffer.y_center = g_fYCenter;
+
+	// If PreserveAspectRatio is 0, then we need to apply further compensation because the image
+	// will further stretch in either the X or Y axis.
+	g_ShadertoyBuffer.preserveAspectRatioComp[0] = 1.0f;
+	g_ShadertoyBuffer.preserveAspectRatioComp[1] = 1.0f;
+	// The VR modes behave just like PreserveAspectRatio = 0. The funny thing is that
+	// it will stretch the image in the same amount as when running in non-VR mode.
+	// This means that the aspect ratio of the in-game resolution should be an integer
+	// multiple of the Display/SteamVR window to avoid distortion.
+	if (!g_config.AspectRatioPreserved || g_bEnableVR)
+	{
+		float RealWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
+		// In SteamVR mode, the must compensate against the SteamVR window size
+		if (g_bUseSteamVR)
+			RealWindowAspectRatio = (float)g_steamVRWidth / (float)g_steamVRHeight;
+
+		if (RealWindowAspectRatio > g_fCurInGameAspectRatio) {
+			// The display window is going to stretch the image horizontally, so we need
+			// to shrink the x axis:
+			if (RealWindowAspectRatio > 1.0f) // Make sure we shrink. If we divide by a value lower than 1, we'll stretch!
+				g_ShadertoyBuffer.preserveAspectRatioComp[0] = g_fCurInGameAspectRatio / RealWindowAspectRatio;
+			else
+				g_ShadertoyBuffer.preserveAspectRatioComp[0] = RealWindowAspectRatio / g_fCurInGameAspectRatio;
+		}
+		else {
+			// The display window is going to stretch the image vertically, so we need
+			// to shrink the y axis:
+			if (g_fCurInGameAspectRatio > 1.0f)
+				g_ShadertoyBuffer.preserveAspectRatioComp[1] = RealWindowAspectRatio / g_fCurInGameAspectRatio;
+			else
+				g_ShadertoyBuffer.preserveAspectRatioComp[1] = g_fCurInGameAspectRatio / RealWindowAspectRatio;
+		}
+
+		log_debug("[DBG] [FOV] Real Window a/r: %0.3f, preserveA/R-Comp: %0.3f, %0.3f",
+			RealWindowAspectRatio, g_ShadertoyBuffer.preserveAspectRatioComp[0], g_ShadertoyBuffer.preserveAspectRatioComp[1]);
+	}
+
+	// Compute the *real* vertical and horizontal FOVs:
+	g_fRealVertFOV = ComputeRealVertFOV();
+	g_fRealHorzFOV = ComputeRealHorzFOV();
+	// Compute the metric scale factor conversion
+	g_fOBJCurMetricScale = g_fCurInGameHeight * g_fOBJGlobalMetricMult / (SHADOW_OBJ_SCALE * 3200.0f);
+
+	// Populate the metric reconstruction CB. Noticeably, the Metric Rec values need the raw
+	// FOVscale and y_center, not the fixed ones. Making a 3D OBJ crosshairs as additional geometry
+	// also places the crosshairs at the right spot (the crosshairs need to be at (0,1,100))
+	g_MetricRecCBuffer.mr_FOVscale = FOVscale_raw;
+	g_MetricRecCBuffer.mr_y_center = y_center_raw;
+	g_MetricRecCBuffer.mr_cur_metric_scale = g_fOBJCurMetricScale;
+	g_MetricRecCBuffer.mr_aspect_ratio = g_fCurInGameAspectRatio;
+	g_MetricRecCBuffer.mr_z_metric_mult = g_fOBJ_Z_MetricMult;
+	g_MetricRecCBuffer.mr_shadow_OBJ_scale = SHADOW_OBJ_SCALE;
+	g_MetricRecCBuffer.mr_screen_aspect_ratio = g_fCurScreenWidth / g_fCurScreenHeight;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[0] = 1.0f;
+	//g_MetricRecCBuffer.mr_vr_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f;
+	g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f;
+	g_MetricRecCBuffer.mr_vr_aspect_ratio = 1.0f;
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_steamVRHeight / (float)g_steamVRWidth;
+		}
+		else {
+			// This is the DirectSBS mode. I don't have a reliable way to get the resolution of the 
+			// HMD device (which could be any cell phone + Google Cardboard for all we know). Instead,
+			// we need to trust that the user will set the current desktop resolution to the HMD's 
+			// resolution. So let's use the desktop's resolution to compensate for aspect ratio in
+			// SBS mode:
+			g_MetricRecCBuffer.mr_vr_aspect_ratio = (float)g_WindowHeight / (float)g_WindowWidth;
+		}
+	}
+
+	if (g_bEnableVR) {
+		if (g_bUseSteamVR) {
+			if (g_config.AspectRatioPreserved) {
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+				g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+			}
+		}
+		else {
+			// DirectSBS path
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[0] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[0];
+			g_MetricRecCBuffer.mv_vr_vertexbuf_aspect_ratio_comp[1] = 1.0f / g_ShadertoyBuffer.preserveAspectRatioComp[1];
+		}
+	}
+
+	// We just modified the Metric Reconstruction parameters, let's reapply them
+	g_bMetricParamsNeedReapply = true;
+
+	log_debug("[DBG] [FOV] Final y_center: %0.3f, FOV_Scale: %0.6f, RealVFOV: %0.2f, RealHFOV: %0.2f, mr_aspect_ratio: %0.3f, Frame: %d",
+		g_ShadertoyBuffer.y_center, g_ShadertoyBuffer.FOVscale, g_fRealVertFOV, g_fRealHorzFOV,
+		g_MetricRecCBuffer.mr_aspect_ratio, g_iPresentCounter);
+
+	// DEBUG
+	//static bool bFirstTime = true;
+	//if (bFirstTime) {
+	//	g_fDebugFOVscale = g_ShadertoyBuffer.FOVscale;
+	//	//g_fDebugYCenter = g_ShadertoyBuffer.y_center;
+	//	bFirstTime = false;
+	//}
+	//g_fFOVscale = g_fDebugFOVscale;
+	//g_ShadertoyBuffer.FOVscale = g_fDebugFOVscale;
+	//
+	//g_fYCenter = g_fDebugYCenter;
+	//g_ShadertoyBuffer.y_center = g_fDebugYCenter;
+	////g_MetricRecCBuffer.mr_y_center = g_fDebugYCenter;
+	////log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
+	//log_debug("[DBG] [FOV] g_fDebugYCenter: %0.3f, g_fDebugFOVscale: %0.6f", g_fDebugYCenter, g_fDebugFOVscale);
+	// DEBUG
+}
+
 /* Loads the dynamic_cockpit.cfg file */
 bool LoadDCParams() {
 	log_debug("[DBG] Loading Dynamic Cockpit params...");
@@ -1190,6 +1436,16 @@ bool LoadDCParams() {
 	g_DCWireframeLuminance.y = 0.50f;
 	g_DCWireframeLuminance.z = 0.16f;
 	g_DCWireframeLuminance.w = 0.05f;
+
+	g_DCTargetingFriend.x = 0.1f;
+	g_DCTargetingFriend.y = 0.6f;
+	g_DCTargetingFriend.z = 0.1f;
+	g_DCTargetingFriend.w = 1.0f;
+
+	g_DCTargetingFoe.x = 0.6f;
+	g_DCTargetingFoe.y = 0.1f;
+	g_DCTargetingFoe.z = 0.1f;
+	g_DCTargetingFoe.w = 1.0f;
 
 	g_DCWireframeContrast = 3.0f;
 
@@ -1313,6 +1569,24 @@ bool LoadDCParams() {
 					g_DCTargetingIFFColors[5].w = 1.0f;
 				}
 			}
+			else if (_stricmp(param, "wireframe_color_friend") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingFriend.x = x;
+					g_DCTargetingFriend.y = y;
+					g_DCTargetingFriend.z = z;
+					g_DCTargetingFriend.w = 1.0f;
+				}
+			}
+			else if (_stricmp(param, "wireframe_color_foe") == 0) {
+				float x, y, z;
+				if (LoadGeneric3DCoords(buf, &x, &y, &z)) {
+					g_DCTargetingFoe.x = x;
+					g_DCTargetingFoe.y = y;
+					g_DCTargetingFoe.z = z;
+					g_DCTargetingFoe.w = 1.0f;
+				}
+			}
 			else if (_stricmp(param, "wireframe_luminance_vector") == 0) {
 				float x, y, z;
 				log_debug("[DBG] [DC] Loading wireframe luminance vector...");
@@ -1329,11 +1603,27 @@ bool LoadDCParams() {
 				g_DCWireframeContrast = fValue;
 				log_debug("[DBG] [DC] Wireframe contrast: %0.3f", g_DCWireframeContrast);
 			}
-
+			else if (_stricmp(param, "diegetic_cockpit_enabled") == 0) {
+				g_bDiegeticCockpitEnabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "reset_cockpit_damage_in_hangar") == 0) {
+				g_bResetCockpitDamageInHangar = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);
 	return true;
+}
+
+void TranslateACActionForVRController(int contIdx, int buttonId, char *svalue)
+{
+	bool bIsVRKeybActivator = false;
+	TranslateACAction(g_ACJoyMappings[contIdx].action[buttonId], svalue, &bIsVRKeybActivator);
+
+	if (bIsVRKeybActivator)
+	{
+		g_vrKeybState.iHoverContIdx = contIdx;
+	}
 }
 
 /* Loads the dynamic_cockpit.cfg file */
@@ -1341,6 +1631,13 @@ bool LoadACParams() {
 	log_debug("[DBG] [AC] Loading Active Cockpit params...");
 	FILE* file;
 	int error = 0, line = 0;
+
+	// Clear all the VR controller mappings
+	for (int i = 0; i < 2; i++)
+	{
+		for (int j = 0; j < (int)VRButtons::MAX; j++)
+			g_ACJoyMappings[i].action[j][0] = 0;
+	}
 
 	try {
 		error = fopen_s(&file, "./active_cockpit.cfg", "rt");
@@ -1368,7 +1665,23 @@ bool LoadACParams() {
 	}
 
 	g_LaserPointerBuffer.bDebugMode = 0;
-	g_LaserPointerBuffer.cursor_radius = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[0] = 0.01f;
+	g_LaserPointerBuffer.cursor_radius[1] = 0.01f;
+
+	// VR keyboard AC elements
+	ac_element ac_elem;
+	float ac_tex_width = -1.0f, ac_tex_height = -1.0f;
+	g_iVRKeyboardSlot = -1;
+	g_iVRGloveSlot[0] = -1;
+	g_iVRGloveSlot[2] = -1;
+
+	enum ActionParse
+	{
+		NONE,
+		KEYB,
+		GLOVE0,
+		GLOVE1,
+	} actionFSM = NONE;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -1384,11 +1697,15 @@ bool LoadACParams() {
 			if (_stricmp(param, "active_cockpit_enabled") == 0) {
 				g_bActiveCockpitEnabled = (bool)fValue;
 				log_debug("[DBG] [AC] g_bActiveCockpitEnabled: %d", g_bActiveCockpitEnabled);
-				if (!g_bActiveCockpitEnabled) {
+				if (!g_bActiveCockpitEnabled)
+				{
 					// Early abort: stop reading coordinates if the active cockpit is disabled
 					fclose(file);
 					return false;
 				}
+			}
+			else if (_stricmp(param, "enable_vr_pointer_in_concourse") == 0) {
+				g_bEnableVRPointerInConcourse = (bool)fValue;
 			}
 			else if (_stricmp(param, "freepie_controller_slot") == 0) {
 				g_iFreePIEControllerSlot = (int)fValue;
@@ -1397,51 +1714,298 @@ bool LoadACParams() {
 			else if (_stricmp(param, "button_data_available") == 0) {
 				g_bFreePIEControllerButtonDataAvailable = (bool)fValue;
 			}
-			else if (_stricmp(param, "controller_multiplier_x") == 0) {
-				g_fContMultiplierX = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_y") == 0) {
-				g_fContMultiplierY = fValue;
-			}
-			else if (_stricmp(param, "controller_multiplier_z") == 0) {
-				g_fContMultiplierZ = fValue;
-			}
-			else if (_stricmp(param, "origin_from_HMD_position") == 0) {
-				g_bOriginFromHMD = (bool)fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_x") == 0) {
-				g_contOriginWorldSpace.x = fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_y") == 0) {
-				g_contOriginWorldSpace.y = fValue;
-			}
-			else if (_stricmp(param, "cursor_origin_init_z") == 0) {
-				g_contOriginWorldSpace.z = fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_rotation") == 0) {
-				g_bCompensateHMDRotation = (bool)fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_position") == 0) {
-				g_bCompensateHMDPosition = (bool)fValue;
-			}
-			else if (_stricmp(param, "compensate_HMD_motion") == 0) {
-				g_bCompensateHMDRotation = (bool)fValue;
-				g_bCompensateHMDPosition = (bool)fValue;
-			}
-			else if (_stricmp(param, "full_cockpit_test") == 0) {
-				g_bFullCockpitTest = (bool)fValue;
-			}
-			else if (_stricmp(param, "laser_pointer_length") == 0) {
-				g_fLaserPointerLength = fValue;
-			}
-			else if (_stricmp(param, "debug_laser_dir") == 0) {
-				g_iLaserDirSelector = (int)fValue;
-			}
 			else if (_stricmp(param, "debug") == 0) {
 				g_LaserPointerBuffer.bDebugMode = (bool)fValue;
 			}
-			else if (_stricmp(param, "cursor_radius") == 0) {
-				g_LaserPointerBuffer.cursor_radius = fValue;
+			else if (_stricmp(param, "controller_forward_vector") == 0) {
+				LoadGeneric3DCoords(buf,
+					&(g_controllerForwardVector.x),
+					&(g_controllerForwardVector.y),
+					&(g_controllerForwardVector.z));
+				g_controllerForwardVector.w = 0;
+				g_controllerForwardVector.normalize();
+
+				// Compute the up vector
+				Vector3 R0, U0, F0;
+				R0 = Vector3(1, 0, 0);
+				F0.x = g_controllerForwardVector.x;
+				F0.y = g_controllerForwardVector.y;
+				F0.z = g_controllerForwardVector.z;
+				U0 = R0.cross(F0);
+				g_controllerUpVector.x = U0.x;
+				g_controllerUpVector.y = U0.y;
+				g_controllerUpVector.z = U0.z;
+				g_controllerUpVector.w = 0;
+				g_controllerUpVector.normalize();
+			}
+			else if (_stricmp(param, "throttle_emulation_enabled") == 0) {
+				g_ACJoyEmul.throttleEnabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "joystick_handedness") == 0) {
+				if (_stricmp(svalue, "right") == 0)
+				{
+					log_debug("[DBG] [AC] Right-handed VR controllers");
+					g_ACJoyEmul.joyHandIdx = 1;
+					g_ACJoyEmul.thrHandIdx = 0;
+				}
+				else
+				{
+					log_debug("[DBG] [AC] Left-handed VR controllers");
+					g_ACJoyEmul.joyHandIdx = 0;
+					g_ACJoyEmul.thrHandIdx = 1;
+				}
+			}
+			else if (_stricmp(param, "joystick_range_x") == 0) {
+				g_ACJoyEmul.joyHalfRangeX = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_range_z") == 0) {
+				g_ACJoyEmul.joyHalfRangeZ = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_dead_zone") == 0) {
+				g_ACJoyEmul.deadZonePerc = fValue / 100.0f;
+			}
+			else if (_stricmp(param, "joystick_roll_dead_zone") == 0) {
+				g_ACJoyEmul.rollDeadZonePerc = fValue / 100.0f;
+			}
+			else if (_stricmp(param, "throttle_range") == 0) {
+				g_ACJoyEmul.thrHalfRange = fValue / 200.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "joystick_emul_mode") == 0) {
+				int val = (int)fValue;
+				g_ACJoyEmul.yprEnabled = (val == 1);
+			}
+			else if (_stricmp(param, "joystick_yaw_range") == 0) {
+				g_ACJoyEmul.yawHalfRange = fValue / 2.0f;
+			}
+			else if (_stricmp(param, "joystick_pitch_range") == 0) {
+				g_ACJoyEmul.pitchHalfRange = fValue / 2.0f;
+			}
+			else if (_stricmp(param, "joystick_roll_range") == 0) {
+				g_ACJoyEmul.rollHalfRange = fValue / 2.0f;
+			}
+
+
+			if (_stricmp(param, "display_left_glove") == 0)
+			{
+				g_vrGlovesMeshes[0].visible = (bool)fValue;
+			}
+			else if (_stricmp(param, "display_right_glove") == 0)
+			{
+				g_vrGlovesMeshes[1].visible = (bool)fValue;
+			}
+			else if (_stricmp(param, "left_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[0].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[0].texGroupId = GroupId;
+					g_vrGlovesMeshes[0].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 0",
+						g_vrGlovesMeshes[0].texName, g_vrGlovesMeshes[0].texGroupId, g_vrGlovesMeshes[0].texImageId);
+				}
+			}
+			else if (_stricmp(param, "left_glove_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = GLOVE0;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRGloveSlot[0] = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRGloveSlot[0]].name, MAX_TEXTURE_NAME - 1, "_LGlove");
+					log_debug("[DBG] [AC] g_iVRGloveSlot[0]: %d", g_iVRGloveSlot[0]);
+				}
+			}
+			else if (_stricmp(param, "right_glove_texture") == 0)
+			{
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrGlovesMeshes[1].texName, 128, sDATFileName);
+					g_vrGlovesMeshes[1].texGroupId = GroupId;
+					g_vrGlovesMeshes[1].texImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for glove 1",
+						g_vrGlovesMeshes[1].texName, g_vrGlovesMeshes[1].texGroupId, g_vrGlovesMeshes[1].texImageId);
+				}
+			}
+			else if (_stricmp(param, "right_glove_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = GLOVE1;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRGloveSlot[1] = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRGloveSlot[1]].name, MAX_TEXTURE_NAME - 1, "_RGlove");
+					log_debug("[DBG] [AC] g_iVRGloveSlot[1]: %d", g_iVRGloveSlot[1]);
+				}
+			}
+
+			// VR controller configuration
+			if (_stricmp(param, "leftpad_up") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_UP, svalue);
+			}
+			if (_stricmp(param, "leftpad_down") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_DOWN, svalue);
+			}
+			if (_stricmp(param, "leftpad_left") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_LEFT, svalue);
+			}
+			if (_stricmp(param, "leftpad_right") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_RIGHT, svalue);
+			}
+			if (_stricmp(param, "leftpad_click") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::PAD_CLICK, svalue);
+			}
+			/*if (_stricmp(param, "left_trigger") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::TRIGGER, svalue);
+			}*/
+			if (_stricmp(param, "left_button_1") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::BUTTON_1, svalue);
+			}
+			if (_stricmp(param, "left_button_2") == 0)
+			{
+				TranslateACActionForVRController(0, VRButtons::BUTTON_2, svalue);
+			}
+
+			if (_stricmp(param, "rightpad_up") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_UP, svalue);
+			}
+			if (_stricmp(param, "rightpad_down") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_DOWN, svalue);
+			}
+			if (_stricmp(param, "rightpad_left") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_LEFT, svalue);
+			}
+			if (_stricmp(param, "rightpad_right") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_RIGHT, svalue);
+			}
+			if (_stricmp(param, "rightpad_click") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::PAD_CLICK, svalue);
+			}
+			/*if (_stricmp(param, "right_trigger") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::TRIGGER, svalue);
+			}*/
+			if (_stricmp(param, "right_button_1") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::BUTTON_1, svalue);
+			}
+			if (_stricmp(param, "right_button_2") == 0)
+			{
+				TranslateACActionForVRController(1, VRButtons::BUTTON_2, svalue);
+			}
+
+			if (_stricmp(param, "mouse_speed_x") == 0)
+			{
+				g_ACPointerData.mouseSpeedX = fValue;
+			}
+			else if (_stricmp(param, "mouse_speed_y") == 0)
+			{
+				g_ACPointerData.mouseSpeedY = fValue;
+			}
+
+			if (_stricmp(param, "push_button_threshold") == 0)
+			{
+				g_fPushButtonThreshold = fValue / 100.0f; // Convert to meters
+			}
+			if (_stricmp(param, "release_button_threshold") == 0)
+			{
+				g_fReleaseButtonThreshold = fValue / 100.0f; // Convert to meters
+			}
+
+			if (_stricmp(param, "keyb_texture") == 0) {
+				char sDATFileName[128];
+				short GroupId, ImageId;
+				if (ParseDatZipFileNameGroupIdImageId(svalue, sDATFileName, 128, &GroupId, &ImageId))
+				{
+					strcpy_s(g_vrKeybState.sImageName, 128, sDATFileName);
+					g_vrKeybState.iGroupId = GroupId;
+					g_vrKeybState.iImageId = ImageId;
+					log_debug("[DBG] [AC] Using [%s]-%d-%d for the VR Keyboard",
+						g_vrKeybState.sImageName, g_vrKeybState.iGroupId, g_vrKeybState.iImageId);
+				}
+			}
+			else if (_stricmp(param, "keyb_texture_size") == 0) {
+				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
+				LoadDCCoverTextureSize(buf, &ac_tex_width, &ac_tex_height);
+				actionFSM = KEYB;
+				//log_debug("[DBG] [AC] VRKeyb texture size: %0.3f, %0.3f", keyb_tex_width, keyb_tex_height);
+				g_vrKeybState.fPixelWidth  = ac_tex_width;
+				g_vrKeybState.fPixelHeight = ac_tex_height;
+				if (g_iNumACElements < MAX_AC_TEXTURES_PER_COCKPIT)
+				{
+					//log_debug("[DBG] [AC] New ac_elem.name: [%s], id: %d",
+						//	ac_elem.name, g_iNumACElements);
+						//ac_elem.idx = g_iNumACElements; // Generate a unique ID
+					ac_elem.coords = { 0 };
+					ac_elem.bActive = true; // false?
+					ac_elem.bNameHasBeenTested = true; // false?
+					g_ACElements[g_iNumACElements] = ac_elem;
+					g_iVRKeyboardSlot = g_iNumACElements;
+					g_iNumACElements++;
+
+					sprintf_s(g_ACElements[g_iVRKeyboardSlot].name, MAX_TEXTURE_NAME - 1, "_VRKeyboard");
+					log_debug("[DBG] [AC] g_iVRKeyboardSlot: %d", g_iVRKeyboardSlot);
+				}
+			}
+			else if (_stricmp(param, "keyb_width_cms") == 0) {
+				g_vrKeybState.fMetersWidth = fValue / 100.0f; // Convert to meters
+			}
+			else if (_stricmp(param, "action") == 0) {
+				if (actionFSM == NONE) {
+					log_debug("[DBG] [AC] ERROR. Line %d, 'action' tag without defining a texture size first.", line);
+					continue;
+				}
+
+				int curSlot = -1;
+				switch (actionFSM)
+				{
+					case KEYB:   curSlot = g_iVRKeyboardSlot; break;
+					case GLOVE0: curSlot = g_iVRGloveSlot[0]; break;
+					case GLOVE1: curSlot = g_iVRGloveSlot[1]; break;
+				}
+
+				if (curSlot != -1)
+				{
+					/*log_debug("[DBG] [AC] Loading action for: [%s], W,H: %0.1f, %0.1f",
+						g_ACElements[curSlot].name, ac_tex_width, ac_tex_height);*/
+					LoadACAction(buf, ac_tex_width, ac_tex_height, &(g_ACElements[curSlot].coords), false);
+
+					/*int lastIdx = g_ACElements[curSlot].coords.numCoords - 1;
+					log_debug("[DBG] [AC] numCoords: %d, [%s], (%0.2f, %0.2f)-(%0.2f, %0.2f)",
+						g_ACElements[curSlot].coords.numCoords,
+						g_ACElements[curSlot].coords.action_name[lastIdx],
+						g_ACElements[curSlot].coords.area[lastIdx].x0,
+						g_ACElements[curSlot].coords.area[lastIdx].y0,
+						g_ACElements[curSlot].coords.area[lastIdx].x1,
+						g_ACElements[curSlot].coords.area[lastIdx].y1);*/
+				}
 			}
 		}
 	}
@@ -1684,17 +2248,14 @@ bool LoadSSAOParams() {
 	g_fMoireOffsetDir = 0.02f;
 	g_fMoireOffsetInd = 0.1f;
 	g_SSAO_PSCBuffer.moire_offset = g_fMoireOffsetDir;
-	g_SSAO_PSCBuffer.nm_intensity_near = 0.2f;
-	g_SSAO_PSCBuffer.nm_intensity_far = 0.001f;
 	g_SSAO_PSCBuffer.fn_sharpness = 1.0f;
-	g_SSAO_PSCBuffer.fn_scale = 0.03f;
 	g_SSAO_PSCBuffer.fn_max_xymult = 0.4f;
 	g_SSAO_PSCBuffer.shadow_epsilon = 0.0f;
 	g_SSAO_PSCBuffer.Bz_mult = 0.05f;
 	g_SSAO_PSCBuffer.debug = 0;
 	g_SSAO_PSCBuffer.moire_scale = 0.5f; // Previous: 0.1f
 	g_fSSAOAlphaOfs = 0.5;
-	g_SSAO_Type = SSO_AMBIENT;
+	g_SSAO_Type = SSO_PBR;
 	// Default position of the global light (the sun)
 	g_LightVector[0].x = 0;
 	g_LightVector[0].y = 1;
@@ -1714,7 +2275,7 @@ bool LoadSSAOParams() {
 
 	// Default values for the shading system CB
 	g_ShadingSys_PSBuffer.spec_intensity = 1.0f;
-	g_ShadingSys_PSBuffer.spec_bloom_intensity = 1.25f;
+	g_ShadingSys_PSBuffer.spec_bloom_intensity = 0.9f;
 	g_ShadingSys_PSBuffer.glossiness = 128.0f;
 	g_ShadingSys_PSBuffer.bloom_glossiness_mult = 3.0f;
 	g_ShadingSys_PSBuffer.saturation_boost = 0.75f;
@@ -1732,11 +2293,17 @@ bool LoadSSAOParams() {
 	g_ShadertoyBuffer.flare_intensity = 2.0f;
 
 	g_ShadowMapping.bEnabled = false;
+	g_ShadowMapping.bCSMEnabled = false;
 	g_bShadowMapDebug = false;
 	g_ShadowMapVSCBuffer.sm_bias = 0.01f;
 	g_ShadowMapVSCBuffer.sm_debug = g_bShadowMapDebug;
 	g_ShadowMapVSCBuffer.sm_pcss_radius = 1.0f / SHADOW_MAP_SIZE;
 	g_ShadowMapVSCBuffer.sm_light_size = 0.1f;
+
+	g_fRTGaussFactor = 0.1f;
+	g_bRTEnableSoftShadows = true;
+	g_RTConstantsBuffer.RTEnableSoftShadows = true;
+	g_RTConstantsBuffer.RTShadowMaskSizeFactor = 4;
 
 	for (int i = 0; i < MAX_XWA_LIGHTS; i++)
 		if (!g_XWALightInfo[i].bTagged)
@@ -1783,12 +2350,61 @@ bool LoadSSAOParams() {
 				else if (_stricmp(svalue, "bent_normals") == 0)
 					g_SSAO_Type = SSO_BENT_NORMALS;
 				else if (_stricmp(svalue, "deferred") == 0)
-					g_SSAO_Type = SSO_DEFERRED;
+				{
+					if (!g_bRTEnabled)
+					{
+						g_SSAO_Type = SSO_DEFERRED;
+					}
+					else
+					{
+						// Force the PBR Rendering mode and enable HDR if RT is enabled.
+						if (g_bRTEnabled) g_SSAO_Type = SSO_PBR;
+						SetHDRState(g_bRTEnabled);
+					}
+				}
+				else if (_stricmp(svalue, "PBR") == 0)
+				{
+					g_SSAO_Type = SSO_PBR;
+					SetHDRState(true);
+				}
 			}
-			if (_stricmp(param, "disable_xwa_diffuse") == 0) {
-				g_bDisableDiffuse = (bool)fValue;
+
+			if (_stricmp(param, "raytracing_enabled_in_tech_room") == 0) {
+				g_bRTEnabledInTechRoom = (bool)fValue;
 			}
-			else if (_stricmp(param, "bias") == 0) {
+			if (_stricmp(param, "raytracing_enabled") == 0) {
+				g_bRTEnabled = (bool)fValue;
+				// Force the PBR Rendering mode and enable HDR if RT is enabled.
+				if (g_bRTEnabled) g_SSAO_Type = SSO_PBR;
+				SetHDRState(g_bRTEnabled);
+			}
+			if (_stricmp(param, "raytracing_enabled_in_cockpit") == 0) {
+				g_bRTEnabledInCockpit = (bool)fValue;
+			}
+			if (_stricmp(param, "raytracing_enable_soft_shadows") == 0) {
+				g_bRTEnableSoftShadows = (bool)fValue;
+				g_RTConstantsBuffer.RTEnableSoftShadows = g_bRTEnableSoftShadows;
+			}
+			if (_stricmp(param, "raytracing_shadow_mask_size_factor") == 0) {
+				g_RTConstantsBuffer.RTShadowMaskSizeFactor = (int)fValue;
+			}
+			if (_stricmp(param, "raytracing_soft_shadow_sharpness") == 0) {
+				// 0.01 --> Soft
+				// 1.5 --> Sharp
+				g_fRTGaussFactor = lerp(0.01f, 1.5f, clamp(fValue, 0.0f, 1.0f));
+			}
+			if (_stricmp(param, "raytracing_enable_embree") == 0) {
+				//g_bRTEnableEmbree = (bool)fValue;
+				g_bRTEnableEmbree = false;
+				//g_BVHBuilderType = g_bRTEnableEmbree ? BVHBuilderType_Embree : DEFAULT_BVH_BUILDER;
+				g_BLASBuilderType = DEFAULT_BLAS_BUILDER;
+			}
+
+			if (_stricmp(param, "keep_mouse_inside_window") == 0) {
+				g_bKeepMouseInsideWindow = (bool)fValue;
+			}
+
+			if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;
 			}
 			else if (_stricmp(param, "intensity") == 0) {
@@ -1874,17 +2490,8 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "nm_max_xymult") == 0) {
 				g_SSAO_PSCBuffer.fn_max_xymult = fValue;
 			}
-			else if (_stricmp(param, "nm_scale") == 0) {
-				g_SSAO_PSCBuffer.fn_scale = fValue;
-			}
 			else if (_stricmp(param, "nm_sharpness") == 0) {
 				g_SSAO_PSCBuffer.fn_sharpness = fValue;
-			}
-			else if (_stricmp(param, "nm_intensity_near") == 0) {
-				g_SSAO_PSCBuffer.nm_intensity_near = fValue;
-			}
-			else if (_stricmp(param, "nm_intensity_far") == 0) {
-				g_SSAO_PSCBuffer.nm_intensity_far = fValue;
 			}
 			else if (_stricmp(param, "override_game_light_pos") == 0) {
 				g_bOverrideLightPos = (bool)fValue;
@@ -1908,6 +2515,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "xwa_lights_global_intensity") == 0) {
 				g_fXWALightsIntensity = fValue;
+			}
+			else if (_stricmp(param, "xwa_normalize_lights") == 0) {
+				g_bNormalizeLights = (bool)fValue;
 			}
 			else if (_stricmp(param, "procedural_suns") == 0) {
 				g_bProceduralSuns = (bool)fValue;
@@ -1950,6 +2560,11 @@ bool LoadSSAOParams() {
 				g_bShadowMapEnable = (bool)fValue;
 				g_ShadowMapping.bEnabled = g_bShadowMapEnable;
 				g_ShadowMapVSCBuffer.sm_enabled = g_ShadowMapping.bEnabled;
+				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.bEnabled);
+			}
+			else if (_stricmp(param, "cascaded_shadow_mapping_enable") == 0) {
+				g_ShadowMapping.bCSMEnabled = (bool)fValue;
+				g_ShadowMapVSCBuffer.sm_csm_enabled = g_ShadowMapping.bEnabled;
 				log_debug("[DBG] [SHW] g_ShadowMapping.Enabled: %d", g_ShadowMapping.bEnabled);
 			}
 			else if (_stricmp(param, "shadow_mapping_anisotropic_scale") == 0) {
@@ -2079,14 +2694,11 @@ bool LoadSSAOParams() {
 			}
 			*/
 
-
 			else if (_stricmp(param, "dump_OBJ_enabled") == 0) {
 				g_bDumpOBJEnabled = (bool)fValue;
 			}
-
 			else if (_stricmp(param, "HDR_enabled") == 0) {
-				g_bHDREnabled = (bool)fValue;
-				g_ShadingSys_PSBuffer.HDREnabled = g_bHDREnabled;
+				SetHDRState((bool)fValue);
 			}
 			else if (_stricmp(param, "HDR_lights_intensity") == 0) {
 				g_fHDRLightsMultiplier = fValue;
@@ -2123,10 +2735,7 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "shadow_epsilon") == 0) {
 				g_SSAO_PSCBuffer.shadow_epsilon = fValue;
 			}
-			else if (_stricmp(param, "shadow_enable") == 0) {
-				g_bShadowEnable = (bool)fValue;
-				g_SSAO_PSCBuffer.shadow_enable = g_bShadowEnable;
-			}*/
+			*/
 			/*
 			else if (_stricmp(param, "white_point") == 0) {
 				g_SSAO_PSCBuffer.white_point = fValue;
@@ -2199,6 +2808,12 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "lightness_boost") == 0) {
 				g_ShadingSys_PSBuffer.lightness_boost = fValue;
 			}
+			else if (_stricmp(param, "min_light_intensity_after_fade") == 0) {
+				g_fMinLightIntensity = fValue;
+			}
+			else if (_stricmp(param, "fade_lights") == 0) {
+				g_bFadeLights = (bool)fValue;
+			}
 			else if (_stricmp(param, "saturation_boost") == 0) {
 				g_ShadingSys_PSBuffer.saturation_boost = fValue;
 			}
@@ -2217,6 +2832,9 @@ bool LoadSSAOParams() {
 			}
 			else if (_stricmp(param, "enable_laser_lights") == 0) {
 				g_bEnableLaserLights = (bool)fValue;
+			}
+			else if (_stricmp(param, "enable_explosion_lights") == 0) {
+				g_bEnableExplosionLights = (bool)fValue;
 			}
 			else if (_stricmp(param, "sqr_attenuation") == 0) {
 				g_ShadingSys_PSBuffer.sqr_attenuation = fValue;
@@ -2284,8 +2902,86 @@ bool LoadSSAOParams() {
 				g_ShadertoyBuffer.preserveAspectRatioComp[1] = fValue;
 			}
 
+			if (_stricmp(param, "g_fBlastMarkOfsX") == 0) {
+				g_fBlastMarkOfsX = fValue;
+				log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
+			}
+			if (_stricmp(param, "g_fBlastMarkOfsY") == 0) {
+				g_fBlastMarkOfsY = fValue;
+				log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+			}
+
 			if (_stricmp(param, "star_debug_enabled") == 0) {
 				g_bStarDebugEnabled = (bool)fValue;
+			}
+
+			if (_stricmp(param, "DS2_force_procedural_explosions") == 0) {
+				g_bDS2ForceProceduralExplosions = (bool)fValue;
+			}
+			if (_stricmp(param, "force_alt_explosion") == 0) {
+				g_iForceAltExplosion = (int)fValue;
+			}
+			// Set this to false to prevent the cleanup of temporary ZIP files.
+			// This makes loading missions a little bit faster after the first
+			// time, since files will remain uncompressed on disk.
+			if (_stricmp(param, "cleanup_temp_zip_files") == 0) {
+				g_bCleanupZIPDirs = (bool)fValue;
+			}
+
+			if (_stricmp(param, "enable_levels_shader") == 0) {
+				g_bEnableLevelsShader = (bool)fValue;
+			}
+			if (_stricmp(param, "levels_white_point") == 0) {
+				g_fLevelsWhitePoint = fValue;
+			}
+			if (_stricmp(param, "levels_black_point") == 0) {
+				g_fLevelsBlackPoint = fValue;
+			}
+
+			if (_stricmp(param, "raytracing_exclude_opt") == 0) {
+				toupper(svalue);
+				std::string OPTName(svalue);
+				log_debug("[DBG] [BVH] Excluding OPT: %s", OPTName.c_str());
+				g_RTExcludeOPTNames[OPTName] = true;
+			}
+
+			if (_stricmp(param, "raytracing_exclude_class") == 0)
+			{
+				if (_stricmp(svalue, "Starships") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Starship] = true;
+					log_debug("[DBG] [BVH] Excluding Starships");
+				}
+				else if (_stricmp(svalue, "Stations") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Platform] = true;
+					log_debug("[DBG] [BVH] Excluding Stations");
+				}
+				else if (_stricmp(svalue, "Starfighters") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Starfighter] = true;
+					log_debug("[DBG] [BVH] Excluding Starfighters");
+				}
+				else if (_stricmp(svalue, "Freighters") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Freighter] = true;
+					log_debug("[DBG] [BVH] Excluding Freighters");
+				}
+				else if (_stricmp(svalue, "Transports") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Transport] = true;
+					log_debug("[DBG] [BVH] Excluding Transports");
+				}
+				else if (_stricmp(svalue, "Mines") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Mine] = true;
+					log_debug("[DBG] [BVH] Excluding Mines");
+				}
+				else if (_stricmp(svalue, "Satellites") == 0)
+				{
+					g_RTExcludeShipCategories[Genus_Satellite] = true;
+					log_debug("[DBG] [BVH] Excluding Satellites");
+				}
 			}
 		}
 	}
@@ -2314,7 +3010,7 @@ bool LoadHyperParams() {
 	g_ShadertoyBuffer.y_center = 0.15f;
 	g_ShadertoyBuffer.FOVscale = 1.0f;
 	g_ShadertoyBuffer.viewMat.identity();
-	g_ShadertoyBuffer.bDisneyStyle = 1;
+	g_ShadertoyBuffer.Style = g_iHyperStyle;
 	g_ShadertoyBuffer.tunnel_speed = 5.5f;
 	g_ShadertoyBuffer.twirl = 1.0f;
 	g_fHyperLightRotationSpeed = 50.0f;
@@ -2349,7 +3045,8 @@ bool LoadHyperParams() {
 			fValue = (float)atof(svalue);
 
 			if (_stricmp(param, "disney_style") == 0) {
-				g_ShadertoyBuffer.bDisneyStyle = (bool)fValue;
+				g_iHyperStyle = (int)fValue;
+				g_ShadertoyBuffer.Style = g_iHyperStyle;
 			}
 			else if (_stricmp(param, "tunnel_speed") == 0) {
 				g_fHyperspaceTunnelSpeed = fValue;
@@ -2368,6 +3065,67 @@ bool LoadHyperParams() {
 			}
 			else if (_stricmp(param, "shake_speed") == 0) {
 				g_fHyperShakeRotationSpeed = fValue;
+			}
+			else if (_stricmp(param, "interdiction_shake_scale") == 0) {
+				g_fInterdictionShake = fValue;
+			}
+			else if (_stricmp(param, "interdiction_shake_scale_in_VR") == 0) {
+				g_fInterdictionShakeInVR = fValue;
+			}
+			else if (_stricmp(param, "interdiction_angle_scale") == 0) {
+				g_fInterdictionAngleScale = fValue;
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
+bool Load3DVisionParams() {
+	log_debug("[DBG] Loading 3DVision params...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./3DVision.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load 3DVision.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading 3DVision.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+	// Set some default values
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "enable_3D_vision") == 0) {
+				g_b3DVisionEnabled = (bool)fValue;
+				if (g_b3DVisionEnabled) {
+					log_debug("[DBG] [3DV] 3D Vision enabled");
+					// Force DirectSBS mode
+					g_bSteamVREnabled = false;
+					g_bEnableVR = true;
+					g_config.AspectRatioPreserved = true;
+				}
+			}
+			else if (_stricmp(param, "force_fullscreen") == 0) {
+				g_b3DVisionForceFullScreen = (bool)fValue;
 			}
 		}
 	}
@@ -2408,9 +3166,214 @@ bool LoadDefaultGlobalMaterial() {
 	// Now, try to load the global materials file
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
-		ReadMaterialLine(buf, &g_DefaultGlobalMaterial);
+		ReadMaterialLine(buf, &g_DefaultGlobalMaterial, "GlobalMaterial");
 	}
 	fclose(file);
+	return true;
+}
+
+bool LoadMultiplayerConfigFromHooks_ini() {
+	/*
+	 In the LoadMultiplayerConfig function in VRConfig.cpp you read the content of the
+	 hook_tourmultiplayer.cfg config file. In the future these settings will eventualy
+	 be moved to Hooks.ini in a [hook_tourmultiplayer] section. Can you update the code
+	 to also read the ini file?
+	 */
+	log_debug("[DBG] Loading hooks.ini...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./hooks.ini", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load hooks.ini");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading hooks.ini", error);
+		return false;
+	}
+
+	bool mpSection = false;
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (buf[0] == '[') {
+			bool prevMPSection = mpSection;
+			mpSection = (stristr(buf, "[hook_tourmultiplayer]") != NULL);
+			if (!mpSection && prevMPSection)
+			{
+				// We've seen the MP section before and this is a new section:
+				// we're done here
+				break;
+			}
+		}
+		else if (mpSection)
+		{
+			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+				fValue = (float)atof(svalue);
+
+				if (_stricmp(param, "GreenAndRedForIFFColorsOnly") == 0) {
+					g_bGreenAndRedForIFFColorsOnly = (bool)fValue;
+					break;
+				}
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
+bool LoadMultiplayerConfig() {
+	// Try loading the MP configuration from hooks.ini first
+	if (LoadMultiplayerConfigFromHooks_ini())
+	{
+		return true;
+	}
+
+	log_debug("[DBG] Loading hook_tourmultiplayer.cfg...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./hook_tourmultiplayer.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load hook_tourmultiplayer.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading hook_tourmultiplayer.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			if (_stricmp(param, "GreenAndRedForIFFColorsOnly") == 0) {
+				g_bGreenAndRedForIFFColorsOnly = (bool)fValue;
+				break;
+			}
+		}
+	}
+	fclose(file);
+
+	return true;
+}
+
+bool LoadGimbaLockFixConfig() {
+	log_debug("[DBG] Loading GimbalLockFix.cfg...");
+	FILE* file;
+	int error = 0, line = 0;
+
+	try {
+		error = fopen_s(&file, "./GimbalLockFix.cfg", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load GimbalLockFix.cfg");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading GimbalLockFix.cfg", error);
+		return false;
+	}
+
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	float fValue = 0.0f;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+			fValue = (float)atof(svalue);
+
+			/*if (_stricmp(param, "enable_gimbal_lock_fix") == 0) {
+				g_bEnableGimbalLockFix = (bool)fValue;
+			}*/
+			if (_stricmp(param, "enable_rudder") == 0) {
+				g_bEnableRudder = (bool)fValue;
+			}
+			/*
+			else if (_stricmp(param, "debug_mode") == 0) {
+				g_bGimbalLockDebugMode = (bool)fValue;
+			}
+			*/
+			else if (_stricmp(param, "yaw_accel_rate_s") == 0) {
+				g_fYawAccelRate_s = fValue;
+			}
+			else if (_stricmp(param, "pitch_accel_rate_s") == 0) {
+				g_fPitchAccelRate_s = fValue;
+			}
+			else if (_stricmp(param, "roll_accel_rate_s") == 0) {
+				g_fRollAccelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "max_yaw_rate_s") == 0) {
+				g_fMaxYawRate_s = fValue;
+			}
+			else if (_stricmp(param, "max_pitch_rate_s") == 0) {
+				g_fMaxYawRate_s = fValue;
+			}
+			else if (_stricmp(param, "max_roll_rate_s") == 0) {
+				g_fMaxRollRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "turn_rate_scale_throttle_0") == 0) {
+				g_fTurnRateScaleThr_0 = fValue;
+			}
+			else if (_stricmp(param, "turn_rate_scale_throttle_100") == 0) {
+				g_fTurnRateScaleThr_100 = fValue;
+			}
+			else if (_stricmp(param, "max_turn_accel_rate_s") == 0) {
+				g_fMaxTurnAccelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "mouse_range_x") == 0) {
+				g_fMouseRangeX = fValue;
+			}
+			else if (_stricmp(param, "mouse_range_y") == 0) {
+				g_fMouseRangeY = fValue;
+			}
+			else if (_stricmp(param, "mouse_decel_rate_s") == 0) {
+				g_fMouseDecelRate_s = fValue;
+			}
+
+			else if (_stricmp(param, "modulate_accel_rate_with_throttle") == 0) {
+				g_bThrottleModulationEnabled = (bool)fValue;
+			}
+		}
+	}
+	fclose(file);
+
 	return true;
 }
 
@@ -2433,7 +3396,7 @@ void ReloadMaterials()
 
 	for (Direct3DTexture* texture : g_AuxTextureVector) {
 		OPTname.name[0] = 0;
-		surface_name = texture->_surface->_name;
+		surface_name = texture->_surface->_cname;
 		bIsDat = false;
 		//bIsDat = strstr(surface_name, "dat,") != NULL;
 
@@ -2491,6 +3454,167 @@ void ReloadMaterials()
 		//if (Debug)
 		//	log_debug("[DBG] Re-Applied Mat: %0.3f, %0.3f, %0.3f", texture->material.Metallic, texture->material.Intensity, texture->material.Glossiness);
 		texture->bHasMaterial = true;
+	}
+}
+
+std::map<int, std::string> LoadMissionList() {
+	FILE* file;
+	int error = 0, line = 0;
+	std::map<int, std::string> missionMap;
+	log_debug("[DBG] [INT] Loading Mission List...");
+
+	// Read Missions\Mission.lst and build a map of mission index -> filename.
+	try {
+		error = fopen_s(&file, ".\\Missions\\Mission.lst", "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not load Mission.lst");
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when loading Mission.lst", error);
+		return missionMap;
+	}
+
+	char buf[256], param[256], *aux;
+	int curIdx = -1;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		int len = strlen(buf);
+		if (strlen(buf) == 0)
+			continue;
+		if (buf[0] == '/' || buf[0] == '!')
+			continue;
+
+		if (stristr(buf, ".tie") != NULL) {
+			aux = &(buf[0]);
+			// Sometimes, missions begin with "* "
+			if (*aux == '*') {
+				aux += 2;
+				len -= 2;
+			}
+			// Remove the ".tie" ending
+			aux[len - 5] = 0;
+			sprintf_s(param, 256, ".\\Missions\\%s.ini", aux);
+			missionMap[curIdx] = std::string(param);
+			//log_debug("[DBG] [INT] %d --> %s", curIdx, missionMap[curIdx].c_str());
+		} else if (isdigit(buf[0])) {
+			curIdx = atoi(buf);
+		}
+	}
+	fclose(file);
+	return missionMap;
+}
+
+// Reads a list of integers of the form:
+// X, Y, Z, ...
+// and returns the equivalent vector
+std::vector<int> ReadIntegerList(char *svalue) {
+	int i = 0;
+	int len = strlen(svalue);
+	std::vector<int> result;
+
+	while (i < len) {
+		int j = i;
+		// Advance to the next comma
+		while (j < len && svalue[j] != ',') j++;
+		// Terminate the string at the comma
+		if (j < len) svalue[j] = 0;
+		// Parse the integer
+		int elem = atoi(svalue + i);
+		result.push_back(elem);
+		// Repeat, starting at the first character after the comma
+		i = j + 1;
+	}
+	return result;
+}
+
+uint8_t LoadInterdictionMap(const char *fileName)
+{
+	int error = 0;
+	FILE *file = NULL;
+
+	try {
+		error = fopen_s(&file, fileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [INT] Could not load %s", fileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [INT] Error %d when loading %s", error, fileName);
+		return 0;
+	}
+
+	// Read the mission's .ini file. Find the "[Interdiction]" section and
+	// populate the bitfield
+	bool interdictionSection = false;
+	char buf[256], param[128], svalue[128];
+	int param_read_count = 0;
+	int iValue = -1, line = 0;
+	uint8_t bitfield = 0x0;
+
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		if (strlen(buf) == 0)
+			continue;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+
+		if (buf[0] == '[') {
+			bool prevInterdictionSection = interdictionSection;
+			interdictionSection = (stristr(buf, "[Interdiction]") != NULL);
+			if (!interdictionSection && prevInterdictionSection)
+				break;
+		}
+		else if (interdictionSection) {
+			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+				iValue = atoi(svalue);
+
+				if (_stricmp(param, "Region") == 0) {
+					// scanf stops reading strings on commas, so we need the full right
+					// substring:
+					char *right_side = stristr(buf, "=");
+					// Skip the "=" sign
+					right_side++;
+					std::vector regions = ReadIntegerList(right_side);
+					for (int region : regions)
+						bitfield |= (0x1 << region);
+					//log_debug("[DBG] [INT] Interdiction set on current mission, bitfield: 0x%x", bitfield);
+				}
+			}
+		}
+
+	}
+	fclose(file);
+	return bitfield;
+}
+
+void ReloadInterdictionMap() {
+	static char prevMission[128] = "";
+	char aux[128];
+	int len;
+	
+	if (_stricmp(xwaMissionFileName, prevMission) != 0)
+	{
+		// A new mission has been loaded since the last time this function
+		// was called. Reset the bitfield and reload the .ini file
+		g_iInterdictionBitfield = 0;
+		// Update the name of the previous mission
+		len = strlen(xwaMissionFileName);
+		strncpy_s(prevMission, 128, xwaMissionFileName, len);
+		strncpy_s(aux, 128, xwaMissionFileName, len);
+		
+		// Replace the ".tie" ending with an ".ini" ending.
+		aux[len - 3] = 'i';
+		aux[len - 2] = 'n';
+		aux[len - 1] = 'i';
+		g_iInterdictionBitfield = LoadInterdictionMap(aux);
+		log_debug("[DBG] [INT] Interdictions in mission: [%s] = 0x%x",
+			aux, g_iInterdictionBitfield);
 	}
 }
 
@@ -2625,4 +3749,3 @@ void IncreaseNoDrawAfterHUD(int Delta) {
 //	g_iSkyBoxExecIndex += Delta;
 //	log_debug("[DBG] New g_iSkyBoxExecIndex: %d", g_iSkyBoxExecIndex);
 //}
-

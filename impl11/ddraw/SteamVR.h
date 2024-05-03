@@ -5,11 +5,16 @@
 #include "Vectors.h"
 #include "Matrices.h"
 #include "config.h"
-#include <headers/openvr.h>
+#include "EffectsCommon.h"
+#include <openvr.h>
 
+constexpr float DEFAULT_STEAMVR_OVERLAY_WIDTH = 5.0f;
 
 extern vr::IVRSystem* g_pHMD;
+extern vr::IVRChaperone* g_pChaperone;
 extern vr::IVRCompositor* g_pVRCompositor;
+extern vr::IVROverlay* g_pVROverlay;
+extern vr::VROverlayHandle_t g_VR2Doverlay; // Handle to the specific overlay displaying the 2D rendered scenes.
 extern vr::IVRScreenshots* g_pVRScreenshots;
 extern vr::TrackedDevicePose_t g_rTrackedDevicePose;
 extern uint32_t g_steamVRWidth, g_steamVRHeight; // The resolution recommended by SteamVR is stored here
@@ -30,6 +35,123 @@ extern void* g_pSurface;
 extern bool g_bTogglePostPresentHandoff;
 extern bool g_bSteamVRMirrorWindowLeftEye;
 
+namespace VRButtons
+{
+	enum VRButtons
+	{
+		TRIGGER = 0,
+		GRIP,
+		BUTTON_1,
+		BUTTON_2,
+
+		PAD_LEFT,
+		PAD_RIGHT,
+		PAD_UP,
+		PAD_DOWN,
+		PAD_CLICK,
+
+		MAX // Sentinel, do not remove
+	};
+};
+
+struct ControllerState
+{
+	Matrix4  pose;
+	bool     bIsValid;
+	bool     buttons[VRButtons::MAX];
+	float    trackPadX, trackPadY;
+	Vector4  centerFwd, centerUp;
+	uint32_t packetNum; // Internal, do not modify
+	bool     displayGlove;
+
+	ControllerState()
+	{
+		pose.identity();
+		for (int i = 0; i < VRButtons::MAX; i++)
+			buttons[i] = false;
+		bIsValid  = false;
+		trackPadX = 0;
+		trackPadY = 0;
+		packetNum = 0xFFFFFFFF;
+		displayGlove = true;
+	}
+};
+extern ControllerState g_prevContStates[2];
+extern ControllerState g_contStates[2];
+
+enum class KBState
+{
+	OFF,
+	HOVER,
+	STATIC,
+	CLOSING,
+	MAX,
+};
+
+struct VRKeybState
+{
+	KBState state;
+	KBState prevState;
+	bool    bRendered;
+	float   fMetersWidth;
+	float   fPixelWidth;
+	float   fPixelHeight;
+	Matrix4 Transform; // Used to place the keyboard mesh inside a cockpit
+	Matrix4 OPTTransform; // Used to test intersections in the Gunner Turret
+	Matrix4 InitialTransform; // Captured when the keyb is initially turned on
+	int     iHoverContIdx;
+	char    sImageName[128];
+	int     iGroupId;
+	int     iImageId;
+
+	// Region highlighting, sticky keys
+	int      iNumStickyRegions;
+	uvfloat4 stickyRegions[MAX_VRKEYB_REGIONS];
+
+	// Region highlighting, regular clicks
+	uvfloat4 clickRegions[2];
+
+	VRKeybState()
+	{
+		state        = KBState::OFF;
+		prevState    = KBState::OFF;
+		bRendered    = false;
+		fMetersWidth = 0.30f;
+		fPixelWidth  = 1024;
+		fPixelHeight = 480;
+		Transform.identity();
+		OPTTransform.identity();
+		InitialTransform.identity();
+
+		iHoverContIdx = 0;
+		ClearRegions();
+
+		sprintf_s(sImageName, 128, "%s", ".\\Effects\\ActiveCockpit.dat");
+		iGroupId = 0;
+		iImageId = 0;
+	}
+
+	void ToggleState()
+	{
+		state = (KBState)(((int)state + 1) % (int)KBState::MAX);
+	}
+
+	void AddLitRegion(const uvfloat4& coords)
+	{
+		if (iNumStickyRegions < MAX_VRKEYB_REGIONS)
+		{
+			stickyRegions[iNumStickyRegions++] = coords;
+		}
+	}
+
+	inline void ClearRegions()
+	{
+		iNumStickyRegions = 0;
+	}
+};
+
+extern VRKeybState g_vrKeybState;
+
 /*
  *	SteamVR specific functions declarations
  */
@@ -40,7 +162,7 @@ void ShutDownSteamVR();
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& y, float& z);
 void ProcessSteamVREyeMatrices(vr::EVREye eye);
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError = NULL);
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix3* rotMatrix);
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose);
 // WaitGetPoses is now called from the CockpitLook hook.
 //bool WaitGetPoses();
 
@@ -58,6 +180,7 @@ void ShowMatrix4(const Matrix4& mat, char* name);
 void ShowHmdMatrix34(const vr::HmdMatrix34_t& mat, char* name);
 void ShowHmdMatrix44(const vr::HmdMatrix44_t& mat, char* name);
 void Matrix4toHmdMatrix44(const Matrix4 & m4, vr::HmdMatrix44_t & mat);
+void Matrix4toHmdMatrix34(const Matrix4& m4, vr::HmdMatrix34_t& mat);
 Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat);
 Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat);
 void ShowVector4(const Vector4& X, char* name);

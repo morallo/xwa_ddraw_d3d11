@@ -1,7 +1,8 @@
 #pragma once
 
-#include <vector>
 #include "common.h"
+#include <vector>
+#include <map>
 #include "XWAFramework.h"
 #include "EffectsCommon.h"
 #include "DynamicCockpit.h"
@@ -15,7 +16,8 @@ typedef enum {
 	SSO_AMBIENT,
 	SSO_DIRECTIONAL,
 	SSO_BENT_NORMALS,
-	SSO_DEFERRED, // New Shading Model
+	SSO_DEFERRED,
+	SSO_PBR,
 } SSAOTypeEnum;
 
 // In order to blend the background with the hyperspace effect when exiting, we need to extend the
@@ -29,6 +31,7 @@ enum HyperspacePhaseEnum {
 	HS_POST_HYPER_EXIT_ST = 4   // HyperExit streaks have finished rendering; but now we're blending with the backround
 };
 const int MAX_POST_HYPER_EXIT_FRAMES = 10; // I had 20 here up to version 1.1.1. Making this smaller makes the zoom faster
+const int HYPER_INTERDICTION_STYLE = 2;
 
 // xwahacker computes the FOV like this: FOV = 2.0 * atan(height/focal_length). This formula is questionable, the actual
 // FOV seems to be: 2.0 * atan((height/2)/focal_length), same for the horizontal FOV. I confirmed this by geometry
@@ -63,12 +66,15 @@ extern std::vector<char*> Trails_ResNames;
 extern Vector4 g_SpeedParticles[MAX_SPEED_PARTICLES];
 
 // Constant Buffers
-extern VertexShaderMatrixCB		g_VSMatrixCB;
-extern BloomPixelShaderCBuffer	g_BloomPSCBuffer;
-extern SSAOPixelShaderCBuffer	g_SSAO_PSCBuffer;
-extern PSShadingSystemCB		g_ShadingSys_PSBuffer;
-extern ShadertoyCBuffer			g_ShadertoyBuffer;
-extern LaserPointerCBuffer		g_LaserPointerBuffer;
+extern VertexShaderMatrixCB     g_VSMatrixCB;
+extern BloomPixelShaderCBuffer  g_BloomPSCBuffer;
+extern SSAOPixelShaderCBuffer   g_SSAO_PSCBuffer;
+extern PSShadingSystemCB        g_ShadingSys_PSBuffer;
+extern ShadertoyCBuffer         g_ShadertoyBuffer;
+extern LaserPointerCBuffer      g_LaserPointerBuffer;
+extern OPTMeshTransformCBuffer  g_OPTMeshTransformCB;
+extern RTConstantsBuffer        g_RTConstantsBuffer;
+extern VRGeometryCBuffer        g_VRGeometryCBuffer;
 
 extern D3DTLVERTEX* g_OrigVerts;
 extern uint32_t* g_OrigIndex;
@@ -102,18 +108,23 @@ extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
 extern BloomConfig g_BloomConfig;
 
-// LASER LIGHTS
+// LASER LIGHTS AND DYNAMIC LIGHTS
 extern SmallestK g_LaserList;
-extern bool g_bEnableLaserLights, g_bEnableHeadLights;
+extern bool g_bEnableLaserLights, g_bEnableExplosionLights, g_bEnableHeadLights;
 extern Vector3 g_LaserPointDebug;
 extern Vector3 g_HeadLightsPosition, g_HeadLightsColor;
 extern float g_fHeadLightsAmbient, g_fHeadLightsDistance, g_fHeadLightsAngleCos;
 extern bool g_bHeadLightsAutoTurnOn;
+extern const float DEFAULT_DYNAMIC_LIGHT_FALLOFF;
+extern const Vector3 DEFAULT_EXPLOSION_COLOR;
 
 extern int   g_iDraw2DCounter;
 extern bool g_bPrevPlayerInHangar;
 extern bool g_bInTechRoom;
 extern bool g_bMetricParamsNeedReapply;
+
+extern Vector3 g_CockpitPOVOffset;
+extern Vector3 g_GunnerTurretPOVOffset;
 
 extern uint32_t g_DirectDrawCreatePass;
 
@@ -132,16 +143,95 @@ float ComputeRealHorzFOV();
 float RealVertFOVToRawFocalLength(float real_FOV);
 
 // ********************************
+// Raytracing
+// Maps face group index --> numTris in face group
+using FaceGroups = std::map<int32_t, int32_t>;
+
+// Each OPT is made of multiple meshes.
+// Each mesh is made of multiple LODs.
+// Each LOD is made of multiple Face Groups.
+// From our perspective, inside ddraw, we see a draw call per face group
+// but each face group references the whole set of vertices from the mesh.
+// The only way to reconstruct the original faces is by accumulating all
+// face groups that reference the same mesh -- and even then, we may only
+// see the faces that make a specific LOD, leaving several "unused" vertices.
+// That's why we need to group all the face groups that belong to the same
+// mesh. We do that with MeshData.
+// g_LBVHMap maps a mesh (vertex pointer) to a MeshData. That's how we can reconstruct
+// a mesh as much as it's possible from this perspective (we might be missing LODs)
+// If an LBVH pointer is NULL and we're not in the Tech Room, then that means this
+// mesh needs to have its BVH rebuilt.
+//
+// (FaceGroup map, NumMeshVertices, LBVH, BaseNodeOffset)
+//
+// 0: FaceGroup std::map -- A map with all the Face Groups in this mesh
+// 1: NumMeshVertices    -- The number of vertices in this mesh
+// 2: LBVH               -- The BVH for this mesh (only used during regular flight)
+// 3: BaseNodeOffset     -- The index into _RTBvh where this BLAS begins (only used during regular flight)
+using MeshData = std::tuple<FaceGroups, int32_t, void*, int>;
+
+inline FaceGroups& GetFaceGroups(MeshData& X) { return std::get<0>(X); }
+inline int32_t& GetNumMeshVertices(MeshData& X) { return std::get<1>(X); }
+inline void*& GetLBVH(MeshData& X) { return std::get<2>(X); } // <-- This is probably not used anymore
+inline int& GetBaseNodeOffset(MeshData& X) { return std::get<3>(X); } // <-- This is probably not used anymore
+
+// (FaceGroup map, NumMeshVertices, LBVH, BaseNodeOffset, MeshVerticesPtr)
+// BLASData is now a superset of MeshData. At some point, I may be able to replace the latter.
+// 0: FaceGroupMap     -- An std::map with all the Face Groups in this mesh
+// 1: NumMeshVertices  -- The number of vertices in this mesh
+// 2: LBVH             -- The BVH for this mesh (only used during regular flight)
+// 3: BaseNodeOffset   -- The index into _RTBvh where this BLAS begins (only used during regular flight)
+// 4: MeshVerticesPtr  -- Pointer to the MeshVertices
+using BLASData = std::tuple<FaceGroups, int32_t, void*, int32_t, int32_t>;
+
+inline FaceGroups& BLASGetFaceGroups(BLASData& X) { return std::get<0>(X); }
+inline int32_t&    BLASGetNumVertices(BLASData& X) { return std::get<1>(X); }
+inline void *&     BLASGetBVH(BLASData& X) { return std::get<2>(X); }
+inline int32_t&    BLASGetBaseNodeOffset(BLASData& X) { return std::get<3>(X); }
+inline int32_t&    BLASGetMeshVertices(BLASData& X) { return std::get<4>(X); }
+
+// BLAS Key: <MeshKey, LOD>. This tuple can be used to uniquely identify a BLAS entry.
+// There's one BLAS per mesh per LOD.
+// - MeshKey is scene->MeshVertices
+// - LOD is the LOD's index. We can get the LOD from its FaceGroup.
+using BLASKey_t = std::tuple<int, int>;
+// Map of unique IDs for BLASes. (MeshKey, LOD) --> BlasId. Gets cleared on OnSizeChanged()
+extern std::map<BLASKey_t, int> g_BLASIdMap;
+
+// TLAS leaf uniqueness is determined by the BlasID and its centroid.
+// BlasId, x, y, z:
+using IDCentroid_t = std::tuple<int32_t, float, float, float>;
+
+// The {Single|Coalesced} BLAS map: meshKey --> MeshData (only used in the Tech Room)
+extern std::map<int32_t, MeshData> g_LBVHMap;
+// The Multiple BLAS map: BlasId --> BLASData. Gets cleared on OnSizeChanged().
+extern std::map<int, BLASData> g_BLASMap;
+// The TLAS map: (BlasId, centroid) --> matrixSlot. Gets cleared at the beginning of each frame.
+extern std::map<IDCentroid_t, int32_t> g_TLASMap;
+// The TLAS matrix buffer (1:1 correspondence with g_TLASMap). The matrix slot index is reset each frame.
+extern std::vector<Matrix4> g_TLASMatrices;
+#undef DEBUG_RT
+#ifdef DEBUG_RT
+// DEBUG only
+extern std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;
+#endif
+
+// ********************************
 // DATReader function pointers
+constexpr uint32_t DAT_READER_VERSION_101 = 65537; // 1.0.1 -- default version
+extern uint32_t g_DATReaderVersion;
+typedef uint32_t(_cdecl * GetDATReaderVersionFun)();
 typedef void(_cdecl * SetDATVerbosityFun)(bool Verbose);
 typedef bool(_cdecl * LoadDATFileFun)(const char *sDatFileName);
 typedef bool(_cdecl * GetDATImageMetadataFun)(int GroupId, int ImageId, short *Width_out, short *Height_out, uint8_t *Format_out);
 typedef bool(_cdecl * ReadDATImageDataFun)(uint8_t *RawData_out, int RawData_size);
+typedef bool(_cdecl* ReadFlippedDATImageDataFun)(uint8_t* RawData_out, int RawData_size);
 typedef int(_cdecl * GetDATGroupImageCountFun)(int GroupId);
 typedef bool(_cdecl * GetDATGroupImageListFun)(int GroupId, short *ImageIds_out, int ImageIds_size);
 
 extern LoadDATFileFun LoadDATFile;
 extern GetDATImageMetadataFun GetDATImageMetadata;
+extern ReadFlippedDATImageDataFun ReadFlippedDATImageData;
 extern ReadDATImageDataFun ReadDATImageData;
 extern SetDATVerbosityFun SetDATVerbosity;
 extern GetDATGroupImageCountFun GetDATGroupImageCount;
@@ -150,5 +240,34 @@ extern GetDATGroupImageListFun GetDATGroupImageList;
 bool InitDATReader();
 void CloseDATReader();
 std::vector<short> ReadDATImageListFromGroup(const char *sDATFileName, int GroupId);
+// ********************************
+
+// ********************************
+// ZIPReader function pointers
+typedef void(_cdecl * SetZIPVerbosityFun)(bool Verbose);
+typedef bool(_cdecl * LoadZIPFileFun)(const char *sZIPFileName);
+typedef int(_cdecl * GetZIPGroupImageCountFun)(int GroupId);
+typedef bool(_cdecl * GetZIPGroupImageListFun)(int GroupId, short *ImageIds_out, int ImageIds_size);
+typedef void(_cdecl * DeleteAllTempZIPDirectoriesFun)();
+typedef bool(_cdecl * GetZIPImageMetadataFun)(
+	int GroupId, int ImageId, short *Width_out, short *Height_out, char **ImagePath_out, int *ImagePathSize);
+
+extern LoadZIPFileFun LoadZIPFile;
+extern SetZIPVerbosityFun SetZIPVerbosity;
+extern GetZIPGroupImageCountFun GetZIPGroupImageCount;
+extern GetZIPGroupImageListFun GetZIPGroupImageList;
+extern DeleteAllTempZIPDirectoriesFun DeleteAllTempZIPDirectories;
+extern GetZIPImageMetadataFun GetZIPImageMetadata;
+
+bool IsZIPReaderLoaded();
+bool InitZIPReader();
+void CloseZIPReader();
+std::vector<short> ReadZIPImageListFromGroup(const char *sZIPFileName, int GroupId);
+// ********************************
 
 CraftInstance *GetPlayerCraftInstanceSafe();
+CraftInstance *GetPlayerCraftInstanceSafe(ObjectEntry** object);
+CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry** object, MobileObjectEntry** mobileObject);
+// Also updates g_bInTechGlobe when called.
+bool InTechGlobe();
+bool InBriefingRoom();

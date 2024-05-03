@@ -1,18 +1,22 @@
+#include "common.h"
 #include <Windows.h>
 #include <stdio.h>
-#include "common.h"
 #include "utils.h"
 #include "commonVR.h"
 #include "SteamVR.h"
-#include <headers/openvr.h>
+#include "globals.h"
+#include <openvr.h>
 #include "FreePIE.h"
 #include "SharedMem.h"
 #include "XWAFramework.h"
 #include "globals.h"
 
 vr::IVRSystem* g_pHMD = NULL;
+vr::IVRChaperone* g_pChaperone = NULL;
 vr::IVRCompositor* g_pVRCompositor = NULL;
 vr::IVRScreenshots* g_pVRScreenshots = NULL;
+vr::IVROverlay* g_pVROverlay = NULL;
+vr::VROverlayHandle_t g_VR2Doverlay = vr::k_ulOverlayHandleInvalid;
 vr::TrackedDevicePose_t g_rTrackedDevicePose;
 uint32_t g_steamVRWidth = 0, g_steamVRHeight = 0; // The resolution recommended by SteamVR is stored here
 bool g_bSteamVREnabled = false; // The user sets this flag to true to request support for SteamVR.
@@ -37,7 +41,23 @@ int g_iSteamVR_Remaining_ms = 3, g_iSteamVR_VSync_ms = 11;
 bool g_bSteamVRPosFromFreePIE = DEFAULT_STEAMVR_POS_FROM_FREEPIE;
 float g_fSteamVRMirrorWindow3DScale = 0.7f, g_fSteamVRMirrorWindowAspectRatio = 0.0f;
 
-extern SharedData* g_pSharedData;
+ControllerState g_prevContStates[2];
+ControllerState g_contStates[2];
+VRKeybState     g_vrKeybState;
+
+const char *VRButtonNames[VRButtons::MAX]
+{
+	"TRIGGER",
+	"GRIP",
+	"BUTTON_1",
+	"BUTTON_2",
+
+	"PAD_LEFT",
+	"PAD_RIGHT",
+	"PAD_UP",
+	"PAD_DOWN",
+	"PAD_CLICK",
+};
 
 bool InitSteamVR()
 {
@@ -62,6 +82,7 @@ bool InitSteamVR()
 	vr::EVRInitError eError = vr::VRInitError_None;
 	g_pHMD = vr::VR_Init(&eError, vr::VRApplication_Scene);
 	g_headCenter.set(0, 0, 0);
+	g_pChaperone = vr::VRChaperone();
 
 	if (eError != vr::VRInitError_None)
 	{
@@ -102,7 +123,8 @@ bool InitSteamVR()
 	}
 
 	// Reset the seated pose
-	g_pHMD->ResetSeatedZeroPose();
+	//g_pHMD->ResetSeatedZeroPose();
+	g_pChaperone->ResetZeroPose(vr::TrackingUniverseSeated);
 
 	// Pre-multiply and store the eye and projection matrices:
 	ProcessSteamVREyeMatrices(vr::EVREye::Eye_Left);
@@ -202,6 +224,31 @@ bool InitSteamVR()
 		fclose(file);
 	}
 
+	// Set a black background to draw the overlay over
+	g_pVRCompositor->FadeGrid(2.0f, false);
+	g_pVRCompositor->FadeToColor(2.0f, 0.0f, 0.0f, 0.0f, 1.0, 0);
+
+	// Create Overlay to draw 2D content fixed in space
+	g_pVROverlay = vr::VROverlay();
+	if (g_pVROverlay != NULL) {
+		log_debug("[DBG] SteamVR Overlay system initialized");
+	}
+	vr::HmdMatrix34_t overlay_transform;
+	// This transform matrix puts the overlay at 5m in front of the user POV
+	overlay_transform = {
+		1.0f, 0.0f, 0.0f,  0.0f,
+		0.0f, 1.0f, 0.0f,  0.0f,
+		0.0f, 0.0f, 1.0f, -5.0f
+	};
+	g_pVROverlay->CreateOverlay("xwa_2d_window", "X-Wing Alliance VR", &g_VR2Doverlay);
+	g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, DEFAULT_STEAMVR_OVERLAY_WIDTH); // Make the overlay 5 meters wide.
+	g_pVROverlay->SetOverlayTransformAbsolute(g_VR2Doverlay, vr::TrackingUniverseSeated, &overlay_transform);
+	if (g_bEnableVRPointerInConcourse)
+	{
+		g_pVROverlay->SetOverlayInputMethod(g_VR2Doverlay, vr::VROverlayInputMethod_Mouse);
+		g_pVROverlay->SetOverlayFlag(g_VR2Doverlay, vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible, true);
+	}
+
 out:
 	g_bSteamVRInitialized = result;
 
@@ -269,16 +316,6 @@ void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& 
 	z = PX[2];
 }
 
-/*
-// To prevent jittering, avoid calling WaitGetPoses from ddraw -- call it from the CockpitLook hook
-// instead. m0rgg found that we were calling WaitGetPoses from those two places, thus causing jittering.
-bool WaitGetPoses() {
-	vr::EVRCompositorError error = g_pVRCompositor->WaitGetPoses(&g_rTrackedDevicePose,
-		0, NULL, 0);
-	return true;
-}
-*/
-
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError)
 {
 	char* pchBuffer = NULL;
@@ -292,63 +329,110 @@ char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDevic
 	return pchBuffer;
 }
 
-void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix3* rotMatrix)
+void DisplayController(int idx)
+{
+	std::string name = idx == 0 ? "LT," : "RT,";
+	for (int i = 0; i < VRButtons::MAX; i++)
+	{
+		if (g_contStates[idx].buttons[i])
+		{
+			name += VRButtonNames[i];
+			name += ",";
+		}
+	}
+	name += "(" + std::to_string(g_contStates[idx].trackPadX) + ", " + std::to_string(g_contStates[idx].trackPadY) + "), ";
+	log_debug("[DBG] [AC] %s", name.c_str());
+}
+
+void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, float* y, float* z, Matrix4* m4_hmdPose)
 {
 	vr::TrackedDeviceIndex_t unDevice = vr::k_unTrackedDeviceIndex_Hmd;
-	if (!g_pHMD->IsTrackedDeviceConnected(unDevice)) {
-		//log_debug("[DBG] HMD is not connected");
+
+	if (!g_pHMD->IsTrackedDeviceConnected(unDevice))
 		return;
-	}
+
+	static vr::TrackedDeviceIndex_t leftId  = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand);
+	static vr::TrackedDeviceIndex_t rightId = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand);
 
 	vr::VRControllerState_t state;
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
-		vr::TrackedDevicePose_t trackedDevicePose;
+		// Pose array predicted for current frame N, to use by ddraw to render current frame in GPU (minimize latency)
 		vr::TrackedDevicePose_t trackedDevicePoseArray[vr::k_unMaxTrackedDeviceCount];
-		vr::HmdMatrix34_t poseMatrix;
+		vr::TrackedDevicePose_t trackedDevicePose; // HMD pose to use for the current frame render
+		vr::TrackedDevicePose_t trackedControllerPose[2];
+		vr::HmdMatrix34_t m34_fullMatrix;
 		vr::HmdQuaternionf_t q;
 		vr::ETrackedDeviceClass trackedDeviceClass = vr::VRSystem()->GetTrackedDeviceClass(unDevice);
 
-		//vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-
-		// When the mouse hook is active, we the pose through g_pSharedData; but in 2D mode, or when we
-		// are in the hangar, we still need to query SteamVR directly. So we have to check g_bRendering3D
-		// and g_playerInHangar to enable head tracking in 2D mode or when in the hangar.
-		//if (g_bRendering3D && !*g_playerInHangar && (g_pSharedData != NULL && g_pSharedData->bDataReady)) {
-		if (g_bRendering3D && !(*g_playerInHangar)) {
-
-			// Get the last tracking pose obtained by CockpitLook. This pose was just used to render the
-			// current frame in xwingaliance.exe.
-			// We can also make a global vr::TrackedDevicePose_t* and initialize it to g_pSharedData->pDataPtr once
-			// bDataReady is true, but I don't think there's a huge advantage to doing that.
-			//trackedDevicePose = *(vr::TrackedDevicePose_t*) g_pSharedData->pDataPtr;
-			//log_debug("[DBG] Using trackedDevicePose from CockpitLook\n");
+		if (g_bRendering3D)
+		{
+			// For legacy/stable tracking, WaitGetPoses() is run in CockpitLook. Get the last tracking pose obtained then.
+			// This pose was just used to render the current frame in xwingaliance.exe and will provide consistent tracking.			
 			vr::VRCompositor()->GetLastPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
 		}
-		else {
-			// We are probably in 2D mode, CockpitLook is not working. Get the poses here.
+		else
+		{
+			// CockpitLookHook is not running (we are in 2D mode). We do the vsync blocking here
 			vr::VRCompositor()->WaitGetPoses(trackedDevicePoseArray, vr::k_unMaxTrackedDeviceCount, NULL, 0);
-			trackedDevicePose = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
-			//log_debug("[DBG] Using trackedDevidePose from WaitGetPoses\n");
-			//log_debug("[DBG] g_bRendering3D=%d\n",g_bRendering3D);
-			//log_debug("[DBG] g_playerInHangar=%d\n", *g_playerInHangar);
 		}
-		
+		trackedDevicePose        = trackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd];
+		trackedControllerPose[0] = trackedDevicePoseArray[leftId];
+		trackedControllerPose[1] = trackedDevicePoseArray[rightId];
 
 		if (trackedDevicePose.bPoseIsValid)
 		{
-			poseMatrix = trackedDevicePose.mDeviceToAbsoluteTracking;  // This matrix contains all positional and rotational data.
-			q = rotationToQuaternion(poseMatrix);
+			*m4_hmdPose = HmdMatrix34toMatrix4(trackedDevicePose.mDeviceToAbsoluteTracking);
+
+			// We take the pose as it was returned by GetLastPoses() and used by CockpitLook.
+			Matrix4toHmdMatrix34(*m4_hmdPose, m34_fullMatrix);
+
+			// We extract the components of the composed matrix to use them later to correct the rotation
+			// of 2D elements like reticle, hyperspace, speedeffect, shadows...
+			q = rotationToQuaternion(m34_fullMatrix);
 			quatToEuler(q, yaw, pitch, roll);
 
-			*x = poseMatrix.m[0][3];
-			*y = poseMatrix.m[1][3];
-			*z = poseMatrix.m[2][3];
-			*rotMatrix = HmdMatrix34toMatrix3(poseMatrix);
+			*x = m34_fullMatrix.m[0][3];
+			*y = m34_fullMatrix.m[1][3];
+			*z = m34_fullMatrix.m[2][3];
 		}
-		else {
-			//log_debug("[DBG] HMD pose not valid");
+
+		for (int i = 0; i < 2; i++)
+		{
+			g_contStates[i].bIsValid = trackedControllerPose[i].bPoseIsValid;
+			g_contStates[i].pose = HmdMatrix34toMatrix4(trackedControllerPose[i].mDeviceToAbsoluteTracking);
+
+			// Get the state of the buttons
+			vr::VRControllerState_t state;
+			const int contIdx = i == 0 ? leftId : rightId;
+			if (vr::VRSystem()->GetControllerState(contIdx, &state, sizeof(state)))
+			{
+				//if (g_contStates[i].packetNum != state.unPacketNum)
+				{
+					g_contStates[i].buttons[VRButtons::TRIGGER]   = (state.rAxis[1].x > 0.1f); // 0 is fully released
+					g_contStates[i].buttons[VRButtons::GRIP]      = (state.ulButtonPressed & 0x04) != 0;
+					g_contStates[i].buttons[VRButtons::BUTTON_1]  = (state.ulButtonPressed & 0x80) != 0;
+					g_contStates[i].buttons[VRButtons::BUTTON_2]  = (state.ulButtonPressed & 0x02) != 0;
+					g_contStates[i].buttons[VRButtons::PAD_CLICK] = (state.ulButtonPressed >> 32) & 1;
+					g_contStates[i].buttons[VRButtons::PAD_LEFT]  = (state.rAxis[0].x < -0.8f);
+					g_contStates[i].buttons[VRButtons::PAD_RIGHT] = (state.rAxis[0].x >  0.8f);
+					g_contStates[i].buttons[VRButtons::PAD_UP]    = (state.rAxis[0].y >  0.8f);
+					g_contStates[i].buttons[VRButtons::PAD_DOWN]  = (state.rAxis[0].y < -0.8f);
+
+					g_contStates[i].trackPadX = state.rAxis[0].x;
+					g_contStates[i].trackPadY = state.rAxis[0].y;
+					g_contStates[i].packetNum = state.unPacketNum;
+
+					//vr::HmdMatrix34_t m34_fullMatrix;
+					//vr::HmdQuaternionf_t q;
+					//Matrix4toHmdMatrix34(g_contStates[i].pose, m34_fullMatrix);
+					//q = rotationToQuaternion(m34_fullMatrix);
+					//quatToEuler(q, &(g_contStates[i].yaw), &(g_contStates[i].pitch), &(g_contStates[i].roll));
+
+					//DisplayController(i);
+				}
+			}
+
 		}
 	}
 }
@@ -499,6 +583,40 @@ Matrix3 HmdMatrix33toMatrix3(const vr::HmdMatrix33_t& mat) {
 	return matrixObj;
 }
 
+Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat) {
+	Matrix4 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
+		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
+		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
+		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]
+	);
+	return matrixObj;
+}
+
+Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat) {
+	Matrix4 matrixObj(
+		mat.m[0][0], mat.m[1][0], mat.m[2][0], 0.0f,
+		mat.m[0][1], mat.m[1][1], mat.m[2][1], 0.0f,
+		mat.m[0][2], mat.m[1][2], mat.m[2][2], 0.0f,
+		mat.m[0][3], mat.m[1][3], mat.m[2][3], 1.0f
+	);
+	return matrixObj;
+}
+
+void Matrix4toHmdMatrix44(const Matrix4& m4, vr::HmdMatrix44_t& mat) {
+	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];  mat.m[3][0] = m4[3];
+	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];  mat.m[3][1] = m4[7];
+	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10]; mat.m[3][2] = m4[11];
+	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14]; mat.m[3][3] = m4[15];
+}
+
+void Matrix4toHmdMatrix34(const Matrix4& m4, vr::HmdMatrix34_t& mat) {
+	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];
+	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];
+	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10];
+	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14];
+}
+
 void DumpMatrix34(FILE* file, const vr::HmdMatrix34_t& m) {
 	if (file == NULL)
 		return;
@@ -564,33 +682,6 @@ void ShowHmdMatrix44(const vr::HmdMatrix44_t& mat, char* name) {
 	log_debug("[DBG] %0.6f, %0.6f, %0.6f, %0.6f", mat.m[2][0], mat.m[2][1], mat.m[2][2], mat.m[2][3]);
 	log_debug("[DBG] %0.6f, %0.6f, %0.6f, %0.6f", mat.m[3][0], mat.m[3][1], mat.m[3][2], mat.m[3][3]);
 	log_debug("[DBG] =========================================");
-}
-
-void Matrix4toHmdMatrix44(const Matrix4& m4, vr::HmdMatrix44_t& mat) {
-	mat.m[0][0] = m4[0];  mat.m[1][0] = m4[1];  mat.m[2][0] = m4[2];  mat.m[3][0] = m4[3];
-	mat.m[0][1] = m4[4];  mat.m[1][1] = m4[5];  mat.m[2][1] = m4[6];  mat.m[3][1] = m4[7];
-	mat.m[0][2] = m4[8];  mat.m[1][2] = m4[9];  mat.m[2][2] = m4[10]; mat.m[3][2] = m4[11];
-	mat.m[0][3] = m4[12]; mat.m[1][3] = m4[13]; mat.m[2][3] = m4[14]; mat.m[3][3] = m4[14];
-}
-
-Matrix4 HmdMatrix44toMatrix4(const vr::HmdMatrix44_t& mat) {
-	Matrix4 matrixObj(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]
-	);
-	return matrixObj;
-}
-
-Matrix4 HmdMatrix34toMatrix4(const vr::HmdMatrix34_t& mat) {
-	Matrix4 matrixObj(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], 0.0f,
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], 0.0f,
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], 0.0f,
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], 1.0f
-	);
-	return matrixObj;
 }
 
 void ProcessSteamVREyeMatrices(vr::EVREye eye) {

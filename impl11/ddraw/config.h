@@ -46,9 +46,25 @@ public:
 	// Direct2D settings
 	bool Text2DRendererEnabled;
 	bool Radar2DRendererEnabled;
+	bool D3dRendererHookEnabled;
 	bool Text2DAntiAlias;
 	bool Geometry2DAntiAlias;
+
 	bool MusicSyncFix;
+	bool HangarShadowsEnabled;
+	bool EnableSoftHangarShadows;
+	bool OnlyGrayscaleInTechRoom;
+	bool TechRoomHolograms;
+	bool CullBackFaces;
+	bool FlipDATImages;
+
+	bool HDConcourseEnabled;
+
+	float ProjectionParameterA;
+	float ProjectionParameterB;
+	float ProjectionParameterC;
+
+	std::string ScreenshotsDirectory;
 	bool GammaFixEnabled;
 };
 

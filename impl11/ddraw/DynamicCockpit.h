@@ -137,7 +137,13 @@ typedef struct dc_element_struct {
 	int num_erase_slots;
 	char name[MAX_TEXTURE_NAME];
 	char coverTextureName[MAX_TEXTURE_NAME];
-	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo, bTransparent;
+	bool bActive, bNameHasBeenTested, bHologram, bNoisyHolo;
+	// If set, the surface where the DC element is displayed will be removed, making it transparent.
+	// Use this for floating text elements, for instance
+	bool bTransparent;
+	// bTransparent layers are completely removed when D is pressed to show the regular HUD. Set the
+	// following flag to keep transparent layers visible even when D is pressed.
+	bool bAlwaysVisible;
 } dc_element;
 
 typedef struct move_region_coords_struct {
@@ -284,12 +290,17 @@ extern bool g_bEdgeEffectApplied;
 extern int g_WindowWidth, g_WindowHeight;
 extern float4 g_DCTargetingColor, g_DCWireframeLuminance;
 extern float4 g_DCTargetingIFFColors[6];
+extern float4 g_DCTargetingFriend;
+extern float4 g_DCTargetingFoe;
+extern bool g_bGreenAndRedForIFFColorsOnly;
 extern float g_DCWireframeContrast;
 extern float g_fReticleScale;
 extern Vector2 g_SubCMDBracket; // Populated in XwaDrawBracketHook for the sub-CMD bracket when the enhanced 2D renderer is on
 // HOLOGRAMS
 extern float g_fDCHologramFadeIn, g_fDCHologramFadeInIncr, g_fDCHologramTime;
 extern bool g_bDCHologramsVisible, g_bDCHologramsVisiblePrev;
+// DIEGETIC JOYSTICK
+extern bool g_bDiegeticCockpitEnabled;
 
 
 

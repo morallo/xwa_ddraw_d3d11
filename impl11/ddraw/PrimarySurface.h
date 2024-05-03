@@ -13,10 +13,34 @@ Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool inve
 Matrix4 GetCurrentHeadingViewMatrix();
 void UpdateViewMatrix();
 void ProcessFreePIEGamePad(uint32_t axis0, uint32_t axis1, uint32_t buttonsPressed);
-void ACRunAction(WORD* action);
 
 class PrimarySurface : public IDirectDrawSurface
 {
+	// These variables are used with SaveContext() and RestoreContext()
+	VertexShaderCBuffer _oldVSCBuffer;
+	PixelShaderCBuffer _oldPSCBuffer;
+	DCPixelShaderCBuffer _oldDCPSCBuffer;
+	ComPtr<ID3D11Buffer> _oldVSConstantBuffer;
+	ComPtr<ID3D11Buffer> _oldPSConstantBuffer;
+	ComPtr<ID3D11ShaderResourceView> _oldVSSRV[3];
+	ComPtr<ID3D11ShaderResourceView> _oldPSSRV[13];
+	ComPtr<ID3D11VertexShader> _oldVertexShader;
+	ComPtr<ID3D11PixelShader> _oldPixelShader;
+	ComPtr<ID3D11SamplerState> _oldPSSamplers[2];
+	ComPtr<ID3D11RenderTargetView> _oldRTVs[8];
+	ComPtr<ID3D11DepthStencilView> _oldDSV;
+	ComPtr<ID3D11DepthStencilState> _oldDepthStencilState;
+	ComPtr<ID3D11BlendState> _oldBlendState;
+	ComPtr<ID3D11InputLayout> _oldInputLayout;
+	ComPtr<ID3D11Buffer> _oldVertexBuffer, _oldIndexBuffer;
+	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
+	UINT _oldStencilRef, _oldSampleMask;
+	FLOAT _oldBlendFactor[4];
+	UINT _oldStride, _oldOffset, _oldIOffset;
+	DXGI_FORMAT _oldFormat;
+	D3D11_VIEWPORT _oldViewports[2];
+	UINT _oldNumViewports = 2;
+
 public:
 	PrimarySurface(DeviceResources* deviceResources, bool hasBackbufferAttached);
 
@@ -48,6 +72,10 @@ public:
 
 	STDMETHOD(EnumOverlayZOrders)(THIS_ DWORD, LPVOID, LPDDENUMSURFACESCALLBACK);
 
+	void SetScissoRectFullScreen();
+	void SaveContext();
+	void RestoreContext();
+
 	void barrelEffect2D(int iteration);
 
 	void resizeForSteamVR(int iteration, bool is_2D);
@@ -68,10 +96,6 @@ public:
 
 	void DrawHUDVertices();
 
-	void ComputeNormalsPass(float fZoomFactor);
-
-	//void SmoothNormalsPass(float fZoomFactor);
-
 	void SetLights(float fSSDOEnabled);
 	
 	void SSAOPass(float fZoomFactor);
@@ -88,11 +112,11 @@ public:
 
 	//void GetCockpitViewMatrix(Matrix4 * result, bool invert);
 
+	void GetHyperspaceEffectMatrix(Matrix4 *result);
+
 	void GetCockpitViewMatrixSpeedEffect(Matrix4 * result, bool invert);
 
 	//void GetGunnerTurretViewMatrix(Matrix4 * result);
-
-	void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
 
 	//void GetCraftViewMatrix(Matrix4 *result);
 
@@ -101,6 +125,8 @@ public:
 		ID3D11Buffer *lastVertexBuffer, UINT *lastVertexBufStride, UINT *lastVertexBufOffset);
 
 	void RenderFXAA();
+
+	void RenderLevels();
 
 	void RenderGammaFix();
 
@@ -116,13 +142,13 @@ public:
 
 	void RenderAdditionalGeometry();
 
-	Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
+	//Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 
-	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
+	void OldTagXWALights();
 
 	void TagXWALights();
 
-	void RenderShadowMapOBJ();
+	void TagAndFadeXWALights();
 
 	void RenderSpeedEffect();
 
@@ -132,7 +158,15 @@ public:
 
 	void RenderSunFlare();
 
+	void OPTVertexToSteamVRPostProcCoords(Vector4 P, Vector4 pos2D[2]);
+
 	void RenderLaserPointer(D3D11_VIEWPORT * lastViewport, ID3D11PixelShader * lastPixelShader, Direct3DTexture * lastTextureSelected, ID3D11Buffer * lastVertexBuffer, UINT * lastVertexBufStride, UINT * lastVertexBufOffset);
+
+	void Add3DVisionSignature();
+
+	void RenderRTShadowMask();
+
+	void RenderEdgeDetector();
 
 	STDMETHOD(Flip)(THIS_ LPDIRECTDRAWSURFACE, DWORD);
 
@@ -183,10 +217,6 @@ public:
 	STDMETHOD(UpdateOverlayDisplay)(THIS_ DWORD);
 
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
-
-	short ComputeMsgWidth(char *str, int font_size_index);
-	short DisplayText(char *str, int font_size_index, short x, short y, uint32_t color);
-	short DisplayCenteredText(char *str, int font_size_index, short y, uint32_t color);
 
 	void RenderText();
 

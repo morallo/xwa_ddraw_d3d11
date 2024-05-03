@@ -45,10 +45,17 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
+	uint   bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	if (bIsBlastMark) {
+		//texelColor = texture0.Sample(sampler0, (input.tex * 0.5) + 0.25);
+		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
+		//texelColor = texture0.Sample(sampler0, (input.tex * 0.1) + 0.5);
+	}
 	float  alpha	  = texelColor.w;
 	float3 diffuse    = lerp(input.color.xyz, 1.0, fDisableDiffuse);
 	float3 P		  = input.pos3D.xyz;
 	float  SSAOAlpha  = saturate(min(alpha - fSSAOAlphaOfs, fPosNormalAlpha));
+	uint   ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	// Zero-out the bloom mask.
 	output.bloom  = 0;
 	output.color  = texelColor;
@@ -78,7 +85,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//N.z = -N.z;
 
 	// hook_normals code:
-	float3 N = normalize(input.normal.xyz * 2.0 - 1.0);
+	float3 N = normalize(input.normal.xyz);
 	N.y = -N.y; // Invert the Y axis, originally Y+ is down
 	N.z = -N.z;
 	// N *= input.normal.w; // Zero-out normals when w == 0 ?
@@ -102,7 +109,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	//return output;
 	// DEBUG
 
-	if (special_control == SPECIAL_CONTROL_SMOKE)
+	if (ExclusiveMask == SPECIAL_CONTROL_SMOKE)
 	{
 		//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 		const float a   = 0.1 * alpha;
@@ -113,83 +120,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 
 	/*
-	if (special_control == SPECIAL_CONTROL_EXPLOSION)
+	if (ExclusiveMask == SPECIAL_CONTROL_EXPLOSION)
 	{
 		output.color = float4(0, 1, 0, alpha);
 		output.bloom = output.color;
 		return output;
 	}
 	*/
-
-	// Process lasers (make them brighter in 32-bit mode)
-	if (bIsLaser) {
-		output.pos3D.a = 0;
-		output.normal.a = 0;
-		//output.ssaoMask.a = 1; // Needed to write the emission material for lasers
-		output.ssaoMask.a = 0; // We should let the regular material properties on lasers so that they become emitters
-		output.ssMask.a = 0;
-		//output.diffuse = 0;
-		// This is a laser texture, process the bloom mask accordingly
-		float3 HSV = RGBtoHSV(texelColor.xyz);
-		HSV.y *= 1.5;
-		if (bIsLaser > 1) {
-			// Enhance the lasers in 32-bit mode
-			// Increase the saturation and lightness
-			HSV.z *= 2.0;
-			float3 color = HSVtoRGB(HSV);
-			output.color = float4(color, alpha);
-			output.bloom = float4(color, alpha);
-		}
-		else {
-			output.color = texelColor; // Return the original color when 32-bit mode is off
-			// Enhance the saturation for lasers
-			float3 color = HSVtoRGB(HSV);
-			output.bloom = float4(color, alpha);
-		}
-		output.bloom.rgb *= fBloomStrength;
-		return output;
-	}
-
-	// Process light textures (make them brighter in 32-bit mode)
-	if (bIsLightTexture) {
-		output.normal.a = 0;
-		//output.ssaoMask.r = SHADELESS_MAT;
-		output.ssMask = 0; // Normal Mapping intensity --> 0
-		//output.pos3D = 0;
-		//output.normal = 0;
-		//output.diffuse = 0;
-		float3 color = texelColor.rgb;
-		// This is a light texture, process the bloom mask accordingly
-		float3 HSV = RGBtoHSV(color);
-		float val = HSV.z;
-		// Enhance = true
-		if (bIsLightTexture > 1) {
-			// Make the light textures brighter in 32-bit mode
-			HSV.z *= 1.25;
-			//val *= 1.25; // Not sure if it's a good idea to increase val here
-			// It's not! It'll make a few OPTs bloom when they didn't in 1.1.1
-			// The alpha for light textures is either 0 or >0.1, so we multiply by 10 to
-			// make it [0, 1]
-			alpha *= 10.0;
-			color = HSVtoRGB(HSV);
-		}
-		//if (val > 0.8 && alpha > 0.5) {
-			// We can't do smoothstep(0.0, 0.8, val) because the hangar will bloom all over the
-			// place. Many other textures may have similar problems too.
-			const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alpha);
-			//const float bloom_alpha = smoothstep(0.75, 0.81, val) * smoothstep(0.45, 0.51, alpha);
-			output.bloom = float4(bloom_alpha * val * color, bloom_alpha);
-			output.ssaoMask.ra = bloom_alpha;
-			output.ssMask.a = bloom_alpha;
-		//}
-		output.color = float4(color, alpha);
-		output.bloom.rgb *= fBloomStrength;
-		if (bInHyperspace && output.bloom.a < 0.5) {
-			//output.color.a = 1.0;
-			discard; // VERIFIED: Works fine in Win7
-		}
-		return output;
-	}
 
 	// Enhance the engine glow. In this texture, the diffuse component also provides
 	// the hue. The engine glow is also used to render smoke, so that's why the smoke
@@ -198,27 +135,49 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Disable depth-buffer write for engine glow textures
 		output.pos3D.a = 0;
 		output.normal.a = 0;
-		output.ssaoMask.a = 0;
-		output.ssMask.a = 0;
+		// The reason explosions look "washed out" is that the ssao/ssMask is fully transparent, meaning
+		// that whatever is behind the explosion will affect how it looks. To fix that problem, we just
+		// need to use the explosion's transparency and blend its material properties. That way, the
+		// explosion becomes solid.
+		if (ExclusiveMask != SPECIAL_CONTROL_EXPLOSION)
+		{
+			output.ssaoMask.a = 0;
+			output.ssMask.a = 0;
+		}
+
 		float3 color = texelColor.rgb * input.color.xyz;
 		// This is an engine glow, process the bloom mask accordingly
 		if (bIsEngineGlow > 1) {
 			// Enhance the glow in 32-bit mode
 			float3 HSV = RGBtoHSV(color);
-			//HSV.y *= 1.15;
 			HSV.y *= 1.25;
 			HSV.z *= 1.25;
 			color = HSVtoRGB(HSV);
 		} 
 		output.color = float4(color, alpha);
 		output.bloom = float4(fBloomStrength * output.color.rgb, alpha);
+
+		// This block applies the Tech Room hologram effect to the engine glows
+		if (rand1 > 0.5)
+		{
+			const float  luma = dot(output.color.rgb, float3(0.299, 0.587, 0.114));
+			const float4 holo_col = 3.0 * float4(0.325, 0.541, 0.643, alpha);
+			const float  scans = 0.7 + 0.3 * sin(rand0 + 0.45 * input.pos.y);
+			const float4 mixed_color = lerp(output.color, luma * holo_col, 0.5f);
+			output.color = mixed_color * scans;
+		}
+
 		return output;
 	}
 
 	// The HUD is shadeless and has transparency. Some planets in the background are also 
 	// transparent (CHECK IF Jeremy's latest hooks fixed this) 
 	// So glass is a non-shadeless surface with transparency:
-	if (fSSAOMaskVal < SHADELESS_LO && !bIsShadeless && alpha < 0.95) {
+	if (fSSAOMaskVal < SHADELESS_LO /* This texture is *not* shadeless */
+		&& !bIsShadeless /* Another way of saying "this texture isn't shadeless" */
+		&& alpha < 0.95 /* This texture has transparency */
+		&& !bIsBlastMark) /* Blast marks have alpha but aren't glass. See Direct3DDevice.cpp, search for SPECIAL_CONTROL_BLAST_MARK */
+	{
 		// Change the material and do max glossiness and spec_intensity
 		output.ssaoMask.r = GLASS_MAT;
 		output.ssaoMask.gba = 1.0;
@@ -231,8 +190,8 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Original code:
 	output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-	
-	//if (special_control == SPECIAL_CONTROL_BACKGROUND)
+
+	//if (ExclusiveMask == SPECIAL_CONTROL_BACKGROUND)
 	//	output.color.r += 0.7;
 	return output;
 }

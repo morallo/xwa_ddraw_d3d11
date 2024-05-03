@@ -9,7 +9,7 @@
 #define DEFAULT_SPEC_VALUE 0.0f
 // Default material: a bit plasticky; but not completely plastic:
 // This value should be DEFAULT_METALLIC / 2.0
-#define DEFAULT_MAT		  (DEFAULT_METALLIC * 0.5f)
+#define DEFAULT_MAT        (DEFAULT_METALLIC * 0.5f)
 
 // Material values
 // The first channel of SSAOMask is the material. In this channel we have:
@@ -17,25 +17,25 @@
 // Glass: 0.6
 // Shadeless: 0.75
 // Emission: 1.0
-#define PLASTIC_MAT		0.00
-#define METAL_MAT		0.50
-#define GLASS_MAT		0.60
-#define SHADELESS_MAT	0.75
-#define EMISSION_MAT	1.00
+#define PLASTIC_MAT   0.00
+#define METAL_MAT     0.50
+#define GLASS_MAT     0.60
+#define SHADELESS_MAT 0.75
+#define EMISSION_MAT  1.00
 
 
 // Material limits
-#define PLASTIC_LO		0.000
-#define PLASTIC_HI		0.250
+#define PLASTIC_LO    0.000
+#define PLASTIC_HI    0.250
 
-#define METAL_LO		0.250
-#define METAL_HI		0.550
+#define METAL_LO      0.250
+#define METAL_HI      0.550
 
-#define GLASS_LO		0.550
-#define GLASS_HI		0.625
+#define GLASS_LO      0.575
+#define GLASS_HI      0.625
 
-#define SHADELESS_LO	0.625
-#define SHADELESS_HI	0.875
+#define SHADELESS_LO  0.625
+#define SHADELESS_HI  0.875
 
-#define EMISSION_LO		0.875
-#define EMISSION_HI		1.000
+#define EMISSION_LO   0.875
+#define EMISSION_HI   1.000

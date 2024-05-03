@@ -23,6 +23,10 @@
     <FxCompile Include="MainPixelShaderBpp2ColorKey20.hlsl" />
     <FxCompile Include="MainPixelShaderBpp4ColorKey20.hlsl" />
     <FxCompile Include="MainPixelShaderBpp2ColorKey00.hlsl" />
+    <FxCompile Include="XwaD3dVertexShader.hlsl" />
+    <FxCompile Include="XwaD3dPixelShader.hlsl" />
+    <FxCompile Include="XwaD3dShadowVertexShader.hlsl" />
+    <FxCompile Include="XwaD3dShadowPixelShader.hlsl" />
     <FxCompile Include="SBSVertexShader.hlsl" />
     <FxCompile Include="BarrelPixelShader.hlsl" />
     <FxCompile Include="SingleBarrelPixelShader.hlsl" />
@@ -33,7 +37,6 @@
     <FxCompile Include="PixelShaderClearBox.hlsl" />
     <FxCompile Include="PixelShaderDC.hlsl" />
     <FxCompile Include="PixelShaderHUD.hlsl" />
-    <FxCompile Include="BloomBufferAddPS.hlsl" />
     <FxCompile Include="SSAO\SSAOPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOBlurPixelShader.hlsl" />
     <FxCompile Include="SSAO\SSAOAddPixelShader.hlsl" />
@@ -72,6 +75,42 @@
     <FxCompile Include="ExplosionShader.hlsl" />
     <FxCompile Include="AlphaToBloomPS.hlsl" />
     <FxCompile Include="PixelShaderNoGlass.hlsl" />
+    <FxCompile Include="PixelShaderGreeble.hlsl" />
+    <FxCompile Include="SimpleResizePS.hlsl" />
+    <FxCompile Include="PixelShaderAnim.hlsl" />
+    <FxCompile Include="XwaD3dShadowVertexShaderVR.hlsl" />
+    <FxCompile Include="XwaD3dVertexShaderVR.hlsl" />
+    <FxCompile Include="DATVertexShaderVR.hlsl" />
+    <FxCompile Include="HangarShadowMapVS.hlsl" />
+    <FxCompile Include="XwaD3DTechRoomPixelShader.hlsl" />
+    <FxCompile Include="PixelShaderAnimDAT.hlsl" />
+    <FxCompile Include="LevelsPS.hlsl" />
+    <FxCompile Include="XwaD3dCSMVertexShader.hlsl" />
+    <FxCompile Include="RT\RTShadowMaskPS.hlsl" />
+    <FxCompile Include="PBRAdd.hlsl" />
+    <FxCompile Include="MainVertexShaderVR.hlsl" />
+    <FxCompile Include="SpeedEffectVertexShaderVR.hlsl" />
+    <FxCompile Include="FXAA_VR.hlsl" />
+    <FxCompile Include="HyperComposeVR.hlsl" />
+    <FxCompile Include="SpeedEffectComposeVR.hlsl" />
+    <FxCompile Include="bloom\BloomHGaussPS_VR.hlsl" />
+    <FxCompile Include="bloom\BloomVGaussPS_VR.hlsl" />
+    <FxCompile Include="bloom\BloomBufferAddPS_VR.hlsl" />
+    <FxCompile Include="bloom\BloomBufferAddPS.hlsl" />
+    <FxCompile Include="bloom\BloomCombinePS_VR.hlsl" />
+    <FxCompile Include="SSAO\SSAOBlurPixelShaderVR.hlsl" />
+    <FxCompile Include="SSAO\SSAOPixelShaderVR.hlsl" />
+    <FxCompile Include="SunFlareComposeVR.hlsl" />
+    <FxCompile Include="ExternalHUDShaderVR.hlsl" />
+    <FxCompile Include="HeadLightsPS_VR.hlsl" />
+    <FxCompile Include="SSDO\SSDOBlurVR.hlsl" />
+    <FxCompile Include="SSDO\SSDOAddVR.hlsl" />
+    <FxCompile Include="PBRAddVR.hlsl" />
+    <FxCompile Include="RT\RTShadowMaskPS_VR.hlsl" />
+    <FxCompile Include="SSDO\SSDODirectVR.hlsl" />
+    <FxCompile Include="SunFlareShaderVR.hlsl" />
+    <FxCompile Include="LaserPointer.hlsl" />
+    <FxCompile Include="PixelShaderVRGeom.hlsl" />
     <FxCompile Include="PixelShaderAnimLightMap.hlsl" />
     <FxCompile Include="GammaFix.hlsl" />
   </ItemGroup>
@@ -117,5 +156,83 @@
     <ClInclude Include="DC_common.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
+    <ClInclude Include="NormalMapping.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexShaderMatrixCB.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="RT\RTCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="PBRShading.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="MainVertexShaderCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SpeedEffectVertexShaderCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="FXAACommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="HyperComposeCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SpeedEffectComposeCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="bloom\BloomHGaussPSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="bloom\BloomVGaussPSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="bloom\BloomBufferAddPSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="bloom\BloomCombinePSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSAO\SSAOBlurPixelShaderCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSAO\SSAOPixelShaderCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SunFlareComposeCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="ExternalHUDShaderCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="HeadLightsPSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSDO\SSDOBlurCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSDO\SSDOAddCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="PBRAddCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="RT\RTShadowMaskPSCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SSDO\SSDODirectCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SunFlareShaderCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="LaserPointerCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="XwaD3dCommon.hlsl" />
   </ItemGroup>
 </Project>

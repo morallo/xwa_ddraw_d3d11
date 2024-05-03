@@ -3,17 +3,29 @@
 
 /*
 
-Constant Buffer Registers
+PS Constant Buffer Registers
 
-PixelShaderCBuffer and several others : register(b0)
-VertexShaderMatrixCB and several others : register(b1)
+Several buffers         : register(b0)
 BloomPixelShaderCBuffer : register(b2)
-SSAOPixelShaderCBuffer : register(b3)
-PSShadingSystemCB : register(b4)
+SSAOPixelShaderCBuffer  : register(b3)
+PSShadingSystemCB       : register(b4)
+MetricReconstructionCB  : register(b6)
+ShadertoyCBuffer        : register(b7)
+LaserPointerCBuffer     : register(b8)
+PixelShaderCBuffer      : register(b9) (Used to be b0, but the D3DRendererHook is using that now)
+RTConstantsBuffer       : register(b10)
+VRGeometryCBuffer       : register(b11)
+
+VS Constant Buffer Registers
+
+D3dConstants                  : register(b0)
+VertexShaderCBuffer           : register(b1)
+VertexShaderMatrixCB          : register(b2)
+MainShadersCBStruct           : register(b3)
 ShadowMapVertexShaderMatrixCB : register(b5)
-MetricReconstructionCB : register(b6)
-ShadertoyCBuffer : register(b7)
-LaserPointerCBuffer : register(b8)
+MetricReconstructionCB        : register(b6)
+ShadertoyCBuffer              : register(b7)
+OPTMeshTransformCBuffer       : register(b8)
 
 */
 
@@ -41,9 +53,13 @@ LaserPointerCBuffer : register(b8)
 
 #define MAX_XWA_LIGHTS 8
 // Currently only used for the lasers
-#define MAX_CB_POINT_LIGHTS 8
+#define MAX_CB_POINT_LIGHTS 16
+
+#define MAX_CSM_LEVELS 4
 
 // Used in the special_control CB field in the pixel shader
+// These flags are mutually-exclusive, so be careful when setting them. Only a handful are used
+// in the same shader though.
 #define SPECIAL_CONTROL_XWA_SHADOW	1
 #define SPECIAL_CONTROL_GLASS		2
 #define SPECIAL_CONTROL_BACKGROUND	3
@@ -53,6 +69,14 @@ LaserPointerCBuffer : register(b8)
 #define SPECIAL_CONTROL_EXPLOSION	7
 #define SPECIAL_CONTROL_BLACK_TO_ALPHA 8 // Used when rendering animated textures so that black becomes transparent
 #define SPECIAL_CONTROL_ALPHA_IS_BLOOM_MASK 9
+#define SPECIAL_CONTROL_GRAYSCALE	10 // Used in the Tech Room to display grayscale models. Only for modelling/debugging purposes
+#define SPECIAL_CONTROL_DEBUG		11 // Generic debug flag. Only used when developing or testing features.
+// These are the bits used for exclusive special control flags
+#define SPECIAL_CONTROL_EXCLUSIVE_MASK 0x0FF
+// The following are bits in the special_control field. They need to be blended with the rest of the exclusive
+// flags
+#define SPECIAL_CONTROL_BLAST_MARK 0x100 // Set when the current texture is a blast mark
+// New flag should start at 0x200 and take one bit. So they would be 0x200, 0x400, 0x800, etc.
 
 // Register slot for the metric reconstruction constant buffer
 #define METRIC_REC_CB_SLOT 6
@@ -73,4 +97,18 @@ LaserPointerCBuffer : register(b8)
 // That'll show mip-map level 5 -- it's a nice way to debug mip maps.
 //#define GENMIPMAPS_DEBUG
 
+// Flags used to control overlay textures. These textures are used in
+// PixelShaderAnim.hlsl to display hull damage textures and shields down
+// effects.
+// The multiplier texture is active and should be mixed with the color buffer
+#define OVERLAY_CTRL_MULT 0x1
+// The screen texture is active and should be mixed with the color buffer
+#define OVERLAY_CTRL_SCREEN 0x2
+// The multiplier texture is active and should be mixed with the lightmap buffer
+#define OVERLAY_ILLUM_CTRL_MULT 0x4
+// The screen texture is active and should be mixed with the lightmap buffer
+#define OVERLAY_ILLUM_CTRL_SCREEN 0x8
+
+// Maximum number of highlighted regions for the VR Keyboard.
+#define MAX_VRKEYB_REGIONS 4
 #endif

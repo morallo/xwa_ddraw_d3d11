@@ -16,6 +16,7 @@
 // Copyright (C) 2005 Song Ho Ahn
 ///////////////////////////////////////////////////////////////////////////////
 
+#include "common.h"
 #include <cmath>
 #include <algorithm>
 #include "Matrices.h"
@@ -403,7 +404,16 @@ Matrix4& Matrix4::invertGeneral()
     return *this;
 }
 
-
+bool Matrix4::equals(const Matrix4& m, float delta)
+{
+    float d;
+    for (int i = 0; i < 16; i++) {
+        d = fabs(this->m[i] - m[i]);
+        if (d > delta)
+            return false;
+    }
+    return true;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // return determinant of 4x4 matrix

@@ -7,22 +7,27 @@
 
 #include "common.h"
 #include "DeviceResources.h"
+#include "XwaD3dRendererHook.h"
+#include "XwaConcourseHook.h"
 
 #include <ScreenGrab.h>
 #include <wincodec.h>
 
 #ifdef _DEBUG
 #include "../Debug/MainVertexShader.h"
+#include "../Debug/MainVertexShaderVR.h"
 #include "../Debug/MainPixelShader.h"
 #include "../Debug/MainPixelShaderBpp2ColorKey20.h"
 #include "../Debug/MainPixelShaderBpp2ColorKey00.h"
 #include "../Debug/MainPixelShaderBpp4ColorKey20.h"
 #include "../Debug/BarrelPixelShader.h"
+#include "../Debug/SimpleResizePS.h"
 #include "../Debug/SteamVRMirrorPixelShader.h"
 #include "../Debug/SingleBarrelPixelShader.h"
 #include "../Debug/VertexShader.h"
 #include "../Debug/PassthroughVertexShader.h"
 #include "../Debug/SBSVertexShader.h"
+#include "../Debug/DATVertexShaderVR.h"
 #include "../Debug/PixelShaderTexture.h"
 #include "../Debug/PixelShaderDC.h"
 #include "../Debug/PixelShaderDCHolo.h"
@@ -31,35 +36,53 @@
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
 #include "../Debug/BloomHGaussPS.h"
+#include "../Debug/BloomHGaussPS_VR.h"
 #include "../Debug/BloomVGaussPS.h"
+#include "../Debug/BloomVGaussPS_VR.h"
 #include "../Debug/BloomCombinePS.h"
+#include "../Debug/BloomCombinePS_VR.h"
 #include "../Debug/BloomBufferAddPS.h"
+#include "../Debug/BloomBufferAddPS_VR.h"
 #include "../Debug/SSAOPixelShader.h"
+#include "../Debug/SSAOPixelShaderVR.h"
 #include "../Debug/SSAOBlurPixelShader.h"
+#include "../Debug/SSAOBlurPixelShaderVR.h"
 #include "../Debug/SSAOAddPixelShader.h"
 #include "../Debug/SSDODirect.h"
+#include "../Debug/SSDODirectVR.h"
 #include "../Debug/SSDOIndirect.h"
 #include "../Debug/SSDOAdd.h"
+#include "../Debug/SSDOAddVR.h"
 #include "../Debug/SSDOBlur.h"
+#include "../Debug/SSDOBlurVR.h"
 #include "../Debug/DeathStarShader.h"
 #include "../Debug/HyperEntry.h"
 #include "../Debug/HyperExit.h"
 #include "../Debug/HyperTunnel.h"
 #include "../Debug/HyperCompose.h"
+#include "../Debug/HyperComposeVR.h"
 #include "../Debug/HyperZoom.h"
+#include "../Debug/LaserPointer.h"
 #include "../Debug/LaserPointerVR.h"
 #include "../Debug/FXAA.h"
+#include "../Debug/FXAA_VR.h"
 #include "../Debug/ExternalHUDShader.h"
+#include "../Debug/ExternalHUDShaderVR.h"
 #include "../Debug/SunFlareShader.h"
+#include "../Debug/SunFlareShaderVR.h"
 #include "../Debug/SunShader.h"
 #include "../Debug/SunFlareCompose.h"
+#include "../Debug/SunFlareComposeVR.h"
 #include "../Debug/SpeedEffectPixelShader.h"
 #include "../Debug/SpeedEffectCompose.h"
+#include "../Debug/SpeedEffectComposeVR.h"
 #include "../Debug/SpeedEffectVertexShader.h"
+#include "../Debug/SpeedEffectVertexShaderVR.h"
 #include "../Debug/AddGeometryVertexShader.h"
 #include "../Debug/AddGeometryPixelShader.h"
 #include "../Debug/AddGeometryComposePixelShader.h"
 #include "../Debug/HeadLightsPS.h"
+#include "../Debug/HeadLightsPS_VR.h"
 #include "../Debug/HeadLightsSSAOPS.h"
 #include "../Debug/ShadowMapPS.h"
 #include "../Debug/ShadowMapVS.h"
@@ -69,20 +92,33 @@
 #include "../Debug/ExplosionShader.h"
 #include "../Debug/AlphaToBloomPS.h"
 #include "../Debug/PixelShaderNoGlass.h"
-#include "../Debug/PixelShaderAnimLightMap.h"
+#include "../Debug/PixelShaderAnim.h"
+#include "../Debug/PixelShaderAnimDAT.h"
+#include "../Debug/PixelShaderGreeble.h"
+#include "../Debug/HangarShadowMapVS.h"
+#include "../Debug/XwaD3dCSMVertexShader.h"
+#include "../Debug/LevelsPS.h"
+#include "../Debug/RTShadowMaskPS.h"
+#include "../Debug/RTShadowMaskPS_VR.h"
+#include "../Debug/PBRAdd.h"
+#include "../Debug/PBRAddVR.h"
+#include "../Debug/PixelShaderVRGeom.h"
 #include "../Debug/GammaFix.h"
 #else
 #include "../Release/MainVertexShader.h"
+#include "../Release/MainVertexShaderVR.h"
 #include "../Release/MainPixelShader.h"
 #include "../Release/MainPixelShaderBpp2ColorKey20.h"
 #include "../Release/MainPixelShaderBpp2ColorKey00.h"
 #include "../Release/MainPixelShaderBpp4ColorKey20.h"
 #include "../Release/BarrelPixelShader.h"
+#include "../Release/SimpleResizePS.h"
 #include "../Release/SteamVRMirrorPixelShader.h"
 #include "../Release/SingleBarrelPixelShader.h"
 #include "../Release/VertexShader.h"
 #include "../Release/PassthroughVertexShader.h"
 #include "../Release/SBSVertexShader.h"
+#include "../Release/DATVertexShaderVR.h"
 #include "../Release/PixelShaderTexture.h"
 #include "../Release/PixelShaderDC.h"
 #include "../Release/PixelShaderDCHolo.h"
@@ -91,35 +127,53 @@
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
 #include "../Release/BloomHGaussPS.h"
+#include "../Release/BloomHGaussPS_VR.h"
 #include "../Release/BloomVGaussPS.h"
+#include "../Release/BloomVGaussPS_VR.h"
 #include "../Release/BloomCombinePS.h"
+#include "../Release/BloomCombinePS_VR.h"
 #include "../Release/BloomBufferAddPS.h"
+#include "../Release/BloomBufferAddPS_VR.h"
 #include "../Release/SSAOPixelShader.h"
+#include "../Release/SSAOPixelShaderVR.h"
 #include "../Release/SSAOBlurPixelShader.h"
+#include "../Release/SSAOBlurPixelShaderVR.h"
 #include "../Release/SSAOAddPixelShader.h"
 #include "../Release/SSDODirect.h"
+#include "../Release/SSDODirectVR.h"
 #include "../Release/SSDOIndirect.h"
 #include "../Release/SSDOAdd.h"
+#include "../Release/SSDOAddVR.h"
 #include "../Release/SSDOBlur.h"
+#include "../Release/SSDOBlurVR.h"
 #include "../Release/DeathStarShader.h"
 #include "../Release/HyperEntry.h"
 #include "../Release/HyperExit.h"
 #include "../Release/HyperTunnel.h"
 #include "../Release/HyperCompose.h"
+#include "../Release/HyperComposeVR.h"
 #include "../Release/HyperZoom.h"
+#include "../Release/LaserPointer.h"
 #include "../Release/LaserPointerVR.h"
 #include "../Release/FXAA.h"
+#include "../Release/FXAA_VR.h"
 #include "../Release/ExternalHUDShader.h"
+#include "../Release/ExternalHUDShaderVR.h"
 #include "../Release/SunFlareShader.h"
+#include "../Release/SunFlareShaderVR.h"
 #include "../Release/SunShader.h"
 #include "../Release/SunFlareCompose.h"
+#include "../Release/SunFlareComposeVR.h"
 #include "../Release/SpeedEffectPixelShader.h"
 #include "../Release/SpeedEffectCompose.h"
+#include "../Release/SpeedEffectComposeVR.h"
 #include "../Release/SpeedEffectVertexShader.h"
+#include "../Release/SpeedEffectVertexShaderVR.h"
 #include "../Release/AddGeometryVertexShader.h"
 #include "../Release/AddGeometryPixelShader.h"
 #include "../Release/AddGeometryComposePixelShader.h"
 #include "../Release/HeadLightsPS.h"
+#include "../Release/HeadLightsPS_VR.h"
 #include "../Release/HeadLightsSSAOPS.h"
 #include "../Release/ShadowMapPS.h"
 #include "../Release/ShadowMapVS.h"
@@ -129,12 +183,22 @@
 #include "../Release/ExplosionShader.h"
 #include "../Release/AlphaToBloomPS.h"
 #include "../Release/PixelShaderNoGlass.h"
-#include "../Release/PixelShaderAnimLightMap.h"
+#include "../Release/PixelShaderAnim.h"
+#include "../Release/PixelShaderAnimDAT.h"
+#include "../Release/PixelShaderGreeble.h"
+#include "../Release/HangarShadowMapVS.h"
+#include "../Release/XwaD3dCSMVertexShader.h"
+#include "../Release/LevelsPS.h"
+#include "../Release/RTShadowMaskPS.h"
+#include "../Release/RTShadowMaskPS_VR.h"
+#include "../Release/PBRAdd.h"
+#include "../Release/PBRAddVR.h"
+#include "../Release/PixelShaderVRGeom.h"
 #include "../Release/GammaFix.h"
 #endif
 
 #include <WICTextureLoader.h>
-#include <headers/openvr.h>
+#include <openvr.h>
 #include <vector>
 #include "SteamVR.h"
 #include "globals.h"
@@ -143,6 +207,11 @@
 
 
 inline Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix);
+float3 InverseTransformProjectionScreen(float4 input);
+void SetPresentCounter(int val, int b_resetReticle);
+void ReloadInterdictionMap();
+void ClearGlobalTextureMap();
+void ClearCachedSRVs();
 
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
@@ -172,7 +241,8 @@ extern int g_iNumACElements;
 extern bool g_bReshadeEnabled, g_bBloomEnabled;
 
 extern float g_fHUDDepth;
-extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio, g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
+extern float g_fCurInGameWidth, g_fCurInGameHeight, g_fCurInGameAspectRatio;
+extern float g_fCurScreenWidth, g_fCurScreenHeight, g_fCurScreenWidthRcp, g_fCurScreenHeightRcp;
 
 DWORD g_FullScreenWidth = 0, g_FullScreenHeight = 0;
 
@@ -189,14 +259,42 @@ extern MetricReconstructionCB g_MetricRecCBuffer;
 extern bool g_bYCenterHasBeenFixed;
 
 void ResetXWALightInfo();
+void ResetObjectIndexMap();
 
-/* The different types of Constant Buffers used in the Vertex Shader: */
-typedef enum {
-	VS_CONSTANT_BUFFER_NONE,
-	VS_CONSTANT_BUFFER_2D,
-	VS_CONSTANT_BUFFER_3D,
-} VSConstantBufferType;
-VSConstantBufferType g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_NONE;
+// Raytracing
+
+// This maps meshKeys (the vertex pointer) to MeshData tuples.
+// This map is used to build a single BLAS in the Tech Room and
+// gets cleared when a new OPT is loaded.
+// It's also used to build Coalesced BVHs: all FGs in the same mesh
+// are coalesced into a single BVH. It gets cleared when OnSizeChanged()
+// is called.
+std::map<int32_t, MeshData> g_LBVHMap;
+
+// This maps (MeshKey, LOD) to BlasIds. Gets cleared when OnSizeChanged()
+std::map<BLASKey_t, int> g_BLASIdMap;
+
+// This maps BlasIds to BLASData tuples.
+// This map is used to build multiple BLASes during regular flight
+// (one per BlasId). It gets cleared when OnSizeChanged() is called
+std::map<int, BLASData> g_BLASMap;
+
+// This maps (BlasId, centroid) to matrix slots.
+// It gets cleared at the beginning of every frame.
+// The centroid is important because the same BLAS may appear multiple
+// times if there are multiple ships in the same (Mesh, LOD), but in
+// different locations, for instance.
+std::map<IDCentroid_t, int32_t> g_TLASMap;
+std::vector<Matrix4> g_TLASMatrices;
+void ClearGlobalLBVHMap();
+
+#undef DEBUG_RT
+#ifdef DEBUG_RT
+// DEBUG: Map of meshKey --> (OPTname, vertcount, meshIndex). Only for debugging purposes.
+std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;
+#endif
+
+D3D11_VIEWPORT g_concourseViewport;
 
 /* The different types of Constant Buffers used in the Pixel Shader: */
 typedef enum {
@@ -211,7 +309,6 @@ PSConstantBufferType g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_NONE;
 
 FILE *g_DebugFile = NULL;
 
-extern std::vector<ColorLightPair> g_TextureVector;
 extern std::vector<Direct3DTexture *> g_AuxTextureVector;
 
 inline float lerp(float x, float y, float s) {
@@ -239,7 +336,7 @@ void close_error_file() {
 		fclose(g_DebugFile);
 }
 
-void log_err_desc(char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc) {
+void log_err_desc(const char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc) {
 	log_err("step: %s\n", step);
 	log_err("hWnd: 0x%x\n", hWnd);
 	log_err("TEXTURE2D_DESC:\n");
@@ -258,7 +355,7 @@ void log_err_desc(char *step, HWND hWnd, HRESULT hr, CD3D11_TEXTURE2D_DESC desc)
 	log_err("Sample Quality: %d\n", desc.SampleDesc.Quality);
 }
 
-void log_shaderres_view(char *step, HWND hWnd, HRESULT hr, D3D11_SHADER_RESOURCE_VIEW_DESC desc) {
+void log_shaderres_view(const char *step, HWND hWnd, HRESULT hr, D3D11_SHADER_RESOURCE_VIEW_DESC desc) {
 	log_err("step: %s\n", step);
 	log_err("hWnd: 0x%x\n", hWnd);
 	log_err("SHADER_RESOURCE_VIEW_DESC:\n");
@@ -300,6 +397,10 @@ DeviceResources::DeviceResources()
 	this->_offscreenSurface = nullptr;
 	this->_grayNoiseTex = nullptr;
 	this->_grayNoiseSRV = nullptr;
+	this->_vision3DSignatureTex = nullptr;
+	this->_vision3DSignatureSRV = nullptr;
+	this->_tgSmushTex = nullptr;
+	this->_tgSmushTexWidth = this->_tgSmushTexHeight = -1;
 	this->_stereoRenderer = nullptr;
 
 	this->_useAnisotropy = g_config.AnisotropicFilteringEnabled ? TRUE : FALSE;
@@ -314,7 +415,9 @@ DeviceResources::DeviceResources()
 	this->_are16BppTexturesSupported = false;
 	this->_use16BppMainDisplayTexture = false;
 
-	const float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	this->_d3dAnnotation = nullptr;
+
+	const float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	memcpy(this->clearColor, &color, sizeof(color));
 
 	const float colorRGBA[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -325,6 +428,8 @@ DeviceResources::DeviceResources()
 	this->sceneRendered = false;
 	this->sceneRenderedEmpty = false;
 	this->inScene = false;
+
+	this->_surfaceDcCallback = nullptr;
 
 	this->_postProcessVertBuffer = nullptr;
 	this->_HUDVertexBuffer = nullptr;
@@ -340,10 +445,14 @@ DeviceResources::DeviceResources()
 	for (int i = 0; i < MAX_DC_SRC_ELEMENTS; i++)
 		this->dc_coverTexture[i] = nullptr;
 
-	//for (int i = 0; i < MAX_EXTRA_TEXTURES; i++)
-	//	this->_extraTextures[i] = nullptr;
-	//this->_numExtraTextures = 0;
 	_extraTextures.clear();
+
+	this->_currentPixelShader = nullptr;
+}
+
+DeviceResources::~DeviceResources()
+{
+	D3dRendererUninitialize();
 }
 
 HRESULT DeviceResources::Initialize()
@@ -355,10 +464,7 @@ HRESULT DeviceResources::Initialize()
 		//D3D_FEATURE_LEVEL_11_1,
 		D3D_FEATURE_LEVEL_11_0,
 		D3D_FEATURE_LEVEL_10_1,
-		D3D_FEATURE_LEVEL_10_0,
-		D3D_FEATURE_LEVEL_9_3,
-		D3D_FEATURE_LEVEL_9_2,
-		D3D_FEATURE_LEVEL_9_1
+		D3D_FEATURE_LEVEL_10_0
 	};
 
 	UINT numFeatureLevels = ARRAYSIZE(featureLevels);
@@ -368,6 +474,7 @@ HRESULT DeviceResources::Initialize()
 #ifdef _DEBUG
 	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
+
 
 	this->_d3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
 
@@ -399,6 +506,8 @@ HRESULT DeviceResources::Initialize()
 			log_debug("[DBG] Default ID3D11Device feature level: 0x%x", this->_d3dDevice->GetFeatureLevel());
 		}
 	}
+
+	this->_d3dDeviceContext->QueryInterface(__uuidof(ID3DUserDefinedAnnotation), (void**)&this->_d3dAnnotation);
 
 	/*
 	if (SUCCEEDED(hr)) {
@@ -447,11 +556,13 @@ HRESULT DeviceResources::Initialize()
 
 	if (SUCCEEDED(hr))
 	{
+		static int counter = 0;
 		hr = this->LoadMainResources();
 	}
 
 	if (SUCCEEDED(hr))
 	{
+		static int counter = 0;
 		hr = this->LoadResources();
 	}
 
@@ -492,6 +603,11 @@ HRESULT DeviceResources::Initialize()
 		g_DirectDrawCreatePass++;
 	}
 
+	if (SUCCEEDED(hr))
+	{
+		D3dRendererInitialize();
+	}
+
 	if (FAILED(hr))
 	{
 		static bool messageShown = false;
@@ -509,6 +625,7 @@ HRESULT DeviceResources::Initialize()
 
 void DeviceResources::BuildHUDVertexBuffer(float width, float height) {
 	HRESULT hr;
+
 	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
 	auto &device = this->_d3dDevice;
 	//float depth = g_fHUDDepth;
@@ -604,6 +721,85 @@ void DeviceResources::BuildHUDVertexBuffer(float width, float height) {
 	}
 
 	this->_bHUDVerticesReady = true;
+}
+
+void DumpHyperspaceVertexBuffer(float width, float height)
+{
+	D3DCOLOR color = 0xFFFFFFFF; // AABBGGRR
+	// The values for rhw_depth and sz_depth were taken from the skybox
+	float rhw_depth = 0.000863f; // this is the inverse of the depth (?)
+	float sz_depth = 0.001839f;   // this is the Z-buffer value (?)
+	D3DTLVERTEX HyperVertices[6] = { 0 };
+
+	HyperVertices[0].sx = 0;
+	HyperVertices[0].sy = 0;
+	HyperVertices[0].sz = sz_depth;
+	HyperVertices[0].rhw = rhw_depth;
+	HyperVertices[0].tu = 0;
+	HyperVertices[0].tv = 0;
+	HyperVertices[0].color = color;
+
+	HyperVertices[1].sx = width;
+	HyperVertices[1].sy = 0;
+	HyperVertices[1].sz = sz_depth;
+	HyperVertices[1].rhw = rhw_depth;
+	HyperVertices[1].tu = 1;
+	HyperVertices[1].tv = 0;
+	HyperVertices[1].color = color;
+
+	HyperVertices[2].sx = width;
+	HyperVertices[2].sy = height;
+	HyperVertices[2].sz = sz_depth;
+	HyperVertices[2].rhw = rhw_depth;
+	HyperVertices[2].tu = 1;
+	HyperVertices[2].tv = 1;
+	HyperVertices[2].color = color;
+
+	HyperVertices[3].sx = width;
+	HyperVertices[3].sy = height;
+	HyperVertices[3].sz = sz_depth;
+	HyperVertices[3].rhw = rhw_depth;
+	HyperVertices[3].tu = 1;
+	HyperVertices[3].tv = 1;
+	HyperVertices[3].color = color;
+
+	HyperVertices[4].sx = 0;
+	HyperVertices[4].sy = height;
+	HyperVertices[4].sz = sz_depth;
+	HyperVertices[4].rhw = rhw_depth;
+	HyperVertices[4].tu = 0;
+	HyperVertices[4].tv = 1;
+	HyperVertices[4].color = color;
+
+	HyperVertices[5].sx = 0;
+	HyperVertices[5].sy = 0;
+	HyperVertices[5].sz = sz_depth;
+	HyperVertices[5].rhw = rhw_depth;
+	HyperVertices[5].tu = 0;
+	HyperVertices[5].tv = 0;
+	HyperVertices[5].color = color;
+
+	FILE* file = NULL;
+	fopen_s(&file, "./HyperspaceVertices.obj", "wt");
+	// See DumpVerticesToOBJ
+	float4 input;
+	for (int i = 0; i < 6; i++)
+	{
+		input.x = HyperVertices[i].sx;
+		input.y = HyperVertices[i].sy;
+		input.z = HyperVertices[i].sz;
+		input.w = HyperVertices[i].rhw;
+		float3 pos = InverseTransformProjectionScreen(input);
+		//pos.x *= OPT_TO_METERS;
+		//pos.y *= OPT_TO_METERS;
+		//pos.z *= OPT_TO_METERS;
+		fprintf(file, "v %0.6f %0.6f %0.6f\n", pos.x, pos.y, pos.z);
+	}
+	fprintf(file, "\n");
+	fprintf(file, "f 1 2 3\n");
+	fprintf(file, "f 4 5 6\n");
+	fclose(file);
+	log_debug("[DBG] Dumped Hyperspace Vertex Buffer");
 }
 
 void DeviceResources::BuildHyperspaceVertexBuffer(float width, float height) {
@@ -1075,6 +1271,8 @@ void DeviceResources::CreateGrayNoiseTexture() {
 	D3D11_SUBRESOURCE_DATA textureData = { 0 };
 	if (_grayNoiseTex != nullptr)
 		DeleteGrayNoiseTexture();
+	if (g_b3DVisionEnabled && _vision3DSignatureTex != nullptr)
+		Delete3DVisionTexture();
 
 	desc.Width = TEX_SIZE;
 	desc.Height = TEX_SIZE;
@@ -1156,6 +1354,211 @@ void DeviceResources::DeleteGrayNoiseTexture()
 	_repeatSamplerState = nullptr;
 }
 
+void DeviceResources::Create3DVisionSignatureTexture() {
+	auto& context = this->_d3dDeviceContext;
+	auto& device = this->_d3dDevice;
+	DWORD dwWidth = this->_backbufferWidth * 2;
+	DWORD dwHeight = this->_backbufferHeight;
+	const int NUM_SAMPLES = dwWidth * (dwHeight + 1);
+	uint32_t *rawData = new uint32_t[NUM_SAMPLES];
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+	if (_vision3DSignatureTex != nullptr)
+		Delete3DVisionTexture();
+
+	desc.Width = dwWidth;
+	desc.Height = dwHeight + 1;
+	desc.Format = BACKBUFFER_FORMAT;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_IMMUTABLE;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(uint32_t) * dwWidth;
+	textureData.SysMemSlicePitch = 0;
+	uint32_t LastRow = textureData.SysMemPitch * dwHeight;
+
+	// Clear rawData
+	memset(rawData, 0x0, NUM_SAMPLES);
+
+	// Add the signature to rawData
+	DWORD dwBPP = 32;
+	DWORD dwFlags = 0x02; // Side by Side
+
+	uint8_t *ptr;
+	uint8_t signature[] = {
+		0x4e, 0x56, 0x33, 0x44,	// NVSTEREO_IMAGE_SIGNATURE
+		0x00, 0x00, 0x00, 0x00, // Width
+		0x00, 0x00, 0x00, 0x00,	// Height
+		0x00, 0x00, 0x00, 0x00,	// BPP
+		0x00, 0x00, 0x00, 0x00,	// Flags
+	};
+	ptr = (uint8_t *)&dwWidth;
+	for (int i = 0; i < 4; i++)
+		signature[4 + i] = ptr[i];
+
+	ptr = (uint8_t *)&dwHeight;
+	for (int i = 0; i < 4; i++)
+		signature[8 + i] = ptr[i];
+
+	ptr = (uint8_t *)&dwBPP;
+	for (int i = 0; i < 4; i++)
+		signature[12 + i] = ptr[i];
+
+	ptr = (uint8_t *)&dwFlags;
+	for (int i = 0; i < 4; i++)
+		signature[16 + i] = ptr[i];
+
+	// DEBUG
+	/*
+	{
+		log_debug("[DBG] [3DV] Create3DVisionSignature resources->backbuffer size: %d, %d, dwWidth,Height: %d, %d",
+			this->_backbufferWidth * 2, this->_backbufferHeight, dwWidth, dwHeight);
+		int Ofs = 0;
+		log_debug("[DBG] [3DV] -----------------------------------");
+		for (int j = 0; j < 5; j++, Ofs += 4)
+			log_debug("[DBG] [3DV] 0x%02x, 0x%02x, 0x%02x, 0x%02x",
+				signature[Ofs], signature[Ofs + 1], signature[Ofs + 2], signature[Ofs + 3]);
+		log_debug("[DBG] [3DV] ===================================");
+	}
+	*/
+
+	// Debug: the following line draws a thin white line on the top of the image. I'm using
+	// this to verify that the signature is being added. We need to remove this line later.
+	memset(rawData, 0xFF, 10 * dwWidth);
+	// Debug: the following line should write a white line on the last row of the image:
+	//memset((char *)((uint32_t)map.pData + LastRow), 0xFF, 4 * resources->_backbufferWidth);
+
+	// Add the 3D vision signature to the last row of the image
+	memcpy((byte *)((uint32_t)rawData + LastRow), signature, 20);
+
+	// Now create the texture proper with the signature
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &_vision3DSignatureTex))) {
+		log_debug("[DBG] [3DV] Failed when calling CreateTexture2D on _vision3DSignatureTex, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	// Create the SRV for this texture
+	shaderResourceViewDesc.Format = desc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+	if (FAILED(hr = device->CreateShaderResourceView(_vision3DSignatureTex, &shaderResourceViewDesc, &_vision3DSignatureSRV))) {
+		log_debug("[DBG] [3DV] Failed when calling CreateShaderResourceView on 3D vision signature, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+
+	D3D11_SAMPLER_DESC samplerDesc;
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+	samplerDesc.MaxAnisotropy = 1;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.MipLODBias = 0.0f;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = FLT_MAX;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.BorderColor[0] = 0.0f;
+	samplerDesc.BorderColor[1] = 0.0f;
+	samplerDesc.BorderColor[2] = 0.0f;
+	samplerDesc.BorderColor[3] = 0.0f;
+
+	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &this->_noInterpolationSamplerState))) {
+		log_debug("[DBG] [3DV] Failed when calling CreateSamplerState on 3D vision signature, hr: 0x%x", hr);
+		goto out;
+	}
+
+	// DEBUG
+	//hr = DirectX::SaveWICTextureToFile(context, _vision3DSignatureTex, GUID_ContainerFormatPng, L"C:\\Temp\\_vision3DSignature.png");
+	//log_debug("[DBG] [3DV] Dumped _vision3DSignature to file, hr: 0x%x", hr);
+	// DEBUG
+out:
+	delete[] rawData;
+}
+
+void DeviceResources::Delete3DVisionTexture()
+{
+	if (_vision3DSignatureSRV != nullptr) _vision3DSignatureSRV->Release();
+	if (_vision3DSignatureTex != nullptr) _vision3DSignatureTex->Release();
+	if (_noInterpolationSamplerState != nullptr) _noInterpolationSamplerState.Release();
+	_vision3DSignatureTex = nullptr;
+	_vision3DSignatureSRV = nullptr;
+	_noInterpolationSamplerState = nullptr;
+}
+
+void DeviceResources::CreateTgSmushTexture(DWORD width, DWORD height) {
+	auto& context = this->_d3dDeviceContext;
+	auto& device = this->_d3dDevice;
+	DWORD dwWidth = width;
+	DWORD dwHeight = height;
+	const int NUM_SAMPLES = dwWidth * dwHeight;
+	HRESULT hr;
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+	D3D11_SUBRESOURCE_DATA textureData = { 0 };
+
+	// If we already have a TgSmush texture with the right dimensions, just bail out.
+	if (_tgSmushTex != nullptr && _tgSmushTexWidth == width && _tgSmushTexHeight == height)
+		return;
+
+	uint32_t* rawData = new uint32_t[NUM_SAMPLES];
+
+	if (_tgSmushTex != nullptr)
+		DeleteTgSmushTexture();
+
+	desc.Width = dwWidth;
+	desc.Height = dwHeight;
+	desc.Format = BACKBUFFER_FORMAT;
+	desc.MiscFlags = 0;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_DYNAMIC; // CPU: write-only, GPU: read-only
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	desc.MiscFlags = 0;
+
+	textureData.pSysMem = rawData;
+	textureData.SysMemPitch = sizeof(uint32_t) * dwWidth;
+	textureData.SysMemSlicePitch = 0;
+
+	// Clear rawData
+	memset(rawData, 0xFF, NUM_SAMPLES * 4);
+	// Create the texture proper
+	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &_tgSmushTex))) {
+		log_debug("[DBG] [TGS] Failed when calling CreateTexture2D on _tgSmushTex, reason: 0x%x",
+			this->_d3dDevice->GetDeviceRemovedReason());
+		goto out;
+	}
+	else
+		log_debug("[DBG] [TGS] Successfully created _tgSmushTex");
+	_tgSmushTexWidth = width;
+	_tgSmushTexHeight = height;
+
+out:
+	delete[] rawData;
+}
+
+
+void DeviceResources::DeleteTgSmushTexture()
+{
+	if (_tgSmushTex != nullptr) _tgSmushTex->Release();
+	_tgSmushTex = nullptr;
+	_tgSmushTexWidth = _tgSmushTexHeight = -1;
+}
+
 void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 	for (int i = 0; i < size; i++) {
 		if (this->dc_coverTexture[i] != nullptr) {
@@ -1172,6 +1575,24 @@ void DeviceResources::ClearDynCockpitVector(dc_element DCElements[], int size) {
 }
 
 void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size) {
+	ac_element vrKeybElem;
+	ac_element vrGloveElements[2];
+
+	// Save the VR Keyboard slot
+	if (g_iVRKeyboardSlot != -1)
+	{
+		vrKeybElem = g_ACElements[g_iVRKeyboardSlot];
+	}
+
+	// Save the VR Gloves slots
+	for (int i = 0; i < 2; i++)
+	{
+		if (g_iVRGloveSlot[i] != -1)
+		{
+			vrGloveElements[i] = g_ACElements[g_iVRGloveSlot[i]];
+		}
+	}
+
 	for (int i = 0; i < size; i++) {
 		int numCoords = ACElements[i].coords.numCoords;
 		ACElements[i].name[0] = 0;
@@ -1182,6 +1603,23 @@ void DeviceResources::ClearActiveCockpitVector(ac_element ACElements[], int size
 		ACElements[i].coords.numCoords = 0;
 	}
 	g_iNumACElements = 0;
+
+	// Restore the VR Keyboard slot
+	if (g_iVRKeyboardSlot != -1)
+	{
+		g_iVRKeyboardSlot = g_iNumACElements++;
+		g_ACElements[g_iVRKeyboardSlot] = vrKeybElem;
+	}
+
+	// Restore the VR Gloves slots
+	for (int i = 0; i < 2; i++)
+	{
+		if (g_iVRGloveSlot[i] != -1)
+		{
+			g_iVRGloveSlot[i] = g_iNumACElements++;
+			g_ACElements[g_iVRGloveSlot[i]] = vrGloveElements[i];
+		}
+	}
 }
 
 void DeviceResources::ResetDynamicCockpit() {
@@ -1217,6 +1655,7 @@ void DeviceResources::ResetDynamicCockpit() {
 				elem->bHologram = false;
 				elem->bNoisyHolo = false;
 				elem->bTransparent = false;
+				elem->bAlwaysVisible = false;
 			}
 		}
 		// Reset the dynamic cockpit vector
@@ -1250,12 +1689,20 @@ void DeviceResources::ResetActiveCockpit() {
 		if (g_iNumACElements > 0) {
 			log_debug("[DBG] [AC] Clearing g_ACElements");
 			ClearActiveCockpitVector(g_ACElements, g_iNumACElements);
-			g_iNumACElements = 0;
+			//g_iNumACElements = 0;
 		}
+		g_vrKeybState.state = KBState::OFF;
 	}
 }
 
-void DeviceResources::ResetExtraTextures() {
+int DeviceResources::PushExtraTexture(ID3D11ShaderResourceView* srv)
+{
+	_extraTextures.push_back(srv);
+	return _extraTextures.size() - 1;
+}
+
+void DeviceResources::ResetExtraTextures()
+{
 	//for (int i = 0; i < MAX_EXTRA_TEXTURES; i++) {
 	//	if (this->_extraTextures[i] != nullptr) {
 	//		this->_extraTextures[i]->Release();
@@ -1266,6 +1713,15 @@ void DeviceResources::ResetExtraTextures() {
 
 	for (uint32_t i = 0; i < _extraTextures.size(); i++)
 		if (_extraTextures[i] != nullptr) {
+			//int count = 0;
+			// TODO: Cached SRVs increase the refcounts and rely on this code
+			// to release everything. This might not be the proper solution,
+			// but it seems to work.
+			//do {
+			//	count = _extraTextures[i]->Release();
+			//} while (count > 0);
+			// TODO: Cached SRVs increase the refcounts... what to do about it?
+			// The previous code still crashed, so... reverting the code.
 			_extraTextures[i]->Release();
 			_extraTextures[i] = nullptr;
 		}
@@ -1282,7 +1738,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	 * When 3D content is displayed, dwWidth,dwHeight = in-game resolution (1280x1024, 1600x1200, etc)
 	 */
 	HRESULT hr;
-	char* step = "";
+	const char* step = "";
 	DXGI_FORMAT oldFormat;
 
 	//log_debug("[DBG] OnSizeChanged, dwWidth,Height: %d, %d", dwWidth, dwHeight);
@@ -1303,8 +1759,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		log_debug("[DBG] Using SteamVR/OpenXR settings: %u, %u", dwWidth, dwHeight);
 	}
 
-	// Reset the present counter
-	g_iPresentCounter = 0;
+	// Reset the present counter and the reticle status
+	SetPresentCounter(0, 1);
 	g_bPrevPlayerInHangar = false;
 	// Reset the FOV application flag
 	g_bCustomFOVApplied = false;
@@ -1318,12 +1774,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_bDCApplyEraseRegionCommands = !g_bHUDVisibleOnStartup;
 	log_debug("[DBG] Resetting g_b3DSunPresent, g_b3DSkydomePresent");
 
-	g_TextureVector.clear();
+	g_meshToFGMap.clear(); // OnSizeChanged(), called when a mission is loaded
 	g_AuxTextureVector.clear();
+	ClearGlobalTextureMap();
+	ClearCachedSRVs();
 	DeleteRandomVectorTexture();
 	ResetXWALightInfo();
 	g_HiResTimer.ResetGlobalTime();
 	ResetGameEvent();
+	ResetObjectIndexMap();
+	ReloadInterdictionMap();
+	//ResetRawMouseInput();
+	if (IsZIPReaderLoaded() && g_bCleanupZIPDirs)
+		DeleteAllTempZIPDirectories();
 	this->ResetExtraTextures();
 	this->_depthStencilViewL.Release();
 	this->_depthStencilViewR.Release();
@@ -1338,6 +1801,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_renderTargetViewGammaFixR.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
 	this->_offscreenBuffer.Release();
+	this->_offscreenBufferHdBackground.Release();
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
 	this->_offscreenBufferGammaFix.Release();
@@ -1349,7 +1813,37 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_shadertoyRTV.Release();
 	this->_shadertoySRV.Release();
 	this->_shadertoyAuxSRV.Release();
-	if (g_bUseSeparateEyeBuffers) {
+
+	/*
+	if (this->_HUDVertexBuffer)
+	{
+		this->_HUDVertexBuffer.Release();
+		this->_HUDVertexBuffer = NULL;
+	}
+	if (this->_clearHUDVertexBuffer)
+	{
+		this->_clearHUDVertexBuffer.Release();
+		this->_clearHUDVertexBuffer = NULL;
+	}
+	if (this->_hyperspaceVertexBuffer)
+	{
+		this->_hyperspaceVertexBuffer.Release();
+		this->_hyperspaceVertexBuffer = NULL;
+	}
+	if (this->_postProcessVertBuffer != NULL) {
+		this->_postProcessVertBuffer->Release();
+		this->_postProcessVertBuffer = NULL;
+	}
+	if (this->_speedParticlesVertexBuffer != NULL)
+	{
+		this->_speedParticlesVertexBuffer->Release();
+		this->_speedParticlesVertexBuffer = NULL;
+	}
+	if (_grayNoiseTex != nullptr)
+		DeleteGrayNoiseTexture();
+	*/
+
+	if (g_bUseSteamVR || g_bUseSeparateEyeBuffers) {
 		this->_offscreenBufferR.Release();
 		this->_offscreenBufferAsInputR.Release();
 		this->_offscreenBufferPostR.Release();
@@ -1357,7 +1851,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewR.Release();
 		this->_renderTargetViewPostR.Release();
 		this->_steamVRPresentBuffer.Release();
+		this->_steamVROverlayBuffer.Release();
 		this->_renderTargetViewSteamVRResize.Release();
+		this->_renderTargetViewSteamVROverlayResize.Release();
 		if (this->_useMultisampling)
 			this->_shadertoyBufMSAA_R.Release();
 		this->_shadertoyBufR.Release();
@@ -1365,6 +1861,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadertoyRTV_R.Release();
 		this->_shadertoySRV_R.Release();
 		this->_shadertoyAuxSRV_R.Release();
+	}
+	if (g_b3DVisionEnabled) {
+		log_debug("[DBG] [3DV] Releasing 3D vision buffers");
+		this->_RTVvision3DPost.Release();
+		this->_vision3DPost.Release();
+		this->_vision3DNoMSAA.Release();
+		this->_vision3DStaging.Release();
+
+		this->_RTVvision3DPost = nullptr;
+		this->_vision3DPost = nullptr;
+		this->_vision3DNoMSAA = nullptr;
+		this->_vision3DStaging = nullptr;
 	}
 
 	this->_DCTextMSAA.Release();
@@ -1468,7 +1976,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		//this->_bloomOutput1SRV.Release();
 		this->_bloomOutput2SRV.Release();
 		this->_bloomOutputSumSRV.Release();
-		if (g_bUseSeparateEyeBuffers) {
+		if (g_bUseSeparateEyeBuffers || g_bUseSteamVR) {
 			/*this->_offscreenBufferBloomMaskR.Release();
 			this->_offscreenBufferAsInputBloomMaskR.Release();
 			this->_offscreenAsInputBloomMaskSRV_R.Release();
@@ -1498,7 +2006,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		//this->_bentBufSRV.Release();
 		//this->_bentBufSRV_R.Release();
 		//this->_renderTargetViewBentBuf.Release();
-		this->_renderTargetViewSSAO.Release();
+		//this->_renderTargetViewSSAO.Release();
 		this->_renderTargetViewSSAO_R.Release();
 		this->_ssaoBufSRV.Release();
 		this->_ssaoBufSRV_R.Release();
@@ -1518,10 +2026,81 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadowMapArraySRV.Release();
 		this->_shadowMapDSV.Release();
 		this->_shadowMapArray.Release();
+		if (g_ShadowMapping.bCSMEnabled) {
+			this->_csmMap.Release();
+			this->_csmMapDSV.Release();
+			this->_csmArray.Release();
+			this->_csmArraySRV.Release();
+		}
+	}
+
+	if (g_bRTEnabled)
+	{
+		if (g_bRTEnableSoftShadows)
+		{
+			this->_rtShadowMask.Release();
+			this->_rtShadowMaskRTV.Release();
+			this->_rtShadowMaskSRV.Release();
+			if (g_bUseSteamVR)
+			{
+				this->_rtShadowMaskR.Release();
+				this->_rtShadowMaskRTV_R.Release();
+				this->_rtShadowMaskSRV_R.Release();
+			}
+		}
+
+		// This path is only hit when we're *not* in the Tech Room
+		ClearGlobalLBVHMap();
+		g_bRTCaptureCameraAABB = true;
+		g_iRTTotalBLASNodesInFrame = g_iRTMaxBLASNodesSoFar = g_iRTMaxTLASNodesSoFar = 0;
+		g_iRTMaxMeshesSoFar = 0;
+		g_bRTReAllocateBvhBuffer = false;
+		if (this->_RTBvh != nullptr)
+		{
+			this->_RTBvh->Release();
+			this->_RTBvh = nullptr;
+		}
+		if (this->_RTTLASBvh != nullptr)
+		{
+			this->_RTTLASBvh->Release();
+			this->_RTTLASBvh = nullptr;
+		}
+		if (this->_RTMatrices != nullptr)
+		{
+			this->_RTMatrices->Release();
+			this->_RTMatrices = nullptr;
+		}
+
+		if (this->_RTBvhSRV != nullptr)
+		{
+			this->_RTBvhSRV.Release();
+			this->_RTBvhSRV = nullptr;
+		}
+		if (this->_RTTLASBvhSRV != nullptr)
+		{
+			this->_RTTLASBvhSRV->Release();
+			this->_RTTLASBvhSRV = nullptr;
+		}
+		if (this->_RTMatricesSRV != nullptr)
+		{
+			this->_RTMatricesSRV.Release();
+			this->_RTMatricesSRV = nullptr;
+		}
 	}
 
 	this->_backBuffer.Release();
+	if (g_b3DVisionEnabled && g_b3DVisionForceFullScreen) {
+		// Exit Full-screen mode if necessary before releasing the swapchain
+		IDXGIOutput *pTarget = nullptr;
+		BOOL bFullScreen = FALSE;
+		if (this->_swapChain != nullptr && SUCCEEDED(this->_swapChain->GetFullscreenState(&bFullScreen, &pTarget))) {
+			if (bFullScreen)
+				this->_swapChain->SetFullscreenState(FALSE, NULL);
+			pTarget->Release();
+		}
+	}
 	this->_swapChain.Release();
+	this->_swapChain = nullptr;
 
 	this->_refreshRate = { 0, 1 };
 
@@ -1548,7 +2127,13 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 		if (SUCCEEDED(hr))
 		{
+			DWM_TIMING_INFO timingInfo{};
+			timingInfo.cbSize = sizeof(DWM_TIMING_INFO);
+			DwmGetCompositionTimingInfo(nullptr, &timingInfo);
+
 			md.Format = BACKBUFFER_FORMAT;
+			md.RefreshRate.Numerator = timingInfo.rateCompose.uiNumerator;
+			md.RefreshRate.Denominator = timingInfo.rateCompose.uiDenominator;
 
 			hr = dxgiOutput->FindClosestMatchingMode(&md, &md, nullptr);
 		}
@@ -1559,9 +2144,22 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			sd.BufferCount = 2;
 			//sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // ORIGINAL = 0x1
 			//sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-			sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // Recommended for better performance. Can we use it?
-			sd.BufferDesc.Width  = g_bUseSeparateEyeBuffers ? g_steamVRWidth : 0;
-			sd.BufferDesc.Height = g_bUseSeparateEyeBuffers ? g_steamVRHeight : 0;
+			//sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+			sd.BufferDesc.Width  = (g_bUseSeparateEyeBuffers || g_bUseSteamVR) ? g_steamVRWidth : 0;
+			sd.BufferDesc.Height = (g_bUseSeparateEyeBuffers || g_bUseSteamVR) ? g_steamVRHeight : 0;
+			/*
+			In the "StereoTest" program from here:
+
+			https://gist.github.com/AvengerDr/6062614
+			
+			* The swap chain desc is 1920x1080 (regular size)
+			* The backbuffer is also regular size (it's created from the swap chain)
+			* The stereo texture is double-wide with the 3D vision signature.
+
+			On each frame, the stereo texture is copied over the backbuffer using CopySubresourceRegion,
+			even if it doesn't actually fit. The nVidia driver is supposed to catch this operation and do
+			its magic.
+			*/
 			sd.BufferDesc.Format = BACKBUFFER_FORMAT;
 			sd.BufferDesc.RefreshRate = md.RefreshRate;
 			sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -1569,7 +2167,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			sd.SampleDesc.Count = 1;
 			sd.SampleDesc.Quality = 0;
 			sd.Windowed = TRUE;
-			log_debug("[DBG] SwapChain W,H: %d, %d", sd.BufferDesc.Width, sd.BufferDesc.Height); // This line isn't actually executing
+			log_debug("[DBG] SwapChain W,H: %d, %d", sd.BufferDesc.Width, sd.BufferDesc.Height);
 
 			ComPtr<IDXGIFactory> dxgiFactory;
 			hr = dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
@@ -1587,6 +2185,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (SUCCEEDED(hr))
 			{
 				DXGI_SWAP_CHAIN_DESC sd{};
+				if (g_b3DVisionEnabled && g_b3DVisionForceFullScreen)
+					this->_swapChain->SetFullscreenState(TRUE, NULL);
+
 				this->_swapChain->GetDesc(&sd);
 				//sd.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // I believe this is the original setting
 				//sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
@@ -1647,7 +2248,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			BACKBUFFER_FORMAT,
 			this->_backbufferWidth,
 			this->_backbufferHeight,
-			1,
+			(g_bUseSteamVR)? 2 : 1, //If we want to render in single-pass instanced stereo, we need Texture2DArray with 1 slice per eye
 			1,
 			D3D11_BIND_RENDER_TARGET,
 			D3D11_USAGE_DEFAULT,
@@ -1673,16 +2274,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				goto out;
 			}
 
-			if (g_bUseSeparateEyeBuffers) {
-				step = "_offscreenBufferR";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferR);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
-				}
-			}
-
 			step = "_offscreenBufferPost";
 			// offscreenBufferPost should be just like offscreenBuffer because it will be bound as a renderTarget
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferPost);
@@ -1690,6 +2281,51 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_err_desc(step, hWnd, hr, desc);
 				goto out;
+			}
+
+			step = "OffscreenBufferBackground";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferHdBackground);
+			log_debug("[DBG] OffscreenBufferBackground: %u, %u", desc.Width, desc.Height);
+			if (FAILED(hr)) {
+				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				log_err_desc(step, hWnd, hr, desc);
+				goto out;
+			}
+
+			if (g_bUseSteamVR || g_bUseSeparateEyeBuffers) {
+				step = "_offscreenBufferR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+
+				step = "_offscreenBufferPostR";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferPostR);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+			}
+
+			// Some of the buffers will not be rendered to in stereo
+			desc.ArraySize = 1;
+			if (g_b3DVisionEnabled) {
+				step = "_vision3DPost";
+				desc.Width *= 2;
+				desc.Height++;
+				// offscreenBufferPost should be just like offscreenBuffer because it will be bound as a renderTarget
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_vision3DPost);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				log_debug("[DBG] [3DV] _vision3DPost created, size: %u, %u", desc.Width, desc.Height);
+				desc.Width /= 2;
+				desc.Height--;
 			}
 
 			step = "_DCTextMSAA";
@@ -1715,6 +2351,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				step = "_offscreenBufferDynCockpit";
 				// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
+				// But it won't need to be an array since it will not be rendered in stereo.
+				desc.ArraySize = 1;				
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferDynCockpit);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -1732,17 +2370,18 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
-			if (g_bUseSeparateEyeBuffers) {
-				step = "_offscreenBufferPostR";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferPostR);
+			if (g_bUseSteamVR) {
+				step = "_steamVRPresentBuffer";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_steamVRPresentBuffer);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
 				}
 
-				step = "_steamVRPresentBuffer";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_steamVRPresentBuffer);
+				step = "_steamVRPOverlayBuffer";
+				// This buffer will contain the Concourse, loading screen menu and ESC menu with the right aspect ratio (4:3) to show in VR overlay.
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_steamVROverlayBuffer);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_err_desc(step, hWnd, hr, desc);
@@ -1751,6 +2390,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// Shading System, Bloom Mask, Normals Buffer, etc
+			// The auxiliary shading buffers need to be in stereo
+			desc.ArraySize = g_bUseSteamVR ? 2 : 1;
+
 			if (g_bReshadeEnabled) {
 				step = "_offscreenBufferBloomMask";
 				// _offscreenBufferReshade should be just like offscreenBuffer because it will be used as a renderTarget
@@ -1923,6 +2565,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// ReticleBufAsInput
+			// Not rendered in stereo.
+			desc.ArraySize = 1;
 			if (g_bEnableVR) {
 				step = "_ReticleBufAsInput";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ReticleBufAsInput);
@@ -1932,6 +2576,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
+			desc.ArraySize = g_bUseSteamVR ? 2 : 1;
 
 			if (g_bReshadeEnabled) {
 				desc.Format = BLOOM_BUFFER_FORMAT;
@@ -1965,9 +2610,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("Added D3D11_BIND_RENDER_TARGET flag\n");
 				log_err("Flags: 0x%x\n", desc.BindFlags);
 
-				// TODO: Do I need to create _bloomOutput1R in the SteamVR case? I think bloomOutput1 is
-				// used as a temporary buffer for SSDO; but maybe we're using the same buffer for both
-				// left and right eyes then?
 				step = "_bloomOutput1";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1);
 				if (FAILED(hr)) {
@@ -2118,6 +2760,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// Create the DC Input Buffers
+			// No need for stereo in dynamic cockpit buffers
+			desc.ArraySize = 1;
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				// This guy should be the last one to be created because it modifies the BindFlags
 				// _offscreenBufferAsInputDynCockpit should have the same properties as _offscreenBufferAsInput
@@ -2170,6 +2814,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// Shading System: Create Non-MSAA SSAO/SS Mask Buffers
+			// The SSAO/SS buffers need to be in stereo
+			desc.ArraySize = g_bUseSteamVR ? 2 : 1;
 			if (g_bReshadeEnabled) {
 				UINT oldFlags = desc.BindFlags;
 				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
@@ -2253,6 +2899,37 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.BindFlags = oldFlags;
 			}
 
+			// In-Flight Raytracing: Create Non-MSAA RT Shadow Buffer
+			if (g_bRTEnabled && g_bRTEnableSoftShadows)
+			{
+				UINT oldW = desc.Width;
+				UINT oldH = desc.Height;
+				UINT oldFlags = desc.BindFlags;
+				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+				desc.SampleDesc.Count = 1;
+				desc.SampleDesc.Quality = 0;
+				desc.Width /= g_RTConstantsBuffer.RTShadowMaskSizeFactor;
+				desc.Height /= g_RTConstantsBuffer.RTShadowMaskSizeFactor;
+				desc.Format = RT_SHADOW_FORMAT;
+
+				step = "_rtShadowMask";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_rtShadowMask);
+				if (FAILED(hr)) goto out;
+
+				if (g_bUseSteamVR)
+				{
+					step = "_rtShadowMaskR";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_rtShadowMaskR);
+					if (FAILED(hr)) goto out;
+				}
+
+				desc.Format = oldFormat;
+				desc.MipLevels = 1;
+				desc.BindFlags = oldFlags;
+				desc.Width = oldW;
+				desc.Height = oldH;
+			}
+
 			// Create Non-MSAA AO Buffers
 			if (g_bAOEnabled) {
 				UINT oldFlags = desc.BindFlags;
@@ -2275,8 +2952,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSeparateEyeBuffers) {
-					step = "_depthBufR";
+				if (g_bUseSteamVR) {
+					step = "_depthBufAsInputR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_depthBufAsInputR);
 					if (FAILED(hr)) {
 						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
@@ -2286,7 +2963,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 
 				// Add the RTV flag
-				/*desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+				/*
 				step = "_bentBuf";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBuf);
 				if (FAILED(hr)) {
@@ -2295,14 +2973,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				step = "_bentBufR";
-				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBufR);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_err_desc(step, hWnd, hr, desc);
-					goto out;
+				if (g_bUseSteamVR) {
+					step = "_bentBufR";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bentBufR);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_err_desc(step, hWnd, hr, desc);
+						goto out;
+					}
 				}
 				*/
+
 				desc.Format = HDR_FORMAT;
 				step = "_ssaoBuf";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBuf);
@@ -2312,6 +2993,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
+				// This buffer is needed in all cases, not only SteamVR/stereo rendering, since it is used later as Indirect SSDO buffer
 				desc.Format = HDR_FORMAT;
 				step = "_ssaoBufR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_ssaoBufR);
@@ -2325,15 +3007,70 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				desc.BindFlags = oldFlags;
 				desc.MipLevels = 1;
 			}
+
+			// Create Non-MSAA buffers for 3D Vision
+			// 3D Vision uses double-wide rendering, not instanced stereo
+			desc.ArraySize = 1;
+			if (g_b3DVisionEnabled) {
+				D3D11_TEXTURE2D_DESC backBufferDesc;
+				log_debug("[DBG] [3DV] 3D Vision is enabled, creating buffers...");
+
+				this->_backBuffer->GetDesc(&backBufferDesc);
+				backBufferDesc.Width *= 2;
+				backBufferDesc.Height++;
+
+				step = "_vision3DNoMSAA";
+				hr = this->_d3dDevice->CreateTexture2D(&backBufferDesc, nullptr, &this->_vision3DNoMSAA);
+				if (FAILED(hr)) {
+					log_debug("[DBG] [3DV] Failed to create _vision3DNoMSAA: hr: 0x%x", hr);
+					log_err("Failed to create _vision3DStaging\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_debug("[DBG] [3DV] Succesfully created _vision3DNoMSAA, size: %d, %d",
+						backBufferDesc.Width, backBufferDesc.Height);
+				}
+
+				backBufferDesc.BindFlags = 0;
+				backBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+				backBufferDesc.Usage = D3D11_USAGE_STAGING;
+
+				step = "_vision3DStaging";
+				hr = this->_d3dDevice->CreateTexture2D(&backBufferDesc, nullptr, &this->_vision3DStaging);
+				if (FAILED(hr)) {
+					log_debug("[DBG] [3DV] Failed to create _vision3DStaging: hr: 0x%x", hr);
+					log_err("Failed to create _vision3DStaging\n");
+					log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_err_desc(step, hWnd, hr, desc);
+					goto out;
+				}
+				else {
+					log_debug("[DBG] [3DV] Succesfully created _vision3DStaging, size: %d, %d",
+						backBufferDesc.Width, backBufferDesc.Height);
+				}
+			}
+			desc.ArraySize = g_bUseSteamVR ? 2 : 1;
 		}
 
 		/* SRVs */
 		{
 			D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
 			shaderResourceViewDesc.Format = desc.Format;
-			shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
-			shaderResourceViewDesc.Texture2D.MipLevels = 1;
+			shaderResourceViewDesc.ViewDimension = g_bUseSteamVR ? D3D11_SRV_DIMENSION_TEXTURE2DARRAY : D3D11_SRV_DIMENSION_TEXTURE2D;
+			if (g_bUseSteamVR) {
+				shaderResourceViewDesc.Texture2DArray.MostDetailedMip = 0;
+				shaderResourceViewDesc.Texture2DArray.MipLevels = 1;
+				shaderResourceViewDesc.Texture2DArray.ArraySize = 2;
+				shaderResourceViewDesc.Texture2DArray.FirstArraySlice = 0;
+			}
+			else {
+				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+				shaderResourceViewDesc.Texture2D.MipLevels = 1;
+			}
 			D3D11_SRV_DIMENSION curDimension = shaderResourceViewDesc.ViewDimension;
 
 #ifdef GENMIPMAPS
@@ -2368,6 +3105,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			// _ReticleSRV
+			// The reticle is not rendered in stereo
+			shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 			if (g_bEnableVR) {
 				step = "_ReticleSRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_ReticleBufAsInput, &shaderResourceViewDesc, &this->_ReticleSRV);
@@ -2377,6 +3116,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
+			shaderResourceViewDesc.ViewDimension = curDimension;
 
 			if (g_bUseSeparateEyeBuffers) {
 				// Create the shader resource view for offscreenBufferAsInputR
@@ -2576,6 +3316,28 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			}
 
+			// Raytracing Shadow Mask SRVs
+			if (g_bRTEnabled && g_bRTEnableSoftShadows) {
+				DXGI_FORMAT oldFormat = shaderResourceViewDesc.Format;
+				shaderResourceViewDesc.Format = RT_SHADOW_FORMAT;
+				shaderResourceViewDesc.Texture2D.MipLevels = 1;
+				shaderResourceViewDesc.ViewDimension = curDimension;
+				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+
+				step = "_rtShadowMaskSRV";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_rtShadowMask, &shaderResourceViewDesc, &this->_rtShadowMaskSRV);
+				if (FAILED(hr)) goto out;
+
+				if (g_bUseSteamVR) {
+					step = "_rtShadowMaskSRV_R";
+					hr = this->_d3dDevice->CreateShaderResourceView(this->_rtShadowMaskR, &shaderResourceViewDesc, &this->_rtShadowMaskSRV_R);
+					if (FAILED(hr)) goto out;
+				}
+
+				shaderResourceViewDesc.Format = oldFormat;
+				shaderResourceViewDesc.Texture2D.MipLevels = 1;
+			}
+
 			// AO SRVs
 			if (g_bAOEnabled) {
 				shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
@@ -2594,42 +3356,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
 				}
-				/*
-				step = "_bentBufSRV";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBuf, &shaderResourceViewDesc, &this->_bentBufSRV);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
 
-				step = "_bentBufSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBufR, &shaderResourceViewDesc, &this->_bentBufSRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
-				*/
-				shaderResourceViewDesc.Format = HDR_FORMAT;
-				step = "_ssaoBufSRV";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf, &shaderResourceViewDesc, &this->_ssaoBufSRV);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
-
-				step = "_ssaoBufSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBufR, &shaderResourceViewDesc, &this->_ssaoBufSRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
-
-				if (g_bUseSeparateEyeBuffers) {
-					shaderResourceViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
+				if (g_bUseSteamVR) {
 					step = "_depthBufSRV_R";
 					hr = this->_d3dDevice->CreateShaderResourceView(this->_depthBufAsInputR,
 						&shaderResourceViewDesc, &this->_depthBufSRV_R);
@@ -2639,13 +3367,57 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 						goto out;
 					}
 				}
+
+				/*
+				step = "_bentBufSRV";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBuf, &shaderResourceViewDesc, &this->_bentBufSRV);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				if (g_bUseSteamVR) {
+					step = "_bentBufSRV_R";
+					hr = this->_d3dDevice->CreateShaderResourceView(this->_bentBufR, &shaderResourceViewDesc, &this->_bentBufSRV_R);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+						goto out;
+					}
+				}
+				*/
+
+				shaderResourceViewDesc.Format = HDR_FORMAT;
+				step = "_ssaoBufSRV";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBuf, &shaderResourceViewDesc, &this->_ssaoBufSRV);
+				if (FAILED(hr)) {
+					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+					goto out;
+				}
+
+				if (g_bUseSteamVR || g_bUseSeparateEyeBuffers) {
+					step = "_ssaoBufSRV_R";
+					hr = this->_d3dDevice->CreateShaderResourceView(this->_ssaoBufR, &shaderResourceViewDesc, &this->_ssaoBufSRV_R);
+					if (FAILED(hr)) {
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+						goto out;
+					}
+				}
+
 				shaderResourceViewDesc.Format = oldFormat;
 				shaderResourceViewDesc.Texture2D.MipLevels = 1;
 			}
 
 			// Dynamic Cockpit SRVs
+			// They are not rendered in stereo.
+			shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 				step = "_offscreenAsInputDynCockpitSRV";
+
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenAsInputDynCockpit,
 					&shaderResourceViewDesc, &this->_offscreenAsInputDynCockpitSRV);
 				if (FAILED(hr)) {
@@ -2672,6 +3444,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 			}
+
+			shaderResourceViewDesc.ViewDimension = curDimension;
 		}
 	}
 
@@ -2693,26 +3467,61 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		BuildSpeedVertexBuffer();
 		CreateRandomVectorTexture();
 		CreateGrayNoiseTexture();
+		if (g_b3DVisionEnabled)
+			Create3DVisionSignatureTexture();
 	}
 
 	/* RTVs */
 	if (SUCCEEDED(hr))
 	{
-		CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc(this->_useMultisampling ? D3D11_RTV_DIMENSION_TEXTURE2DMS : D3D11_RTV_DIMENSION_TEXTURE2D);
-		CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
+		// This lambda function will return the right RtvDesc according to the requested parameters.	
+		auto GetRtvDesc = [](
+			bool useMultisampling,
+			bool instancedStereoRendering,
+			DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN
+			)
+		{
+			CD3D11_RENDER_TARGET_VIEW_DESC rtvDesc;
+			if (useMultisampling) {
+				if (instancedStereoRendering)
+				{
+					rtvDesc = CD3D11_RENDER_TARGET_VIEW_DESC(D3D11_RTV_DIMENSION_TEXTURE2DMSARRAY, format);
+					rtvDesc.Texture2DMSArray.ArraySize = 2;
+				}
+				else {
+					rtvDesc = CD3D11_RENDER_TARGET_VIEW_DESC(D3D11_RTV_DIMENSION_TEXTURE2DMS, format);
+				}
+			}
+			else {
+				if (instancedStereoRendering) {
+					rtvDesc = CD3D11_RENDER_TARGET_VIEW_DESC(D3D11_RTV_DIMENSION_TEXTURE2DARRAY, format);
+					rtvDesc.Texture2DArray.ArraySize = 2;
+				}
+				else
+					rtvDesc = CD3D11_RENDER_TARGET_VIEW_DESC(D3D11_RTV_DIMENSION_TEXTURE2D, format);
+			}
+			return rtvDesc;
+		};
 
 		step = "_renderTargetView";
-		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBuffer, &renderTargetViewDesc, &this->_renderTargetView);
+		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBuffer, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BACKBUFFER_FORMAT), &this->_renderTargetView);
 		if (FAILED(hr)) goto out;
 
 		step = "_renderTargetViewPost";
-		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &renderTargetViewDesc, &this->_renderTargetViewPost);
+		hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPost, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BACKBUFFER_FORMAT), &this->_renderTargetViewPost);
 		if (FAILED(hr)) goto out;
+
+		if (g_b3DVisionEnabled) {
+			// The 3D vision RTV does not use instanced stereo rendering
+			step = "_RTVvision3DPost";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_vision3DPost, &GetRtvDesc(this->_useMultisampling, false), &this->_RTVvision3DPost);
+			if (FAILED(hr)) goto out;
+		}
 
 		step = "_shadertoyRTV";
 		hr = this->_d3dDevice->CreateRenderTargetView(
-			this->_useMultisampling ? this->_shadertoyBufMSAA : this->_shadertoyBuf, 
-			this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA, 
+			this->_useMultisampling ? this->_shadertoyBufMSAA : this->_shadertoyBuf,
+			&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), 
 			&this->_shadertoyRTV);
 		if (FAILED(hr)) {
 			log_debug("[DBG] [ST] _shadertoyRTV FAILED");
@@ -2722,28 +3531,33 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// _ReticleRTV
 		if (g_bEnableVR) {
 			step = "_ReticleRTV";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_ReticleBufMSAA, &renderTargetViewDesc, &this->_ReticleRTV);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ReticleBufMSAA, &GetRtvDesc(this->_useMultisampling, false), &this->_ReticleRTV);
 			if (FAILED(hr)) goto out;
 		}
 
 		if (g_bUseSeparateEyeBuffers) {
 			step = "RenderTargetViewR";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferR, &renderTargetViewDesc, &this->_renderTargetViewR);
+			CD3D11_RENDER_TARGET_VIEW_DESC rtvDesc = GetRtvDesc(this->_useMultisampling, g_bUseSteamVR);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferR, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_renderTargetViewR);
 			if (FAILED(hr)) goto out;
 
 			step = "RenderTargetViewPostR";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPostR, &renderTargetViewDesc, &this->_renderTargetViewPostR);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferPostR, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_renderTargetViewPostR);
 			if (FAILED(hr)) goto out;
 
 			step = "renderTargetViewSteamVRResize";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVRPresentBuffer, &renderTargetViewDesc, &this->_renderTargetViewSteamVRResize);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVRPresentBuffer, &GetRtvDesc(this->_useMultisampling, false), &this->_renderTargetViewSteamVRResize);
+			if (FAILED(hr)) goto out;
+
+			step = "renderTargetViewSteamVRResizeOverlay";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_steamVROverlayBuffer, &GetRtvDesc(this->_useMultisampling, false), &this->_renderTargetViewSteamVROverlayResize);
 			if (FAILED(hr)) goto out;
 
 			step = "_shadertoyRTV_R";
 			// This RTV writes to a non-MSAA texture
 			hr = this->_d3dDevice->CreateRenderTargetView(
 				this->_useMultisampling ? this->_shadertoyBufMSAA_R : this->_shadertoyBufR,
-				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+				&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR),
 				&this->_shadertoyRTV_R);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [ST] _shadertoyRTV_R FAILED");
@@ -2754,29 +3568,29 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// Dynamic Cockpit RTVs
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
 			step = "_renderTargetViewDynCockpit";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpit, &renderTargetViewDesc, &this->_renderTargetViewDynCockpit);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpit, &GetRtvDesc(this->_useMultisampling, false), &this->_renderTargetViewDynCockpit);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpit FAILED");
 				goto out;
 			}
 
 			step = "_renderTargetViewDynCockpitBG";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpitBG, &renderTargetViewDesc, &this->_renderTargetViewDynCockpitBG);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpitBG, &GetRtvDesc(this->_useMultisampling, false), &this->_renderTargetViewDynCockpitBG);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpitBG FAILED");
 				goto out;
 			}
 
 			step = "_DCTextRTV";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_DCTextMSAA, &renderTargetViewDesc, &this->_DCTextRTV);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_DCTextMSAA, &GetRtvDesc(this->_useMultisampling, false), &this->_DCTextRTV);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [DC] _DCTextRTV FAILED");
 				goto out;
 			}
 			
 			step = "_renderTargetViewDynCockpitAsInput";
-			// This RTV writes to a non-MSAA texture
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpit, &renderTargetViewDescNoMSAA,
+			// This RTV writes to a monoscopic non-MSAA texture
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpit, &GetRtvDesc(false, false),
 				&this->_renderTargetViewDynCockpitAsInput);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpitAsInput FAILED");
@@ -2784,8 +3598,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			}
 
 			step = "_renderTargetViewDynCockpitAsInputBG";
-			// This RTV writes to a non-MSAA texture
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpitBG, &renderTargetViewDescNoMSAA,
+			// This RTV writes to a monoscopic non-MSAA texture
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenAsInputDynCockpitBG, &GetRtvDesc(false, false),
 				&this->_renderTargetViewDynCockpitAsInputBG);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [DC] _renderTargetViewDynCockpitAsInputBG FAILED");
@@ -2794,7 +3608,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			step = "_DCTextAsInputRTV";
 			// This RTV writes to a non-MSAA texture
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_DCTextAsInput, &renderTargetViewDescNoMSAA, &_DCTextAsInputRTV);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_DCTextAsInput, &GetRtvDesc(false, false), &_DCTextAsInputRTV);
 			if (FAILED(hr)) {
 				log_debug("[DBG] [DC] _DCTextAsInputRTV FAILED");
 				goto out;
@@ -2802,61 +3616,52 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		if (g_bReshadeEnabled) {
-			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
-			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 			
 			step = "_renderTargetViewBloomMask";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &renderTargetViewDesc, &this->_renderTargetViewBloomMask);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloomMask);
 			if (FAILED(hr)) goto out;
 
-			renderTargetViewDesc.Format = AO_MASK_FORMAT;
-			renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
 			step = "_renderTargetViewSSAOMask";
 			hr = this->_d3dDevice->CreateRenderTargetView(
-				this->_useMultisampling ? this->_ssaoMaskMSAA : this->_ssaoMask,
-				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
-				&this->_renderTargetViewSSAOMask);
+				this->_useMultisampling ? this->_ssaoMaskMSAA : this->_ssaoMask, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_MASK_FORMAT), &this->_renderTargetViewSSAOMask);
 			if (FAILED(hr)) goto out;
 
 			step = "_renderTargetViewSSMask";
 			hr = this->_d3dDevice->CreateRenderTargetView(
-				this->_useMultisampling ? this->_ssMaskMSAA : this->_ssMask,
-				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
-				&this->_renderTargetViewSSMask);
+				this->_useMultisampling ? this->_ssMaskMSAA : this->_ssMask, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_MASK_FORMAT), &this->_renderTargetViewSSMask);
 			if (FAILED(hr)) goto out;
 
 			//step = "_renderTargetViewEmissionMask";
 			//hr = this->_d3dDevice->CreateRenderTargetView(this->_ssEmissionMask, &renderTargetViewDescNoMSAA, 	&this->_renderTargetViewEmissionMask);
 			//if (FAILED(hr)) goto out;
 
-			renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
-			renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
 			step = "_renderTargetViewNormBuf";
 			hr = this->_d3dDevice->CreateRenderTargetView(
 				this->_useMultisampling ? this->_normBufMSAA : this->_normBuf,
-				this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+				&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_DEPTH_BUFFER_FORMAT),
 				&this->_renderTargetViewNormBuf);
 			if (FAILED(hr)) goto out;
 
-			if (g_bUseSeparateEyeBuffers) {
+			if (g_bUseSeparateEyeBuffers || g_bUseSteamVR) {
 				renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 				step = "_renderTargetViewBloomMaskR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR, &renderTargetViewDesc, &this->_renderTargetViewBloomMaskR);
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR,
+					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BLOOM_BUFFER_FORMAT),
+					&this->_renderTargetViewBloomMaskR);
 				if (FAILED(hr)) goto out;
 
-				renderTargetViewDesc.Format = AO_MASK_FORMAT;
-				renderTargetViewDescNoMSAA.Format = AO_MASK_FORMAT;
+
 				step = "_renderTargetViewSSAOMaskR";
 				hr = this->_d3dDevice->CreateRenderTargetView(
 					this->_useMultisampling ? this->_ssaoMaskMSAA_R : this->_ssaoMaskR,
-					this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_MASK_FORMAT),
 					&this->_renderTargetViewSSAOMaskR);
 				if (FAILED(hr)) goto out;
 
 				step = "_renderTargetViewSSMaskR";
 				hr = this->_d3dDevice->CreateRenderTargetView(
 					this->_useMultisampling ? this->_ssMaskMSAA_R : this->_ssMaskR,
-					this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_MASK_FORMAT),
 					&this->_renderTargetViewSSMaskR);
 				if (FAILED(hr)) goto out;
 
@@ -2864,35 +3669,28 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				//hr = this->_d3dDevice->CreateRenderTargetView(this->_ssEmissionMaskR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewEmissionMaskR);
 				//if (FAILED(hr)) goto out;
 
-				renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
-				renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
 				step = "_renderTargetViewNormBufR";
 				hr = this->_d3dDevice->CreateRenderTargetView(
 					this->_useMultisampling ? this->_normBufMSAA_R : this->_normBufR,
-					this->_useMultisampling ? &renderTargetViewDesc : &renderTargetViewDescNoMSAA,
+					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_DEPTH_BUFFER_FORMAT),
 					&this->_renderTargetViewNormBufR);
 				if (FAILED(hr)) goto out;
 			}
-
-			renderTargetViewDesc.Format = oldFormat;
 		}
 
 		// Bloom RTVs
 		if (g_bBloomEnabled) {
-			renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
-						
 			// These RTVs render to non-MSAA buffers
-			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
 			step = "_renderTargetViewBloom1";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom1);
 			if (FAILED(hr)) goto out;
 			
 			step = "_renderTargetViewBloom2";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom2);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom2);
 			if (FAILED(hr)) goto out;
 
 			step = "_renderTargetViewBloomSum";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSum);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloomSum);
 			if (FAILED(hr)) goto out;
 
 			renderTargetViewDesc.Format = SRGB_BUFFER_FORMAT;
@@ -2903,15 +3701,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			if (g_bUseSeparateEyeBuffers) {
 				step = "_renderTargetViewBloom1R";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom1R);
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom1R);
 				if (FAILED(hr)) goto out;
 
 				step = "_renderTargetViewBloom2R";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2R, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloom2R);
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2R, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom2R);
 				if (FAILED(hr)) goto out;
 
 				step = "_renderTargetViewBloomSumR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBloomSumR);
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloomSumR);
 				if (FAILED(hr)) goto out;
 
 				renderTargetViewDesc.Format = SRGB_BUFFER_FORMAT;
@@ -2920,44 +3718,54 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				if (FAILED(hr)) goto out;
 				renderTargetViewDesc.Format = BLOOM_BUFFER_FORMAT;
 			}
-
-			renderTargetViewDesc.Format = oldFormat;
 		}
 
+		// SSAO RTVs
 		if (g_bAOEnabled) {
-			renderTargetViewDesc.Format = AO_DEPTH_BUFFER_FORMAT;
-			CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDescNoMSAA(D3D11_RTV_DIMENSION_TEXTURE2D);
-			renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
-
 			step = "_renderTargetViewDepthBuf";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf, &renderTargetViewDesc, &this->_renderTargetViewDepthBuf);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBuf, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_DEPTH_BUFFER_FORMAT), &this->_renderTargetViewDepthBuf);
 			if (FAILED(hr)) goto out;
+
 			/*
 			step = "_renderTargetViewBentBuf";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBuf);
 			if (FAILED(hr)) goto out;
 			*/
-			renderTargetViewDescNoMSAA.Format = HDR_FORMAT;
-			step = "_renderTargetViewSSAO";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBuf, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO);
-			if (FAILED(hr)) goto out;
 
-			step = "_renderTargetViewSSAO_R";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewSSAO_R);
-			if (FAILED(hr)) goto out;
-
-			if (g_bUseSeparateEyeBuffers) {
-				renderTargetViewDescNoMSAA.Format = AO_DEPTH_BUFFER_FORMAT;
+			if (g_bUseSteamVR) {
 				step = "_renderTargetViewDepthBufR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &renderTargetViewDesc, &this->_renderTargetViewDepthBufR);
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_depthBufR, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, AO_DEPTH_BUFFER_FORMAT), &this->_renderTargetViewDepthBufR);
 				if (FAILED(hr)) goto out;
 
-				/*step = "_renderTargetViewBentBufR";
+				/*
+				step = "_renderTargetViewBentBufR";
 				hr = this->_d3dDevice->CreateRenderTargetView(this->_bentBufR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewBentBufR);
-				if (FAILED(hr)) goto out;*/
+				if (FAILED(hr)) goto out;
+				*/
 			}
+			step = "_renderTargetViewSSAO";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBuf, &GetRtvDesc(false, g_bUseSteamVR, HDR_FORMAT), &this->_renderTargetViewSSAO);
+			if (FAILED(hr)) goto out;
 
-			renderTargetViewDesc.Format = oldFormat;
+			// This buffer is needed in all cases, not only SteamVR/stereo rendering, since it is used later as Indirect SSDO buffer
+			step = "_renderTargetViewSSAO_R";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_ssaoBufR, &GetRtvDesc(false, g_bUseSteamVR, HDR_FORMAT), &this->_renderTargetViewSSAO_R);
+			if (FAILED(hr)) goto out;
+		}
+
+		// Raytracing Shadow Mask RTVs
+		if (g_bRTEnabled && g_bRTEnableSoftShadows) {
+			//renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
+			step = "_rtShadowMaskRTV";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMask, &GetRtvDesc(false, g_bUseSteamVR, RT_SHADOW_FORMAT), &this->_rtShadowMaskRTV);
+			if (FAILED(hr)) goto out;
+
+			if (g_bUseSteamVR || g_bUseSeparateEyeBuffers) {
+				//renderTargetViewDescNoMSAA.Format = RT_SHADOW_FORMAT;
+				step = "_rtShadowMaskRTV_R";
+				hr = this->_d3dDevice->CreateRenderTargetView(this->_rtShadowMaskR, &GetRtvDesc(false, g_bUseSteamVR, RT_SHADOW_FORMAT), &this->_rtShadowMaskRTV_R);
+				if (FAILED(hr)) goto out;
+			}
 		}
 	}
 
@@ -2969,8 +3777,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		depthStencilDesc.Width = this->_backbufferWidth;
 		depthStencilDesc.Height = this->_backbufferHeight;
 		depthStencilDesc.MipLevels = 1;
-		depthStencilDesc.ArraySize = 1;
-		depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		depthStencilDesc.ArraySize = g_bUseSteamVR ? 2 : 1;
+		depthStencilDesc.Format = DEPTH_BUFFER_FORMAT;
 		depthStencilDesc.SampleDesc.Count = this->_sampleDesc.Count;
 		depthStencilDesc.SampleDesc.Quality = this->_sampleDesc.Quality;
 		depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -2979,20 +3787,50 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		depthStencilDesc.MiscFlags = 0;
 
 		hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_depthStencilL);
+
+		// In VR mode, we can keep _depthStencilViewR as it was before: a non-array single texture. We
+		// can then use it for things that only render once even in VR, like the CMD miniature.
+		depthStencilDesc.ArraySize = 1;
+		hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_depthStencilR);
+
+		// This lambda function will return the right SrvDesc according to the requested parameters.	
+		auto GetSrvDesc = [](
+			bool useMultisampling,
+			bool instancedStereoRendering
+			)
+		{
+			CD3D11_DEPTH_STENCIL_VIEW_DESC srvDesc;
+			if (useMultisampling) {
+				if (instancedStereoRendering) {
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY);
+					srvDesc.Texture2DMSArray.ArraySize = 2;
+				}
+				else
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DMS);
+			}
+			else {
+				if (instancedStereoRendering) {
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2DARRAY);
+					srvDesc.Texture2DArray.ArraySize = 2;
+				}
+				else
+					srvDesc = CD3D11_DEPTH_STENCIL_VIEW_DESC(D3D11_DSV_DIMENSION_TEXTURE2D);
+			}
+			return srvDesc;
+		};
+
 		if (SUCCEEDED(hr))
 		{
 			step = "DepthStencilViewL";
-			CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(this->_useMultisampling ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D);
-			hr = this->_d3dDevice->CreateDepthStencilView(this->_depthStencilL, &depthStencilViewDesc, &this->_depthStencilViewL);
+			CD3D11_DEPTH_STENCIL_VIEW_DESC srvDesc = GetSrvDesc(this->_useMultisampling, g_bUseSteamVR);
+			hr = this->_d3dDevice->CreateDepthStencilView(this->_depthStencilL, &GetSrvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_depthStencilViewL);
 			if (FAILED(hr)) goto out;
 		}
 
-		hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_depthStencilR);
 		if (SUCCEEDED(hr))
 		{
-			step = "DepthStencilViewR";
-			CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(this->_useMultisampling ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D);
-			hr = this->_d3dDevice->CreateDepthStencilView(this->_depthStencilR, &depthStencilViewDesc, &this->_depthStencilViewR);
+			step = "DepthStencilViewR";			
+			hr = this->_d3dDevice->CreateDepthStencilView(this->_depthStencilR, &GetSrvDesc(this->_useMultisampling, false), &this->_depthStencilViewR);
 			if (FAILED(hr)) goto out;
 		}
 
@@ -3011,11 +3849,28 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMap);
 			if (FAILED(hr)) goto out;
 
+			if (g_ShadowMapping.bCSMEnabled) {
+				step = "_csmMap";
+				depthStencilDesc.Width = CSM_MAP_SIZE;
+				depthStencilDesc.Height = CSM_MAP_SIZE;
+				hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_csmMap);
+				if (FAILED(hr)) goto out;
+			}
+
 			step = "_shadowMapDSV";
 			CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(D3D11_DSV_DIMENSION_TEXTURE2D, DXGI_FORMAT_D32_FLOAT);
 			hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMap, &depthStencilViewDesc, &this->_shadowMapDSV);
 			if (FAILED(hr)) goto out;
 
+			if (g_ShadowMapping.bCSMEnabled) {
+				step = "_csmMapDSV";
+				CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(D3D11_DSV_DIMENSION_TEXTURE2D, DXGI_FORMAT_D32_FLOAT);
+				hr = this->_d3dDevice->CreateDepthStencilView(this->_shadowMap, &depthStencilViewDesc, &this->_csmMapDSV);
+				if (FAILED(hr)) goto out;
+			}
+
+			depthStencilDesc.Width = g_ShadowMapping.ShadowMapSize;
+			depthStencilDesc.Height = g_ShadowMapping.ShadowMapSize;
 			depthStencilDesc.Format = DXGI_FORMAT_R32_FLOAT;
 			depthStencilDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 			step = "_shadowMapDebug";
@@ -3029,6 +3884,16 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_shadowMapArray);
 			if (FAILED(hr)) goto out;
 
+			if (g_ShadowMapping.bCSMEnabled) {
+				// Inherit previous values
+				step = "_csmArray";
+				depthStencilDesc.Width = CSM_MAP_SIZE;
+				depthStencilDesc.Height = CSM_MAP_SIZE;
+				depthStencilDesc.ArraySize = MAX_CSM_LEVELS;
+				hr = this->_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, &this->_csmArray);
+				if (FAILED(hr)) goto out;
+			}
+
 			step = "_shadowMapArraySRV";
 			D3D11_SHADER_RESOURCE_VIEW_DESC depthStencilSRVDesc;
 			depthStencilSRVDesc.Format = DXGI_FORMAT_R32_FLOAT;
@@ -3039,6 +3904,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			depthStencilSRVDesc.Texture2DArray.ArraySize = MAX_XWA_LIGHTS;
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadowMapArray, &depthStencilSRVDesc, &this->_shadowMapArraySRV);
 			if (FAILED(hr)) goto out;
+
+			if (g_ShadowMapping.bCSMEnabled) {
+				// Inherit previous values
+				step = "_csmArraySRV";
+				depthStencilSRVDesc.Texture2DArray.ArraySize = MAX_CSM_LEVELS;
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_csmArray, &depthStencilSRVDesc, &this->_csmArraySRV);
+				if (FAILED(hr)) goto out;
+			}
 
 			/*
 			step = "_shadowMapSingleSRV";
@@ -3127,6 +4000,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// _offscreenBuffer. This is used to render things like the brackets that shouldn't
 		// be captured in the DC buffers. Currently only used in PrimarySurface::RenderBracket()
 		hr = this->_offscreenBuffer.As(&offscreenSurface);
+
 		// This surface can be used to render directly to the DC foreground buffer
 		if (g_bDynCockpitEnabled)
 			hr = this->_offscreenBufferDynCockpit.As(&DCSurface);
@@ -3136,18 +4010,24 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (SUCCEEDED(hr))
 		{
 			auto properties = D2D1::RenderTargetProperties();
-			properties.pixelFormat = D2D1::PixelFormat(BACKBUFFER_FORMAT, D2D1_ALPHA_MODE_PREMULTIPLIED);
+			properties.pixelFormat = D2D1::PixelFormat(BACKBUFFER_FORMAT, D2D1_ALPHA_MODE_PREMULTIPLIED);			
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
-			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(DCSurface, properties, &this->_d2d1DCRenderTarget);
+
+			//We don't need the D2D1 surfaces in VR mode, the brackets will be rendered in the original way by Execute()
+			if (!g_bEnableVR)
+				hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
 
 			if (SUCCEEDED(hr))
 			{
 				this->_d2d1RenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1RenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
 
-				this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
-				this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+				if (!g_bEnableVR)
+				{
+					this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
+					this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+				}
 
 				this->_d2d1DCRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1DCRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
@@ -3159,6 +4039,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	{
 		step = "CreateDrawingStateBlock";
 		hr = this->_d2d1Factory->CreateDrawingStateBlock(&this->_d2d1DrawingStateBlock);
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		D3dRendererFlightStart();
 	}
 
 out:
@@ -3208,6 +4093,9 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SimpleResizePS, sizeof(g_SimpleResizePS), nullptr, &_simpleResizePS)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_DeathStarShader, sizeof(g_DeathStarShader), nullptr, &_deathStarPS)))
 		return hr;
 
@@ -3220,49 +4108,84 @@ HRESULT DeviceResources::LoadMainResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
-		return hr;
+	if (g_bUseSteamVR || g_bEnableVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_MainVertexShaderVR, sizeof(g_MainVertexShaderVR), nullptr, &_mainVertexShaderVR)))
+			return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
-		return hr;
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperComposeVR, sizeof(g_HyperComposeVR), nullptr, &_hyperComposePS_VR)))
+			return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
-		return hr;
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectComposeVR, sizeof(g_SpeedEffectComposeVR), nullptr, &_speedEffectComposePS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShaderVR, sizeof(g_SunFlareShaderVR), nullptr, &_sunFlareShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareComposeVR, sizeof(g_SunFlareComposeVR), nullptr, &_sunFlareComposeShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShaderVR, sizeof(g_ExternalHUDShaderVR), nullptr, &_externalHUDPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS_VR)))
+			return hr;
+	}
+	else
+	{
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointer, sizeof(g_LaserPointer), nullptr, &_laserPointerPS)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
@@ -3272,6 +4195,12 @@ HRESULT DeviceResources::LoadMainResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_XwaD3dCSMVertexShader, sizeof(g_XwaD3dCSMVertexShader), nullptr, &_csmVS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
@@ -3294,35 +4223,84 @@ HRESULT DeviceResources::LoadMainResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_GammaFix, sizeof(g_GammaFix), nullptr, &_gammaFixPS)))
 		return hr;
+	
+	if (g_bBloomEnabled)
+	{
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
+				return hr;
 
-	if (g_bBloomEnabled) {
-		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomPrePassPS, sizeof(g_BloomPrePassPS), 	nullptr, &_bloomPrepassPS)))
-		//	return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS_VR, sizeof(g_BloomVGaussPS_VR), nullptr, &_bloomVGaussPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
-			return hr;
-		
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS_VR, sizeof(g_BloomBufferAddPS_VR), nullptr, &_bloomBufferAddPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS_VR, sizeof(g_BloomCombinePS_VR), nullptr, &_bloomCombinePS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+				return hr;
+		}
 	}
 
-	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
-			return hr;
+	if (g_bAOEnabled)
+	{
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
-			return hr;
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlurVR, sizeof(g_SSDOBlurVR), nullptr, &_ssdoBlurPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddVR, sizeof(g_SSDOAddVR), nullptr, &_ssdoAddPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectVR, sizeof(g_SSDODirectVR), nullptr, &_ssdoDirectPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAddVR, sizeof(g_PBRAddVR), nullptr, &_pbrAddPS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
+				return hr;
+		}
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
@@ -3334,17 +4312,11 @@ HRESULT DeviceResources::LoadMainResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
-			return hr;
-
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
 		//	return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
 	}
 
 	if (this->_d3dFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
@@ -3390,6 +4362,25 @@ HRESULT DeviceResources::LoadMainResources()
 	samplerDesc.BorderColor[3] = 0.0f;
 
 	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &this->_mainSamplerState)))
+		return hr;
+
+	// This sampler is used when doing the SSAO/Deferred Pass in PrimarySurface so that samples
+	// can be mirrrored across the boundary of the viewport.
+	samplerDesc.Filter = this->_useAnisotropy ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.MaxAnisotropy = this->_useAnisotropy ? this->GetMaxAnisotropy() : 1;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_MIRROR;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_MIRROR;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_MIRROR;
+	samplerDesc.MipLODBias = 0.0f;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = FLT_MAX;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.BorderColor[0] = 0.0f;
+	samplerDesc.BorderColor[1] = 0.0f;
+	samplerDesc.BorderColor[2] = 0.0f;
+	samplerDesc.BorderColor[3] = 0.0f;
+
+	if (FAILED(hr = this->_d3dDevice->CreateSamplerState(&samplerDesc, &_mirrorSamplerState)))
 		return hr;
 
 	D3D11_BLEND_DESC blendDesc;
@@ -3473,9 +4464,6 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &_vertexShader)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_PassthroughVertexShader, sizeof(g_PassthroughVertexShader), nullptr, &_passthroughVertexShader)))
 		return hr;
 
@@ -3490,13 +4478,28 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &_inputLayout)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_SBSVertexShader, sizeof(g_SBSVertexShader), &_inputLayout)))
+	// Input layout specific for shadowmap, as the input (shadow OBJ) only contains position information
+	const D3D11_INPUT_ELEMENT_DESC shadowVertexLayoutDesc[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+
+	if (FAILED(hr = this->_d3dDevice->CreateInputLayout(shadowVertexLayoutDesc, ARRAYSIZE(shadowVertexLayoutDesc), g_ShadowMapVS, sizeof(g_ShadowMapVS), &_shadowMapInputLayout)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderTexture, sizeof(g_PixelShaderTexture), nullptr, &_pixelShaderTexture)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimLightMap, sizeof(g_PixelShaderAnimLightMap), nullptr, &_pixelShaderAnimLightMap)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnim, sizeof(g_PixelShaderAnim), nullptr, &_pixelShaderAnim)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderAnimDAT, sizeof(g_PixelShaderAnimDAT), nullptr, &_pixelShaderAnimDAT)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderGreeble, sizeof(g_PixelShaderGreeble), nullptr, &_pixelShaderGreeble)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LevelsPS, sizeof(g_LevelsPS), nullptr, &_levelsPS)))
 		return hr;
 
 	if (g_bDynCockpitEnabled) {
@@ -3522,6 +4525,9 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BarrelPixelShader, sizeof(g_BarrelPixelShader), nullptr, &_barrelPixelShader)))
 		return hr;
 
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SimpleResizePS, sizeof(g_SimpleResizePS), nullptr, &_simpleResizePS)))
+		return hr;
+
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SingleBarrelPixelShader, sizeof(g_SingleBarrelPixelShader), nullptr, &_singleBarrelPixelShader)))
 		return hr;
 
@@ -3537,49 +4543,99 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperTunnel, sizeof(g_HyperTunnel), nullptr, &_hyperTunnelPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperZoom, sizeof(g_HyperZoom), nullptr, &_hyperZoomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunShader, sizeof(g_SunShader), nullptr, &_sunShaderPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
-		return hr;
-
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectPixelShader, sizeof(g_SpeedEffectPixelShader), nullptr, &_speedEffectPS)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderVRGeom, sizeof(g_PixelShaderVRGeom), nullptr, &_pixelShaderVRGeom)))
 		return hr;
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
-		return hr;
+	if (g_bEnableVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SBSVertexShader, sizeof(g_SBSVertexShader), nullptr, &_sbsVertexShader)))
+			return hr;
+	}
 
-	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
-		return hr;
+	if (g_bUseSteamVR || g_bEnableVR)
+	{
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_DATVertexShaderVR, sizeof(g_DATVertexShaderVR), nullptr, &_datVertexShaderVR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperComposeVR, sizeof(g_HyperComposeVR), nullptr, &_hyperComposePS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShaderVR, sizeof(g_SpeedEffectVertexShaderVR), nullptr, &_speedEffectVS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectComposeVR, sizeof(g_SpeedEffectComposeVR), nullptr, &_speedEffectComposePS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_AddGeometryVertexShader, sizeof(g_AddGeometryVertexShader), nullptr, &_addGeomVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA_VR, sizeof(g_FXAA_VR), nullptr, &_fxaaPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShaderVR, sizeof(g_SunFlareShaderVR), nullptr, &_sunFlareShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareComposeVR, sizeof(g_SunFlareComposeVR), nullptr, &_sunFlareComposeShaderPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShaderVR, sizeof(g_ExternalHUDShaderVR), nullptr, &_externalHUDPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS_VR, sizeof(g_HeadLightsPS_VR), nullptr, &_headLightsPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS_VR, sizeof(g_RTShadowMaskPS_VR), nullptr, &_rtShadowMaskPS_VR)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS_VR)))
+			return hr;
+	}
+	else
+	{
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HyperCompose, sizeof(g_HyperCompose), nullptr, &_hyperComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_SpeedEffectVertexShader, sizeof(g_SpeedEffectVertexShader), nullptr, &_speedEffectVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SpeedEffectCompose, sizeof(g_SpeedEffectCompose), nullptr, &_speedEffectComposePS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_FXAA, sizeof(g_FXAA), nullptr, &_fxaaPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareShader, sizeof(g_SunFlareShader), nullptr, &_sunFlareShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SunFlareCompose, sizeof(g_SunFlareCompose), nullptr, &_sunFlareComposeShaderPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_ExternalHUDShader, sizeof(g_ExternalHUDShader), nullptr, &_externalHUDPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_RTShadowMaskPS, sizeof(g_RTShadowMaskPS), nullptr, &_rtShadowMaskPS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointer, sizeof(g_LaserPointer), nullptr, &_laserPointerPS)))
+			return hr;
+	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryPixelShader, sizeof(g_AddGeometryPixelShader), nullptr, &_addGeomPS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_AddGeometryComposePixelShader, sizeof(g_AddGeometryComposePixelShader), nullptr, &_addGeomComposePS)))
-		return hr;
-
-	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsPS, sizeof(g_HeadLightsPS), nullptr, &_headLightsPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HeadLightsSSAOPS, sizeof(g_HeadLightsSSAOPS), nullptr, &_headLightsSSAOPS)))
@@ -3589,6 +4645,12 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_ShadowMapVS, sizeof(g_ShadowMapVS), nullptr, &_shadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HangarShadowMapVS, sizeof(g_HangarShadowMapVS), nullptr, &_hangarShadowMapVS)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_XwaD3dCSMVertexShader, sizeof(g_XwaD3dCSMVertexShader), nullptr, &_csmVS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EdgeDetector, sizeof(g_EdgeDetector), nullptr, &_edgeDetectorPS)))
@@ -3611,32 +4673,83 @@ HRESULT DeviceResources::LoadResources()
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_GammaFix, sizeof(g_GammaFix), nullptr, &_gammaFixPS)))
 		return hr;
+	
+	if (g_bBloomEnabled)
+	{
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS_VR, sizeof(g_BloomHGaussPS_VR), nullptr, &_bloomHGaussPS_VR)))
+				return hr;
 
-	if (g_bBloomEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS_VR, sizeof(g_BloomVGaussPS_VR), nullptr, &_bloomVGaussPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS_VR, sizeof(g_BloomBufferAddPS_VR), nullptr, &_bloomBufferAddPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS_VR, sizeof(g_BloomCombinePS_VR), nullptr, &_bloomCombinePS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomHGaussPS, sizeof(g_BloomHGaussPS), nullptr, &_bloomHGaussPS)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomVGaussPS, sizeof(g_BloomVGaussPS), nullptr, &_bloomVGaussPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomBufferAddPS, sizeof(g_BloomBufferAddPS), nullptr, &_bloomBufferAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_BloomCombinePS, sizeof(g_BloomCombinePS), nullptr, &_bloomCombinePS)))
+				return hr;
+		}
 	}
 
-	if (g_bAOEnabled) {
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
-			return hr;
+	if (g_bAOEnabled)
+	{
+		if (g_bUseSteamVR || g_bEnableVR)
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShaderVR, sizeof(g_SSAOBlurPixelShaderVR), nullptr, &_ssaoBlurPS_VR)))
+				return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
-			return hr;
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShaderVR, sizeof(g_SSAOPixelShaderVR), nullptr, &_ssaoPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlurVR, sizeof(g_SSDOBlurVR), nullptr, &_ssdoBlurPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddVR, sizeof(g_SSDOAddVR), nullptr, &_ssdoAddPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectVR, sizeof(g_SSDODirectVR), nullptr, &_ssdoDirectPS_VR)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAddVR, sizeof(g_PBRAddVR), nullptr, &_pbrAddPS_VR)))
+				return hr;
+		}
+		else
+		{
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOBlurPixelShader, sizeof(g_SSAOBlurPixelShader), nullptr, &_ssaoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOPixelShader, sizeof(g_SSAOPixelShader), nullptr, &_ssaoPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
+				return hr;
+
+			if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PBRAdd, sizeof(g_PBRAdd), nullptr, &_pbrAddPS)))
+				return hr;
+		}
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSAOAddPixelShader, sizeof(g_SSAOAddPixelShader), nullptr, &_ssaoAddPS)))
-			return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirect, sizeof(g_SSDODirect), nullptr, &_ssdoDirectPS)))
 			return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDODirectBentNormals, sizeof(g_SSDODirectBentNormals), nullptr, &_ssdoDirectBentNormalsPS)))
@@ -3648,17 +4761,11 @@ HRESULT DeviceResources::LoadResources()
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOIndirect, sizeof(g_SSDOIndirect), nullptr, &_ssdoIndirectPS)))
 			return hr;
 
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAdd, sizeof(g_SSDOAdd), nullptr, &_ssdoAddPS)))
-			return hr;
-
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddHDR, sizeof(g_SSDOAddHDR), nullptr, &_ssdoAddHDRPS)))
 		//	return hr;
 
 		//if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOAddBentNormals, sizeof(g_SSDOAddBentNormals), nullptr, &_ssdoAddBentNormalsPS)))
 		//	return hr;
-
-		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_SSDOBlur, sizeof(g_SSDOBlur), nullptr, &_ssdoBlurPS)))
-			return hr;
 	}
 
 	D3D11_RASTERIZER_DESC rsDesc;
@@ -3730,20 +4837,20 @@ HRESULT DeviceResources::LoadResources()
 	constantBufferDesc.MiscFlags = 0;
 	constantBufferDesc.StructureByteStride = 0;
 
-	constantBufferDesc.ByteWidth = 48;
+	constantBufferDesc.ByteWidth = 80;
 	// This was the original constant buffer. Now it's called _VSConstantBuffer
-	static_assert(sizeof(VertexShaderCBuffer) == 48, "sizeof(VertexShaderCBuffer) must be 48");
+	static_assert(sizeof(VertexShaderCBuffer) == 80, "sizeof(VertexShaderCBuffer) must be 80");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 192; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	// 192 bytes is 3 matrices
-	static_assert(sizeof(VertexShaderMatrixCB) == 192, "sizeof(VertexShaderMatrixCB) must be 192");
+	constantBufferDesc.ByteWidth = 272; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	// 256 bytes is 2+1+1 matrices + 16 bytes for extra information
+	static_assert(sizeof(VertexShaderMatrixCB) == 272, "sizeof(VertexShaderMatrixCB) must be 272");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSMatrixBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 752; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
-	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 752, "sizeof(ShadowMapVertexShaderMatrixCB) must be 752");
+	constantBufferDesc.ByteWidth = 816; // 4x4 elems in a matrix = 16 elems. Each elem is a float, so 4 bytes * 16 = 64 bytes per matrix. This is a multiple of 16
+	static_assert(sizeof(ShadowMapVertexShaderMatrixCB) == 816, "sizeof(ShadowMapVertexShaderMatrixCB) must be 816");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingVSConstantBuffer)))
 		return hr;
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadowMappingPSConstantBuffer)))
@@ -3757,8 +4864,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the (3D) textured pixel shader
-	constantBufferDesc.ByteWidth = 112;
-	static_assert(sizeof(PixelShaderCBuffer) == 112, "sizeof(PixelShaderCBuffer) must be 112");
+	constantBufferDesc.ByteWidth = 224;
+	static_assert(sizeof(PixelShaderCBuffer) == 224, "sizeof(PixelShaderCBuffer) must be 224");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_PSConstantBuffer)))
 		return hr;
 
@@ -3787,8 +4894,8 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Laser Pointer (Active Cockpit) constant buffer
-	constantBufferDesc.ByteWidth = 112;
-	static_assert(sizeof(LaserPointerCBuffer) == 112, "sizeof(LaserPointerCBuffer) must be 112");
+	constantBufferDesc.ByteWidth = 288;
+	static_assert(sizeof(LaserPointerCBuffer) == 288, "sizeof(LaserPointerCBuffer) must be 288");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_laserPointerConstantBuffer)))
 		return hr;
 
@@ -3798,8 +4905,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_ssaoConstantBuffer)))
 		return hr;
 
-	constantBufferDesc.ByteWidth = 608;
-	static_assert(sizeof(PSShadingSystemCB) == 608, "sizeof(PSShadingSystemCB) must be 608");
+	constantBufferDesc.ByteWidth = 1120;
+	static_assert(sizeof(PSShadingSystemCB) == 1120, "sizeof(PSShadingSystemCB) must be 1120");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_shadingSysBuffer)))
 		return hr;
 
@@ -3808,6 +4915,27 @@ HRESULT DeviceResources::LoadResources()
 	static_assert(sizeof(MainShadersCBStruct) == 32, "sizeof(MainShadersCBStruct) must be 32");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_mainShadersConstantBuffer)))
 		return hr;
+
+	// Create the constant buffer for the main pixel shader
+	constantBufferDesc.ByteWidth = 64;
+	static_assert(sizeof(OPTMeshTransformCBuffer) == 64, "sizeof(OPTMeshTransformCBuffer) must be 64");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_OPTMeshTransformCB)))
+		return hr;
+
+	// Create the constant buffer for the ray-tracer
+	constantBufferDesc.ByteWidth = 48;
+	static_assert(sizeof(RTConstantsBuffer) == 48, "sizeof(RTConstantsBuffer) must be 48");
+	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_RTConstantsBuffer)))
+		return hr;
+
+	// Create the constant buffer for the VR Geometry
+	if (g_bUseSteamVR)
+	{
+		constantBufferDesc.ByteWidth = 112;
+		static_assert(sizeof(VRGeometryCBuffer) == 112, "sizeof(VRGeometryCBuffer) must be 112");
+		if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_VRGeometryCBuffer)))
+			return hr;
+	}
 
 	log_debug("[DBG] [MAT] Initializing OPTnames and Materials");
 	InitOPTnames();
@@ -3821,7 +4949,7 @@ void DeviceResources::InitInputLayout(ID3D11InputLayout* inputLayout)
 {
 	static ID3D11InputLayout* currentInputLayout = nullptr;
 
-	if (inputLayout != currentInputLayout)
+	//if (inputLayout != currentInputLayout)
 	{
 		currentInputLayout = inputLayout;
 		this->_d3dDeviceContext->IASetInputLayout(inputLayout);
@@ -3832,7 +4960,7 @@ void DeviceResources::InitVertexShader(ID3D11VertexShader* vertexShader)
 {
 	static ID3D11VertexShader* currentVertexShader = nullptr;
 
-	if (vertexShader != currentVertexShader)
+	//if (vertexShader != currentVertexShader)
 	{
 		currentVertexShader = vertexShader;
 		this->_d3dDeviceContext->VSSetShader(vertexShader, nullptr, 0);
@@ -3841,12 +4969,26 @@ void DeviceResources::InitVertexShader(ID3D11VertexShader* vertexShader)
 
 void DeviceResources::InitPixelShader(ID3D11PixelShader* pixelShader)
 {
-	static ID3D11PixelShader* currentPixelShader = nullptr;
-
-	if (pixelShader != currentPixelShader)
+	//if (pixelShader != _currentPixelShader)
 	{
-		currentPixelShader = pixelShader;
+		_currentPixelShader = pixelShader;
 		this->_d3dDeviceContext->PSSetShader(pixelShader, nullptr, 0);
+	}
+}
+
+ID3D11PixelShader *DeviceResources::GetCurrentPixelShader()
+{
+	return _currentPixelShader;
+}
+
+void DeviceResources::InitGeometryShader(ID3D11GeometryShader* geometryShader)
+{
+	static ID3D11GeometryShader* currentGeometryShader = nullptr;
+
+	if (geometryShader != currentGeometryShader)
+	{
+		currentGeometryShader = geometryShader;
+		this->_d3dDeviceContext->GSSetShader(geometryShader, nullptr, 0);
 	}
 }
 
@@ -3854,7 +4996,7 @@ void DeviceResources::InitTopology(D3D_PRIMITIVE_TOPOLOGY topology)
 {
 	D3D_PRIMITIVE_TOPOLOGY currentTopology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
-	if (topology != currentTopology)
+	//if (topology != currentTopology)
 	{
 		currentTopology = topology;
 		this->_d3dDeviceContext->IASetPrimitiveTopology(topology);
@@ -3865,22 +5007,25 @@ void DeviceResources::InitRasterizerState(ID3D11RasterizerState* state)
 {
 	static ID3D11RasterizerState* currentState = nullptr;
 
-	if (state != currentState)
+	//if (state != currentState)
 	{
 		currentState = state;
 		this->_d3dDeviceContext->RSSetState(state);
 	}
 }
 
-void DeviceResources::InitPSShaderResourceView(ID3D11ShaderResourceView* texView)
+void DeviceResources::InitPSShaderResourceView(ID3D11ShaderResourceView* texView, ID3D11ShaderResourceView* texView2)
 {
-	static ID3D11ShaderResourceView* currentTexView = nullptr;
+	//static ID3D11ShaderResourceView* currentTexView = nullptr;
+	//static ID3D11ShaderResourceView* currentTexView2 = nullptr;
 
-	//if (texView != currentTexView) // Temporarily allow setting this all the time
+	//if (texView != currentTexView || texView2 != currentTexView2) // Temporarily allow setting this all the time
 	{
-		ID3D11ShaderResourceView* view = texView;
-		this->_d3dDeviceContext->PSSetShaderResources(0, 1, &view);
-		currentTexView = texView;
+		ID3D11ShaderResourceView* view[2] = { texView , texView2 };
+
+		this->_d3dDeviceContext->PSSetShaderResources(0, 2, view);
+		//currentTexView = texView;
+		//currentTexView2 = texView2;
 	}
 }
 
@@ -3889,9 +5034,9 @@ HRESULT DeviceResources::InitSamplerState(ID3D11SamplerState** sampler, D3D11_SA
 	static ID3D11SamplerState** currentSampler = nullptr;
 	static D3D11_SAMPLER_DESC currentDesc{};
 
-	if (sampler == nullptr)
+	if (sampler == nullptr && desc != nullptr)
 	{
-		if (memcmp(desc, &currentDesc, sizeof(D3D11_SAMPLER_DESC)) != 0)
+		//if (memcmp(desc, &currentDesc, sizeof(D3D11_SAMPLER_DESC)) != 0)
 		{
 			HRESULT hr;
 			ComPtr<ID3D11SamplerState> tempSampler;
@@ -3905,7 +5050,7 @@ HRESULT DeviceResources::InitSamplerState(ID3D11SamplerState** sampler, D3D11_SA
 	}
 	else
 	{
-		if (sampler != currentSampler)
+		//if (sampler != currentSampler)
 		{
 			currentDesc = {};
 			currentSampler = sampler;
@@ -3921,9 +5066,9 @@ HRESULT DeviceResources::InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DES
 	static ID3D11BlendState* currentBlend = nullptr;
 	static D3D11_BLEND_DESC currentDesc{};
 
-	if (blend == nullptr)
+	if (blend == nullptr && desc != nullptr)
 	{
-		if (memcmp(desc, &currentDesc, sizeof(D3D11_BLEND_DESC)) != 0)
+		//if (memcmp(desc, &currentDesc, sizeof(D3D11_BLEND_DESC)) != 0)
 		{
 			HRESULT hr;
 			ComPtr<ID3D11BlendState> tempBlend;
@@ -3940,7 +5085,7 @@ HRESULT DeviceResources::InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DES
 	}
 	else
 	{
-		if (blend != currentBlend)
+		//if (blend != currentBlend)
 		{
 			currentDesc = {};
 			currentBlend = blend;
@@ -3954,14 +5099,14 @@ HRESULT DeviceResources::InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DES
 	return S_OK;
 }
 
-HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc)
+HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc, UINT stencilReference)
 {
 	static ID3D11DepthStencilState* currentDepthState = nullptr;
 	static D3D11_DEPTH_STENCIL_DESC currentDesc{};
 
-	if (depthState == nullptr)
+	if (depthState == nullptr && desc != nullptr)
 	{
-		if (memcmp(desc, &currentDesc, sizeof(D3D11_DEPTH_STENCIL_DESC)) != 0)
+		//if (memcmp(desc, &currentDesc, sizeof(D3D11_DEPTH_STENCIL_DESC)) != 0)
 		{
 			HRESULT hr;
 			ComPtr<ID3D11DepthStencilState> tempDepthState;
@@ -3970,16 +5115,16 @@ HRESULT DeviceResources::InitDepthStencilState(ID3D11DepthStencilState* depthSta
 
 			currentDesc = *desc;
 			currentDepthState = tempDepthState;
-			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, 0);
+			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, stencilReference);
 		}
 	}
 	else
 	{
-		if (depthState != currentDepthState)
+		//if (depthState != currentDepthState)
 		{
 			currentDesc = {};
 			currentDepthState = depthState;
-			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, 0);
+			this->_d3dDeviceContext->OMSetDepthStencilState(currentDepthState, stencilReference);
 		}
 	}
 
@@ -3990,10 +5135,14 @@ void DeviceResources::InitVertexBuffer(ID3D11Buffer** buffer, UINT* stride, UINT
 {
 	static ID3D11Buffer** currentBuffer = nullptr;
 
-	if (buffer != currentBuffer)
+	//if (buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
-		this->_d3dDeviceContext->IASetVertexBuffers(0, 1, buffer, stride, offset);
+
+		if (buffer)
+		{
+			this->_d3dDeviceContext->IASetVertexBuffers(0, 1, buffer, stride, offset);
+		}
 	}
 }
 
@@ -4001,52 +5150,41 @@ void DeviceResources::InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32)
 {
 	static ID3D11Buffer* currentBuffer = nullptr;
 
-	if (buffer != currentBuffer)
+	//if (buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
-		this->_d3dDeviceContext->IASetIndexBuffer(buffer, isFormat32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT, 0);
+
+		if (buffer)
+		{
+			this->_d3dDeviceContext->IASetIndexBuffer(buffer, isFormat32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT, 0);
+		}
 	}
 }
 
 void DeviceResources::InitViewport(D3D11_VIEWPORT* viewport)
 {
-	static D3D11_VIEWPORT currentViewport{};
+	//static D3D11_VIEWPORT currentViewport{};
 
-	if (memcmp(viewport, &currentViewport, sizeof(D3D11_VIEWPORT)) != 0)
+	// For the D3dRendererHook we're now switching between the old and new methods, but sometimes
+	// the viewport isn't set properly. I'm disabling this check now to ensure that we always
+	// set the viewport
+	//if (memcmp(viewport, &currentViewport, sizeof(D3D11_VIEWPORT)) != 0)
 	{
-		currentViewport = *viewport;
+		//currentViewport = *viewport;
 		this->_d3dDeviceContext->RSSetViewports(1, viewport);
 	}
 }
 
 void DeviceResources::InitVSConstantBuffer3D(ID3D11Buffer** buffer, const VertexShaderCBuffer* vsCBuffer)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static VertexShaderCBuffer currentVSConstants = { 0 };
-	static int sizeof_constants = sizeof(VertexShaderCBuffer);
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		memcmp(vsCBuffer, &currentVSConstants, sizeof_constants) != 0)
-	{
-		memcpy(&currentVSConstants, vsCBuffer, sizeof_constants);
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
-	}
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_3D ||
-		buffer != currentBuffer)
-	{
-		currentBuffer = buffer;
-		this->_d3dDeviceContext->VSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_3D;
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
+	_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
 }
 
 void DeviceResources::InitVSConstantBufferMatrix(ID3D11Buffer** buffer, const VertexShaderMatrixCB* vsCBuffer)
 {
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsCBuffer, 0, 0);
-	this->_d3dDeviceContext->VSSetConstantBuffers(1, 1, buffer);
+	this->_d3dDeviceContext->VSSetConstantBuffers(2, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer)
@@ -4056,67 +5194,64 @@ void DeviceResources::InitPSConstantShadingSystem(ID3D11Buffer** buffer, const P
 }
 
 void DeviceResources::InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
-	const float aspectRatio, const float scale, const float brightness, const float use_3D)
+	const float aspect_ratio, const float scale, const float brightness, const float use_3D)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_2D ||
-		g_MSCBuffer.parallax != parallax ||
-		g_MSCBuffer.aspectRatio != aspectRatio ||
-		g_MSCBuffer.scale != scale ||
-		g_MSCBuffer.brightness != brightness ||
-		g_MSCBuffer.use_3D != use_3D)
-	{
-		g_MSCBuffer.parallax = parallax;
-		g_MSCBuffer.aspectRatio = aspectRatio;
-		g_MSCBuffer.scale = scale;
-		g_MSCBuffer.brightness = brightness;
-		g_MSCBuffer.use_3D = use_3D;
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
-	}
-
-	if (g_LastVSConstantBufferSet == VS_CONSTANT_BUFFER_NONE ||
-		g_LastVSConstantBufferSet != VS_CONSTANT_BUFFER_2D ||
-		buffer != currentBuffer)
-	{
-		currentBuffer = buffer;
-		this->_d3dDeviceContext->VSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastVSConstantBufferSet = VS_CONSTANT_BUFFER_2D;
+	g_MSCBuffer.scale = scale;
+	g_MSCBuffer.aspect_ratio = aspect_ratio;
+	g_MSCBuffer.parallax = parallax;
+	g_MSCBuffer.brightness = brightness;
+	g_MSCBuffer.use_3D = use_3D;
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
+	_d3dDeviceContext->VSSetConstantBuffers(3, 1, buffer);
 }
 
 void DeviceResources::InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
 {
-	/*
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static ShadertoyCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(ShadertoyCBuffer);
-	*/
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+	_d3dDeviceContext->VSSetConstantBuffers(7, 1, buffer);
+}
 
-	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
-	this->_d3dDeviceContext->VSSetConstantBuffers(7, 1, buffer);
+void DeviceResources::InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, const OPTMeshTransformCBuffer * vsConstants)
+{
+	//static OPTMeshTransformCBuffer OPTMeshTransform{};
+	//if (memcmp(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer)) != 0)
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, vsConstants, 0, 0);
+		_d3dDeviceContext->VSSetConstantBuffers(8, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
+}
+
+void DeviceResources::InitPSRTConstantsBuffer(ID3D11Buffer **buffer, const RTConstantsBuffer *psConstants)
+{
+	//static RTConstantsBuffer RTConstants{};
+	//if (memcmp(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer)) != 0)
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+		_d3dDeviceContext->PSSetConstantBuffers(10, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
+}
+
+void DeviceResources::InitVRGeometryCBuffer(ID3D11Buffer** buffer, const VRGeometryCBuffer* psConstants)
+{
+	{
+		_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
+		_d3dDeviceContext->PSSetConstantBuffers(11, 1, buffer);
+		//memcpy(&OPTMeshTransform, vsConstants, sizeof(OPTMeshTransformCBuffer));
+	}
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
-	const float aspectRatio, const float scale, const float brightness, float inv_scale)
+	const float aspect_ratio, const float scale, const float brightness, float inv_scale)
 {
-	if (g_LastPSConstantBufferSet == PS_CONSTANT_BUFFER_NONE ||
-		g_LastPSConstantBufferSet != PS_CONSTANT_BUFFER_2D ||
-		g_MSCBuffer.parallax != parallax ||
-		g_MSCBuffer.aspectRatio != aspectRatio ||
-		g_MSCBuffer.scale != scale ||
-		g_MSCBuffer.brightness != brightness || 
-		g_MSCBuffer.inv_scale != inv_scale)
-	{
-		g_MSCBuffer.parallax = parallax;
-		g_MSCBuffer.aspectRatio = aspectRatio;
-		g_MSCBuffer.scale = scale;
-		g_MSCBuffer.brightness = brightness;
-		g_MSCBuffer.inv_scale = inv_scale;
-		this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
-		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
-	}
-	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_2D;
+	g_MSCBuffer.scale = scale;
+	g_MSCBuffer.aspect_ratio = aspect_ratio;
+	g_MSCBuffer.parallax = parallax;
+	g_MSCBuffer.brightness = brightness;
+	g_MSCBuffer.inv_scale = inv_scale;
+	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
+	_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3)
@@ -4188,20 +5323,12 @@ void DeviceResources::InitPSConstantBufferSSAO(ID3D11Buffer** buffer, const SSAO
 
 void DeviceResources::InitPSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static ShadertoyCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(ShadertoyCBuffer);
-
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(7, 1, buffer);
 }
 
 void DeviceResources::InitPSConstantBufferLaserPointer(ID3D11Buffer ** buffer, const LaserPointerCBuffer * psConstants)
 {
-	static ID3D11Buffer** currentBuffer = nullptr;
-	static LaserPointerCBuffer currentPSConstants = { 0 };
-	static int sizeof_constants = sizeof(ShadertoyCBuffer);
-
 	this->_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, psConstants, 0, 0);
 	this->_d3dDeviceContext->PSSetConstantBuffers(8, 1, buffer);
 }
@@ -4225,7 +5352,7 @@ void DeviceResources::InitPSConstantBuffer3D(ID3D11Buffer** buffer, const PixelS
 		buffer != currentBuffer)
 	{
 		currentBuffer = buffer;
-		this->_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
+		this->_d3dDeviceContext->PSSetConstantBuffers(9, 1, buffer);
 	}
 	g_LastPSConstantBufferSet = PS_CONSTANT_BUFFER_3D;
 }
@@ -4260,10 +5387,21 @@ void DeviceResources::InitPSConstantBufferMetricRec(ID3D11Buffer **buffer, const
 	this->_d3dDeviceContext->PSSetConstantBuffers(METRIC_REC_CB_SLOT, 1, buffer);
 }
 
+void DeviceResources::InitScissorRect(D3D11_RECT* rect)
+{
+	//static D3D11_RECT currentRect{};
+
+	//if (memcmp(rect, &currentRect, sizeof(D3D11_RECT)) != 0)
+	{
+		//currentRect = *rect;
+		this->_d3dDeviceContext->RSSetScissorRects(1, rect);
+	}
+}
+
 HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey)
 {
 	HRESULT hr = S_OK;
-	char* step = "";
+	const char* step = "";
 
 	D3D11_MAPPED_SUBRESOURCE displayMap;
 	DWORD pitchDelta;
@@ -4271,16 +5409,9 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	ID3D11Texture2D* tex = nullptr;
 	ID3D11ShaderResourceView* texView = nullptr;
 
-	/*
-	if (g_bSteamVRInitialized) {
-		// Process SteamVR events
-		vr::VREvent_t event;
-		while (g_pHMD->PollNextEvent(&event, sizeof(event)))
-		{
-			ProcessVREvent(event);
-		}
-	}
-	*/
+	BeginAnnotatedEvent(L"RenderMain");
+
+	const bool bMapMode = PlayerDataTable[*g_playerIndex].mapState != 0;
 
 	if (SUCCEEDED(hr))
 	{
@@ -4520,7 +5651,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	this->InitInputLayout(this->_mainInputLayout);
 	this->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	this->InitVertexShader(this->_mainVertexShader);
+	this->InitVertexShader(g_bUseSteamVR ? this->_mainVertexShaderVR : this->_mainVertexShader);
 
 	if (bpp == 2)
 	{
@@ -4592,7 +5723,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			//g_fConcourseAspectRatio = 2.0f * actual_aspect / original_aspect;
 		}
 	}
-	//if (g_bUseSeparateEyeBuffers) g_fConcourseAspectRatio = 1.0f;
 
 	UINT left = (this->_backbufferWidth - w) / 2;
 	UINT top = (this->_backbufferHeight - h) / 2;
@@ -4601,6 +5731,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	if (g_bEnableVR && !bRenderToDC) { // SteamVR, OpenXR and DirectSBS modes
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f); // Use 3D projection matrices
 		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness);
+		//InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness, 0.0f); // Use 3D projection matrices
+		//InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness);
 	} 
 	else {
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness, 0.0f); // Don't use 3D projection matrices when VR is disabled
@@ -4615,6 +5747,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	this->InitViewport(&viewport);
+	g_concourseViewport = viewport;
 
 	if (SUCCEEDED(hr))
 	{
@@ -4650,9 +5783,14 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		float screen_res_x = (float)this->_backbufferWidth;
 		float screen_res_y = (float)this->_backbufferHeight;
 
+		bool bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
+
 		if (!g_bEnableVR || bRenderToDC) {
-			// The Concourse and 2D menu are drawn here... maybe the default starfield too?
-			// We also render the CMD sub-component bracket here.
+			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
+			// The map lines (both the grid and the vertical lines) are drawn here
+			if (bMapMode)
+				_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+
 			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)
 			{
@@ -4695,7 +5833,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			goto out;
 		}
 
-		// Let's do SBS rendering here. That'll make it compatible with the Tech Library where
+		// Let's do VR stereo rendering here. That'll make it compatible with the Tech Library where
 		// both 2D and 3D are mixed.
 		// Left viewport
 		viewport.TopLeftX = 0;
@@ -4708,43 +5846,65 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
-			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 
-			1.0f); // Use 3D projection matrices
-
+		
+		if (g_iDraw2DCounter > 0)		
+		{
+			D3D11_DEPTH_STENCIL_DESC desc;
+			ComPtr<ID3D11DepthStencilState> depthState;
+			desc.DepthEnable = FALSE;
+			desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+			desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+			desc.StencilEnable = FALSE;
+			this->InitDepthStencilState(depthState, &desc);
+		}
+		
+		if (bDirectSBS) {
+			this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+				g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
+				1.0f); // Use 3D projection matrices
+		}
+		else {
+			this->InitVSConstantBuffer2D(_mainShadersConstantBuffer.GetAddressOf(),
+				1, 1, 1, g_fBrightness,
+				0.0f); // Do not use 3D projection matrices
+		}
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
+		// When the map is active, all the lines are rendered here
 		// When SteamVR is not used, the RenderTargets are set in the OnSizeChanged() event above
-		g_VSMatrixCB.projEye = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
+		// In SteamVR mode, we need to clear fullViewMat or the ships in the Tech Room
+		// will float all over the place.
+		if (!bDirectSBS)
+			g_VSMatrixCB.fullViewMat.identity();
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-		if (g_bUseSeparateEyeBuffers)
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+		if (g_bUseSteamVR || g_bUseSeparateEyeBuffers)
+			this->_d3dDeviceContext->DrawIndexedInstanced(6, 2, 0, 0, 0); // if (g_bUseSteamVR)
 		else
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
-		this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
+			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 
 		// Right viewport
-		if (g_bUseSeparateEyeBuffers) {
-			viewport.TopLeftX = 0;
-			viewport.Width = screen_res_x;
-		} else {
-			viewport.TopLeftX = screen_res_x / 2.0f;
-			viewport.Width = screen_res_x / 2.0f;
-		}
+		if (g_bUseSteamVR || g_bUseSeparateEyeBuffers)
+			goto out; // The right eye was already rendered in DrawIndexedInstanced above
+
+		// DirectSBS case
+		viewport.TopLeftX = screen_res_x / 2.0f;
+		viewport.Width = screen_res_x / 2.0f;
 		viewport.TopLeftY = 0;
 		viewport.Height = screen_res_y;
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
+
 		this->InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(),
 			g_fTechLibraryParallax * g_iDraw2DCounter, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness,
 			1.0f); // Use 3D projection matrices
+
 		// The Concourse and 2D menu are drawn here... maybe the default starfield too?
-		g_VSMatrixCB.projEye = g_FullProjMatrixRight;
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixRight;
 		InitVSConstantBufferMatrix(_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
-		if (g_bUseSeparateEyeBuffers)
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewR.GetAddressOf(), _depthStencilViewR.Get());
-		else
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+		_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
 		this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 	out:
 		// Increase the 2D DrawCounter -- this is used in the Tech Library to increase the parallax when the second 2D
@@ -4769,13 +5929,15 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		messageShown = true;
 	}
 
+	this->EndAnnotatedEvent();
+
 	return hr;
 }
 
 HRESULT DeviceResources::RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp)
 {
 	HRESULT hr = S_OK;
-	char* step = "";
+	const char* step = "";
 
 	memset(buffer, 0, width * height * bpp);
 
@@ -4833,6 +5995,104 @@ HRESULT DeviceResources::RetrieveBackBuffer(char* buffer, DWORD width, DWORD hei
 						for (DWORD y = 0; y < this->_backbufferHeight; y++)
 						{
 							memcpy(colors, srcColors, this->_backbufferWidth * 4);
+
+							srcColors = (unsigned int*)((char*)srcColors + map.RowPitch);
+							colors += this->_backbufferWidth;
+						}
+
+						scaleSurface(buffer, width, height, bpp, buffer2, this->_backbufferWidth, this->_backbufferHeight, 4);
+
+						delete[] buffer2;
+					}
+				}
+
+				this->_d3dDeviceContext->Unmap(texture, 0);
+			}
+		}
+	}
+
+	if (FAILED(hr))
+	{
+		static bool messageShown = false;
+
+		if (!messageShown)
+		{
+			char text[512];
+			strcpy_s(text, step);
+			strcat_s(text, "\n");
+			strcat_s(text, _com_error(hr).ErrorMessage());
+
+			MessageBox(nullptr, text, __FUNCTION__, MB_ICONERROR);
+		}
+
+		messageShown = true;
+	}
+
+	return hr;
+}
+
+HRESULT DeviceResources::RetrieveTextureBuffer(ID3D11Texture2D* textureBuffer, char* buffer, DWORD width, DWORD height, DWORD bpp)
+{
+	HRESULT hr = S_OK;
+	const char* step = "";
+
+	memset(buffer, 0, width * height * bpp);
+
+	D3D11_TEXTURE2D_DESC textureDescription;
+	textureBuffer->GetDesc(&textureDescription);
+
+	textureDescription.BindFlags = 0;
+	textureDescription.SampleDesc.Count = 1;
+	textureDescription.SampleDesc.Quality = 0;
+
+	ComPtr<ID3D11Texture2D> offBuffer;
+	textureDescription.Usage = D3D11_USAGE_DEFAULT;
+	textureDescription.CPUAccessFlags = 0;
+
+	step = "Resolve OffscreenBuffer";
+
+	if (SUCCEEDED(hr = this->_d3dDevice->CreateTexture2D(&textureDescription, nullptr, &offBuffer)))
+	{
+		this->_d3dDeviceContext->ResolveSubresource(offBuffer, D3D11CalcSubresource(0, 0, 1), textureBuffer, D3D11CalcSubresource(0, 0, 1), textureDescription.Format);
+
+		step = "Staging Texture2D";
+
+		ComPtr<ID3D11Texture2D> texture;
+		textureDescription.Usage = D3D11_USAGE_STAGING;
+		textureDescription.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
+
+		if (SUCCEEDED(hr = this->_d3dDevice->CreateTexture2D(&textureDescription, nullptr, &texture)))
+		{
+			this->_d3dDeviceContext->CopyResource(texture, offBuffer);
+
+			step = "Map";
+
+			D3D11_MAPPED_SUBRESOURCE map;
+			if (SUCCEEDED(hr = this->_d3dDeviceContext->Map(texture, 0, D3D11_MAP_READ, 0, &map)))
+			{
+				step = "copy";
+
+				if (bpp == 4 && width == this->_backbufferWidth && height == this->_backbufferHeight && this->_backbufferWidth * 4 == map.RowPitch)
+				{
+					memcpy(buffer, map.pData, width * height * 4);
+				}
+				else
+				{
+					if (this->_backbufferWidth * 4 == map.RowPitch)
+					{
+						scaleSurface(buffer, width, height, bpp, (char*)map.pData, this->_backbufferWidth, this->_backbufferHeight, 4);
+					}
+					else
+					{
+						char* buffer2 = new char[this->_backbufferWidth * this->_backbufferHeight * 4];
+
+						unsigned int* srcColors = (unsigned int*)map.pData;
+						unsigned int* colors = (unsigned int*)buffer2;
+
+						for (DWORD y = 0; y < this->_backbufferHeight; y++)
+						{
+							memcpy(colors, srcColors, this->_backbufferWidth * 4);
+
 
 							srcColors = (unsigned int*)((char*)srcColors + map.RowPitch);
 							colors += this->_backbufferWidth;
@@ -4931,4 +6191,91 @@ bool DeviceResources::IsTextureFormatSupported(DXGI_FORMAT format)
 	const UINT expected = D3D11_FORMAT_SUPPORT_TEXTURE2D | D3D11_FORMAT_SUPPORT_MIP | D3D11_FORMAT_SUPPORT_SHADER_LOAD | D3D11_FORMAT_SUPPORT_CPU_LOCKABLE;
 
 	return (formatSupport & expected) == expected;
+}
+
+bool DeviceResources::BeginAnnotatedEvent(_In_ LPCWSTR Name)
+{
+	if (_d3dAnnotation != nullptr)
+	{
+		_d3dAnnotation->BeginEvent(Name);
+		return true;
+	}
+	else
+		return false;
+}
+
+bool DeviceResources::EndAnnotatedEvent()
+{
+	if (_d3dAnnotation != nullptr)
+	{
+		_d3dAnnotation->EndEvent();
+		return true;
+	}
+	else
+		return false;
+}
+
+bool DeviceResources::IsInConcourseHd()
+{
+	g_callDrawCursor = true;
+
+	// This ddraw is *always* going to be for XWA
+	/*if (!_IsXwaExe)
+	{
+		return false;
+	}*/
+
+	if (!g_config.HDConcourseEnabled)
+	{
+		return false;
+	}
+
+	const int currentGameState = *(int*)(0x009F60E0 + 0x25FA9);
+	const int updateCallback = *(int*)(0x009F60E0 + 0x25FB1 + 0x850 * currentGameState + 0x0844);
+	const bool isConfigMenuGameStateUpdate = updateCallback == 0x0051D100;
+	const bool isMessageBoxGameStateUpdate = updateCallback == 0x005595A0 || updateCallback == 0x00541260;
+
+	unsigned char XwaGlobalVariables_m00F2F = *(unsigned char*)(0x009F60E0 + 0x0F2F);
+	const bool isConcourse = this->_displayWidth == 640 && this->_displayHeight == 480 && this->_displayBpp == 2;
+	const int frameIndex = *(int*)(0x009F60E0 + 0x2B361);
+
+	if (XwaGlobalVariables_m00F2F == 0)
+	{
+		return false;
+	}
+
+	if (isConfigMenuGameStateUpdate)
+	{
+		if (isConcourse)
+		{
+			g_callDrawCursor = false;
+		}
+
+		return true;
+	}
+
+	if (isMessageBoxGameStateUpdate)
+	{
+		if (isConcourse)
+		{
+			g_callDrawCursor = false;
+		}
+
+		return true;
+	}
+
+	if (!inScene)
+	{
+		g_callDrawCursor = false;
+		return true;
+	}
+
+	if (!isConcourse)
+	{
+		return false;
+	}
+
+	g_callDrawCursor = false;
+
+	return true;
 }

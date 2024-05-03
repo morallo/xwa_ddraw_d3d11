@@ -11,25 +11,165 @@
 const int MAX_TEXTURE_NAME = 128;
 const float PI = 3.141593f;
 const float DEG2RAD = PI / 180.0f;
+const float RAD2DEG = 180.0f / PI;
 #endif
 
 // General types and globals
 
-typedef struct uvfloat4_struct {
+class Direct3DTexture;
+
+struct uvfloat4 {
 	float x0, y0, x1, y1;
-} uvfloat4;
+};
 
-typedef struct float3_struct {
+struct float3 {
 	float x, y, z;
-} float3;
 
-typedef struct float4_struct {
+	float3()
+	{
+		x = y = z = 0.0f;
+	}
+
+	float3(float x, float y, float z)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+	}
+
+	float3(const float data[4])
+	{
+		x = data[0];
+		y = data[1];
+		z = data[2];
+	}
+
+	float3(const Vector4 &P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+		this->z = P[2];
+	}
+
+	float3(const Vector3& P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+		this->z = P[2];
+	}
+
+	float3 xyz()
+	{
+		return float3(x, y, z);
+	}
+
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+
+	inline float3 operator+(const float3& rhs)
+	{
+		return float3(this->x + rhs.x, this->y + rhs.y, this->z + rhs.z);
+	}
+
+	inline float3 operator-(const float3& rhs)
+	{
+		return float3(this->x - rhs.x, this->y - rhs.y, this->z - rhs.z);
+	}
+
+	inline float3 operator*(const float3& rhs)
+	{
+		return float3(this->x * rhs.x, this->y * rhs.y, this->z * rhs.z);
+	}
+
+	inline float3& operator*=(const float rhs)
+	{
+		this->x *= rhs;
+		this->y *= rhs;
+		this->z *= rhs;
+
+		return *this;
+	}
+};
+
+inline float3 operator*(const float s, const float3& rhs)
+{
+	return float3(s * rhs.x, s * rhs.y, s * rhs.z);
+}
+
+inline float3 operator/(const float s, const float3& rhs)
+{
+	return float3(s / rhs.x, s / rhs.y, s / rhs.z);
+}
+
+struct float4 {
 	float x, y, z, w;
-} float4;
 
-typedef struct float2_struct {
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+
+	float4()
+	{
+		x = y = z = w = 0.0f;
+	}
+
+	float4(float x, float y, float z)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+		this->w = 1.0f;
+	}
+
+	float4(float x, float y, float z, float w)
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+		this->w = w;
+	}
+
+	float4(float3 P, float w)
+	{
+		this->x = P.x;
+		this->y = P.y;
+		this->z = P.z;
+		this->w = w;
+	}
+
+	float4(uvfloat4 P)
+	{
+		x = P.x0;
+		y = P.y0;
+		z = P.x1;
+		w = P.y1;
+	}
+};
+
+struct float2 {
 	float x, y;
-} float2;
+
+	float2()
+	{
+	}
+
+	float2(float x, float y)
+	{
+		this->x = x;
+		this->y = y;
+	}
+
+	float2(float* P)
+	{
+		this->x = P[0];
+		this->y = P[1];
+	}
+
+	float2(Vector4 P)
+	{
+		this->x = P.x;
+		this->y = P.y;
+	}
+
+	inline float& operator[] (uint32_t index) { return (&x)[index]; }
+};
 
 // Holds the current 3D reconstruction constants, register b6
 typedef struct MetricReconstructionCBStruct {
@@ -44,17 +184,6 @@ typedef struct MetricReconstructionCBStruct {
 	float mr_vr_aspect_ratio, mr_unused0;
 	float mv_vr_vertexbuf_aspect_ratio_comp[2]; // This is used to render the HUD
 } MetricReconstructionCB;
-
-// Color-Light links
-class Direct3DTexture;
-typedef struct ColorLightPairStruct {
-	Direct3DTexture* color, * light;
-
-	ColorLightPairStruct(Direct3DTexture* color) {
-		this->color = color;
-		this->light = NULL;
-	}
-} ColorLightPair;
 
 typedef struct BloomConfigStruct {
 	float fSaturationStrength, fCockpitStrength, fEngineGlowStrength, fSparksStrength;
@@ -90,9 +219,9 @@ typedef struct SSAOPixelShaderCBStruct {
 	float moire_offset, amplifyFactor;
 	int fn_enable;
 	// 64 bytes
-	float fn_max_xymult, fn_scale, fn_sharpness, nm_intensity_near;
+	float fn_max_xymult, ssao_unused0, fn_sharpness, ssao_unused1;
 	// 80 bytes
-	float far_sample_radius, nm_intensity_far, ssao_unused0, amplifyFactor2;
+	float far_sample_radius, ssao_unused2, ssao_unused3, amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
@@ -102,12 +231,13 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 144 bytes
 	float vpScale[4];
 	// 160 bytes
-	int shadow_enable;
+	int ssao_unused;
 	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
 } SSAOPixelShaderCBuffer;
 
 typedef struct ShadertoyCBStruct {
+	// twirl: renamed to ExplosionScale in ExplosionShader.hlsl
 	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float iResolution[2];
@@ -122,8 +252,14 @@ typedef struct ShadertoyCBStruct {
 	Matrix4 viewMat; // The view rotation matrix
 	// 4*4 = 16 elements, 16 * 4 = 64 bytes
 	// 48 + 64 = 112 bytes
-	int bDisneyStyle; // Enables the flare when jumping into hyperspace and other details
+	// Style: Enables the flare when jumping into hyperspace and other details
+	// 0: Standard (no flare)
+	// 1: Flare (Disney style)
+	// 2: Interdiction
+	// Renamed to ExplosionBlendMode in ExplosionShader
+	int Style;
 	int hyperspace_phase; // 1 = HYPER_ENTRY, 2 = HYPER_TUNNEL, 3 = HYPER_EXIT, 4 = POST_HYPER_EXIT (same as HypespacePhaseEnum)
+	// tunnel_speed: renamed to ExplosionTime in ExplosionShader.hlsl
 	float tunnel_speed, FOVscale;
 	// 128 bytes
 	int SunFlareCount;
@@ -137,47 +273,71 @@ typedef struct ShadertoyCBStruct {
 	// 272 bytes
 } ShadertoyCBuffer;
 
+typedef struct OPTMeshTransformCBufferStruct {
+	Matrix4 MeshTransform;
+	// 64 bytes
+} OPTMeshTransformCBuffer;
+
 // Let's make this Constant Buffer the same size as the ShadertoyCBuffer
 // so that we can reuse the same CB slot -- after all, we can't manipulate
 // anything while travelling through hyperspace anyway...
-typedef struct LaserPointerCBStruct {
-	int TriggerState; // 0 = Not pressed, 1 = Pressed
-	float FOVscale, iResolution[2];
+struct LaserPointerCBuffer {
+	int TriggerState[2]; // 0 = Not pressed, 1 = Pressed
+	float iResolution[2];
 	// 16 bytes
 	float x0, y0, x1, y1; // Limits in uv-coords of the viewport
 	// 32 bytes
-	float contOrigin[2], intersection[2];
+	int bContOrigin[2], bHoveringOnActiveElem[2];
 	// 48 bytes
-	int bContOrigin, bIntersection, bHoveringOnActiveElem;
-	int DirectSBSEye;
-	// 64 bytes
-	float v0[2], v1[2]; // DEBUG
-	// 80 bytes
-	float v2[2], uv[2]; // DEBUG
-	// 96
-	int bDebugMode;
-	float cursor_radius, lp_aspect_ratio[2];
+	float4 contOrigin[2][2];
 	// 112 bytes
-} LaserPointerCBuffer;
+	float4 intersection[2][2];
+	// 176 bytes
+	float uv[2][2];
+	// 192 bytes
+	int bDebugMode, unused0;
+	float cursor_radius[2];
+	// 208 bytes
+	float inters_radius[2];
+	int bDisplayLine[2];
+	// 224 bytes
+	int bIntersection[2];
+	float lp_aspect_ratio[2];
+	// 240 bytes
+	float2 v0L, v1L; // DEBUG
+	// 256 bytes
+	float2 v2L, v0R;
+	// 272 bytes
+	float2 v1R, v2R;
+	// 288 bytes
+};
 
 /* 3D Constant Buffers */
 typedef struct VertexShaderCBStruct {
 	float viewportScale[4];
 	// 16 bytes
+	float s_V0x08B94CC;
+	float s_V0x05B46B4;
+	float s_V0x05B46B4_Offset;
+	bool  bIsMapIcon;
+	// 32 bytes
+	float4 ProjectionParameters;
+	// 48 bytes
 	float aspect_ratio;
 	uint32_t apply_uv_comp;
 	float z_override, sz_override;
-	// 32 bytes
-	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
-	// 48 bytes
-	//float vsunused0, vsunused1, vsunused2, vsunused3;
 	// 64 bytes
+	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
+	// 80 bytes
 } VertexShaderCBuffer;
 
 typedef struct VertexShaderMatrixCBStruct {
-	Matrix4 projEye;
+	Matrix4 projEye[2];
 	Matrix4 viewMat;
 	Matrix4 fullViewMat;
+	// 256 bytes
+	float Znear, Zfar, DeltaX, DeltaY;
+	// 272 bytes
 } VertexShaderMatrixCB;
 
 typedef struct PSShadingSystemCBStruct {
@@ -199,15 +359,54 @@ typedef struct PSShadingSystemCBStruct {
 	uint32_t num_lasers;
 	// 336 bytes
 	float4 LightPoint[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
-	// 464 bytes
-	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
-	// 8 * 16 = 128
+	// 16 * 16 = 256
 	// 592 bytes
+	float4 LightPointColor[MAX_CB_POINT_LIGHTS];
+	// 16 * 16 = 256
+	// 848 bytes
+	float4 LightPointDirection[MAX_CB_POINT_LIGHTS];
+	// 16 * 16 = 256
+	// 1104 bytes
 	float ambient, headlights_angle_cos, HDR_white_point;
 	uint32_t HDREnabled;
-	// 608 bytes
+	// 1120 bytes
 } PSShadingSystemCB;
+
+typedef struct RTConstantsBufferStruct {
+	uint32_t bRTEnable;
+	uint32_t bRTAllowShadowMapping;
+	uint32_t RTUnused0;
+	uint32_t RTGetBestIntersection;
+	// 16 bytes
+	uint32_t RTEnableSoftShadows;
+	uint32_t RTShadowMaskSizeFactor;
+	float    RTShadowMaskPixelSizeX;
+	float    RTShadowMaskPixelSizeY;
+	// 32 bytes
+	float    RTSoftShadowThreshold;
+	float    RTGaussFactor;
+	float    RTUnused1[2];
+	// 48 bytes
+} RTConstantsBuffer;
+
+struct VRGeometryCBuffer {
+	uint32_t numStickyRegions;
+	uint32_t clicked[2];
+	uint32_t unused1;
+	// 16 bytes
+	float4   stickyRegions[MAX_VRKEYB_REGIONS];
+	// 80 bytes
+	float4   clickRegions[2];
+	// 112 bytes
+};
+
+typedef struct {
+	/* Exclusive Flags. Only one flag can be set at the same time */
+	uint32_t ExclusiveMask : 8;
+	/* Bitfields */
+	uint32_t bBlastMark : 1;
+	uint32_t UnusedBits : 23;
+} special_control_bitfield;
 
 // See PixelShaderTextureCommon.h for an explanation of these settings
 typedef struct PixelShaderCBStruct {
@@ -218,9 +417,9 @@ typedef struct PixelShaderCBStruct {
 	// 16 bytes
 
 	uint32_t bIsLaser;
-	uint32_t bIsLightTexture;
+	float fOverlayBloomPower;
 	uint32_t bIsEngineGlow;
-	uint32_t ps_unused1;
+	uint32_t GreebleControl;
 	// 32 bytes
 
 	float fBloomStrength;
@@ -234,7 +433,7 @@ typedef struct PixelShaderCBStruct {
 	// 64 bytes
 
 	float fSpecVal, fDisableDiffuse;
-	uint32_t special_control;
+	special_control_bitfield special_control;
 	float fAmbient;
 	// 80 bytes
 
@@ -243,7 +442,36 @@ typedef struct PixelShaderCBStruct {
 	float2 Offset;
 	float AspectRatio;
 	uint32_t Clamp;
-	// 112
+	// 112 bytes
+	float GreebleDist1, GreebleDist2;
+	float GreebleScale1, GreebleScale2;
+	// 128 bytes
+
+	float GreebleMix1, GreebleMix2;
+	float2 UVDispMapResolution;
+	// 144 bytes
+
+	float4 AuxColorLight;
+	// 160 bytes
+	special_control_bitfield special_control_light;
+	uint32_t bDoNormalMapping;
+	uint32_t bDoRaytracing;
+	uint32_t OverlayCtrl;
+	// 176 bytes
+
+	float rand0;
+	float rand1;
+	float rand2;
+	float PS_unused0;
+	// 192 bytes
+
+	float2 uvSrc0;
+	float2 uvSrc1;
+	// 208 bytes
+
+	float2 uvOffset;
+	float2 uvScale;
+	// 224 bytes
 } PixelShaderCBuffer;
 
 // Pixel Shader constant buffer for the Dynamic Cockpit
@@ -268,7 +496,7 @@ typedef struct DCPixelShaderCBStruct {
 
 /* 2D Constant Buffers */
 typedef struct MainShadersCBStruct {
-	float scale, aspectRatio, parallax, brightness;
+	float scale, aspect_ratio, parallax, brightness;
 	float use_3D, inv_scale, unused1, unused2;
 } MainShadersCBuffer;
 
@@ -282,6 +510,9 @@ class VectorColor {
 public:
 	Vector3 P;
 	Vector3 col;
+	Vector3 dir;
+	float falloff;
+	float angle;
 };
 
 class SmallestK {
@@ -299,7 +530,8 @@ public:
 		_size = 0;
 	}
 
-	void insert(Vector3 P, Vector3 col);
+	void insert(Vector3 P, Vector3 col, Vector3 dir={}, float falloff=0.0f, float angle=0.0f);
+	void remove_duplicates();
 };
 
 typedef enum {
@@ -324,3 +556,8 @@ extern D3D11_VIEWPORT g_nonVRViewport;
 
 void DisplayTimedMessage(uint32_t seconds, int row, char* msg);
 void DisplayTimedMessageV(uint32_t seconds, int row, const char* format, ...);
+
+bool SavePOVOffsetToIniFile();
+bool LoadPOVOffsetFromIniFile();
+bool LoadHUDColorFromIniFile();
+void ApplyCustomHUDColor();

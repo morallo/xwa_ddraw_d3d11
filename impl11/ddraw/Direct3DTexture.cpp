@@ -8,6 +8,7 @@
 #include "Direct3DTexture.h"
 #include "TextureSurface.h"
 #include "MipmapSurface.h"
+#include "bc7_main.h"
 #include <comdef.h>
 //#include <shlwapi.h>
 #include "effects.h"
@@ -16,10 +17,40 @@
 #include <WICTextureLoader.h>
 #include <wincodec.h>
 #include <vector>
+#include <filesystem>
 #include "globals.h"
+
+namespace fs = std::filesystem;
 
 const char *TRIANGLE_PTR_RESNAME = "dat,13000,100,";
 const char *TARGETING_COMP_RESNAME = "dat,12000,1100,";
+
+// Maps DAT GroupId-ImageId to indices in resources->_extraTextures
+std::map<std::string, int> DATImageMap;
+// Maps image file names or DAT names (?) to indices in resources->_extraTextures
+// Maybe we can merge DATImageMap and g_TextureMap now...
+// DATImageMap used to map DAT GroupId-ImageId to ID3D11ShaderResourceView objects, but
+// that kind of caused memory leaks.
+std::map<std::string, int> g_TextureMap;
+
+void ClearGlobalTextureMap()
+{
+	g_TextureMap.clear();
+}
+
+void AddToGlobalTextureMap(std::string name, int index)
+{
+	if (index != -1)
+		g_TextureMap[name] = index;
+}
+
+int QueryGlobalTextureMap(std::string name)
+{
+	const auto& it = g_TextureMap.find(name);
+	if (it == g_TextureMap.end())
+		return -1;
+	return it->second;
+}
 
 #ifdef DBG_VR
 /*
@@ -58,15 +89,26 @@ bool Direct3DTexture::LoadShadowOBJ(char* sFileName) {
 	char line[256];
 	while (!feof(file)) {
 		fgets(line, 256, file);
+		// fgets may fail because EOF has been reached, so we need to check
+		// again here.
+		if (feof(file))
+			break;
+
 		if (line[0] == 'v') {
 			D3DTLVERTEX v;
 			float x, y, z;
-			sscanf_s(line, "v %f %f %f", &x, &y, &z);
+			// With the D3dRendererHook, we're going to use transform matrices that work on OPT
+			// coordinates, so we need to convert OBJ coords into OPT coords. To do that, we need
+			// to swap Y and Z, because that's what the OPT coordinate system uses, and we need
+			// to multiply by 40.96 for the same reason. In the line below, we read X, Z, Y to
+			// swap the axes: THIS IS NOT A MISTAKE!
+			sscanf_s(line, "v %f %f %f", &x, &z, &y);
+			// And now we add the 40.96 scale factor.
 			// g_ShadowMapping.shadow_map_mult_x/y/z are supposed to be either 1 or -1
-			x *= g_ShadowMapping.shadow_map_mult_x * SHADOW_OBJ_SCALE;
-			y *= g_ShadowMapping.shadow_map_mult_y * SHADOW_OBJ_SCALE;
-			z *= g_ShadowMapping.shadow_map_mult_z * SHADOW_OBJ_SCALE;
-
+			x *= g_ShadowMapping.shadow_map_mult_x * METERS_TO_OPT;
+			y *= g_ShadowMapping.shadow_map_mult_y * METERS_TO_OPT;
+			z *= g_ShadowMapping.shadow_map_mult_z * METERS_TO_OPT;
+			
 			v.sx = x;
 			v.sy = y;
 			v.sz = z;
@@ -181,6 +223,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->_refCount = 1;
 	this->_deviceResources = deviceResources;
 	this->_surface = surface;
+	this->_name = surface->_name;
+	this->DATImageId = -1;
+	this->DATGroupId = -1;
 	this->is_Tagged = false;
 	this->TagCount = 3;
 	this->is_Reticle = false;
@@ -195,6 +240,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_Laser = false;
 	this->is_TurboLaser = false;
 	this->is_LightTexture = false;
+	this->is_Transparent = false;
 	this->is_EngineGlow = false;
 	this->is_Electricity = false;
 	this->is_Explosion = false;
@@ -220,6 +266,8 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_BlastMark = false;
 	this->is_DS2_Reactor_Explosion = false;
 	//this->is_DS2_Energy_Field = false;
+	this->is_MapIcon = false;
+	this->WarningLightType = NONE_WLIGHT;
 	this->ActiveCockpitIdx = -1;
 	this->AuxVectorIndex = -1;
 	// Dynamic cockpit data
@@ -244,6 +292,9 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->material.Glossiness = DEFAULT_GLOSSINESS;
 	this->material.Intensity  = DEFAULT_SPEC_INT;
 	this->material.Metallic   = DEFAULT_METALLIC;
+
+	this->GreebleTexIdx = -1;
+	this->NormalMapIdx = -1;
 }
 
 int Direct3DTexture::GetWidth() {
@@ -256,27 +307,13 @@ int Direct3DTexture::GetHeight() {
 
 Direct3DTexture::~Direct3DTexture()
 {
-	const auto &resources = this->_deviceResources;
-	
-	//if (this->is_CockpitTex) {
-		// There's code in ResetDynamicCockpit that prevents resetting it multiple times.
-		// In other words, ResetDynamicCockpit is idempotent.
-		// ResetDynamicCockpit will also reset the Active Cockpit
-		//resources->ResetDynamicCockpit();
-	//}
-	/* 
-	We can't reliably reset DC here because the textures may not be reloaded and then we
-	just disable DC. This happens if hook_60fps.dll is used. We need to be smarter and
-	detect when the cockpit name has changed. If it has, then we reset DC and reload the
-	elements.
-	*/
-	//log_debug("[DBG] [DC] Destroying texture %s", this->_surface->_name);
+	*this->_textureView.GetAddressOf() = nullptr;
 }
 
 HRESULT Direct3DTexture::QueryInterface(
 	REFIID riid,
 	LPVOID* obp
-	)
+)
 {
 #if LOGGER
 	std::ostringstream str;
@@ -397,7 +434,41 @@ HRESULT Direct3DTexture::PaletteChanged(
 	return DDERR_UNSUPPORTED;
 }
 
-void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
+std::string Direct3DTexture::GetDATImageHash(char *sDATZIPFileName, int GroupId, int ImageId)
+{
+	return std::string(sDATZIPFileName) + "-" + std::to_string(GroupId) + "-" + std::to_string(ImageId);
+}
+
+int Direct3DTexture::GetCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv)
+{
+	std::string hash = GetDATImageHash(sDATZIPFileName, GroupId, ImageId);
+	auto it = DATImageMap.find(hash);
+	if (it == DATImageMap.end()) {
+		*srv = nullptr;
+		//log_debug("[DBG] Cached image not found [%s]", hash);
+		return -1;
+	}
+	auto &resources = this->_deviceResources;
+	const int index = it->second;
+	*srv = resources->_extraTextures[index];
+	return index;
+}
+
+int Direct3DTexture::AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, int index, ID3D11ShaderResourceView *srv)
+{
+	auto& resources = this->_deviceResources;
+	std::string hash = GetDATImageHash(sDATZIPFileName, GroupId, ImageId);
+	DATImageMap.insert(std::make_pair(hash, index));
+	return index;
+}
+
+void ClearCachedSRVs()
+{
+	DATImageMap.clear();
+}
+
+void Direct3DTexture::LoadAnimatedTextures(int ATCIndex)
+{
 	TextureSurface *surface = this->_surface;
 	auto &resources = this->_deviceResources;
 	AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
@@ -405,12 +476,15 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 	for (uint32_t i = 0; i < atc->Sequence.size(); i++) {
 		TexSeqElem tex_seq_elem = atc->Sequence[i];
 		ID3D11ShaderResourceView *texSRV = nullptr;
-		
-		HRESULT res = S_OK;
+		int index = -1;
 
 		if (tex_seq_elem.IsDATImage) {
-			res = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, &texSRV);
+			index = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, true, &texSRV);
 			//if (SUCCEEDED(res)) log_debug("[DBG] DAT %d-%d loaded!", tex_seq_elem.GroupId, tex_seq_elem.ImageId);
+		}
+		else if (tex_seq_elem.IsZIPImage) {
+			index = LoadZIPImage(tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, true, &texSRV);
+			//if (SUCCEEDED(res)) log_debug("[DBG] ZIP %d-%d loaded!", tex_seq_elem.GroupId, tex_seq_elem.ImageId);
 		}
 		else {
 			char texname[MAX_TEX_SEQ_NAME + 20];
@@ -427,28 +501,27 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 			// Will have to come back to this later.
 			//HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL,
 			//	&(resources->_extraTextures[resources->_numExtraTextures]));
-			res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
+			HRESULT res = DirectX::CreateWICTextureFromFile(resources->_d3dDevice, wTexName, NULL, &texSRV);
+			if (FAILED(res))
+				index = -1;
 		}
 
-		if (FAILED(res)) {
+		if (index == -1) {
 			if (tex_seq_elem.IsDATImage)
-				log_debug("[DBG] [MAT] ***** Could not load animated DAT texture [%s-%d-%d]: 0x%x",
-					tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId, res);
+				log_debug("[DBG] [MAT] ***** Could not load animated DAT texture [%s-%d-%d]",
+					tex_seq_elem.texname, tex_seq_elem.GroupId, tex_seq_elem.ImageId);
 			else
-				log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]: 0x%x",
-					tex_seq_elem.texname, res);
+				log_debug("[DBG] [MAT] ***** Could not load animated texture [%s]",
+					tex_seq_elem.texname);
 			atc->Sequence[i].ExtraTextureIndex = -1;
 		}
 		else {
-			// Use the following line when _extraTextures is an std::vector of ID3D11ShaderResourceView*:
-			resources->_extraTextures.push_back(texSRV);
-
 			//texSRV->AddRef(); // Without this line, funny things happen
 			//ComPtr<ID3D11ShaderResourceView> p = texSRV;
 			//p->AddRef();
 			//resources->_extraTextures.push_back(p);
 
-			atc->Sequence[i].ExtraTextureIndex = resources->_extraTextures.size() - 1;
+			atc->Sequence[i].ExtraTextureIndex = index;
 
 			//resources->_numExtraTextures++;
 			//atc->LightMapSequence[i].ExtraTextureIndex = resources->_numExtraTextures - 1;
@@ -456,9 +529,83 @@ void Direct3DTexture::LoadAnimatedTextures(int ATCIndex) {
 			//	this->material.LightMapSequence[i].ExtraTextureIndex);
 		}
 	}
+
+	// Mark this sequence as loaded to prevent re-loading it again later...
+	atc->SequenceLoaded = true;
 }
 
-ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height)
+int Direct3DTexture::LoadGreebleTexture(char *GreebleDATZIPGroupIdImageId, short *Width, short *Height)
+{
+	auto &resources = this->_deviceResources;
+	ID3D11ShaderResourceView *texSRV = nullptr;
+	int GroupId = -1, ImageId = -1;
+	int index = -1;
+
+	char *substr_dat = stristr(GreebleDATZIPGroupIdImageId, ".dat");
+	char *substr_zip = stristr(GreebleDATZIPGroupIdImageId, ".zip");
+	bool bIsDATFile = substr_dat != NULL;
+	char *substr = bIsDATFile ? substr_dat : substr_zip;
+	if (substr == NULL) return -1;
+	// Skip the ".dat/.zip" token and terminate the string
+	substr += 4;
+	*substr = 0;
+	// Advance to the next substring, we should now have a string of the form
+	// <GroupId>-<ImageId>
+	substr++;
+	log_debug("[DBG] Loading GreebleTex: %s, GroupId-ImageId: %s", GreebleDATZIPGroupIdImageId, substr);
+	sscanf_s(substr, "%d-%d", &GroupId, &ImageId);
+
+	// Load the greeble texture
+	if (bIsDATFile)
+		index = LoadDATImage(GreebleDATZIPGroupIdImageId, GroupId, ImageId, true, &texSRV, Width, Height);
+	else
+		index = LoadZIPImage(GreebleDATZIPGroupIdImageId, GroupId, ImageId, true, &texSRV, Width, Height);
+	if (index == -1) {
+		log_debug("[DBG] Could not load greeble");
+		return -1;
+	}
+	// Link the new texture as a greeble of the current texture
+	this->GreebleTexIdx = index;
+	//log_debug("[DBG] Loaded Greeble texture at index: %d", this->GreebleTexIdx);
+	return this->GreebleTexIdx;
+}
+
+int Direct3DTexture::LoadNormalMap(char *DATZIPGroupIdImageId, short *Width, short *Height)
+{
+	auto &resources = this->_deviceResources;
+	ID3D11ShaderResourceView *texSRV = nullptr;
+	int GroupId = -1, ImageId = -1;
+	int index = -1;
+	char *substr_dat = stristr(DATZIPGroupIdImageId, ".dat");
+	char *substr_zip = stristr(DATZIPGroupIdImageId, ".zip");
+	bool bIsDATFile = substr_dat != NULL;
+	char *substr = bIsDATFile ? substr_dat : substr_zip;
+	if (substr == NULL) return -1;
+	// Skip the ".dat/.zip" token and terminate the string
+	substr += 4;
+	*substr = 0;
+	// Advance to the next substring, we should now have a string of the form
+	// <GroupId>-<ImageId>
+	substr++;
+	//log_debug("[DBG] Loading NormalMap: %s, GroupId-ImageId: %s", DATZIPGroupIdImageId, substr);
+	sscanf_s(substr, "%d-%d", &GroupId, &ImageId);
+
+	// Load the greeble texture
+	if (bIsDATFile)
+		index = LoadDATImage(DATZIPGroupIdImageId, GroupId, ImageId, true, &texSRV, Width, Height);
+	else
+		index = LoadZIPImage(DATZIPGroupIdImageId, GroupId, ImageId, true, &texSRV, Width, Height);
+	if (index == -1) {
+		log_debug("[DBG] Could not load NormalMap %s", DATZIPGroupIdImageId);
+		return -1;
+	}
+	// Link the new texture as a greeble of the current texture
+	this->NormalMapIdx = index;
+	//log_debug("[DBG] Loaded NormalMap texture at index: %d", this->NormalMapIdx);
+	return this->NormalMapIdx;
+}
+
+HRESULT Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView **srv)
 {
 	auto& resources = this->_deviceResources;
 	auto& context = resources->_d3dDeviceContext;
@@ -468,12 +615,16 @@ ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, 
 	D3D11_TEXTURE2D_DESC desc = { 0 };
 	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
 	D3D11_SUBRESOURCE_DATA textureData = { 0 };
-	ID3D11Texture2D *texture2D = NULL;
-	ID3D11ShaderResourceView *texture2DSRV = NULL;
+	ComPtr<ID3D11Texture2D> texture2D;
+	*srv = NULL;
 
+	bool isBc7 = (BufferLength == Width * Height);
+	DXGI_FORMAT ColorFormat = (g_DATReaderVersion <= DAT_READER_VERSION_101 || g_config.FlipDATImages) ?
+		DXGI_FORMAT_R8G8B8A8_UNORM : // Original, to be used with DATReader 1.0.1. Needs channel swizzling.
+		DXGI_FORMAT_B8G8R8A8_UNORM;  // To be used with DATReader 1.0.2+. Enables Marshal.Copy(), no channel swizzling.
 	desc.Width = (UINT)Width;
 	desc.Height = (UINT)Height;
-	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc.Format = isBc7 ? DXGI_FORMAT_BC7_UNORM : ColorFormat;
 	desc.MiscFlags = 0;
 	desc.MipLevels = 1;
 	desc.ArraySize = 1;
@@ -486,7 +637,7 @@ ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, 
 
 	textureData.pSysMem = (void *)Buffer;
 	textureData.SysMemPitch = sizeof(uint8_t) * Width * 4;
-	textureData.SysMemSlicePitch = sizeof(uint8_t) * Width * Height * 4;
+	textureData.SysMemSlicePitch = 0;
 
 	if (FAILED(hr = device->CreateTexture2D(&desc, &textureData, &texture2D))) {
 		log_debug("[DBG] Failed when calling CreateTexture2D from Buffer, reason: 0x%x",
@@ -498,7 +649,7 @@ ID3D11ShaderResourceView *Direct3DTexture::CreateSRVFromBuffer(uint8_t *Buffer, 
 	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
 	shaderResourceViewDesc.Texture2D.MipLevels = 1;
-	if (FAILED(hr = device->CreateShaderResourceView(texture2D, &shaderResourceViewDesc, &texture2DSRV))) {
+	if (FAILED(hr = device->CreateShaderResourceView(texture2D, &shaderResourceViewDesc, srv))) {
 		log_debug("[DBG] Failed when calling CreateShaderResourceView on texture2D, reason: 0x%x",
 			device->GetDeviceRemovedReason());
 		goto out;
@@ -514,54 +665,171 @@ out:
 	if (texture2D != nullptr) texture2D->Release();
 	if (texture2DSRV != nullptr) texture2DSRV->Release();
 	return NULL;*/
-	return texture2DSRV;
+	return hr;
 }
 
-HRESULT Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv)
+int Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, bool cache, ID3D11ShaderResourceView **srv,
+	short *Width_out, short *Height_out)
 {
 	short Width = 0, Height = 0;
 	uint8_t Format = 0;
 	uint8_t *buf = nullptr;
 	int buf_len = 0;
 	// Initialize the output to null/failure by default:
-	HRESULT res = -1;
+	HRESULT res = E_FAIL;
+	auto& resources = this->_deviceResources;
+	int index = -1;
 	*srv = nullptr;
 
+	if (cache)
+	{
+		index = GetCachedSRV(sDATFileName, GroupId, ImageId, srv);
+		if (index != -1)
+			return index;
+	}
+
 	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
-		return res;
+		return -1;
 
 	//if (SetDATVerbosity != nullptr) SetDATVerbosity(true);
 
 	if (!LoadDATFile(sDATFileName)) {
 		log_debug("[DBG] Could not load DAT file: %s", sDATFileName);
-		return res;
+		return -1;
 	}
 
 	if (!GetDATImageMetadata(GroupId, ImageId, &Width, &Height, &Format)) {
 		log_debug("[DBG] [C++] DAT Image not found");
-		return res;
+		return -1;
 	}
 
-	buf_len = Width * Height * 4;
-	buf = new uint8_t[buf_len];
-	if (ReadDATImageData(buf, buf_len)) {
-		*srv = CreateSRVFromBuffer(buf, Width, Height);
-		if (*srv != nullptr) res = S_OK;
-	} 
+	if (Width_out != nullptr) *Width_out = Width;
+	if (Height_out != nullptr) *Height_out = Height;
+
+	const bool isBc7 = (Format == 27);
+
+	if (isBc7 && (Width % 4 == 0) && (Height % 4 == 0))
+	{
+		buf_len = Width * Height;
+	}
 	else
-		log_debug("[DBG] [C++] Failed to read image data");
+	{
+		buf_len = Width * Height * 4;
+	}
+
+	buf = new uint8_t[buf_len];
+	if (!isBc7 && g_config.FlipDATImages && ReadFlippedDATImageData != nullptr)
+	{
+		if (ReadFlippedDATImageData(buf, buf_len))
+			res = CreateSRVFromBuffer(buf, buf_len, Width, Height, srv);
+		else
+			log_debug("[DBG] [C++] Failed to read flipped image data");
+	}
+	else
+	{
+		if (ReadDATImageData(buf, buf_len))
+			res = CreateSRVFromBuffer(buf, buf_len, Width, Height, srv);
+		else
+			log_debug("[DBG] [C++] Failed to read image data");
+	}
 
 	if (buf != nullptr) delete[] buf;
-	return res;
+
+	if (FAILED(res))
+		return -1;
+
+	if (cache)
+	{
+		index = resources->PushExtraTexture(*srv);
+		AddCachedSRV(sDATFileName, GroupId, ImageId, index, *srv);
+		return index;
+	}
+	else
+	{
+		return S_OK;
+	}
+}
+
+int Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int ImageId, bool cache, ID3D11ShaderResourceView **srv,
+	short *Width_out, short *Height_out)
+{
+	auto &resources = this->_deviceResources;
+	uint8_t Format = 0;
+	uint8_t *buf = nullptr;
+	int buf_len = 0;
+	// Initialize the output to null/failure by default:
+	HRESULT res = E_FAIL;
+	int index = -1;
+	*srv = nullptr;
+
+	if (cache)
+	{
+		index = GetCachedSRV(sZIPFileName, GroupId, ImageId, srv);
+		if (index != -1)
+			return index;
+	}
+
+	if (!InitZIPReader()) // This call is idempotent and should do nothing when ZIPReader is already loaded
+		return -1;
+
+	//if (SetZIPVerbosity != nullptr) SetZIPVerbosity(true);
+
+	//log_debug("[DBG] [C#] Trying to load ZIP Image: [%s],%d-%d", sZIPFileName, GroupId, ImageId);
+	// Unzip the file first. If the file has been unzipped already, this is a no-op
+	if (!LoadZIPFile(sZIPFileName)) {
+		log_debug("[DBG] Could not load ZIP file: %s", sZIPFileName);
+		return -1;
+	}
+
+	char* buffer = nullptr;
+	int bufferSize = 0;
+
+	if (!GetZIPImageMetadata(GroupId, ImageId, Width_out, Height_out, &buffer, &bufferSize))
+		return -1;
+	//log_debug("[DBG] [C#] ZIP Image: [%s] loaded", sActualFileName);
+
+	res = DirectX::CreateWICTextureFromMemory(resources->_d3dDevice, (uint8_t*)buffer, (size_t)bufferSize, NULL, srv);
+
+	LocalFree((HLOCAL)buffer);
+
+	if (FAILED(res))
+		return -1;
+
+	if (cache)
+	{
+		index = resources->PushExtraTexture(*srv);
+		AddCachedSRV(sZIPFileName, GroupId, ImageId, index, *srv);
+		return index;
+	}
+	else
+	{
+		return S_OK;
+	}
 }
 
 void Direct3DTexture::TagTexture() {
 	TextureSurface *surface = this->_surface;
 	auto &resources = this->_deviceResources;
+	// This flag is still used in the Direct3DDevice::Execute() path.
 	this->is_Tagged = true;
+	const bool bIsDAT = (stristr(surface->_cname, "dat,") != NULL);
 
 	// DEBUG: Remove later!
-	//log_debug("[DBG] %s", surface->_name);
+	//log_debug("[DBG] %s", surface->_cname);
+
+	// Skip tagging lower-level mips on OPT textures
+	if (!bIsDAT)
+	{
+		const int len = strlen(surface->_cname);
+		const int lastDigit = surface->_cname[len - 1] - '0';
+		//log_debug("[DBG] [DBG] %s::%d", surface->_cname, lastDigit);
+		// OPTs with mipmaps will have multiple entries for the same texture
+		// let's not bother tagging lower-level mips... This prevents loading
+		// auxiliar textures (like normal maps) multiple times for lower mips
+		if (lastDigit > 1)
+			return;
+	}
+
 	{
 		// Capture the textures
 #ifdef DBG_VR_DISABLED
@@ -583,21 +851,21 @@ void Direct3DTexture::TagTexture() {
 		}
 #endif
 
-		if (strstr(surface->_name, TRIANGLE_PTR_RESNAME) != NULL)
+		if (strstr(surface->_cname, TRIANGLE_PTR_RESNAME) != NULL)
 			this->is_TrianglePointer = true;
-		if (strstr(surface->_name, TARGETING_COMP_RESNAME) != NULL)
+		if (strstr(surface->_cname, TARGETING_COMP_RESNAME) != NULL)
 			this->is_TargetingComp = true;
-		if (isInVector(surface->_name, Reticle_ResNames))
+		if (isInVector(surface->_cname, Reticle_ResNames))
 			this->is_Reticle = true; // Standard Reticle from Reticle_ResNames
-		if (isInVector(surface->_name, Text_ResNames))
+		if (isInVector(surface->_cname, Text_ResNames))
 			this->is_Text = true;
-		if (isInVector(surface->_name, ReticleCenter_ResNames)) {
+		if (isInVector(surface->_cname, ReticleCenter_ResNames)) {
 			this->is_ReticleCenter = true; // Standard Reticle Center
-			log_debug("[DBG] [RET] %s is a Regular Reticle Center", surface->_name);
+			log_debug("[DBG] [RET] %s is a Regular Reticle Center", surface->_cname);
 		}
-		if (isInVector(surface->_name, CustomReticleCenter_ResNames)) {
+		if (isInVector(surface->_cname, CustomReticleCenter_ResNames)) {
 			this->is_ReticleCenter = true; // Custom Reticle Center
-			log_debug("[DBG] [RET] %s is a Custom Reticle Center", surface->_name);
+			log_debug("[DBG] [RET] %s is a Custom Reticle Center", surface->_cname);
 			// Stop tagging this texture
 			this->is_Tagged = true;
 			this->TagCount = 0;
@@ -610,55 +878,84 @@ void Direct3DTexture::TagTexture() {
 		 * later. The custom reticle code puts the laserlock resname in g_sLaserLockedReticleResName, and
 		 * we're using that here to tag textures.
 		 */
-		if (strstr(surface->_name, "dat,12000,600,") != NULL ||
-			(g_sLaserLockedReticleResName[0] != 0 && strstr(surface->_name, g_sLaserLockedReticleResName) != NULL)
+		if (strstr(surface->_cname, "dat,12000,600,") != NULL ||
+			(g_sLaserLockedReticleResName[0] != 0 && strstr(surface->_cname, g_sLaserLockedReticleResName) != NULL)
 		   )
 		{
-			log_debug("[DBG] [RET] %s is a LaserLock Reticle", surface->_name);
+			log_debug("[DBG] [RET] %s is a LaserLock Reticle", surface->_cname);
 			this->is_HighlightedReticle = true;
 		}
 
-		if (isInVector(surface->_name, Floating_GUI_ResNames))
+		// Reticle Warning Light textures
+		this->WarningLightType = NONE_WLIGHT;
+		if (strstr(surface->_cname, "dat,12000,1500,") != NULL || strstr(surface->_cname, "dat,12000,1900,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_LL_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a LL Warning Light", surface->_cname);
+			this->WarningLightType = RETICLE_LEFT_WLIGHT;
+		}
+		if (strstr(surface->_cname, "dat,12000,1600,") != NULL || strstr(surface->_cname, "dat,12000,2000,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_ML_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a ML Warning Light", surface->_cname);
+			this->WarningLightType = RETICLE_MID_LEFT_WLIGHT;
+		}
+		if (strstr(surface->_cname, "dat,12000,1700,") != NULL || strstr(surface->_cname, "dat,12000,2100,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_MR_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a MR Warning Light", surface->_cname);
+			this->WarningLightType = RETICLE_MID_RIGHT_WLIGHT;
+		}
+		if (strstr(surface->_cname, "dat,12000,1800,") != NULL || strstr(surface->_cname, "dat,12000,2200,") != NULL ||
+			isInVector(surface->_cname, CustomWLight_RR_ResNames))
+		{
+			log_debug("[DBG] [RET] %s is a RR Warning Light", surface->_cname);
+			this->WarningLightType = RETICLE_RIGHT_WLIGHT;
+		}
+
+		if (isInVector(surface->_cname, Floating_GUI_ResNames))
 			this->is_Floating_GUI = true;
-		if (isInVector(surface->_name, LaserIonEnergy_ResNames))
+		if (isInVector(surface->_cname, LaserIonEnergy_ResNames))
 			this->is_LaserIonEnergy = true;
-		if (isInVector(surface->_name, GUI_ResNames))
+		if (isInVector(surface->_cname, GUI_ResNames))
 			this->is_GUI = true;
 
 		// Catch the engine glow and mark it
-		if (strstr(surface->_name, "dat,1000,1,") != NULL)
+		if (strstr(surface->_cname, "dat,1000,1,") != NULL)
 			this->is_EngineGlow = true;
 		// Catch the flat light effect
-		if (strstr(surface->_name, "dat,1000,2") != NULL)
+		if (strstr(surface->_cname, "dat,1000,2") != NULL)
 			this->is_FlatLightEffect = true;
 		// Catch the electricity textures and mark them
-		if (isInVector(surface->_name, Electricity_ResNames))
+		if (isInVector(surface->_cname, Electricity_ResNames))
 			this->is_Electricity = true;
 		// Catch the explosion textures and mark them
-		if (isInVector(surface->_name, Explosion_ResNames))
+		if (isInVector(surface->_cname, Explosion_ResNames))
 			this->is_Explosion = true;
-		if (isInVector(surface->_name, Smoke_ResNames))
+		if (isInVector(surface->_cname, Smoke_ResNames))
 			this->is_Smoke = true;
 		// Catch the lens flare and mark it
-		if (isInVector(surface->_name, LensFlare_ResNames))
+		if (isInVector(surface->_cname, LensFlare_ResNames))
 			this->is_LensFlare = true;
 		// Catch the hyperspace anim and mark it
-		if (strstr(surface->_name, "dat,3051,") != NULL)
+		if (strstr(surface->_cname, "dat,3051,") != NULL)
 			this->is_HyperspaceAnim = true;
 		// Catch the backdrup suns and mark them
-		if (isInVector(surface->_name, Sun_ResNames)) {
+		if (isInVector(surface->_cname, Sun_ResNames)) {
 			this->is_Sun = true;
 			//g_AuxTextureVector.push_back(this); // We're no longer tracking which textures are Sun-textures
 		}
 		// Catch the space debris
-		if (isInVector(surface->_name, SpaceDebris_ResNames))
+		if (isInVector(surface->_cname, SpaceDebris_ResNames))
 			this->is_Debris = true;
 		// Catch DAT files
-		if (strstr(surface->_name, "dat,") != NULL) {
+		if (bIsDAT) {
 			int GroupId, ImageId;
 			this->is_DAT = true;
 			// Check if this DAT image is a custom reticle
-			if (GetGroupIdImageIdFromDATName(surface->_name, &GroupId, &ImageId)) {
+			if (GetGroupIdImageIdFromDATName(surface->_cname, &GroupId, &ImageId)) {
+				this->DATGroupId = GroupId;
+				this->DATImageId = ImageId;
 				if (GroupId == 12000 && ImageId > 5000) {
 					this->is_Reticle = true; // Custom Reticle
 					//log_debug("[DBG] CUSTOM RETICLE: %s", surface->_name);
@@ -675,68 +972,78 @@ void Direct3DTexture::TagTexture() {
 			}
 		}
 		// Catch blast marks
-		if (strstr(surface->_name, "dat,3050,") != NULL)
+		if (strstr(surface->_cname, "dat,3050,") != NULL)
 			this->is_BlastMark = true;
 		// Catch the trails
-		if (isInVector(surface->_name, Trails_ResNames))
+		if (isInVector(surface->_cname, Trails_ResNames))
 			this->is_Trail = true;
 		// Catch the sparks
-		if (isInVector(surface->_name, Sparks_ResNames))
+		if (isInVector(surface->_cname, Sparks_ResNames))
 			this->is_Spark = true;
-		if (strstr(surface->_name, "dat,22007,") != NULL)
+		if (strstr(surface->_cname, "dat,22007,") != NULL)
 			this->is_CockpitSpark = true;
-		if (strstr(surface->_name, "dat,5000,") != NULL)
+		if ((strstr(surface->_cname, "dat,5000,") != NULL) ||
+			(strstr(surface->_cname, "dat,3006,") != NULL))
 			this->is_Chaff = true;
-		if (strstr(surface->_name, "dat,17002,") != NULL) // DSII reactor core explosion animation textures
+		if (strstr(surface->_cname, "dat,17002,") != NULL) // DSII reactor core explosion animation textures
 			this->is_DS2_Reactor_Explosion = true;
 		//if (strstr(surface->_name, "dat,17001,") != NULL) // DSII reactor core explosion animation textures
 		//	this->is_DS2_Energy_Field = true;
+		if ((strstr(surface->_cname, "dat,14800,") != NULL) || // Gray map icons
+		    (strstr(surface->_cname, "dat,14610,") != NULL) || // Green map icons
+		    (strstr(surface->_cname, "dat,14620,") != NULL) || // Red map icons
+		    (strstr(surface->_cname, "dat,14630,") != NULL) || // Blue map icons
+		    (strstr(surface->_cname, "dat,14640,") != NULL) || // Yellow map icons
+		    (strstr(surface->_cname, "dat,14650,") != NULL))   // Purple map icons
+		{
+			this->is_MapIcon = true;
+		}
 		
 		/* Special handling for Dynamic Cockpit source HUD textures */
 		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
-			if (stristr(surface->_name, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
 				this->is_DC_TargetCompSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((stristr(surface->_name, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
-				(stristr(surface->_name, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_cname, DC_LEFT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_cname, DC_LEFT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_LeftSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if ((stristr(surface->_name, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
-				(stristr(surface->_name, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
+			if ((stristr(surface->_cname, DC_RIGHT_SENSOR_SRC_RESNAME) != NULL) ||
+				(stristr(surface->_cname, DC_RIGHT_SENSOR_2_SRC_RESNAME) != NULL)) {
 				this->is_DC_RightSensorSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_SHIELDS_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_SHIELDS_SRC_RESNAME) != NULL) {
 				this->is_DC_ShieldsSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_SOLID_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_SolidMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_BORDER_MSG_SRC_RESNAME) != NULL) {
 				this->is_DC_BorderMsgSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_LASER_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_LASER_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_LaserBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_ION_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_ION_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_IonBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_BEAM_BOX_SRC_RESNAME) != NULL) {
 				this->is_DC_BeamBoxSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_TOP_LEFT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopLeftSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
-			if (stristr(surface->_name, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
+			if (stristr(surface->_cname, DC_TOP_RIGHT_SRC_RESNAME) != NULL) {
 				this->is_DC_TopRightSrc = true;
 				this->is_DC_HUDRegionSrc = true;
 			}
@@ -748,8 +1055,15 @@ void Direct3DTexture::TagTexture() {
 	OPTname.name[0] = 0;
 	{
 		// Capture the OPT name
-		char *start = strstr(surface->_name, "\\");
-		char *end = strstr(surface->_name, ".opt");
+		// Sample surface->_cname's:
+		// opt,FlightModels\PreybirdFighterExterior.opt,TEX00001,color,0
+		// opt,FlightModels\PreybirdFighterExterior.opt,TEX00001,light,0
+		// opt,FlightModels\PreybirdFighterExterior.opt,TEX00005,color-transparent,0
+		// In the following example, the "_fg_" part means a skin is active:
+		// opt,FlightModels\SlaveOneExterior.opt,Tex00000_fg_0_Default,color,0
+		// opt,FlightModels\SlaveOneExterior.opt,Tex00000_fg_1_Default,color,0
+		char *start = strstr(surface->_cname, "\\");
+		char *end = strstr(surface->_cname, ".opt");
 		char sFileName[180], sFileNameShort[180];
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
@@ -764,9 +1078,9 @@ void Direct3DTexture::TagTexture() {
 				LoadIndividualMATParams(OPTname.name, sFileName); // OPT material
 			}
 		}
-		else if (strstr(surface->_name, "dat,") != NULL) {
+		else if (bIsDAT) {
 			// For DAT images, OPTname.name is the full DAT name:
-			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_name, strlen(surface->_name));
+			strncpy_s(OPTname.name, MAX_OPT_NAME, surface->_cname, strlen(surface->_cname));
 			DATNameToMATParamsFile(OPTname.name, sFileName, sFileNameShort, 180);
 			if (sFileName[0] != 0) {
 				// Load the regular DAT material:
@@ -786,29 +1100,29 @@ void Direct3DTexture::TagTexture() {
 	{
 		//log_debug("[DBG] [DC] name: [%s]", surface->_name);
 		// Catch the laser-related textures and mark them
-		if (strstr(surface->_name, "Laser") != NULL) {
+		if (strstr(surface->_cname, "Laser") != NULL) {
 			// Ignore "LaserBat.OPT"
-			if (strstr(surface->_name, "LaserBat") == NULL) {
+			if (strstr(surface->_cname, "LaserBat") == NULL) {
 				this->is_Laser = true;
 			}
 		}
 
 		// Tag all the missiles
 		// Flare
-		if (strstr(surface->_name, "Missile") != NULL || strstr(surface->_name, "Torpedo") != NULL ||
-			strstr(surface->_name, "SpaceBomb") != NULL || strstr(surface->_name, "Pulse") != NULL ||
-			strstr(surface->_name, "Rocket") != NULL || strstr(surface->_name, "Flare") != NULL) {
-			if (strstr(surface->_name, "Boat") == NULL) {
+		if (strstr(surface->_cname, "Missile") != NULL || strstr(surface->_cname, "Torpedo") != NULL ||
+			strstr(surface->_cname, "SpaceBomb") != NULL || strstr(surface->_cname, "Pulse") != NULL ||
+			strstr(surface->_cname, "Rocket") != NULL || strstr(surface->_cname, "Flare") != NULL) {
+			if (strstr(surface->_cname, "Boat") == NULL) {
 				//log_debug("[DBG] Missile texture: %s", surface->_name);
 				this->is_Missile = true;
 			}
 		}
 
-		if (strstr(surface->_name, "Turbo") != NULL) {
+		if (strstr(surface->_cname, "Turbo") != NULL) {
 			this->is_TurboLaser = true;
 		}
 
-		if (strstr(surface->_name, "Cockpit") != NULL) {
+		if (strstr(surface->_cname, "Cockpit") != NULL) {
 			this->is_CockpitTex = true;
 
 			// DEBUG
@@ -832,8 +1146,8 @@ void Direct3DTexture::TagTexture() {
 				char CockpitName[128];
 				//strstr(surface->_name, "Gunner")  != NULL)  {
 				// Extract the name of the cockpit and put it in CockpitName
-				char *start = strstr(surface->_name, "\\");
-				char *end   = strstr(surface->_name, ".opt");
+				char *start = strstr(surface->_cname, "\\");
+				char *end   = strstr(surface->_cname, ".opt");
 				if (start != NULL && end != NULL) {
 					start += 1; // Skip the backslash
 					int size = end - start;
@@ -877,64 +1191,57 @@ void Direct3DTexture::TagTexture() {
 					{
 						LoadCustomReticle(g_sCurrentCockpit);
 					}
+					// Load the POV Offset from the current INI file
+					{
+						LoadPOVOffsetFromIniFile();
+					}
+					// Load the HUD color from the current INI file
+					{
+						LoadHUDColorFromIniFile();
+					}
+					// We need to count the number of lasers and ions in this new craft, but we probably
+					// can't do it now since we're still loading resources here. Instead, let's set a flag
+					// to count them later.
+					g_bLasersIonsNeedCounting = true;
+
+					// Disable the Gimbal Lock Fix on the following ships:
+					g_bYTSeriesShip = false;
+					if (stristr(g_sCurrentCockpit, "CorellianTransport2") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "FamilyTransport") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "Outrider") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "MilleniumFalcon") != NULL) {
+						g_bYTSeriesShip = true;
+					}
+					else if (stristr(g_sCurrentCockpit, "MiniFalcon") != NULL) {
+						g_bYTSeriesShip = true;
+					}
 				}
 					
 			}
 			
 		}
 
-		if (strstr(surface->_name, "Gunner") != NULL) {
+		if (strstr(surface->_cname, "Gunner") != NULL) {
 			this->is_GunnerTex = true;
 		}
 
-		if (strstr(surface->_name, "Exterior") != NULL) {
+		if (strstr(surface->_cname, "Exterior") != NULL) {
 			this->is_Exterior = true;
 		}
 
 		// Catch light textures and mark them appropriately
-		if (strstr(surface->_name, ",light,") != NULL)
+		if (strstr(surface->_cname, ",light,") != NULL)
 			this->is_LightTexture = true;
 
-		// Link light and color textures:
-		/*
-		{
-			if (!this->is_LightTexture) {
-				this->lightTexture = nullptr;
-				g_TextureVector.push_back(ColorLightPair(this));
-			}
-			else {
-				// Find the corresponding color texture and link it
-				// TODO: Do I need to worry about .DAT textures? Maybe not because they don't have "light"
-				//       textures? I didn't see a single DAT file using the following line:
-				//log_debug("[DBG] LIGHT: %s", this->_surface->_name);
-				for (int i = g_TextureVector.size() - 1; i >= 0; i--) {
-					char *light_name = this->_surface->_name;
-					char *color_name = g_TextureVector[i].color->_surface->_name;
-					char *light_start, *light_end, *color_start, *color_end;
-					int len = 0;
-
-					// Find the "TEX#####" token:
-					light_start = strstr(light_name, ".opt,");
-					if (light_start == NULL) break;
-					light_start += 5; // Skip the ".opt," part
-					light_end = strstr(light_start, ",");
-					if (light_end == NULL) break;
-					len = light_end - light_start;
-
-					color_start = color_name + (light_start - light_name);
-					color_end = color_name + (light_end - light_name);
-					if (_strnicmp(light_start, color_start, len) == 0)
-					{
-						//log_debug("[DBG] %d, %s maps to %s", i, light_start, color_start);
-						g_TextureVector[i].light = this;
-						g_TextureVector[i].color->lightTexture = this;
-						// After the color and light textures have been linked, g_TextureVector can be cleared
-						break;
-					}
-				}
-			}
-		}
-		*/
+		// Tag textures with transparency
+		if (strstr(surface->_cname, ",color-transparent,") != NULL)
+			this->is_Transparent = true;
 
 		//if (strstr(surface->_name, "color-transparent") != NULL) {
 			//this->is_ColorTransparent = true;
@@ -953,8 +1260,8 @@ void Direct3DTexture::TagTexture() {
 		*/
 
 		// Disable SSAO/SSDO for all Skydomes (This fix is specific for DTM's maps)
-		if (strstr(surface->_name, "Cielo") != NULL ||
-			strstr(surface->_name, "Skydome") != NULL)
+		if (strstr(surface->_cname, "Cielo") != NULL ||
+			strstr(surface->_cname, "Skydome") != NULL)
 		{
 			g_b3DSkydomePresent = true;
 			this->is_Skydome = true;
@@ -966,8 +1273,8 @@ void Direct3DTexture::TagTexture() {
 		}
 
 		// 3D Sun is present in this scene: [opt, FlightModels\Planet3D_Sole_26Km.opt, TEX00001, color, 0]
-		if (strstr(surface->_name, "Sole") != NULL ||
-			strstr(surface->_name, "Star3D") != NULL) {
+		if (strstr(surface->_cname, "Sole") != NULL ||
+			strstr(surface->_cname, "Star3D") != NULL) {
 			g_b3DSunPresent = true;
 			this->is_3DSun = true;
 			//log_debug("[DBG] 3D Sun is present in this scene: [%s]", surface->_name);
@@ -975,10 +1282,10 @@ void Direct3DTexture::TagTexture() {
 		
 		if (g_bDynCockpitEnabled) {
 			/* Process Dynamic Cockpit destination textures: */
-			int idx = isInVector(surface->_name, g_DCElements, g_iNumDCElements);
+			int idx = isInVector(surface->_cname, g_DCElements, g_iNumDCElements);
 			if (idx > -1) {
 				// "light" and "color" textures are processed differently
-				if (strstr(surface->_name, ",color") != NULL) {
+				if (strstr(surface->_cname, ",color") != NULL) {
 					// This texture is a Dynamic Cockpit destination texture
 					this->is_DynCockpitDst = true;
 					// Make this texture "point back" to the right dc_element
@@ -990,14 +1297,20 @@ void Direct3DTexture::TagTexture() {
 						g_DCElements[idx].coverTextureName[0] != 0) 
 					{
 						HRESULT res = S_OK;
-						if (stristr(g_DCElements[idx].coverTextureName, ".dat-") != NULL) {
-							// This is a DAT texture, load it through the DATReader library
-							char sDATFileName[128];
+						char *substr_dat = stristr(g_DCElements[idx].coverTextureName, ".dat");
+						char *substr_zip = stristr(g_DCElements[idx].coverTextureName, ".zip");
+						if (substr_dat != NULL || substr_zip != NULL) {
+							// This is a DAT or a ZIP texture, load it through the DATReader or ZIPReader libraries
+							char sDATZIPFileName[128];
 							short GroupId, ImageId;
-							res = -1;
-							if (ParseDatFileNameGroupIdImageId(g_DCElements[idx].coverTextureName, sDATFileName, 128, &GroupId, &ImageId)) {
+							bool bIsDATFile = false;
+							res = E_FAIL;
+							if (ParseDatZipFileNameGroupIdImageId(g_DCElements[idx].coverTextureName, sDATZIPFileName, 128, &GroupId, &ImageId)) {
 								//log_debug("[DBG] [DC] Loading cover texture [%s]-%d-%d", sDATFileName, GroupId, ImageId);
-								res = LoadDATImage(sDATFileName, GroupId, ImageId, &(resources->dc_coverTexture[idx]));
+								if (substr_dat != NULL)
+									res = LoadDATImage(sDATZIPFileName, GroupId, ImageId, false, &(resources->dc_coverTexture[idx]));
+								else
+									res = LoadZIPImage(sDATZIPFileName, GroupId, ImageId, false, &(resources->dc_coverTexture[idx]));
 								//if (FAILED(res)) log_debug("[DBG] [DC] *** ERROR loading cover texture");
 							}
 						} else {
@@ -1015,7 +1328,7 @@ void Direct3DTexture::TagTexture() {
 						}
 					}
 				}
-				else if (strstr(surface->_name, ",light") != NULL) {
+				else if (strstr(surface->_cname, ",light") != NULL) {
 					this->is_DynCockpitAlphaOverlay = true;
 				}
 			} // if (idx > -1)
@@ -1025,7 +1338,7 @@ void Direct3DTexture::TagTexture() {
 			if (this->is_CockpitTex && !this->is_LightTexture)
 			{
 				/* Process Active Cockpit destination textures: */
-				int idx = isInVector(surface->_name, g_ACElements, g_iNumACElements);
+				int idx = isInVector(surface->_cname, g_ACElements, g_iNumACElements);
 				if (idx > -1) {
 					// "Point back" into the right ac_element index:
 					this->ActiveCockpitIdx = idx;
@@ -1036,22 +1349,20 @@ void Direct3DTexture::TagTexture() {
 		}
 
 		// Materials
-		//if (g_bReshadeEnabled) 
 		if (OPTname.name[0] != 0)
 		{
 			int craftIdx = FindCraftMaterial(OPTname.name);
 			if (craftIdx > -1) {
 				char texname[MAX_TEXNAME];
-				bool bIsDat = strstr(OPTname.name, "dat,") != NULL;
 				// We need to check if this is a DAT or an OPT first
-				if (bIsDat) 
+				if (bIsDAT) 
 				{
 					texname[0] = 0; // Retrieve the default material
 				}
 				else 
 				{
 					//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
-					char *start = strstr(surface->_name, ".opt");
+					char *start = strstr(surface->_cname, ".opt");
 					// Skip the ".opt," part
 					start += 5;
 					// Find the next comma
@@ -1066,16 +1377,143 @@ void Direct3DTexture::TagTexture() {
 				g_AuxTextureVector.push_back(this);
 				this->AuxVectorIndex = g_AuxTextureVector.size() - 1;
 				// If this material has an animated light map, let's load the textures now
-				if ((this->material.AnyLightMapATCIndex() && this->is_LightTexture) ||
-					(this->material.AnyTextureATCIndex() && !this->is_LightTexture)) 
-				{
-					// Load the animated textures for each valid index
-					int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
-					// Go over each valid TextureATCIndex and load their associated animations
-					for (int i = 0; i < MAX_GAME_EVT; i++)
-						if (this->material.TextureATCIndices[ATCType][i] > -1)
-							LoadAnimatedTextures(this->material.TextureATCIndices[ATCType][i]);
+				if (!this->material.bInstanceMaterial) {
+					// Load GLOBAL event animations
+					if ((this->material.AnyLightMapATCIndex() && this->is_LightTexture) ||
+						(this->material.AnyTextureATCIndex() && !this->is_LightTexture))
+					{
+						// Load the animated textures for each valid index
+						int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
+						// Go over each valid TextureATCIndex and load their associated animations
+						for (int i = 0; i < MAX_GAME_EVT; i++)
+							if (this->material.TextureATCIndices[ATCType][i] > -1)
+							{
+								const int ATCIndex = this->material.TextureATCIndices[ATCType][i];
+								if (!g_AnimatedMaterials[ATCIndex].SequenceLoaded)
+									LoadAnimatedTextures(ATCIndex);
+							}
+					}
 				}
+				else {
+					// Load INSTANCE event animations
+					if ((this->material.AnyInstLightMapATCIndex() && this->is_LightTexture) ||
+						(this->material.AnyInstTextureATCIndex() && !this->is_LightTexture))
+					{
+						// Load the animated textures for each valid index
+						int ATCType = this->is_LightTexture ? LIGHTMAP_ATC_IDX : TEXTURE_ATC_IDX;
+						// Go over each valid InstTextureATCIndices and load their associated animations
+						for (int i = 0; i < MAX_INST_EVT; i++)
+						{
+							int size = this->material.InstTextureATCIndices[ATCType][i].size();
+							for (int j = 0; j < size; j++)
+							{
+								const int ATCIndex = this->material.InstTextureATCIndices[ATCType][i][j];
+								if (!g_AnimatedMaterials[ATCIndex].SequenceLoaded)
+									LoadAnimatedTextures(ATCIndex);
+							}
+						}
+					}
+				}
+
+				// Load the Greeble Textures here...
+				if (this->material.GreebleDataIdx != -1) {
+					GreebleData *greeble_data = &(g_GreebleData[this->material.GreebleDataIdx]);
+					short Width, Height;
+					//log_debug("[DBG] [GRB] This material has GreebleData at index: %d", this->material.GreebleDataIdx);
+					//log_debug("[DBG] [GRB] GreebleTexIndex[0]: %d, GreebleTexIndex[1]: %d",
+					//	greeble_data->GreebleTexIndex[0], greeble_data->GreebleTexIndex[1]);
+					// Load the Greeble Textures
+					for (int i = 0; i < MAX_GREEBLE_LEVELS; i++) {
+						// We need to load this texture. Textures are loaded in resources->_extraTextures
+						if (greeble_data->GreebleTexIndex[i] == -1 && greeble_data->GreebleTexName[i][0] != 0) {
+							// TODO: Optimization opportunity: search all the texture names in g_GreebleData and avoid loading
+							// textures if we find we've already loaded them before...
+							greeble_data->GreebleTexIndex[i] = LoadGreebleTexture(greeble_data->GreebleTexName[i], &Width, &Height);
+							if (greeble_data->GreebleTexIndex[i] != -1) {
+								if (greeble_data->greebleBlendMode[i] == GBM_UV_DISP ||
+									greeble_data->greebleBlendMode[i] == GBM_UV_DISP_AND_NORMAL_MAP) {
+									greeble_data->UVDispMapResolution.x = Width;
+									greeble_data->UVDispMapResolution.y = Height;
+									//log_debug("[DBG] [GRB] UVDispMapResolution: %0.0f, %0.0f",
+									//	greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+								}
+								//log_debug("[DBG] [GRB] Loaded Greeble Texture at index: %d", greeble_data->GreebleTexIndex[i]);
+							}
+						}
+						// Load Lightmap Greebles
+						if (greeble_data->GreebleLightMapIndex[i] == -1 && greeble_data->GreebleLightMapName[i][0] != 0) {
+							// TODO: Optimization opportunity: search all the lightmap texture names in g_GreebleData and avoid loading
+							// textures if we find we've already loaded them before...
+							greeble_data->GreebleLightMapIndex[i] = LoadGreebleTexture(greeble_data->GreebleLightMapName[i], &Width, &Height);
+							if (greeble_data->GreebleLightMapIndex[i] != -1) {
+								if (greeble_data->greebleLightMapBlendMode[i] == GBM_UV_DISP ||
+									greeble_data->greebleLightMapBlendMode[i] == GBM_UV_DISP_AND_NORMAL_MAP) {
+									// TODO: Only one (1) UVDispMap is currently supported for regular and lightmap greebles.
+									// I may need to add support for more maps later.
+									greeble_data->UVDispMapResolution.x = Width;
+									greeble_data->UVDispMapResolution.y = Height;
+									//log_debug("[DBG] [GRB] UVDispMapResolution (Lightmap): %0.0f, %0.0f",
+									//	greeble_data->UVDispMapResolution.x, greeble_data->UVDispMapResolution.y);
+								}
+								//log_debug("[DBG] [GRB] Loaded Lightmap Greeble Texture at index: %d", greeble_data->GreebleLightMapIndex[i]);
+							}
+						}
+					}
+					
+				}
+
+				// Load the alternate explosions here...
+				for (int AltExpIdx = 0; AltExpIdx < MAX_ALT_EXPLOSIONS; AltExpIdx++) {
+					int ATCIndex = this->material.AltExplosionIdx[AltExpIdx];
+					if (ATCIndex != -1) {
+						AnimatedTexControl *atc = &(g_AnimatedMaterials[ATCIndex]);
+						// Make sure we only load this sequence once
+						if (!atc->SequenceLoaded) {
+							//log_debug("[DBG] Loading AltExplosionIdx[%d]: %d", AltExpIdx, ATCIndex);
+							for (uint32_t j = 0; j < atc->Sequence.size(); j++) {
+								TexSeqElem tex_seq_elem = atc->Sequence[j];
+								ID3D11ShaderResourceView *texSRV = nullptr;
+								if (atc->Sequence[j].ExtraTextureIndex == -1) {
+									int index = -1;
+
+									if (tex_seq_elem.IsDATImage)
+										index = LoadDATImage(tex_seq_elem.texname, tex_seq_elem.GroupId,
+											/* ImageId */ j, true, &texSRV);
+									else if (tex_seq_elem.IsZIPImage)
+										index = LoadZIPImage(tex_seq_elem.texname, tex_seq_elem.GroupId,
+											/* ImageId */ j, true, &texSRV);
+
+									if (index == -1) {
+										log_debug("[DBG] [MAT] ***** Could not load DAT texture [%s-%d-%d]",
+											tex_seq_elem.texname, tex_seq_elem.GroupId, j);
+									}
+									else {
+										atc->Sequence[j].ExtraTextureIndex = index;
+									}
+								}
+							}
+							atc->SequenceLoaded = true; // Make extra-sure we only load this animation once
+						}
+					}
+				}
+
+				// Load the Normal Maps here...
+				if (this->material.NormalMapName[0] != 0)
+				{
+					const std::string normalMapName = std::string(this->material.NormalMapName);
+					this->NormalMapIdx = QueryGlobalTextureMap(normalMapName);
+					if (this->NormalMapIdx == -1)
+					{
+						short Width, Height; // These variables are not used
+						this->NormalMapIdx = LoadNormalMap(this->material.NormalMapName, &Width, &Height);
+						AddToGlobalTextureMap(normalMapName, this->NormalMapIdx);
+						log_debug("[DBG] [MAT] LoadNormal [%s], res: %d, loaded: %d",
+							this->_surface->_name.c_str(),
+							this->NormalMapIdx, this->material.NormalMapLoaded);
+					}
+					this->material.NormalMapLoaded = (this->NormalMapIdx != -1);
+				}
+
 				// DEBUG
 				/*if (bIsDat) {
 					log_debug("[DBG] [MAT] [%s] --> Material: %0.3f, %0.3f, %0.3f",
@@ -1113,6 +1551,7 @@ HRESULT Direct3DTexture::Load(
 
 	Direct3DTexture* d3dTexture = (Direct3DTexture*)lpD3DTexture;
 	TextureSurface* surface = d3dTexture->_surface;
+	this->_name = d3dTexture->_name;
 	//log_debug("[DBG] Loading %s", surface->name);
 	// The changes from Jeremy's commit fe50cc59e03225bb7e39ae2852e87d305e7c7891 to reduce
 	// memory usage cause mipmapped textures to call Load() again. So we must copy all the
@@ -1131,9 +1570,12 @@ HRESULT Direct3DTexture::Load(
 	this->is_Laser = d3dTexture->is_Laser;
 	this->is_TurboLaser = d3dTexture->is_TurboLaser;
 	this->is_LightTexture = d3dTexture->is_LightTexture;
+	this->is_Transparent = d3dTexture->is_Transparent;
 	this->is_EngineGlow = d3dTexture->is_EngineGlow;
 	this->is_Electricity = d3dTexture->is_Electricity;
 	this->is_Explosion = d3dTexture->is_Explosion;
+	this->DATImageId = d3dTexture->DATImageId;
+	this->DATGroupId = d3dTexture->DATGroupId;
 	this->is_Smoke = d3dTexture->is_Smoke;
 	this->is_CockpitTex = d3dTexture->is_CockpitTex;
 	this->is_GunnerTex = d3dTexture->is_GunnerTex;
@@ -1157,6 +1599,8 @@ HRESULT Direct3DTexture::Load(
 	this->is_BlastMark = d3dTexture->is_BlastMark;
 	this->is_DS2_Reactor_Explosion = d3dTexture->is_DS2_Reactor_Explosion;
 	//this->is_DS2_Energy_Field = d3dTexture->is_DS2_Energy_Field;
+	this->is_MapIcon = d3dTexture->is_MapIcon;
+	this->WarningLightType = d3dTexture->WarningLightType;
 	this->ActiveCockpitIdx = d3dTexture->ActiveCockpitIdx;
 	this->AuxVectorIndex = d3dTexture->AuxVectorIndex;
 	// g_AuxTextureVector will keep a list of references to textures that have associated materials.
@@ -1170,7 +1614,7 @@ HRESULT Direct3DTexture::Load(
 	// during 3D rendering. This makes them available both in the hangar and after launching from
 	// the hangar.
 	//log_debug("[DBG] [DC] Load Copying name: [%s]", d3dTexture->_surface->_name);
-	strncpy_s(this->_surface->_name, d3dTexture->_surface->_name, MAX_TEXTURE_NAME);
+	strncpy_s(this->_surface->_cname, d3dTexture->_surface->_cname, MAX_TEXTURE_NAME);
 	// Dynamic Cockpit data
 	this->is_DynCockpitDst = d3dTexture->is_DynCockpitDst;
 	this->is_DynCockpitAlphaOverlay = d3dTexture->is_DynCockpitAlphaOverlay;
@@ -1190,7 +1634,9 @@ HRESULT Direct3DTexture::Load(
 
 	this->material = d3dTexture->material;
 	this->bHasMaterial = d3dTexture->bHasMaterial;
-	//this->lightTexture = d3dTexture->lightTexture;
+
+	this->GreebleTexIdx = d3dTexture->GreebleTexIdx;
+	this->NormalMapIdx = d3dTexture->NormalMapIdx;
 
 	// DEBUG
 	// Looks like we always tag the color texture before the light texture.
@@ -1200,6 +1646,7 @@ HRESULT Direct3DTexture::Load(
 	//}
 
 	// DEBUG
+
 	if (d3dTexture->_textureView)
 	{
 #if LOGGER
@@ -1208,7 +1655,7 @@ HRESULT Direct3DTexture::Load(
 #endif
 
 		d3dTexture->_textureView->AddRef();
-		*&this->_textureView = d3dTexture->_textureView.Get();
+		this->_textureView = d3dTexture->_textureView.Get();
 
 		return D3D_OK;
 	}
@@ -1221,12 +1668,92 @@ HRESULT Direct3DTexture::Load(
 #if LOGGER
 	str.str("");
 	str << "\t" << surface->_pixelFormat.dwRGBBitCount;
+	str << " " << surface->_width << "x" << surface->_height;
 	str << " " << (void*)surface->_pixelFormat.dwRBitMask;
 	str << " " << (void*)surface->_pixelFormat.dwGBitMask;
 	str << " " << (void*)surface->_pixelFormat.dwBBitMask;
 	str << " " << (void*)surface->_pixelFormat.dwRGBAlphaBitMask;
 	LogText(str.str());
 #endif
+
+	if (surface->_pixelFormat.dwRGBBitCount == 32 && surface->_width != 0 && surface->_height != 0 && surface->_pixelFormat.dwSize != 32 && surface->_pixelFormat.dwSize != 0 && surface->_pixelFormat.dwSize < surface->_width * surface->_height * 4)
+	{
+		int size = surface->_pixelFormat.dwSize;
+		int width = surface->_width;
+		int height = surface->_height;
+
+		D3D11_TEXTURE2D_DESC textureDesc{};
+		textureDesc.Width = width;
+		textureDesc.Height = height;
+		textureDesc.Format = DXGI_FORMAT_BC7_UNORM;
+		textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+		textureDesc.CPUAccessFlags = 0;
+		textureDesc.MiscFlags = 0;
+		textureDesc.MipLevels = 1;
+		textureDesc.ArraySize = 1;
+		textureDesc.SampleDesc.Count = 1;
+		textureDesc.SampleDesc.Quality = 0;
+		textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+		int blocksWidth = (width + 3) / 4;
+		int blocksHeight = (height + 3) / 4;
+
+		D3D11_SUBRESOURCE_DATA textureData{};
+		textureData.pSysMem = surface->_buffer;
+		textureData.SysMemPitch = blocksWidth * 16;
+		textureData.SysMemSlicePitch = 0;
+
+		ComPtr<ID3D11Texture2D> texture;
+
+		char* data = nullptr;
+
+		if (width % 4 != 0 || height % 4 != 0)
+		{
+			data = new char[width * height * 4];
+			BC7_Decode(surface->_buffer, data, width, height);
+
+			textureDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			textureData.pSysMem = data;
+			textureData.SysMemPitch = width * 4;
+		}
+
+		HRESULT hr = this->_deviceResources->_d3dDevice->CreateTexture2D(&textureDesc, &textureData, &texture);
+
+		if (data)
+		{
+			delete[] data;
+		}
+
+		if (FAILED(hr))
+		{
+			static bool messageShown = false;
+
+			if (!messageShown)
+			{
+				MessageBox(nullptr, _com_error(hr).ErrorMessage(), __FUNCTION__, MB_ICONERROR);
+			}
+
+			messageShown = true;
+
+			return D3DERR_TEXTURE_LOAD_FAILED;
+		}
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC textureViewDesc{};
+		textureViewDesc.Format = textureDesc.Format;
+		textureViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		textureViewDesc.Texture2D.MipLevels = textureDesc.MipLevels;
+		textureViewDesc.Texture2D.MostDetailedMip = 0;
+
+		if (FAILED(this->_deviceResources->_d3dDevice->CreateShaderResourceView(texture, &textureViewDesc, &d3dTexture->_textureView)))
+		{
+			return D3DERR_TEXTURE_LOAD_FAILED;
+		}
+
+		d3dTexture->_textureView->AddRef();
+		this->_textureView = d3dTexture->_textureView.Get();
+
+		return D3D_OK;
+	}
 
 	DWORD bpp = surface->_pixelFormat.dwRGBBitCount == 32 ? 4 : 2;
 
@@ -1254,10 +1781,10 @@ HRESULT Direct3DTexture::Load(
 		}
 	}
 
-	D3D11_TEXTURE2D_DESC textureDesc;
+	D3D11_TEXTURE2D_DESC textureDesc{};
 	textureDesc.Width = surface->_width;
 	textureDesc.Height = surface->_height;
-	textureDesc.Format = this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT ? format : BACKBUFFER_FORMAT;
+	textureDesc.Format = (this->_deviceResources->_are16BppTexturesSupported || format == BACKBUFFER_FORMAT) ? format : BACKBUFFER_FORMAT;
 	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	textureDesc.CPUAccessFlags = 0;
 	textureDesc.MiscFlags = 0;
@@ -1274,7 +1801,7 @@ HRESULT Direct3DTexture::Load(
 
 	if (useBuffers)
 	{
-		buffers = new char*[textureDesc.MipLevels];
+		buffers = new char* [textureDesc.MipLevels];
 		buffers[0] = convertFormat(surface->_buffer, surface->_width, surface->_height, format);
 	}
 
@@ -1332,11 +1859,6 @@ out:
 
 		messageShown = true;
 
-#if LOGGER
-		str.str("\tD3DERR_TEXTURE_LOAD_FAILED");
-		LogText(str.str());
-#endif
-
 		return D3DERR_TEXTURE_LOAD_FAILED;
 	}
 
@@ -1357,7 +1879,7 @@ out:
 	}
 
 	d3dTexture->_textureView->AddRef();
-	*&this->_textureView = d3dTexture->_textureView.Get();
+	this->_textureView = d3dTexture->_textureView.Get();
 
 	return D3D_OK;
 }

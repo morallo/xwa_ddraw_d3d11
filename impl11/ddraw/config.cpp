@@ -1,8 +1,9 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 
-#include "config.h"
 #include "common.h"
+#include "config.h"
+#include "hook_config.h"
 
 #include <string>
 #include <fstream>
@@ -14,6 +15,20 @@
 using namespace std;
 
 Config g_config;
+
+bool HookD3D_IsHookD3DEnabled()
+{
+	auto lines = GetFileLines("hook_d3d.cfg");
+
+	if (lines.empty())
+	{
+		lines = GetFileLines("hooks.ini", "hook_d3d");
+	}
+
+	bool IsHookD3DEnabled = GetFileKeyValueInt(lines, "IsHookD3DEnabled", 1) != 0;
+
+	return IsHookD3DEnabled;
+}
 
 Config::Config()
 {
@@ -58,7 +73,24 @@ Config::Config()
 	this->MusicSyncFix = false;
 	this->GammaFixEnabled = false;
 
-	if (ifstream("Hook_D3d.dll"))
+	this->D3dRendererHookEnabled = true;
+	this->HangarShadowsEnabled = true;
+	this->EnableSoftHangarShadows = true;
+	this->OnlyGrayscaleInTechRoom = false;
+	this->TechRoomHolograms = false;
+	this->CullBackFaces = false;
+	this->FlipDATImages = false;
+
+	this->HDConcourseEnabled = false;
+
+	this->ProjectionParameterA = 32.0f;
+	this->ProjectionParameterB = 256.0f;
+	this->ProjectionParameterC = 0.33f;
+
+	CreateDirectory("Screenshots", nullptr);
+	this->ScreenshotsDirectory = "Screenshots";
+
+	if (ifstream("Hook_D3d.dll") && HookD3D_IsHookD3DEnabled())
 	{
 		this->D3dHookExists = true;
 	}
@@ -215,11 +247,69 @@ Config::Config()
 			{
 				this->MusicSyncFix = (bool)stoi(value);
 			}
+			else if (name == "D3dRendererHookEnabled")
+			{
+				this->D3dRendererHookEnabled = stoi(value) != 0;
+			}
+			else if (name == "HangarShadowsEnabled")
+			{
+				this->HangarShadowsEnabled = stoi(value) != 0;
+			}
+			else if (name == "EnableSoftHangarShadows")
+			{
+				this->EnableSoftHangarShadows = stoi(value) != 0;
+			}
+			else if (name == "OnlyGrayscaleInTechRoom")
+			{
+				this->OnlyGrayscaleInTechRoom = stoi(value) != 0;
+			}
+			else if (name == "TechRoomHolograms")
+			{
+				this->TechRoomHolograms = (stoi(value) != 0);
+			}
+			else if (name == "CullBackFaces")
+			{
+				this->CullBackFaces = stoi(value) != 0;
+			}
+			else if (name == "FlipDATImages")
+			{
+				this->FlipDATImages = stoi(value) != 0;
+			}
+			else if (name == "HDConcourseEnabled")
+			{
+				this->HDConcourseEnabled = stoi(value) != 0;
+			}
+			else if (name == "ProjectionParameterA")
+			{
+				this->ProjectionParameterA = stof(value);
+			}
+			else if (name == "ProjectionParameterB")
+			{
+				this->ProjectionParameterB = stof(value);
+			}
+			else if (name == "ProjectionParameterC")
+			{
+				this->ProjectionParameterC = stof(value);
+			}
+			else if (name == "ScreenshotsDirectory")
+			{
+				if (PathIsDirectory(value.c_str()))
+				{
+					this->ScreenshotsDirectory = value;
+				}
+			}
 			else if (name == "EnableGammaFix")
 			{
 				this->GammaFixEnabled = (bool)stoi(value);
 			}
 		}
+	}
+
+	if (this->D3dRendererHookEnabled && this->D3dHookExists)
+	{
+		this->D3dRendererHookEnabled = false;
+
+		MessageBox(nullptr, "You must set [hook_d3d] IsHookD3DEnabled = 0 in Hooks.ini to use the D3d renderer hook.\nThe D3d renderer hook will be disabled.", "X-Wing Alliance DDraw", MB_ICONWARNING);
 	}
 
 	//if (this->JoystickEmul != 0 && isXWA)

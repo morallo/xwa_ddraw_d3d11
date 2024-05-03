@@ -26,7 +26,7 @@ class StereoRenderer;
 
 #define BACKBUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM // Final swapchain format cannot be explicitly RGB, but the data copied from _offscreenBuffer will be.
 #define SRGB_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
-
+#define DEPTH_BUFFER_FORMAT DXGI_FORMAT_D32_FLOAT
 //#define BLOOM_BUFFER_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define BLOOM_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define AO_DEPTH_BUFFER_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
@@ -34,7 +34,7 @@ class StereoRenderer;
 //#define AO_MASK_FORMAT DXGI_FORMAT_R8_UINT
 #define AO_MASK_FORMAT DXGI_FORMAT_B8G8R8A8_UNORM
 #define HDR_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
-
+#define RT_SHADOW_FORMAT DXGI_FORMAT_R16G16_FLOAT
 
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
@@ -103,6 +103,8 @@ class DeviceResources
 public:
 	DeviceResources();
 
+	~DeviceResources();
+
 	HRESULT Initialize();
 
 	HRESULT OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight);
@@ -114,12 +116,14 @@ public:
 	void InitInputLayout(ID3D11InputLayout* inputLayout);
 	void InitVertexShader(ID3D11VertexShader* vertexShader);
 	void InitPixelShader(ID3D11PixelShader* pixelShader);
+	ID3D11PixelShader *GetCurrentPixelShader();
+	void InitGeometryShader(ID3D11GeometryShader* geometryShader);
 	void InitTopology(D3D_PRIMITIVE_TOPOLOGY topology);
 	void InitRasterizerState(ID3D11RasterizerState* state);
-	void InitPSShaderResourceView(ID3D11ShaderResourceView* texView);
+	void InitPSShaderResourceView(ID3D11ShaderResourceView* texView, ID3D11ShaderResourceView* texView2 = nullptr);
 	HRESULT InitSamplerState(ID3D11SamplerState** sampler, D3D11_SAMPLER_DESC* desc);
 	HRESULT InitBlendState(ID3D11BlendState* blend, D3D11_BLEND_DESC* desc);
-	HRESULT InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc);
+	HRESULT InitDepthStencilState(ID3D11DepthStencilState* depthState, D3D11_DEPTH_STENCIL_DESC* desc, UINT stencilReference = 0);
 	void InitVertexBuffer(ID3D11Buffer** buffer, UINT* stride, UINT* offset);
 	void InitIndexBuffer(ID3D11Buffer* buffer, bool isFormat32);
 	void InitViewport(D3D11_VIEWPORT* viewport);
@@ -128,6 +132,9 @@ public:
 	void InitPSConstantShadingSystem(ID3D11Buffer** buffer, const PSShadingSystemCB* psCBuffer);
 	void InitVSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, const float use_3D);
 	void InitVSConstantBufferHyperspace(ID3D11Buffer ** buffer, const ShadertoyCBuffer * psConstants);
+	void InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, const OPTMeshTransformCBuffer *vsConstants);
+	void InitPSRTConstantsBuffer(ID3D11Buffer ** buffer, const RTConstantsBuffer *psConstants);
+	void InitVRGeometryCBuffer(ID3D11Buffer** buffer, const VRGeometryCBuffer* psConstants);
 	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, float inv_scale = 1.0f);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
@@ -155,6 +162,10 @@ public:
 	void DeleteRandomVectorTexture();
 	void CreateGrayNoiseTexture();
 	void DeleteGrayNoiseTexture();
+	void Create3DVisionSignatureTexture();
+	void Delete3DVisionTexture();
+	void CreateTgSmushTexture(DWORD width, DWORD height);
+	void DeleteTgSmushTexture();
 	void ClearDynCockpitVector(dc_element DCElements[], int size);
 	void ClearActiveCockpitVector(ac_element ACElements[], int size);
 
@@ -163,16 +174,24 @@ public:
 	void ResetActiveCockpit();
 
 	void ResetExtraTextures();
+	int PushExtraTexture(ID3D11ShaderResourceView* srv);
+	void InitScissorRect(D3D11_RECT* rect);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
 
 	HRESULT RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp);
+	HRESULT RetrieveTextureBuffer(ID3D11Texture2D* textureBuffer, char* buffer, DWORD width, DWORD height, DWORD bpp);
 
 	UINT GetMaxAnisotropy();
 
 	void CheckMultisamplingSupport();
 
 	bool IsTextureFormatSupported(DXGI_FORMAT format);
+
+	bool BeginAnnotatedEvent(_In_ LPCWSTR Name);
+	bool EndAnnotatedEvent();
+
+	bool IsInConcourseHd();
 
 	DWORD _displayWidth;
 	DWORD _displayHeight;
@@ -185,12 +204,15 @@ public:
 	D3D_FEATURE_LEVEL _d3dFeatureLevel;
 	ComPtr<ID3D11Device> _d3dDevice;
 	ComPtr<ID3D11DeviceContext> _d3dDeviceContext;
+	ComPtr<ID3DUserDefinedAnnotation> _d3dAnnotation;
+	ComPtr<IDXGISwapChain> _swapChain = nullptr;
 	ComPtr<IDXGISwapChain> _swapChain;
 
 	// Buffers/Textures
 	// 2D monitor swapchain buffer, BACKBUFFER_FORMAT, NoMSAA
 	ComPtr<ID3D11Texture2D> _backBuffer; 
 	ComPtr<ID3D11Texture2D> _offscreenBuffer; // Final render buffer to store the frame, BACKBUFFER_FORMAT_TYPELESS, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferHdBackground;
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR or OpenXR are used, _offscreenBuffer becomes the left eye and this one becomes the right eye, BACKBUFFER_FORMAT_TYPELESS, MSAA
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput; // Input for barrel shader. BACKBUFFER_FORMAT, NoMSAA
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; //Input for barrel shader right eye. BACKBUFFER_FORMAT, NoMSAA
@@ -204,11 +226,13 @@ public:
 	ComPtr<ID3D11Texture2D> _DCTextMSAA;				   // "RTV" to render text, BACKBUFFER_FORMAT, MSAA
 	ComPtr<ID3D11Texture2D> _DCTextAsInput;				   // Resolved from DCTextMSAA for use in shaders. BACKBUFFER_FORMAT, NoMSAA
 	ComPtr<ID3D11Texture2D> _ReticleBufMSAA;			   // "RTV" to render the HUD in VR mode, BACKBUFFER_FORMAT, MSAA
-	ComPtr<ID3D11Texture2D> _ReticleBufAsInput;			   // Resolved from DCTextMSAA for use in shaders. BACKBUFFER_FORMAT, NoMSAA
+	ComPtr<ID3D11Texture2D> _ReticleBufAsInput;			   // Resolved from _ReticleBufMSAA for use in shaders. BACKBUFFER_FORMAT, NoMSAA
 	// Barrel effect
-	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect, BACKBUFFER_FORMAT_TYPELESS, MSAA
-	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR, BACKBUFFER_FORMAT_TYPELESS, MSAA
-	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented for SteamVR, BACKBUFFER_FORMAT_TYPELESS, MSAA
+	ComPtr<ID3D11Texture2D> _offscreenBufferPost;  // This is the output of the barrel effect
+	ComPtr<ID3D11Texture2D> _offscreenBufferPostR; // This is the output of the barrel effect for the right image when using SteamVR
+	ComPtr<ID3D11Texture2D> _steamVRPresentBuffer; // This is the buffer that will be presented in the monitor mirror window for SteamVR
+	ComPtr<ID3D11Texture2D> _steamVROverlayBuffer; // This is the buffer that will be presented as a VR overlay.
+
 	// ShaderToy effects
 	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA;	// BACKBUFFER_FORMAT, MSAA
 	ComPtr<ID3D11Texture2D> _shadertoyBufMSAA_R;// BACKBUFFER_FORMAT, MSAA
@@ -231,11 +255,7 @@ public:
 	ComPtr<ID3D11Texture2D> _depthBuf;			
 	ComPtr<ID3D11Texture2D> _depthBufR;
 	ComPtr<ID3D11Texture2D> _depthBufAsInput;	// AO_DEPTH_BUFFER_FORMAT, NoMSAA
-	ComPtr<ID3D11Texture2D> _depthBufAsInputR;  // AO_DEPTH_BUFFER_FORMAT, NoMSAA
-	//ComPtr<ID3D11Texture2D> _depthBuf2;
-	//ComPtr<ID3D11Texture2D> _depthBuf2R;
-	//ComPtr<ID3D11Texture2D> _depthBuf2AsInput;
-	//ComPtr<ID3D11Texture2D> _depthBuf2AsInputR; // Used in SteamVR mode
+	ComPtr<ID3D11Texture2D> _depthBufAsInputR; // AO_DEPTH_BUFFER_FORMAT, NoMSAA. Used in SteamVR mode
 	//ComPtr<ID3D11Texture2D> _bentBuf;		// No MSAA
 	//ComPtr<ID3D11Texture2D> _bentBufR;		// No MSAA
 	ComPtr<ID3D11Texture2D> _ssaoBuf;		// HDR_FORMAT. No MSAA
@@ -257,8 +277,25 @@ public:
 	ComPtr<ID3D11Texture2D> _shadowMap;
 	ComPtr<ID3D11Texture2D> _shadowMapArray;
 	ComPtr<ID3D11Texture2D> _shadowMapDebug; // TODO: Disable this before release
+	ComPtr<ID3D11Texture2D> _csmMap;		 // Main render texture for CSM.
+	ComPtr<ID3D11Texture2D> _csmArray;       // Cascaded Shadow Map array
+	// Raytracing
+	ComPtr<ID3D11Texture2D> _rtShadowMask;
+	ComPtr<ID3D11Texture2D> _rtShadowMaskR;
 	// Generated/Procedural Textures
 	ComPtr<ID3D11Texture2D> _grayNoiseTex;
+	// 3D Vision
+	// double-wide version of _offscreenBufferPost. We use this buffer to resize the _offscreenBuffer
+	// to double-wide size while doing the barrel effect
+	ComPtr<ID3D11Texture2D> _vision3DPost; 
+	// We use this buffer to resolve _vision3DPost into a Non-MSAA buffer:
+	ComPtr<ID3D11Texture2D> _vision3DNoMSAA;
+	// We use this buffer to add the 3D vision signature
+	ComPtr<ID3D11Texture2D> _vision3DStaging;
+	// This texture stores the 3D vision signature.
+	ComPtr<ID3D11Texture2D> _vision3DSignatureTex;
+	// TgSmush
+	ComPtr<ID3D11Texture2D> _tgSmushTex;
 
 	// RTVs
 	ComPtr<ID3D11RenderTargetView> _renderTargetView;
@@ -276,7 +313,9 @@ public:
 	// Barrel Effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPost;  // Used for the barrel effect
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewPostR; // Used for the barrel effect (right image) when SteamVR is used.
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used for the barrel effect
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVRResize; // Used to resize the image before presenting it in the monitor window.
+	ComPtr<ID3D11RenderTargetView> _renderTargetViewSteamVROverlayResize; // Used to resize the image before copying it to the VR overlay to present 2D mode images.
+
 	// ShaderToy
 	ComPtr<ID3D11RenderTargetView> _shadertoyRTV;
 	ComPtr<ID3D11RenderTargetView> _shadertoyRTV_R;
@@ -305,6 +344,11 @@ public:
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSAOMaskR;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMask;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewSSMaskR;
+	// Raytracing
+	ComPtr<ID3D11RenderTargetView> _rtShadowMaskRTV;
+	ComPtr<ID3D11RenderTargetView> _rtShadowMaskRTV_R;
+	// 3D vision
+	ComPtr<ID3D11RenderTargetView> _RTVvision3DPost; // Used for the "barrel" effect in 3D vision
 
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;	//BACKBUFFER_FORMAT
@@ -331,8 +375,6 @@ public:
 	// Ambient Occlusion
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;    // SRV for depthBufAsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R;  // SRV for depthBufAsInputR
-	//ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV;   // SRV for depthBuf2AsInput
-	//ComPtr<ID3D11ShaderResourceView> _depthBuf2SRV_R; // SRV for depthBuf2AsInputR
 	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV;     // SRV for bentBuf
 	//ComPtr<ID3D11ShaderResourceView> _bentBufSRV_R;   // SRV for bentBufR
 	ComPtr<ID3D11ShaderResourceView> _ssaoBufSRV;     // SRV for ssaoBuf
@@ -346,16 +388,27 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _ssMaskSRV_R;    // SRV for ssMaskR
 	// Shadow Mapping
 	ComPtr<ID3D11ShaderResourceView> _shadowMapArraySRV; // This is an array SRV
+	ComPtr<ID3D11ShaderResourceView> _csmArraySRV;       // Cascaded Shadow Map array SRV
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSingleSRV;
 	//ComPtr<ID3D11ShaderResourceView> _shadowMapSRV_R;
 	// Generated/Procedural Textures SRVs
 	ComPtr<ID3D11ShaderResourceView> _grayNoiseSRV; // SRV for _grayNoise
+	// 3D Vision
+	ComPtr<ID3D11ShaderResourceView> _vision3DSignatureSRV; // SRV for _vision3DSignature
+	// Raytracing
+	ComPtr<ID3D11ShaderResourceView> _RTBvhSRV;
+	ComPtr<ID3D11ShaderResourceView> _RTTLASBvhSRV;
+	ComPtr<ID3D11ShaderResourceView> _RTMatricesSRV;
+	// Raytracing Shadow Mask
+	ComPtr<ID3D11ShaderResourceView> _rtShadowMaskSRV;
+	ComPtr<ID3D11ShaderResourceView> _rtShadowMaskSRV_R;
 
 	ComPtr<ID3D11Texture2D> _depthStencilL;
 	ComPtr<ID3D11Texture2D> _depthStencilR;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewL;
 	ComPtr<ID3D11DepthStencilView> _depthStencilViewR;
 	ComPtr<ID3D11DepthStencilView> _shadowMapDSV;
+	ComPtr<ID3D11DepthStencilView> _csmMapDSV;
 	//ComPtr<ID3D11DepthStencilView> _shadowMapDSV_R; // Do I really need a shadow map for the right eye? I don't think so...
 
 	ComPtr<ID2D1Factory> _d2d1Factory;
@@ -366,6 +419,7 @@ public:
 	ComPtr<ID2D1DrawingStateBlock> _d2d1DrawingStateBlock;
 
 	ComPtr<ID3D11VertexShader> _mainVertexShader;
+	ComPtr<ID3D11VertexShader> _mainVertexShaderVR;
 	ComPtr<ID3D11InputLayout> _mainInputLayout;
 	ComPtr<ID3D11PixelShader> _mainPixelShader;
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp2ColorKey20;
@@ -373,42 +427,68 @@ public:
 	ComPtr<ID3D11PixelShader> _mainPixelShaderBpp4ColorKey20;
 	ComPtr<ID3D11PixelShader> _steamVRMirrorPixelShader;
 	ComPtr<ID3D11PixelShader> _barrelPixelShader;
+	ComPtr<ID3D11PixelShader> _simpleResizePS;
 	ComPtr<ID3D11PixelShader> _bloomHGaussPS;
+	ComPtr<ID3D11PixelShader> _bloomHGaussPS_VR;
 	ComPtr<ID3D11PixelShader> _bloomVGaussPS;
+	ComPtr<ID3D11PixelShader> _bloomVGaussPS_VR;
 	ComPtr<ID3D11PixelShader> _bloomCombinePS;
+	ComPtr<ID3D11PixelShader> _bloomCombinePS_VR;
 	ComPtr<ID3D11PixelShader> _bloomBufferAddPS;
+	ComPtr<ID3D11PixelShader> _bloomBufferAddPS_VR;
 	ComPtr<ID3D11PixelShader> _ssaoPS;
+	ComPtr<ID3D11PixelShader> _ssaoPS_VR;
 	ComPtr<ID3D11PixelShader> _ssaoBlurPS;
+	ComPtr<ID3D11PixelShader> _ssaoBlurPS_VR;
 	ComPtr<ID3D11PixelShader> _ssaoAddPS;
 	ComPtr<ID3D11PixelShader> _ssdoDirectPS;
+	ComPtr<ID3D11PixelShader> _ssdoDirectPS_VR;
 	ComPtr<ID3D11PixelShader> _ssdoIndirectPS;
 	ComPtr<ID3D11PixelShader> _ssdoAddPS;
+	ComPtr<ID3D11PixelShader> _ssdoAddPS_VR;
+	ComPtr<ID3D11PixelShader> _pbrAddPS;
+	ComPtr<ID3D11PixelShader> _pbrAddPS_VR;
 	ComPtr<ID3D11PixelShader> _headLightsPS;
+	ComPtr<ID3D11PixelShader> _headLightsPS_VR;
 	ComPtr<ID3D11PixelShader> _headLightsSSAOPS;
 	ComPtr<ID3D11PixelShader> _ssdoBlurPS;
+	ComPtr<ID3D11PixelShader> _ssdoBlurPS_VR;
 	ComPtr<ID3D11PixelShader> _deathStarPS;
 	ComPtr<ID3D11PixelShader> _hyperEntryPS;
 	ComPtr<ID3D11PixelShader> _hyperExitPS;
 	ComPtr<ID3D11PixelShader> _hyperTunnelPS;
 	ComPtr<ID3D11PixelShader> _hyperZoomPS;
 	ComPtr<ID3D11PixelShader> _hyperComposePS;
+	ComPtr<ID3D11PixelShader> _hyperComposePS_VR;
 	ComPtr<ID3D11PixelShader> _laserPointerPS;
+	ComPtr<ID3D11PixelShader> _laserPointerPS_VR;
 	ComPtr<ID3D11PixelShader> _fxaaPS;
+	ComPtr<ID3D11PixelShader> _fxaaPS_VR;
 	ComPtr<ID3D11PixelShader> _externalHUDPS;
+	ComPtr<ID3D11PixelShader> _externalHUDPS_VR;
 	ComPtr<ID3D11PixelShader> _sunShaderPS;
 	ComPtr<ID3D11PixelShader> _sunFlareShaderPS;
+	ComPtr<ID3D11PixelShader> _sunFlareShaderPS_VR;
 	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS;
+	ComPtr<ID3D11PixelShader> _sunFlareComposeShaderPS_VR;
 	ComPtr<ID3D11PixelShader> _edgeDetectorPS;
 	ComPtr<ID3D11PixelShader> _starDebugPS;
 	ComPtr<ID3D11PixelShader> _lavaPS;
 	ComPtr<ID3D11PixelShader> _explosionPS;
 	ComPtr<ID3D11PixelShader> _alphaToBloomPS;
 	ComPtr<ID3D11PixelShader> _noGlassPS;
+	// The following is not a mistake. We need an ID3D11PixelShader *, not a
+	// ComPtr<ID3D11PixelShader>. Not entirely sure why, but I believe using
+	// the ComPtr inadvertently messes up the refcount and causes a crash when
+	// starting the game. Just as quickly as InitPixelShader() is called.
+	ID3D11PixelShader *_currentPixelShader;
 	ComPtr<ID3D11PixelShader> _gammaFixPS;
 	ComPtr<ID3D11SamplerState> _repeatSamplerState;
+	ComPtr<ID3D11SamplerState> _noInterpolationSamplerState;
 	
 	ComPtr<ID3D11PixelShader> _speedEffectPS;
 	ComPtr<ID3D11PixelShader> _speedEffectComposePS;
+	ComPtr<ID3D11PixelShader> _speedEffectComposePS_VR;
 	ComPtr<ID3D11PixelShader> _addGeomPS;
 	ComPtr<ID3D11PixelShader> _addGeomComposePS;
 
@@ -418,6 +498,7 @@ public:
 	ComPtr<ID3D11PixelShader> _singleBarrelPixelShader;
 	ComPtr<ID3D11RasterizerState> _mainRasterizerState;
 	ComPtr<ID3D11SamplerState> _mainSamplerState;
+	ComPtr<ID3D11SamplerState> _mirrorSamplerState;
 	ComPtr<ID3D11BlendState> _mainBlendState;
 	ComPtr<ID3D11DepthStencilState> _mainDepthState;
 	ComPtr<ID3D11Buffer> _mainVertexBuffer;
@@ -430,11 +511,16 @@ public:
 
 	ComPtr<ID3D11VertexShader> _vertexShader;
 	ComPtr<ID3D11VertexShader> _sbsVertexShader;
+	ComPtr<ID3D11VertexShader> _datVertexShaderVR;
 	ComPtr<ID3D11VertexShader> _passthroughVertexShader;
 	ComPtr<ID3D11VertexShader> _speedEffectVS;
+	ComPtr<ID3D11VertexShader> _speedEffectVS_VR;
 	ComPtr<ID3D11VertexShader> _addGeomVS;
 	ComPtr<ID3D11VertexShader> _shadowMapVS;
+	ComPtr<ID3D11VertexShader> _hangarShadowMapVS;
+	ComPtr<ID3D11VertexShader> _csmVS;
 	ComPtr<ID3D11InputLayout> _inputLayout;
+	ComPtr<ID3D11InputLayout> _shadowMapInputLayout;
 	ComPtr<ID3D11PixelShader> _pixelShaderTexture;
 	ComPtr<ID3D11PixelShader> _pixelShaderDC;
 	ComPtr<ID3D11PixelShader> _pixelShaderDCHolo;
@@ -442,7 +528,14 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
-	ComPtr<ID3D11PixelShader> _pixelShaderAnimLightMap;
+	ComPtr<ID3D11PixelShader> _pixelShaderAnim;
+	ComPtr<ID3D11PixelShader> _pixelShaderAnimDAT;
+	ComPtr<ID3D11PixelShader> _pixelShaderGreeble;
+	ComPtr<ID3D11PixelShader> _pixelShaderVRGeom;
+	ComPtr<ID3D11PixelShader> _levelsPS;
+	ComPtr<ID3D11PixelShader> _rtShadowMaskPS;
+	ComPtr<ID3D11PixelShader> _rtShadowMaskPS_VR;
+
 	ComPtr<ID3D11RasterizerState> _rasterizerState;
 	//ComPtr<ID3D11RasterizerState> _sm_rasterizerState; // TODO: Remove this if proven useless
 	ComPtr<ID3D11Buffer> _VSConstantBuffer;
@@ -468,11 +561,22 @@ public:
 	ComPtr<ID3D11Buffer> _speedParticlesVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowVertexBuffer;
 	ComPtr<ID3D11Buffer> _shadowIndexBuffer;
+	ComPtr<ID3D11Buffer> _OPTMeshTransformCB;
+
+	// Raytracing
+	ComPtr<ID3D11Buffer> _RTConstantsBuffer;
+	ComPtr<ID3D11Buffer> _RTBvh;
+	ComPtr<ID3D11Buffer> _RTTLASBvh;
+	ComPtr<ID3D11Buffer> _RTMatrices;
+
+	// VR Geometry
+	ComPtr<ID3D11Buffer> _VRGeometryCBuffer;
+
 	//ComPtr<ID3D11Buffer> _reticleVertexBuffer;
 	bool _bHUDVerticesReady;
 
 	// Dynamic Cockpit coverTextures:
-	// The line below had a hard-coded max of 40. I think it should be 
+	// The line below had a hard-coded max of 40. I think it should be
 	// MAX_DC_SRC_ELEMENTS instead... but if something explodes in DC, it
 	// might be because of this.
 	// I think it was just dumb luck that I put the "40" in there and didn't
@@ -508,11 +612,16 @@ public:
 	bool inScene;
 	bool inSceneBackbufferLocked;
 
+	int _tgSmushTexWidth;
+	int _tgSmushTexHeight;
+
 	PrimarySurface* _primarySurface;
 	DepthSurface* _depthSurface;
 	BackbufferSurface* _backbufferSurface;
 	FrontbufferSurface* _frontbufferSurface;
 	OffscreenSurface* _offscreenSurface;
+
+	void (*_surfaceDcCallback)();
 
 	StereoRenderer* _stereoRenderer;
 };

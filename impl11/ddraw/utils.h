@@ -3,12 +3,22 @@
 
 #pragma once
 #include "common.h"
+#include "Vectors.h"
+#include "Matrices.h"
 
 void toupper(char *string);
+
+std::string int_to_hex(int i);
 
 std::string wchar_tostring(LPCWSTR text);
 std::wstring string_towstring(const std::string& text);
 std::wstring string_towstring(const char* text);
+
+short ComputeMsgWidth(char* str, int font_size_index);
+short DisplayText(char* str, int font_size_index, short x, short y, uint32_t color);
+short DisplayCenteredText(char* str, int font_size_index, short y, uint32_t color);
+// Only rows 0..2 are available
+void DisplayTimedMessage(uint32_t seconds, int row, char* msg);
 
 #if LOGGER
 
@@ -76,11 +86,21 @@ inline unsigned int convertColorB5G6R5toB8G8R8A8(unsigned short color16)
 	return g_colorConverterTables.B5G6R5toB8G8R8A8[color16];
 }
 
-//#if LOGGER
-void saveSurface(std::wstring name, char* buffer, DWORD width, DWORD height, DWORD bpp);
-//#endif
+void saveScreenshot(const std::wstring& filename, char* buffer, DWORD width, DWORD height, DWORD bpp);
+void saveSurface(const std::wstring& name, char* buffer, DWORD width, DWORD height, DWORD bpp);
 
 void log_debug(const char *format, ...);
 void log_file(const char *format, ...);
+void close_log_file();
 char* stristr(const char* str1, const char* str2);
 void DisplayTimedMessageV(uint32_t seconds, int row, const char *format, ...);
+
+void ShowMatrix3(const Matrix3& mat, char* name);
+
+int EigenVals(float3x3& A, Vector3& w);
+int EigenVals(Matrix3& A, Vector3& w);
+
+int EigenVectors(float3x3& A, float3x3& Q, Vector3& w);
+int EigenVectors(Matrix3& A, Matrix3& Q, Vector3& w);
+
+int EigenSys(Matrix3& A, Matrix3& V, Vector3& w);

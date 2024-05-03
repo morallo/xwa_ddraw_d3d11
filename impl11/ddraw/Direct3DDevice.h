@@ -46,14 +46,13 @@ public:
 
 	bool ComputeCentroid2D(LPD3DINSTRUCTION instruction, UINT curIndex, Vector2 * Centroid);
 
-	bool IntersectWithTriangles(LPD3DINSTRUCTION instruction, UINT curIndex, int textureIdx, bool isACTex, Vector3 orig, Vector3 dir, bool debug=false);
-
-	void AddLaserLightsOld(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture);
 	void AddLaserLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture *texture);
+
+	void AddExplosionLights(LPD3DINSTRUCTION instruction, UINT curIndex, Direct3DTexture * texture);
 
 	//void ClearBox(Box box, D3D11_VIEWPORT *viewport, bool fullScreen, float scale, D3DCOLOR clearColor);
 
-	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsCockpit, bool bSteamVRRightEye);
+	inline ID3D11RenderTargetView *SelectOffscreenBuffer(bool bIsMaskable, bool bSteamVRRightEye);
 
 	void EnableTransparency();
 
@@ -63,7 +62,9 @@ public:
 
 	void RestoreBlendState();
 
-	void RestoreSamplerState();
+	uint32_t GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT currentIndexLocation, Direct3DTexture * lastTextureSelected);
+
+	void UpdateReconstructionConstants();
 
 	STDMETHOD(Execute)(THIS_ LPDIRECT3DEXECUTEBUFFER, LPDIRECT3DVIEWPORT, DWORD);
 
@@ -86,8 +87,6 @@ public:
 	STDMETHOD(GetMatrix)(THIS_ D3DMATRIXHANDLE, LPD3DMATRIX);
 
 	STDMETHOD(DeleteMatrix)(THIS_ D3DMATRIXHANDLE);
-
-	void RenderEdgeDetector();
 
 	STDMETHOD(BeginScene)(THIS);
 

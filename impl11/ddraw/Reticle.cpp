@@ -1,6 +1,5 @@
-#include "reticle.h"
-
 #include "common.h"
+#include "reticle.h"
 #include <vector>
 
 /*
@@ -44,6 +43,10 @@ std::vector<char*> ReticleCenter_ResNames = {
 
 std::vector<char*> CustomReticleCenter_ResNames;
 char g_sLaserLockedReticleResName[80] = { 0 };
+std::vector<char*> CustomWLight_LL_ResNames;
+std::vector<char*> CustomWLight_ML_ResNames;
+std::vector<char*> CustomWLight_MR_ResNames;
+std::vector<char*> CustomWLight_RR_ResNames;
 
 /*
  Converts an index number as specified in the custom reticle files to a slot index
@@ -82,6 +85,16 @@ void ClearCustomReticleCenterResNames() {
 	}
 	CustomReticleCenter_ResNames.clear();
 	g_sLaserLockedReticleResName[0] = 0;
+}
+
+void ClearCustomWarningLightsResNames() {
+	for (char* res : CustomWLight_LL_ResNames) {
+		if (res != NULL) {
+			delete[] res;
+			res = NULL;
+		}
+	}
+	CustomWLight_LL_ResNames.clear();
 }
 
 bool LoadReticleTXTFile(char* sFileName) {
@@ -135,7 +148,41 @@ bool LoadReticleTXTFile(char* sFileName) {
 				ResName = new char[80];
 				ReticleIndexToHUDresname(iValue, ResName, 80);
 				CustomReticleCenter_ResNames.push_back(ResName);
-				log_debug("[DBG] [RET] Custom Reticle Center: %s Added", ResName);
+				log_debug("[DBG] [RET] Custom Warhead Reticle Center: %s Added", ResName);
+			}
+			// Warning Lights are indices 15,16,17,18 for the regular reticle and
+			// indices 19,20,21,22 for the warhead reticle
+			// Left-Left Warning Lights
+			else if (_stricmp(param, "Reticle_15") == 0 || _stricmp(param, "Reticle_19") == 0) { // Warhead reticle
+				log_debug("[DBG] [RET] Reticle_15|19: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomWLight_LL_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom WLight LL: %s Added", ResName);
+			}
+			// Mid-Left Warning Lights
+			else if (_stricmp(param, "Reticle_16") == 0 || _stricmp(param, "Reticle_20") == 0) { // Warhead reticle
+				log_debug("[DBG] [RET] Reticle_16|20: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomWLight_ML_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom WLight ML: %s Added", ResName);
+			}
+			// Mid-Right Warning Lights
+			else if (_stricmp(param, "Reticle_17") == 0 || _stricmp(param, "Reticle_21") == 0) { // Warhead reticle
+				log_debug("[DBG] [RET] Reticle_17|21: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomWLight_MR_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom WLight MR: %s Added", ResName);
+			}
+			// RIght-Right Warning Lights
+			else if (_stricmp(param, "Reticle_18") == 0 || _stricmp(param, "Reticle_22") == 0) { // Warhead reticle
+				log_debug("[DBG] [RET] Reticle_18|22: %d", iValue);
+				ResName = new char[80];
+				ReticleIndexToHUDresname(iValue, ResName, 80);
+				CustomWLight_RR_ResNames.push_back(ResName);
+				log_debug("[DBG] [RET] Custom WLight RR: %s Added", ResName);
 			}
 		}
 	}

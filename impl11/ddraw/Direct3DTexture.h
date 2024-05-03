@@ -6,8 +6,21 @@
 
 #include "materials.h"
 #include "DeviceResources.h"
+#include <map>
 
 class TextureSurface;
+
+enum WarningLightEnum {
+	NONE_WLIGHT = 0,
+	RETICLE_LEFT_WLIGHT,
+	RETICLE_MID_LEFT_WLIGHT,
+	RETICLE_MID_RIGHT_WLIGHT,
+	RETICLE_RIGHT_WLIGHT,
+	WARHEAD_RETICLE_LEFT_WLIGHT,
+	WARHEAD_RETICLE_MID_LEFT_WLIGHT,
+	WARHEAD_RETICLE_MID_RIGHT_WLIGHT,
+	WARHEAD_RETICLE_RIGHT_WLIGHT
+};
 
 class Direct3DTexture : public IDirect3DTexture
 {
@@ -21,6 +34,8 @@ public:
 	// have to be tagged at least two times to allow them to be recognized as custom reticles.
 	// The field below helps us tag these resources multiple times to recognize custom reticles.
 	uint8_t TagCount;
+	// These indices store the GroupId and ImageId of this texture (if it's a DAT image)
+	int DATGroupId, DATImageId;
 	// Used to tell whether the current texture is part of the aiming HUD and should not be scalled.
 	// This flag is set during resource Load
 	bool is_Reticle;
@@ -46,6 +61,8 @@ public:
 	bool is_TurboLaser;
 	// True if this is an "illumination" or "light" texture
 	bool is_LightTexture;
+	// True if this is a texture with transparency
+	bool is_Transparent;
 	// True if this is an Engine Glow texture
 	bool is_EngineGlow;
 	// True if this is an Electricity (Sparks or Electric Arcs) texture
@@ -99,6 +116,10 @@ public:
 	bool is_DS2_Reactor_Explosion;
 	// True if this is the energy field surrounding the reactor core.
 	//bool is_DS2_Energy_Field;
+	// True if this is a map icon
+	bool is_MapIcon;
+	// The following encodes whether this is a warning light or not (and which type)
+	WarningLightEnum WarningLightType;
 	// True if this is an Active Cockpit texture for VR
 	int ActiveCockpitIdx;
 
@@ -129,8 +150,11 @@ public:
 	bool bHasMaterial;
 	Material material;
 
-	// **** Back-pointer to the light texture
-	Direct3DTexture *lightTexture;
+	// **** Greebles
+	int GreebleTexIdx;
+
+	// **** Normal Mapping
+	int NormalMapIdx;
 		
 	Direct3DTexture(DeviceResources* deviceResources, TextureSurface* surface);
 
@@ -157,11 +181,23 @@ public:
 	
 	STDMETHOD(PaletteChanged)(THIS_ DWORD, DWORD);
 
+	std::string GetDATImageHash(char *sDATZIPFileName, int GroupId, int ImageId);
+	int GetCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv);
+	int AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, int index, ID3D11ShaderResourceView *srv);
+
 	void LoadAnimatedTextures(int ATCIndex);
 
-	ID3D11ShaderResourceView *CreateSRVFromBuffer(uint8_t *Buffer, int Width, int Height);
+	int LoadGreebleTexture(char *GreebleDATGroupIdImageId, short *Width=nullptr, short *Height=nullptr);
 
-	HRESULT LoadDATImage(char *sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv);
+	int LoadNormalMap(char * DATZIPGroupIdImageId, short * Width, short * Height);
+
+	HRESULT CreateSRVFromBuffer(uint8_t *Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView **srv);
+
+	int LoadDATImage(char *sDATFileName, int GroupId, int ImageId, bool cache,
+		ID3D11ShaderResourceView **srv, short *Width_out=nullptr, short *Height_out=nullptr);
+
+	int LoadZIPImage(char *sZIPFileName, int GroupId, int ImageId, bool cache,
+		ID3D11ShaderResourceView **srv, short *Width_out=nullptr, short *Height_out=nullptr);
 	
 	STDMETHOD(Load)(THIS_ LPDIRECT3DTEXTURE);
 	
@@ -172,6 +208,7 @@ public:
 	DeviceResources* _deviceResources;
 
 	TextureSurface* _surface;
+	std::string _name;
 
 	ComPtr<ID3D11ShaderResourceView> _textureView;
 };

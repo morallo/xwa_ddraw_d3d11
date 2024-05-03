@@ -8,12 +8,25 @@
 #define STRICT
 #include <Windows.h>
 #include <objbase.h>
+#include <hidusage.h>
+
+#ifdef _DEBUG
+#include <dxgidebug.h>
+#include <dxgi1_3.h>
+#endif
 
 #include <stdio.h>
 #include <vector>
+
 #include "Vectors.h"
 #include "Matrices.h"
 #include "config.h"
+#include "XwaDrawTextHook.h"
+#include "XwaDrawRadarHook.h"
+#include "XwaDrawBracketHook.h"
+#include "XwaD3dRendererHook.h"
+#include "XwaConcourseHook.h"
+
 #include "utils.h"
 #include "effects.h"
 #include "VRConfig.h"
@@ -21,10 +34,7 @@
 #include "commonVR.h"
 #include "XWAFramework.h"
 #include "SharedMem.h"
-
-extern SharedData *g_pSharedData;
-// ddraw is loaded after the hooks, so here we open an existing shared memory handle:
-SharedMem g_SharedMem(false);
+#include "LBVH.h"
 
 extern HiResTimer g_HiResTimer;
 extern PlayerDataEntry* PlayerDataTable;
@@ -38,6 +48,10 @@ extern int g_KeySet;
 //extern float g_fMetricMult, 
 extern float g_fAspectRatio, g_fCockpitTranslationScale;
 extern bool g_bTriggerReticleCapture;
+extern bool g_bEnableAnimations;
+extern bool g_bFadeLights;
+extern bool g_bEnableQBVHwSAH;
+extern bool g_bUseCentroids;
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -56,6 +70,12 @@ void PrintVector(const Vector4 &Vector) {
 		Vector.x, Vector.y, Vector.z);
 }
 
+inline bool InGunnerTurret()
+{
+	return (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+}
+
 extern bool bFreePIEAlreadyInitialized, g_bDCApplyEraseRegionCommands, g_bEnableLaserLights, g_bDCHologramsVisible;
 void ShutdownFreePIE();
 
@@ -65,8 +85,8 @@ extern float g_fHyperTimeOverride;
 extern int g_iHyperStateOverride;
 
 // ACTIVE COCKPIT
-extern Vector4 g_contOriginWorldSpace; //, g_contOriginViewSpace;
-extern bool g_bActiveCockpitEnabled, g_bACActionTriggered, g_bACTriggerState;
+extern Vector4 g_contOriginWorldSpace[2];
+extern bool g_bActiveCockpitEnabled, g_bACActionTriggered[2], g_bACTriggerState[2];
 
 extern Vector3 g_LaserPointDebug;
 
@@ -84,10 +104,16 @@ void IncreaseTextParallax(float Delta);
 void IncreaseFloatingGUIParallax(float Delta);
 void ToggleCockpitPZHack();
 void IncreaseSkipNonZBufferDrawIdx(int Delta);
+void IncreaseD3DExecuteCounterSkipHi(int Delta);
+void IncreaseD3DExecuteCounterSkipLo(int Delta);
 
 // Lens distortion
 void IncreaseLensK1(float Delta);
 void IncreaseLensK2(float Delta);
+
+// CSM
+void ToggleCSM();
+void SetHDRState(bool state);
 
 void IncreaseReticleScale(float delta) {
 	g_fReticleScale += delta;
@@ -135,6 +161,50 @@ void IncreaseAspectRatio(float delta) {
 	g_fAspectRatio += delta;
 	g_fConcourseAspectRatio += delta;
 	log_debug("[DBG] [FOV] Aspect Ratio: %0.6f, Concourse Aspect Ratio: %0.6f", g_fAspectRatio, g_fConcourseAspectRatio);
+}
+
+void POVBackwards()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.z -= POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.y -= POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
+}
+
+void POVForwards()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.z += POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.y += POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
+}
+
+void POVUp()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.y += POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.x += POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
+}
+
+void POVDown()
+{
+	if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+		if (!InGunnerTurret())
+			g_CockpitPOVOffset.y -= POVOffsetIncr;
+		else
+			g_GunnerTurretPOVOffset.x -= POVOffsetIncr;
+		SavePOVOffsetToIniFile();
+	}
 }
 
 #define MAX_ACTION_LEN 10
@@ -187,7 +257,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL)	& 0x8000) == 0x8000;
 	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)		& 0x8000) == 0x8000;
-	bool UpKey	  = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
+	bool UpKey    = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
 	bool DownKey  = (GetAsyncKeyState(VK_DOWN)		& 0x8000) == 0x8000;
 	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
 	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
@@ -266,6 +336,26 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 10:
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
+				case 11:
+					g_contOriginWorldSpace[0].z += 0.02f;
+					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
+						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
+					break;
+				case 12:
+					g_bShowBlastMarks = !g_bShowBlastMarks;
+					log_debug("[DBG] g_bShowBlastMarks: %d", g_bShowBlastMarks);
+					break;
+				case 13:
+					g_fBlastMarkOfsX += 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
+					break;
+				case 15:
+					//g_fRTSoftShadowThresholdMult += 0.05f;
+					//log_debug("[DBG] g_fRTSoftShadowThreshold: %0.6f", g_fRTSoftShadowThresholdMult);
+
+					g_fRTGaussFactor += 0.1f;
+					log_debug("[DBG] g_fRTGaussFactor: %0.6f", g_fRTGaussFactor);
+					break;
 				}
 
 				/*
@@ -329,6 +419,28 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 10:
 					g_bSteamVRMirrorWindowLeftEye = !g_bSteamVRMirrorWindowLeftEye;
 					break;
+				case 11:
+					g_contOriginWorldSpace[0].z -= 0.02f;
+					/*log_debug("[DBG] g_contOriginWorldSpace.xyz: %0.3f, %0.3f, %0.3f",
+						g_contOriginWorldSpace.x, g_contOriginWorldSpace.y, g_contOriginWorldSpace.z);*/
+					break;
+				case 13:
+					g_fBlastMarkOfsX -= 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsX: %0.6f", g_fBlastMarkOfsX);
+					break;
+				case 15:
+					//g_fRTSoftShadowThresholdMult -= 0.05f;
+					//if (g_fRTSoftShadowThresholdMult < 0.01f) g_fRTSoftShadowThresholdMult = 0.01f;
+					//log_debug("[DBG] g_fRTSoftShadowThresholdMult: %0.6f", g_fRTSoftShadowThresholdMult);
+
+					//g_fRTShadowSharpness -= 0.1f;
+					//if (g_fRTShadowSharpness < 0.1f) g_fRTShadowSharpness = 0.1f;
+					//log_debug("[DBG] g_fRTShadowSharpness: %0.6f", g_fRTShadowSharpness);
+
+					g_fRTGaussFactor -= 0.1f;
+					if (g_fRTGaussFactor < 0.1f) g_fRTGaussFactor = 0.01f;
+					log_debug("[DBG] g_fRTGaussFactor: %0.6f", g_fRTGaussFactor);
+					break;
 				}
 
 				/*
@@ -378,6 +490,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsY -= 0.1f;
 					log_debug("[DBG] g_fReticleOfsY: %0.3f", g_fReticleOfsY);
 					break;*/
+				case 13:
+					g_fBlastMarkOfsY -= 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+					break;
+				case 14:
+					g_fGlowMarkZOfs += 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
+					break;
 				}
 
 				return 0;
@@ -396,6 +516,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_LaserPointDebug.y -= 0.1f;
 					log_debug("[DBG] g_LaserPointDebug: %0.3f, %0.3f, %0.3f",
 						g_LaserPointDebug.x, g_LaserPointDebug.y, g_LaserPointDebug.z);
+					break;
 				case 4:
 					//g_fDebugYCenter -= 0.01f;
 					//log_debug("[DBG] g_fDebugYCenter: %0.3f", g_fDebugYCenter);
@@ -415,6 +536,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_fReticleOfsY += 0.1f;
 					log_debug("[DBG] g_fReticleOfsY: %0.3f", g_fReticleOfsY);
 					break;*/
+				case 13:
+					g_fBlastMarkOfsY += 0.01f;
+					log_debug("[DBG] g_fBlastMarkOfsY: %0.6f", g_fBlastMarkOfsY);
+					break;
+				case 14:
+					g_fGlowMarkZOfs -= 0.5f;
+					log_debug("[DBG] g_fGlowMarkZOfs: %0.3f", g_fGlowMarkZOfs);
+					break;
 				}
 
 				return 0;
@@ -470,7 +599,15 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bShowSSAODebug = !g_bShowSSAODebug;
+				g_bDumpOptNodes = !g_bDumpOptNodes;
+				log_debug("[DBG] g_bDumpOptNodes: %d", g_bDumpOptNodes);
+
+				//g_bFadeLights = !g_bFadeLights;
+				//log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
+
+				//g_bDisplayGlowMarks = !g_bDisplayGlowMarks;
+				//log_debug("[DBG] g_bDisplayGlowMarks: %d", g_bDisplayGlowMarks);
+				//g_bShowSSAODebug = !g_bShowSSAODebug;
 				//log_debug("[DBG] g_bShowSSAODebug: %d", g_bShowSSAODebug);
 				return 0;
 			// Toggle FXAA
@@ -489,9 +626,18 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			//	DumpGlobalLights();
 			//	return 0;
 			case 'G':
-				g_bDumpLaserPointerDebugInfo = true;
+				//g_bDumpLaserPointerDebugInfo = true;
+				/*
+				g_bEnableGimbalLockFix = !g_bEnableGimbalLockFix;
+				DisplayTimedMessage(3, 0, g_bEnableGimbalLockFix ? "Gimbal Lock Fix ON" : "Regular Joystick Controls");
+				log_debug(g_bEnableGimbalLockFix ? "[DBG] Gimbal Lock Fix ON" : "[DBG] Regular Joystick Controls");
+				*/
+
+				g_bAutoGreeblesEnabled = !g_bAutoGreeblesEnabled;
+				DisplayTimedMessage(3, 0, g_bAutoGreeblesEnabled ? "Greebles Enabled" : "Greebles Disabled");
 				return 0;
 				// DEBUG
+			// Ctrl + Alt + P
 			case 'P':
 				g_bEnableIndirectSSDO = !g_bEnableIndirectSSDO;
 				if (g_bEnableIndirectSSDO)
@@ -499,12 +645,20 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				else
 					DisplayTimedMessage(3, 0, "Indirect SSDO Disabled");
 				return 0;
-			case 'I':
-				g_bShadowEnable = !g_bShadowEnable;
-				log_debug("[DBG] Shadows Enabled: %d", g_bShadowEnable);
-				return 0;
+			// Ctrl+Alt+A: Toggle Bloom
 			case 'A':
 				g_bBloomEnabled = !g_bBloomEnabled;
+				if (g_bBloomEnabled)
+					DisplayTimedMessage(3, 0, "Bloom Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Bloom Disabled");
+				/*
+				g_bEnableAnimations = !g_bEnableAnimations;
+				if (g_bEnableAnimations)
+					DisplayTimedMessage(3, 0, "Animations Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Animations Disabled");
+				*/
 				return 0;
 			// Ctrl+Alt+O
 			case 'O':
@@ -543,7 +697,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_bEnableVR = !g_bEnableVR;
 				}
 				return 0;
-
+			// Ctrl+Alt+S
 			case 'S':
 				SaveVRParams();
 				DisplayTimedMessage(3, 0, "VRParams.cfg Saved");
@@ -557,8 +711,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				LoadVRParams();
 				return 0;
 			
+			// Ctrl+Alt+W
 			case 'W':
-				g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
+				//ToggleCSM();
+
+				g_iDelayedDumpDebugBuffers = 30;
+				log_debug("[DBG] Delayed debug dump set");
+
+				//g_bGlobalSpecToggle = !g_bGlobalSpecToggle;
 				/*
 				if (g_fSpecIntensity > 0.5f) {
 					g_fSpecIntensity = 0.0f;
@@ -570,10 +730,17 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				}
 				*/
 				return 0;
+			case 'K':
+				g_vrKeybState.ToggleState();
+				log_debug("[DBG] [AC] VR Keyboard state: %d", (int)g_vrKeybState.state);
+				return 0;
+			// Ctrl+Alt+E is used by the Custom OpenVR driver to toggle emulation modes
+			/*
 			case 'E':
 				//g_bEnableSSAOInShader = !g_bEnableSSAOInShader;
 				g_bEdgeDetectorEnabled = !g_bEdgeDetectorEnabled;
 				return 0;
+			*/
 			/*
 			case 'Q':
 				g_bActiveCockpitEnabled = !g_bActiveCockpitEnabled;
@@ -622,12 +789,21 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Ctrl
 		if (CtrlKey && !AltKey && !ShiftKey) {
 			switch (wParam) {
+			case 0xbb:
+				IncreaseD3DExecuteCounterSkipLo(1);
+				return 0;
+			case 0xbd:
+				IncreaseD3DExecuteCounterSkipLo(-1);
+				return 0;
 			case 'Z':
 				ToggleZoomOutMode();
 				return 0;
 			// Ctrl+H will toggle the headlights now
 			case 'H':
-				g_bDCHologramsVisible = !g_bDCHologramsVisible;
+				if (g_bInTechRoom)
+					g_config.TechRoomHolograms = !g_config.TechRoomHolograms;
+				else
+					g_bDCHologramsVisible = !g_bDCHologramsVisible;
 				return 0;
 			// Headlights must be automatic now. They are automatically turned on in the Death Star mission
 			/*
@@ -669,13 +845,44 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl+K --> Toggle Mouse Look
 			case 'K': {
 				*mouseLook = !*mouseLook;
+				DisplayTimedMessage(3, 0, *mouseLook ? "Mouse Look ON" : "Mouse Look OFF");
+				log_debug("[DBG] mouseLook: %d", *mouseLook);
 				return 0;
 			}
 
+			// Ctrl+R
 			case 'R': {
 				//g_bResetDC = true;
 				//g_bProceduralSuns = !g_bProceduralSuns;
-				g_bShadowMapDebug = !g_bShadowMapDebug;
+				//g_bShadowMapDebug = !g_bShadowMapDebug;
+				//g_config.EnableSoftHangarShadows = !g_config.EnableSoftHangarShadows;
+				//log_debug("[DBG] EnableSoftHangarShadows: %d", g_config.EnableSoftHangarShadows);
+
+#undef DEBUG_RT
+#ifdef DEBUG_RT
+				if (g_bInTechRoom) {
+					g_bEnableQBVHwSAH = !g_bEnableQBVHwSAH;
+					log_debug("[DBG] [BVH] g_bEnableQBVHwSAH: %d", g_bEnableQBVHwSAH);
+				}
+#endif
+
+				g_bRTEnabled = !g_bRTEnabled;
+				log_debug("[DBG] [BVH] g_bRTEnabled: %d", g_bRTEnabled);
+				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");
+				if (!g_bRTEnabled)
+				{
+					g_bShadowMapEnable = true;
+					g_bRTEnabledInCockpit = false;
+				}
+				else
+				{
+					g_bShadowMapEnable = false;
+					g_bRTEnabledInCockpit = true;
+				}
+				//SetHDRState(g_bRTEnabled);
+				// Force the Deferred rendering mode when RT is enabled
+				//if (g_bRTEnabled) g_SSAO_Type = SSO_DEFERRED;
+
 				return 0;
 			}
 			// There's a hook by Justagai that uses Ctrl+T to toggle the CMD, so let's use another key
@@ -684,8 +891,38 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				//g_bDCHologramsVisible = !g_bDCHologramsVisible;
 				//return 0;
 			//}
+			// Ctrl+S
 			case 'S': {
+#define BENCHMARK_MODE 0
+#if BENCHMARK_MODE == 0
+				g_bRTEnabledInTechRoom = !g_bRTEnabledInTechRoom;
+				log_debug("[DBG] [BVH] g_bRTEnabledInTechRoom: %d", g_bRTEnabledInTechRoom);
+
+				/*g_bRTEnabled = !g_bRTEnabled;
+				log_debug("[DBG] [BVH] g_bRTEnabled: %s", g_bRTEnabled ? "Enabled" : "Disabled");
+				DisplayTimedMessage(3, 0, g_bRTEnabled ? "Raytracing Enabled" : "Raytracing Disabled");*/
+
 				g_bShadowMapEnable = !g_bShadowMapEnable;
+				DisplayTimedMessage(3, 0, g_bShadowMapEnable ? "Shadow Mapping Enabled" : "Shadow Mapping Disabled");
+#elif BENCHMARK_MODE == 1
+				g_BLASBuilderType = (BLASBuilderType)(((int)g_BLASBuilderType + 1) % (int)BLASBuilderType::MAX);
+				log_debug("[DBG] [BVH] Builder type set to: %s", g_sBLASBuilderTypeNames[(int)g_BLASBuilderType]);
+#elif BENCHMARK_MODE == 2
+				g_TLASBuilderType = (TLASBuilderType)(((int)g_TLASBuilderType + 1) % (int)TLASBuilderType::MAX);
+				log_debug("[DBG] [BVH] TLAS Builder type set to: %s", g_sTLASBuilderTypeNames[(int)g_TLASBuilderType]);
+#elif BENCHMARK_MODE == 3
+				g_bUseCentroids = !g_bUseCentroids;
+				if (g_bUseCentroids)
+				{
+					DisplayTimedMessage(3, 0, "Using Centroids for TLAS");
+					log_debug("[DBG] [BVH] Using Centroids for TLAS");
+				}
+				else
+				{
+					DisplayTimedMessage(3, 0, "Using Center-of-Mass for TLAS");
+					log_debug("[DBG] [BVH] Using Center-of-Mass for TLAS");
+				}
+#endif
 				return 0;
 			}
 			//case 'E': {
@@ -698,13 +935,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				CycleFOVSetting();
 				return 0;
 			}
+			// Ctrl+W
 			case 'W': {
-				// DEBUG: Toggle keyboard joystick emulation
-				if (g_config.KbdSensitivity > 0.0f)
-					g_config.KbdSensitivity = 0.0f;
-				else
-					g_config.KbdSensitivity = 1.0f;
-				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
+				g_config.OnlyGrayscaleInTechRoom = !g_config.OnlyGrayscaleInTechRoom;
 				return 0;
 			}
 			case 'V':
@@ -716,12 +949,17 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			// Ctrl+L is the landing gear
 
-			// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
-			case 'P':
-				g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
-				log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
+			// Ctrl+P Toggle PBR Shading
+			//case 'P':
+				//g_bEnablePBRShading = !g_bEnablePBRShading;
+				//DisplayTimedMessage(3, 0, g_bEnablePBRShading ? "PBR Shading Enabled" : "Regular Shading");
+				//log_debug("[DBG] PBR Shading %s", g_bEnablePBRShading ? "Enabled" : "Disabled");
+				//g_bTogglePostPresentHandoff = !g_bTogglePostPresentHandoff;
+				//log_debug("[DBG] PostPresentHandoff: %d", g_bTogglePostPresentHandoff);
+
 				/*
-				if (g_bUseSeparateEyeBuffers && g_pVRScreenshots != NULL) {
+				// Ctrl+P SteamVR screenshot (doesn't seem to work terribly well, though...)
+				if (g_bUseSteamVR && g_pVRScreenshots != NULL) {
 					static int scrCounter = 0;
 					char prevFileName[80], scrFileName[80];
 					sprintf_s(prevFileName, 80, "./preview%d", scrCounter);
@@ -739,7 +977,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] !g_bUseSeparateEyeBuffers || g_pVRScreenshots is NULL");
 				}
 				*/
-				break;
+				//break;
 
 #if DBG_VR
 			case 'X':
@@ -761,6 +999,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					//IncreaseScreenScale(0.1f);
 					//SaveVRParams();
+
+					//IncreaseAspectRatio(0.05f);
+					IncreaseReticleScale(0.1f);
+					SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z += 0.1f;
@@ -780,8 +1022,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				case 11:
-					g_contOriginWorldSpace.y += 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace[0].y += 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
@@ -796,6 +1038,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 2:
 					//IncreaseScreenScale(-0.1f);
 					//SaveVRParams();
+
+					//IncreaseAspectRatio(-0.05f);
+					IncreaseReticleScale(-0.1f);
+					SaveVRParams();
 					break;
 				case 3:
 					g_LaserPointDebug.z -= 0.1f;
@@ -818,8 +1064,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					log_debug("[DBG] g_fOBJMetricMult: %0.3f", g_fOBJ_Z_MetricMult);
 					break;
 				case 11:
-					g_contOriginWorldSpace.y -= 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace[0].y -= 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
@@ -827,13 +1073,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_LEFT:
 				switch (g_KeySet) {
 				case 2:
-					//IncreaseAspectRatio(-0.05f);
-					IncreaseReticleScale(-0.1f);
-					SaveVRParams();
 					break;
 				case 11:
-					g_contOriginWorldSpace.x -= 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace[0].x -= 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
@@ -841,13 +1084,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_RIGHT:
 				switch (g_KeySet) {
 				case 2:
-					//IncreaseAspectRatio(0.05f);
-					IncreaseReticleScale(0.1f);
-					SaveVRParams();
 					break;
 				case 11:
-					g_contOriginWorldSpace.x += 0.02f;
-					log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					g_contOriginWorldSpace[0].x += 0.01f;
+					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				}
 				return 0;
@@ -856,29 +1096,53 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		}
 
 		// Ctrl + Shift
-		if (CtrlKey && !AltKey && ShiftKey) {
-			switch (wParam) {
-#if DBG_VR
-				/*
-				case 0xbb:
-					//IncreaseNoExecIndices(0, 1);
-					return 0;
-				case 0xbd:
-					//IncreaseNoExecIndices(0, -1);
-					return 0;
-				*/
-#endif
-			// Ctrl+Shift+C: Reset the cockpit damage
+		if (CtrlKey && !AltKey && ShiftKey)
+		{
+			switch (wParam)
+			{
+			case 0xbb:
+				//IncreaseNoExecIndices(0, 1);
+				IncreaseD3DExecuteCounterSkipHi(1);
+				return 0;
+			case 0xbd:
+				//IncreaseNoExecIndices(0, -1);
+				IncreaseD3DExecuteCounterSkipHi(-1);
+				return 0;
+				// Ctrl+Shift+C: Reset the cockpit damage
 			case 'C':
 				g_bResetCockpitDamage = true;
 				return 0;
-			/*
-			case 'T': {
-				g_bDCHologramsVisible = !g_bDCHologramsVisible;
+				/*
+				case 'T': {
+					g_bDCHologramsVisible = !g_bDCHologramsVisible;
+					return 0;
+				}
+				*/
+			// Ctrl+Shift+R: Toggle Raytraced Cockpit Shadows
+			case 'R':
+				g_bRTEnabledInCockpit = !g_bRTEnabledInCockpit;
+				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
+				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
+					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
 				return 0;
-			}
-			*/
-
+			case 'S':
+				g_bRTEnableSoftShadows = !g_bRTEnableSoftShadows;
+				log_debug("[DBG] g_bRTEnableSoftShadows: %d", g_bRTEnableSoftShadows);
+				DisplayTimedMessage(3, 0, g_bRTEnableSoftShadows ?
+					"Raytraced Soft Shadows" : "Raytraced Hard Shadows");
+				return 0;
+			// Ctrl+Shift+W: Toggle keyboard joystick emulation
+			case 'W':
+				if (g_config.KbdSensitivity > 0.0f) {
+					g_config.KbdSensitivity = 0.0f;
+					DisplayTimedMessage(3, 0, "Joystick Emul Paused");
+				}
+				else {
+					g_config.KbdSensitivity = 1.0f;
+					DisplayTimedMessage(3, 0, "Joystick Emul Resumed");
+				}
+				log_debug("[DBG] Keyboard enabled: %d", (bool)g_config.KbdSensitivity);
+				return 0;
 			case VK_UP:
 				IncreaseFloatingGUIParallax(0.05f);
 				return 0;
@@ -897,11 +1161,31 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		// Shift
 		if (ShiftKey && !AltKey && !CtrlKey) {
 			switch (wParam) {
+			// Shift + Arrow Keys
 			case VK_LEFT:
-				IncreaseHUDParallax(-0.1f);
+				// Adjust the POV in VR, see CockpitLook
+				POVBackwards();
 				return 0;
 			case VK_RIGHT:
-				IncreaseHUDParallax(0.1f);
+				// Adjust the POV in VR, see CockpitLook
+				POVForwards();
+				return 0;
+			case VK_UP:
+				// Adjust the POV in VR, see CockpitLook
+				POVUp();
+				return 0;
+			case VK_DOWN:
+				// Adjust the POV in VR, see CockpitLook
+				POVDown();
+				return 0;
+
+			case VK_OEM_PERIOD:
+				log_debug("[DBG] Resetting POVOffset for %s", g_sCurrentCockpit);
+				if (g_pSharedDataCockpitLook != NULL && g_SharedMemCockpitLook.IsDataReady()) {
+					g_CockpitPOVOffset = { 0, 0, 0 };
+					g_GunnerTurretPOVOffset = { 0, 0, 0 };
+					SavePOVOffsetToIniFile();
+				}
 				return 0;
 			}
 		}
@@ -917,13 +1201,21 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Use the spacebar to activate the cursor on the current active element
 				if (g_bActiveCockpitEnabled) {
 					//g_bACActionTriggered = true;
-					g_bACTriggerState = false;
+					g_bACTriggerState[0] = false;
+					g_bACTriggerState[1] = false;
 				}
+
+				// Custom HUD color. Turns out that pressing H followed by the Spacebar restarts
+				// the current mission. The clock isn't reset and nothing else changes. So the only
+				// way I could find to detect this change is by catching the Spacebar event itself.
+				// When a mission is reset this way, the custom HUD color is also reset. So, let's
+				// reapply it here (if there is no custom HUD color, the following call does nothing)
+				ApplyCustomHUDColor();
 				break;
 
 			case VK_OEM_PERIOD:
-				if (g_bSteamVRInitialized)
-					g_pHMD->ResetSeatedZeroPose();
+				if (g_bUseSteamVR || g_bSteamVRInitialized)
+					g_pChaperone->ResetZeroPose(vr::TrackingUniverseSeated);
 				//TODO OPENXR: implement recentering
 				g_bResetHeadCenter = true;
 
@@ -970,7 +1262,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			switch (wParam) {
 			case VK_SPACE:
 				if (g_bActiveCockpitEnabled)
-					g_bACTriggerState = true;
+				{
+					g_bACTriggerState[0] = true;
+					g_bACTriggerState[1] = true;
+				}
 				return 0;
 			}
 
@@ -989,7 +1284,32 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 		}
 		*/
+		return 0;
 	}
+
+	/*
+	case WM_INPUT:
+	{
+		UINT dwSize = sizeof(RAWINPUT);
+		static BYTE lpb[sizeof(RAWINPUT)];
+
+		// GetRawInputBuffer() can't be read inside the main message loop
+		GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
+
+		RAWINPUT* raw = (RAWINPUT*)lpb;
+
+		if (raw->header.dwType == RIM_TYPEMOUSE)
+		{
+			g_iMouseDeltaX += raw->data.mouse.lLastX;
+			g_iMouseDeltaY += raw->data.mouse.lLastY;
+			//log_debug("[DBG] raw delta: %d, %d", raw->data.mouse.lLastX, raw->data.mouse.lLastY);
+			//g_bMouseDeltaReady = true;
+			//InsertMouseDelta(g_iMouseDeltaX, g_iMouseDeltaY);
+		}
+		break;
+	}
+	*/
+
 	}
 	
 	// Call the previous WindowProc handler
@@ -999,6 +1319,19 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 bool ReplaceWindowProc(HWND hwnd)
 {
 	RECT rect;
+
+	// Register the mouse for raw input. This will allow us to receive low-level mouse deltas
+	// DISABLED: I suspect that registering for low-level events messes the main message pump
+#ifdef DISABLED
+	RAWINPUTDEVICE Rid[1];
+	Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
+	Rid[0].dwFlags = RIDEV_INPUTSINK;
+	Rid[0].hwndTarget = hwnd;
+	if (!RegisterRawInputDevices(Rid, 1, sizeof(Rid[0])))
+		log_debug("[DBG] Failed to register raw input device");
+#endif
+
 	g_ThisWindow = hwnd;
 	OldWindowProc = (WNDPROC )SetWindowLong(g_ThisWindow, GWL_WNDPROC, (LONG )MyWindowProc);
 	if (OldWindowProc != NULL) {
@@ -1012,10 +1345,6 @@ bool ReplaceWindowProc(HWND hwnd)
 	
 	return false;
 }
-
-#include "XwaDrawTextHook.h"
-#include "XwaDrawRadarHook.h"
-#include "XwaDrawBracketHook.h"
 
 bool IsXwaExe()
 {
@@ -1132,12 +1461,6 @@ out:
 	log_debug("[DBG] [POV] %d POV entries modified", entries_applied);
 }
 
-void InitSharedMem() {
-	g_pSharedData = (SharedData *)g_SharedMem.GetMemoryPtr();
-	if (g_pSharedData == NULL)
-		log_debug("[DBG] Could not load shared data ptr");
-}
-
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
@@ -1175,7 +1498,21 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 		// Initialize shared memory section to exchange data with CockpitLook hook
 		InitSharedMem();
-		
+
+		// Embree appears to cause random lockups in the Briefing Room and the
+		// Tech Room. Not sure why, as I can't break into the process to see what's
+		// going on, and since it's not a crash, there isn't a crash dump either.
+		// So let's disable this altogether while I think about what to do next
+		//if (g_bRTEnableEmbree)
+		//{
+		//	LoadEmbree();
+		//}
+		{
+			g_bRTEnableEmbree = false;
+			g_BLASBuilderType = DEFAULT_BLAS_BUILDER;
+			log_debug("[DBG] [BVH] [EMB] Embree was not loaded. Using DEFAULT_BVH_BUILDER instead");
+		}
+
 		if (IsXwaExe())
 		{
 			if (g_config.Text2DRendererEnabled) 
@@ -1210,6 +1547,65 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				// DrawBracketMapHook
 				*(unsigned char*)(0x00503CFE + 0x00) = 0xE8;
 				*(int*)(0x00503CFE + 0x01) = (int)DrawBracketMapHook - (0x00503CFE + 0x05);
+			}
+
+			if (g_config.D3dRendererHookEnabled)
+			{
+				// D3dRenderLasersHook - call 0042BBA0
+				*(unsigned char*)(0x004F0B7E + 0x00) = 0xE8;
+				*(int*)(0x004F0B7E + 0x01) = (int)D3dRenderLasersHook - (0x004F0B7E + 0x05);
+
+				// D3dRenderMiniatureHook - call 00478490
+				*(unsigned char*)(0x00478412 + 0x00) = 0xE8;
+				*(int*)(0x00478412 + 0x01) = (int)D3dRenderMiniatureHook - (0x00478412 + 0x05);
+				*(unsigned char*)(0x00478483 + 0x00) = 0xE8;
+				*(int*)(0x00478483 + 0x01) = (int)D3dRenderMiniatureHook - (0x00478483 + 0x05);
+
+				// D3dRenderHyperspaceLinesHook - call 00480A80
+				*(unsigned char*)(0x0047DCB6 + 0x00) = 0xE8;
+				*(int*)(0x0047DCB6 + 0x01) = (int)D3dRenderHyperspaceLinesHook - (0x0047DCB6 + 0x05);
+
+				// D3dRendererHook - call 00480370
+				*(unsigned char*)(0x004829C5 + 0x00) = 0xE8;
+				*(int*)(0x004829C5 + 0x01) = (int)D3dRendererMainHook - (0x004829C5 + 0x05);
+				*(unsigned char*)(0x004829DF + 0x00) = 0xE8;
+				*(int*)(0x004829DF + 0x01) = (int)D3dRendererMainHook - (0x004829DF + 0x05);
+
+				// D3dRendererShadowHook - call 0044FD10
+				*(unsigned char*)(0x004847DE + 0x00) = 0xE8;
+				*(int*)(0x004847DE + 0x01) = (int)D3dRendererShadowHook - (0x004847DE + 0x05);
+				*(unsigned char*)(0x004847F3 + 0x00) = 0xE8;
+				*(int*)(0x004847F3 + 0x01) = (int)D3dRendererShadowHook - (0x004847F3 + 0x05);
+
+				// D3dRendererOptLoadHook - call 0050E3B0
+				*(int*)(0x004CC965 + 0x01) = (int)D3dRendererOptLoadHook - (0x004CC965 + 0x05);
+
+				// D3dRendererOptNodeHook - call 00482000
+				*(unsigned char*)(0x004815BF + 0x03) = 0x10; // esp+10
+				*(int*)(0x004815CA + 0x01) = (int)D3dRendererOptNodeHook - (0x004815CA + 0x05);
+				*(unsigned char*)(0x00481F9E + 0x00) = 0x57; // push edi
+				*(int*)(0x00481FA5 + 0x01) = (int)D3dRendererOptNodeHook - (0x00481FA5 + 0x05);
+				*(unsigned char*)(0x00481FC7 + 0x00) = 0x57; // push edi
+				*(int*)(0x00481FC9 + 0x01) = (int)D3dRendererOptNodeHook - (0x00481FC9 + 0x05);
+			}
+
+			// FlightTakeScreenshot
+			*(unsigned char*)(0x004D4650 + 0x00) = 0xE8;
+			*(int*)(0x004D4650 + 0x01) = (int)FlightTakeScreenshot - (0x004D4650 + 0x05);
+			*(unsigned char*)(0x004D4650 + 0x05) = 0xC3;
+
+			if (g_config.HDConcourseEnabled)
+			{
+				// ConcourseTakeScreenshot - call 0053FA70 - XwaTakeFrontScreenShot
+				*(unsigned char*)(0x0053E479 + 0x00) = 0x90;
+				*(int*)(0x0053E479 + 0x01) = 0x90909090;
+
+				// Draw Cursor
+				*(int*)(0x0053E94C + 0x01) = (int)DrawCursor - (0x0053E94C + 0x05);
+				*(int*)(0x0053FF75 + 0x01) = (int)DrawCursor - (0x0053FF75 + 0x05);
+
+				// Play Video Clear
+				*(int*)(0x0055BE94 + 0x01) = (int)PlayVideoClear - (0x0055BE94 + 0x05);
 			}
 
 			// Remove the text next to the triangle pointer
@@ -1383,14 +1779,43 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				FreeLibrary(hDATReader);
 			}
 			*/
+
+			// ZIPReader: Load and erase any dangling temporary directories
+			{
+				if (InitZIPReader())
+					//DeleteAllTempZIPDirectories();
+					break;
+			}
 		}
 		break;
 	case DLL_THREAD_ATTACH:
 	case DLL_THREAD_DETACH:
 		break;
 	case DLL_PROCESS_DETACH:
+		// Release Embree objects
+		if (g_bRTEnableEmbree)
+		{
+			UnloadEmbree();
+		}
+
 		CloseDATReader(); // Idempotent: does nothing if the DATReader wasn't loaded.
-		if (g_bSteamVRInitialized)
+		CloseZIPReader(); // Idempotent: does nothing if the ZIPReader wasn't loaded.
+
+#ifdef _DEBUG
+		IDXGIDebug1* dxgiDebug;
+		HRESULT hr = DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug));
+		if (SUCCEEDED(hr))
+		{
+			log_debug("[DBG] Reporting Live Objects...");
+			dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+		}
+		else
+		{
+			log_debug("[DBG] Could NOT get DXGI DEBUG object");
+		}
+#endif
+
+		if (g_bUseSteamVR)
 			ShutDownSteamVR();
 		if (g_bUseOpenXR)
 			g_stereoRenderer->ShutDown();

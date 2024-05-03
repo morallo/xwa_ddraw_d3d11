@@ -34,6 +34,8 @@ SamplerState sampler2 : register(s2);
 // texture1 == HUD offscreen buffer
 // texture2 == Text buffer
 
+/*
+// Old PixelShaderInput (pre-D3DRendererHook):
 struct PixelShaderInput
 {
 	float4 pos    : SV_POSITION;
@@ -41,6 +43,17 @@ struct PixelShaderInput
 	float2 tex    : TEXCOORD0;
 	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL;
+};
+*/
+
+// New PixelShaderInput needed for the D3DRendererHook
+struct PixelShaderInput
+{
+	float4 pos    : SV_POSITION;
+	float4 pos3D  : COLOR1;
+	float4 normal : NORMAL;
+	float2 tex	  : TEXCOORD;
+	//float4 color  : COLOR0;
 };
 
 struct PixelShaderOutput
@@ -303,6 +316,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	//output.bloom = 0.15 * output.color;
 
 	// Verify this later:
-	if (bInHyperspace) output.color.a = 0.0;
+	//if (bInHyperspace) output.color.a = 1.0;
 	return output;
 }
