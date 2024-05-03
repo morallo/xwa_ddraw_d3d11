@@ -1197,6 +1197,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	float screen_res_y = (float)g_WindowHeight;
 	float bgColor[4]   = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bIsInConcourseHD = resources->IsInConcourseHd();
+	const bool bInHdTechRoom = bIsInConcourseHD && g_bInTechRoom;
 
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
@@ -1218,22 +1219,33 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	desc.StencilEnable  = FALSE;
 	resources->InitDepthStencilState(depthState, &desc);
 
-	// At this point, offscreenBuffer/offscreenBufferHd contains the image that would be rendered
-	// to the screen by copying to the backbuffer. So, resolve the offscreen buffer into
-	// offscreenBufferAsInput to use it as input in the shader
-	if (g_bSteamVRMirrorWindowLeftEye)
+	if (bInHdTechRoom)
 	{
-		// If the HD Concourse is enabled, then offscreenBufferHd is already non-MSAA and SRV-ready
-		if (!bIsInConcourseHD)
-			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-				0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+			0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(
+			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	}
 	else
 	{
-		if (!bIsInConcourseHD)
-			context->ResolveSubresource(
-				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
-				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		// At this point, offscreenBuffer/offscreenBufferHd contains the image that would be rendered
+		// to the screen by copying to the backbuffer. So, resolve the offscreen buffer into
+		// offscreenBufferAsInput to use it as input in the shader
+		if (g_bSteamVRMirrorWindowLeftEye)
+		{
+			// If the HD Concourse is enabled, then offscreenBufferHd is already non-MSAA and SRV-ready
+			if (!bIsInConcourseHD)
+				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+					0, BACKBUFFER_FORMAT);
+		}
+		else
+		{
+			if (!bIsInConcourseHD)
+				context->ResolveSubresource(
+					resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+					resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
 	}
 
 #ifdef DBG_VR
@@ -1332,6 +1344,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		else
 			resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	}
+	if (bInHdTechRoom)
+		context->PSSetShaderResources(1, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 	context->DrawIndexed(6, 0, 0);
 
 	/*******************************************************************************/
@@ -1349,11 +1363,12 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			context->ClearRenderTargetView(resources->_renderTargetViewSteamVROverlayResize, bgColor);
 			/*context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),
 				resources->_depthStencilViewL.Get());*/
-			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(),nullptr);
+			context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVROverlayResize.GetAddressOf(), nullptr);
 			context->DrawIndexed(6, 0, 0);
 		}
 	}
 
+#ifdef DISABLED
 	/*******************************************************************************/
 	/********* Resize to _steamVROverlayBuffer for the VR overlay in the HMD *******/
 	/*******************************************************************************/
@@ -1371,6 +1386,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			context->DrawIndexed(6, 0, 0);
 		}
 	}
+#endif
 
 #ifdef DBG_VR
 	if (g_bCapture2DOffscreenBuffer) {

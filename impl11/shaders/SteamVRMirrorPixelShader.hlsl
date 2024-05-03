@@ -4,6 +4,9 @@
 
 Texture2DArray texture0 : register(t0);
 SamplerState sampler0 : register(s0);
+// If the HD Concourse is enabled and we're in the Tech Room, then this
+// texture will contain the 3D hologram:
+Texture2DArray texture1 : register(t1);
 
 // MainShadersCBuffer
 cbuffer ConstantBuffer : register(b0)
@@ -27,10 +30,15 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	uv.xy = (input.tex - 0.5) * inv_scale + 0.5;
 	// The third component is the array index. We choose the left eye.
 	uv.z = 0;
-	float4 texelColor = texture0.Sample(sampler0, uv, 0);
+	float4 texelColor0 = texture0.Sample(sampler0, uv, 0);
+	// Sample the 3D hologram in the Tech Room:
+	float4 texelColor1 = texture1.Sample(sampler0, uv, 0);
 	//float2 D = abs(input.tex - 0.5);
 	//if (any(D > crop_amount))
 	//	texelColor.b += 0.7;
 
-	return float4(brightness * texelColor.xyz, 1.0f);
+	float4 color = float4(brightness * texelColor0.xyz, 1.0f);
+	color = lerp(color, texelColor1, texelColor1.a);
+
+	return color;
 }
