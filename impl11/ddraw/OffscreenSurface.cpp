@@ -408,8 +408,14 @@ HRESULT OffscreenSurface::GetDC(
 			SurfaceDC* pDC = (SurfaceDC*)lphDC;
 
 			pDC->buffer32 = 0;
-			pDC->width = this->_deviceResources->_backbufferWidth;
-			pDC->height = this->_deviceResources->_backbufferHeight;
+			// Pre-HD Concourse values:
+			//pDC->width = this->_deviceResources->_backbufferWidth;
+			//pDC->height = this->_deviceResources->_backbufferHeight;
+			// For the HD Concourse, we need to specify HD width/height or else
+			// the resulting image will be cropped
+			pDC->width = HD_CONCOURSE_WIDTH;
+			pDC->height = HD_CONCOURSE_HEIGHT;
+
 			pDC->displayWidth = this->_deviceResources->_displayWidth;
 			pDC->displayHeight = this->_deviceResources->_displayHeight;
 			pDC->aspectRatioPreserved = g_config.AspectRatioPreserved;

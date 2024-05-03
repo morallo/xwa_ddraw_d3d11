@@ -1789,9 +1789,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	*/
 
 	if (g_bUseSteamVR) {
+		this->_offscreenBufferHd.Release();
 		this->_offscreenBufferR.Release();
 		this->_offscreenBufferAsInputR.Release();
 		this->_offscreenBufferPostR.Release();
+		this->_offscreenBufferHdSRV.Release();
 		this->_offscreenAsInputShaderResourceViewR.Release();
 		this->_renderTargetViewR.Release();
 		this->_renderTargetViewPostR.Release();
@@ -2251,7 +2253,26 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr))
 				goto out;
 
-			if (g_bUseSteamVR) {
+			if (g_bUseSteamVR)
+			{
+				// Special buffer used in VR mode. This buffer does *not* hold 2 images on purpose.
+				// The HD Concourse is rendered through the D2D1 interface, which only works on
+				// regular single-slot buffers.
+				{
+					CD3D11_TEXTURE2D_DESC tmp = desc;
+					desc.ArraySize          = 1;
+					desc.Width              = HD_CONCOURSE_WIDTH;
+					desc.Height             = HD_CONCOURSE_HEIGHT;
+					desc.BindFlags          = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+					desc.SampleDesc.Count   = 1;
+					desc.SampleDesc.Quality = 0;
+					step = "_offscreenBufferHd";
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferHd);
+					if (FAILED(hr)) goto out;
+					desc = tmp;
+					log_debug("[DBG] Created _offscreenBufferHd");
+				}
+
 				step = "_offscreenBufferR";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferR);
 				if (FAILED(hr)) {
@@ -3041,6 +3062,21 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 				log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 				goto out;
+			}
+
+			if (g_bUseSteamVR)
+			{
+				D3D11_SHADER_RESOURCE_VIEW_DESC tmp = shaderResourceViewDesc;
+				shaderResourceViewDesc.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
+				shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+				shaderResourceViewDesc.Texture2D.MipLevels       = 1;
+				// Create the shader resource view for _offscreenBufferHd
+				step = "offscreenBufferHdSRV";
+				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferHd,
+					&shaderResourceViewDesc, &this->_offscreenBufferHdSRV);
+				if (FAILED(hr)) goto out;
+				log_debug("[DBG] Created _offscreenBufferHdSRV");
+				shaderResourceViewDesc = tmp;
 			}
 
 			step = "backgroundBufferSRV";
@@ -3952,7 +3988,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		// This surface is used with _d2d1OffscreenRenderTarget to render directly to the
 		// _offscreenBuffer. This is used to render things like the brackets that shouldn't
 		// be captured in the DC buffers. Currently only used in PrimarySurface::RenderBracket()
-		hr = this->_offscreenBuffer.As(&offscreenSurface);
+		if (g_bUseSteamVR)
+			hr = this->_offscreenBufferHd.As(&offscreenSurface);
+		else
+			hr = this->_offscreenBuffer.As(&offscreenSurface);
 
 		// This surface can be used to render directly to the DC foreground buffer
 		if (g_bDynCockpitEnabled)
@@ -3966,21 +4005,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			properties.pixelFormat = D2D1::PixelFormat(BACKBUFFER_FORMAT, D2D1_ALPHA_MODE_PREMULTIPLIED);			
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(DCSurface, properties, &this->_d2d1DCRenderTarget);
-
-			//We don't need the D2D1 surfaces in VR mode, the brackets will be rendered in the original way by Execute()
-			if (!g_bEnableVR)
-				hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
+			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
 
 			if (SUCCEEDED(hr))
 			{
 				this->_d2d1RenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1RenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
 
-				if (!g_bEnableVR)
-				{
-					this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
-					this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
-				}
+				this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
+				this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
 
 				this->_d2d1DCRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1DCRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
@@ -5791,7 +5824,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		viewport.MaxDepth = D3D11_MAX_DEPTH;
 		viewport.MinDepth = D3D11_MIN_DEPTH;
 		this->InitViewport(&viewport);
-		
+
 		if (g_iDraw2DCounter > 0)		
 		{
 			D3D11_DEPTH_STENCIL_DESC desc;

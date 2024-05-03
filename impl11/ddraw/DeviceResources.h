@@ -42,6 +42,9 @@ class OffscreenSurface;
 #define HDR_FORMAT DXGI_FORMAT_R16G16B16A16_FLOAT
 #define RT_SHADOW_FORMAT DXGI_FORMAT_R16G16_FLOAT
 
+constexpr int HD_CONCOURSE_WIDTH  = 2560;
+constexpr int HD_CONCOURSE_HEIGHT = 1440;
+
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
  * have their associated lights reset after jumping through hyperspace; and all
@@ -220,6 +223,7 @@ public:
 	// Buffers/Textures
 	ComPtr<ID3D11Texture2D> _backBuffer;
 	ComPtr<ID3D11Texture2D> _offscreenBuffer;
+	ComPtr<ID3D11Texture2D> _offscreenBufferHd; // Used to render the HD Concourse
 	ComPtr<ID3D11Texture2D> _offscreenBufferHdBackground;
 	ComPtr<ID3D11Texture2D> _offscreenBufferR; // When SteamVR is used, _offscreenBuffer becomes the left eye and this one becomes the right eye
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInput;
@@ -364,6 +368,7 @@ public:
 	// SRVs
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceView;
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
+	ComPtr<ID3D11ShaderResourceView> _offscreenBufferHdSRV; // Used to display the HD Concourse
 	ComPtr<ID3D11ShaderResourceView> _backgroundBufferSRV;
 	ComPtr<ID3D11ShaderResourceView> _transp1SRV;
 	ComPtr<ID3D11ShaderResourceView> _transp2SRV;

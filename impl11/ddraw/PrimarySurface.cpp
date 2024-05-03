@@ -1174,7 +1174,7 @@ void PrimarySurface::barrelEffectSteamVR() {
  * Also, in 2D we need to generate a buffer with the proper aspect to copy into the VR overlay
  * Bonus points: Adjust the FOV to the original (~50) to avoid showing the distortion
  * caused by the larger FOV used in most headsets.
- * Input: _offscreenBuffer
+ * Input: _offscreenBuffer or _offscreenBufferHd if the HD Concourse is enabled.
  * Output: _steamVRPresentBuffer
  * Output: _steamVROverlayBuffer
  */
@@ -1195,7 +1195,8 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 
 	float screen_res_x = (float)g_WindowWidth;
 	float screen_res_y = (float)g_WindowHeight;
-	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float bgColor[4]   = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const bool bIsInConcourseHD = resources->IsInConcourseHd();
 
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
@@ -1211,23 +1212,28 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// Temporarily disable ZWrite: we won't need it here
 	D3D11_DEPTH_STENCIL_DESC desc;
 	ComPtr<ID3D11DepthStencilState> depthState;
-	desc.DepthEnable = FALSE;
+	desc.DepthEnable    = FALSE;
 	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-	desc.StencilEnable = FALSE;
+	desc.DepthFunc      = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable  = FALSE;
 	resources->InitDepthStencilState(depthState, &desc);
 
-	// At this point, offscreenBuffer contains the image that would be rendered to the screen by
-	// copying to the backbuffer. So, resolve the offscreen buffer into offscreenBufferAsInput to
-	// use it as input in the shader
-	if (g_bSteamVRMirrorWindowLeftEye) {
-		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
-			0, BACKBUFFER_FORMAT);
+	// At this point, offscreenBuffer/offscreenBufferHd contains the image that would be rendered
+	// to the screen by copying to the backbuffer. So, resolve the offscreen buffer into
+	// offscreenBufferAsInput to use it as input in the shader
+	if (g_bSteamVRMirrorWindowLeftEye)
+	{
+		// If the HD Concourse is enabled, then offscreenBufferHd is already non-MSAA and SRV-ready
+		if (!bIsInConcourseHD)
+			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
+				0, BACKBUFFER_FORMAT);
 	}
-	else {
-		context->ResolveSubresource(
-			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
-			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+	else
+	{
+		if (!bIsInConcourseHD)
+			context->ResolveSubresource(
+				resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 	}
 
 #ifdef DBG_VR
@@ -1263,11 +1269,16 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	resources->InitViewport(&viewport);
-	
+
+	if (!g_bRendering3D && bIsInConcourseHD)
+	{
+		g_WindowWidth  = HD_CONCOURSE_WIDTH;
+		g_WindowHeight = HD_CONCOURSE_HEIGHT;
+	}
 	float mirrorWindowAspectRatio = (float)g_WindowWidth / (float)g_WindowHeight;
 	float steamVR_aspect_ratio = (float)g_steamVRWidth / (float)g_steamVRHeight;
 	float window_factor_x = (float)g_steamVRWidth / (float)g_WindowWidth;
-	// If the display window has height > width, we can't make the the y axis smaller to compensate.
+	// If the display window has height > width, we can't make the y axis smaller to compensate.
 	// Instead, I'm expanding the x-axis to keep the original aspect ratio. That'll cause the image
 	// to become bigger too, so we'll shrink the image by adjusting the scale as well:
 	float window_factor_y = (float)g_WindowHeight / (float)g_steamVRHeight;
@@ -1279,17 +1290,20 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	scale *= window_scale;
 	
 	float aspect_ratio = 1.0f;
-	if (g_bRendering3D) {
+	if (g_bRendering3D)
+	{
 		if (g_fSteamVRMirrorWindowAspectRatio > 0.01f)
 			aspect_ratio = g_fSteamVRMirrorWindowAspectRatio;
 		else			
 			aspect_ratio = 1.0f / steamVR_aspect_ratio * window_factor_x * window_factor_y;
 	}
 	else
+	{
 		// The 2D image is rendered stretched over the full backbuffer (steamVR), but the aspect ratio will be modified when the backbuffer
 		// gets squeezed into the window (usually 16:9). So effectively the 2D image will have Window aspect ratio.
 		// We need to undo it and that's why we add (1/window aspect ratio) below:
 		aspect_ratio = (1.0f / mirrorWindowAspectRatio) * (g_fConcourseAspectRatio);
+	}
 
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
@@ -1304,14 +1318,21 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	/*context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),
 		resources->_depthStencilViewL.Get());*/
 	context->OMSetRenderTargets(1, resources->_renderTargetViewSteamVRResize.GetAddressOf(),nullptr);
-	if (g_bSteamVRMirrorWindowLeftEye) {
-		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
+	if (g_bSteamVRMirrorWindowLeftEye)
+	{
+		if (!g_bRendering3D && bIsInConcourseHD)
+			resources->InitPSShaderResourceView(resources->_offscreenBufferHdSRV);
+		else
+			resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceView);
 	}
-	else {
-		resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
+	else
+	{
+		if (!g_bRendering3D && bIsInConcourseHD)
+			resources->InitPSShaderResourceView(resources->_offscreenBufferHdSRV);
+		else
+			resources->InitPSShaderResourceView(resources->_offscreenAsInputShaderResourceViewR);
 	}
 	context->DrawIndexed(6, 0, 0);
-
 
 	/*******************************************************************************/
 	/********* Resize to _steamVROverlayBuffer for the VR overlay in the HMD *******/
@@ -1332,7 +1353,6 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			context->DrawIndexed(6, 0, 0);
 		}
 	}
-
 
 	/*******************************************************************************/
 	/********* Resize to _steamVROverlayBuffer for the VR overlay in the HMD *******/
@@ -9499,7 +9519,13 @@ HRESULT PrimarySurface::Flip(
 					}
 					else {
 						// In SteamVR mode this will display the left image:
-						if (g_bUseSteamVR) {							
+						if (g_bUseSteamVR) {
+							if (g_bDumpSSAOBuffers)
+							{
+								DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferHd, L"C:\\Temp\\_offscreenBufferHd.dds");
+								DirectX::SaveDDSTextureToFile(context, resources->_steamVROverlayBuffer, L"C:\\Temp\\_steamVROverlayBuffer.dds");
+							}
+
 							if (g_VR2Doverlay != vr::k_ulOverlayHandleInvalid)
 							{
 								vr::Texture_t overlay_texture;
