@@ -163,7 +163,11 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	if (bIsShadeless)
 	{
-		output.normal = 0;
+		// If we set "normal" to 0, then it will disappear when blending the
+		// offscreen with the background (the background has normal = 0). So
+		// we need to set a solid (i.e. non-transparent) normal, but still
+		// keep it as a null normal.
+		output.normal = float4(0, 0, 0, 0.5);
 		output.pos3D  = 0;
 		return output;
 	}
