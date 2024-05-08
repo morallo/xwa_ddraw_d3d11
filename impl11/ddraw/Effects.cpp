@@ -889,7 +889,7 @@ bool LoadHUDColorFromIniFile()
 
 		// Catch section names
 		if (buf[0] == '[') {
-			fsm = (strstr(buf, "HUDColor") != NULL) ? IN_TAG_ST : OUT_OF_TAG_ST;
+			fsm = (strstr(buf, "[HUDColor]") != NULL) ? IN_TAG_ST : OUT_OF_TAG_ST;
 		}
 
 		// If we're not in-tag, then just pass-through:
