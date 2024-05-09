@@ -617,8 +617,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bDumpOptNodes = !g_bDumpOptNodes;
-				log_debug("[DBG] g_bDumpOptNodes: %d", g_bDumpOptNodes);
+				g_bRenderDefaultStarfield = !g_bRenderDefaultStarfield;
+				if (g_bRenderDefaultStarfield)
+					DisplayTimedMessage(3, 0, "RENDER Default Starfield");
+				else
+					DisplayTimedMessage(3, 0, "NO Default Starfield");
+
+				//g_bDumpOptNodes = !g_bDumpOptNodes;
+				//log_debug("[DBG] g_bDumpOptNodes: %d", g_bDumpOptNodes);
 
 				//g_bFadeLights = !g_bFadeLights;
 				//log_debug("[DBG] g_bFadeLights: %d", g_bFadeLights);
@@ -733,7 +739,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'W':
 				//ToggleCSM();
 
-				g_iDelayedDumpDebugBuffers = 30;
+				g_iDelayedDumpDebugBuffers = 160;
 				log_debug("[DBG] Delayed debug dump set");
 
 				//g_bGlobalSpecToggle = !g_bGlobalSpecToggle;

@@ -53,6 +53,7 @@ extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 
 bool IsInsideTriangle(Vector2 P, Vector2 A, Vector2 B, Vector2 C, float *u, float *v);
 Matrix4 ComputeLightViewMatrix(int idx, Matrix4 &Heading, bool invert);
+void RenderSkyBox();
 
 class EffectsRenderer : public D3dRenderer
 {
@@ -110,6 +111,32 @@ protected:
 	ComPtr<ID3D11ShaderResourceView> _vrDotMeshVerticesSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrDotMeshTexCoordsSRV;
 	ComPtr<ID3D11ShaderResourceView> _vrGreenCirclesSRV;
+
+	// Background meshes
+	// Caps
+	ComPtr<ID3D11Buffer> _bgCapVertexBuffer;
+	ComPtr<ID3D11Buffer> _bgCapIndexBuffer;
+	ComPtr<ID3D11Buffer> _bgCapMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _bgCapTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _bgCapMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _bgCapMeshTexCoordsSRV;
+
+	// Sides (planets, etc)
+	ComPtr<ID3D11Buffer> _bgSideVertexBuffer;
+	ComPtr<ID3D11Buffer> _bgSideIndexBuffer;
+	ComPtr<ID3D11Buffer> _bgSideMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _bgSideTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _bgSideMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _bgSideMeshTexCoordsSRV;
+
+	// Cylinder Sides
+	ComPtr<ID3D11Buffer> _bgCylVertexBuffer;
+	ComPtr<ID3D11Buffer> _bgCylIndexBuffer;
+	ComPtr<ID3D11Buffer> _bgCylMeshVerticesBuffer;
+	ComPtr<ID3D11Buffer> _bgCylTexCoordsBuffer;
+	ComPtr<ID3D11ShaderResourceView> _bgCylMeshVerticesSRV;
+	ComPtr<ID3D11ShaderResourceView> _bgCylMeshTexCoordsSRV;
+
 	bool _bDotsbRendered;
 	bool _bHUDRendered;
 	bool _bBracketsRendered;
@@ -135,9 +162,6 @@ protected:
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 	Matrix4 GetShadowMapLimits(const AABB &aabb, float *OBJrange, float *OBJminZ);
 
-	void SaveContext();
-	void RestoreContext();
-
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
 		short* Width_out=nullptr, short* Height_out=nullptr);
@@ -151,6 +175,10 @@ public:
 	D3dConstants _ExteriorConstants;
 	XwaTransform _CockpitWorldView;
 
+	// Captured at the beginning of every frame:
+	D3dConstants _frameConstants;
+	VertexShaderCBuffer _frameVSCBuffer;
+
 	EffectsRenderer();
 	virtual void CreateShaders();
 	virtual void SceneBegin(DeviceResources* deviceResources);
@@ -159,7 +187,9 @@ public:
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void RenderScene(bool bBindTranspLyr1);
 	virtual void UpdateTextures(const SceneCompData* scene);
-	
+	void SaveContext();
+	void RestoreContext();
+
 	// State Management
 	void DoStateManagement(const SceneCompData* scene);
 	void ApplyMaterialProperties();
@@ -209,7 +239,38 @@ public:
 		/* out */ ComPtr<ID3D11ShaderResourceView>& meshVerticesSRV,
 		/* out */ ComPtr<ID3D11Buffer>& texCoordsBuffer,
 		/* out */ ComPtr<ID3D11ShaderResourceView>& texCoordsSRV);
+
+	void CreateFlatRectangleMesh(
+		float widthMeters,
+		float depthMeters,
+		XwaVector3 dispMeters,
+		/* out */ D3dTriangle* tris,
+		/* out */ XwaVector3* meshVertices,
+		/* out */ XwaTextureVertex* texCoords,
+		/* out */ ComPtr<ID3D11Buffer>& vertexBuffer,
+		/* out */ ComPtr<ID3D11Buffer>& indexBuffer,
+		/* out */ ComPtr<ID3D11Buffer>& meshVerticesBuffer,
+		/* out */ ComPtr<ID3D11ShaderResourceView>& meshVerticesSRV,
+		/* out */ ComPtr<ID3D11Buffer>& texCoordsBuffer,
+		/* out */ ComPtr<ID3D11ShaderResourceView>& texCoordsSRV);
+
+	void CreateCylinderSideMesh(
+		float widthMeters,
+		float heightMeters,
+		XwaVector3 dispMeters,
+		/* out */ D3dTriangle* tris,
+		/* out */ XwaVector3* meshVertices,
+		/* out */ XwaTextureVertex* texCoords,
+		/* out */ ComPtr<ID3D11Buffer>& vertexBuffer,
+		/* out */ ComPtr<ID3D11Buffer>& indexBuffer,
+		/* out */ ComPtr<ID3D11Buffer>& meshVerticesBuffer,
+		/* out */ ComPtr<ID3D11ShaderResourceView>& meshVerticesSRV,
+		/* out */ ComPtr<ID3D11Buffer>& texCoordsBuffer,
+		/* out */ ComPtr<ID3D11ShaderResourceView>& texCoordsSRV);
+
 	void CreateVRMeshes();
+	void CreateBackgroundMeshes();
+	void CreateBackdropIdMapping();
 
 	// Deferred rendering
 	void RenderLasers();
@@ -217,8 +278,10 @@ public:
 	void RenderVRDots();
 	void RenderVRBrackets();
 	void RenderVRHUD();
+	void RenderSkyBox(bool debug);
 	void RenderVRKeyboard();
 	void RenderVRGloves();
+	void RenderSkyCylinder();
 	void RenderCockpitShadowMap();
 	void RenderHangarShadowMap();
 	void StartCascadedShadowMap();

@@ -8,6 +8,8 @@
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
+TextureCube skybox : register(t21);
+
 // VRGeometryCBuffer
 cbuffer ConstantBuffer : register(b11)
 {
@@ -22,6 +24,12 @@ cbuffer ConstantBuffer : register(b11)
 	float  strokeWidth;
 	float3 bracketColor;
 	// 128 bytes
+	float4 U;
+	// 144 bytes
+	matrix viewMat;
+	// 208 bytes
+	float4 F;
+	// 224 bytes
 };
 
 // New PixelShaderInput needed for the D3DRendererHook
@@ -97,8 +105,67 @@ PixelShaderOutput RenderBracket(PixelShaderInput input)
 	return output;
 }
 
+PixelShaderOutput RenderSkyBox(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+
+	output.color    = 0;
+	output.bloom    = 0;
+	output.ssaoMask = 0;
+	output.ssMask   = 0;
+	output.pos3D    = 0;
+	output.normal   = 0;
+
+	const float3 P = input.pos3D.xyz;
+#ifndef DISABLED
+	const float4 V = mul(viewMat, float4(normalize(P), 0));
+	output.color = float4(skybox.Sample(sampler0, V.xyz).rgb, 1);
+#else
+	float4 V = float4(normalize(P), 0);
+	const float Vdist = max(0, dot(V.xyz, U.xyz));
+	const float Fdist = max(0, dot(V.xyz, F.xyz));
+	output.color = float4(0.2, 0.2, 0.4, 0.3);
+
+	output.color.r += 0.5 * Vdist;
+	output.color.a += pow(Vdist, 4.0);
+
+	output.color.g += 0.5 * Fdist;
+	output.color.a += pow(Fdist, 4.0);
+#endif
+
+	return output;
+}
+
+PixelShaderOutput RenderSkyCylinder(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+
+	const float4 texelColor = texture0.Sample(sampler0, input.tex);
+
+	output.color    = texelColor;
+	output.bloom    = 0;
+	output.ssaoMask = 0;
+	output.ssMask   = 0;
+	output.pos3D    = 0;
+	output.normal   = 0;
+
+	//output.color = float4(input.tex, 1, 1);
+	output.color.b += 0.1;
+	return output;
+}
+
 PixelShaderOutput main(PixelShaderInput input)
 {
+	if (bIsShadeless == 2)
+	{
+		return RenderSkyBox(input);
+	}
+
+	if (bIsShadeless == 3)
+	{
+		return RenderSkyCylinder(input);
+	}
+
 	if (bRenderBracket)
 		return RenderBracket(input);
 
@@ -176,8 +243,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D = float4(P, 1);
 
 	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
+	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 	// The hook_normals hook sets alpha to 0.5, so we must follow suit here.
 	// If I set the alpha to 1, I'll get a white halo around the VR gloves!
 	output.normal = float4(N, 0.5);

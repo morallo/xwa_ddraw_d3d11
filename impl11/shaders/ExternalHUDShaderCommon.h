@@ -26,6 +26,8 @@ SamplerState bgSampler : register(s0);
 Texture2D    reticleTex : register(t1);
 SamplerState reticleSampler : register(s1);
 
+TextureCube skybox : register(t21);
+
 #define cursor_radius 0.04
 //#define thickness 0.02 
 //#define scale 2.0
@@ -34,10 +36,10 @@ SamplerState reticleSampler : register(s1);
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float4 color : COLOR0;
-	float2 uv : TEXCOORD0;
-	float4 pos3D : COLOR1;
+	float4 pos    : SV_POSITION;
+	float4 color  : COLOR0;
+	float2 uv     : TEXCOORD0;
+	float4 pos3D  : COLOR1;
 	float4 normal : NORMAL; // hook_normals.dll populates this field
 #ifdef INSTANCED_RENDERING
 	uint   viewId : SV_RenderTargetArrayIndex;
@@ -48,6 +50,28 @@ struct PixelShaderOutput
 {
 	float4 color : SV_TARGET0;
 };
+
+PixelShaderOutput RenderSkyBox(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+	output.color = 0;
+
+	// The code here comes from the HyperEntry shader:
+	float2 fragCoord = input.uv * iResolution.xy;
+	float2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
+	p *= preserveAspectRatioComp;
+	p += float2(0, y_center); // In XWA the aiming HUD is not at the screen's center
+
+	// But the code here comes from PixelShaderVRGeom, specifically from the area where
+	// the skybox is rendered:
+	float3 V = normalize(float3(p, -FOVscale));
+	// We invert V.zy here to match the direction vector used in PixelShaderVRGeom:
+	V.yz = -V.yz;
+	// That way, viewMat below is the same we already figured out for PixelShaderVRGeom:
+	V = mul(viewMat, float4(V, 0)).xyz;
+	output.color = float4(skybox.Sample(bgSampler, V.xyz).rgb, 1);
+	return output;
+}
 
 /*
 float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)
@@ -153,6 +177,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// Early exit: avoid rendering outside the original viewport edges
 	if (any(input.uv < p0) || any(input.uv > p1))
 		return output;
+
+	// Special mode: we're rendering the skybox in this path, not the reticle
+	if (VRmode == 3)
+	{
+		return RenderSkyBox(input);
+	}
 
 	// In SBS VR mode, each half-screen receives a full 0..1 uv range. So if we sample the
 	// texture using input.uv, we'll get one SBS image on the left, and one SBS image on the

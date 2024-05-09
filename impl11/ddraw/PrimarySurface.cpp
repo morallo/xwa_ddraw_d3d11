@@ -28,6 +28,8 @@
 #include "EffectsRenderer.h"
 #include "LBVH.h"
 
+#include <DDSTextureLoader.h>
+
 extern D3dRenderer* g_current_renderer;
 extern LBVH* g_ACTLASTree;
 
@@ -68,6 +70,8 @@ inline Matrix4 XwaTransformToMatrix4(const XwaTransform& M);
 float4 TransformProjection(float3 input);
 float4 TransformProjectionScreen(float3 input);
 void EmulMouseWithVRControllers();
+
+int MakeKeyFromGroupIdImageId(int groupId, int imageId);
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -2014,9 +2018,10 @@ out:
 /// World OPT coords in this case look like this:
 /// X+ --> Right
 /// Y+ --> Up
-/// Z+ --> Foward <-- OPT coords normally have Z- mapped to forwards, but here we are...
+/// Z+ --> Foward <-- OPT coords normally have Z- mapped to forwards. Set scaleFs to -1
+/// to invert Fs
 /// </summary>
-Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, bool invert=false, bool debug=false)
+Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, float scaleFs, bool invert=false, bool debug=false)
 {
 	ObjectEntry* object = NULL;
 	MobileObjectEntry* mobileObject = NULL;
@@ -2032,9 +2037,9 @@ Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, bool invert=
 		Us.y = mobileObject->transformMatrix.Up_Y / 32768.0f;
 		Us.z = mobileObject->transformMatrix.Up_Z / 32768.0f;
 
-		Fs.x = mobileObject->transformMatrix.Front_X / 32768.0f;
-		Fs.y = mobileObject->transformMatrix.Front_Y / 32768.0f;
-		Fs.z = mobileObject->transformMatrix.Front_Z / 32768.0f;
+		Fs.x = scaleFs * mobileObject->transformMatrix.Front_X / 32768.0f;
+		Fs.y = scaleFs * mobileObject->transformMatrix.Front_Y / 32768.0f;
+		Fs.z = scaleFs * mobileObject->transformMatrix.Front_Z / 32768.0f;
 
 		if (!invert)
 		{
@@ -2079,7 +2084,7 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 	// Y+: Forwards
 	// Z+: Up
 	Vector4 Rs, Us, Fs;
-	Matrix4 H = GetPlayerCraftMatrix(Rs, Us, Fs, false, false);
+	Matrix4 H = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, false, false); // SetLights()
 	// I tried reading the 3x3 matrix from CockpitLook before the roll inertia was applied and putting
 	// that in SharedMem in order to fix "dancing RT shadows". Didn't work. Still, this code might be
 	// useful later.
@@ -4015,8 +4020,8 @@ void GetCockpitViewMatrix(Matrix4 *result, bool invert=true) {
  * different from the one used in the shadertoy pixel shaders, so we need a new version of
  * GetCockpitViewMatrix.
  */
-void GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert=true) {
-	
+void GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert=true)
+{
 	Matrix4 rotMatrixFull;
 
 	if (PlayerDataTable[*g_playerIndex].gunnerTurretActive)
@@ -4039,6 +4044,45 @@ void GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert=true) {
 		Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
 		rotMatrixFull.identity();
 		rotMatrixYaw.identity();   rotMatrixYaw.rotateY(yaw);
+		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
+		rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
+	}
+
+	if (invert)
+		*result = rotMatrixFull.invert();
+	else
+		*result = rotMatrixFull;
+}
+
+/// <summary>
+/// Same as GetCockpitViewMatrixSpeedEffect(), but yaw is applied around the Z axis because
+/// in OPT coords, that's the vertical axis. Used to rotate objects in global OPT coords.
+/// </summary>
+void GetCockpitViewMatrixSpeedEffectOPTSys(Matrix4 *result, bool invert=true)
+{
+	Matrix4 rotMatrixFull;
+
+	if (PlayerDataTable[*g_playerIndex].gunnerTurretActive)
+	{
+		// TODO:
+		GetGunnerTurretViewMatrixSpeedEffect(&rotMatrixFull);
+	}
+	else
+	{
+		float yaw, pitch;
+
+		if (PlayerDataTable[*g_playerIndex].Camera.ExternalCamera) {
+			yaw = -(float)PlayerDataTable[*g_playerIndex].Camera.Yaw / 65536.0f * 360.0f;
+			pitch = (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
+		}
+		else {
+			yaw = -(float)PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f;
+			pitch = (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
+		}
+
+		Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
+		rotMatrixFull.identity();
+		rotMatrixYaw.identity();   rotMatrixYaw.rotateZ(yaw);
 		rotMatrixPitch.identity(); rotMatrixPitch.rotateX(pitch);
 		rotMatrixFull = rotMatrixPitch * rotMatrixYaw;
 	}
@@ -4914,9 +4958,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Capture the background buffer: it should contain the hyper effect + hyper zoom, and we'll
 		// need it for the final DeferredPass() below
 		context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBufferPost);
-		g_bBackgroundCaptured = true;
 		if (g_bDumpSSAOBuffers)
-			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBufferHyper.dds");
 	}
 
 	// Restore the original state: VertexBuffer, Shaders, Topology, Z-Buffer state, etc...
@@ -5614,6 +5657,176 @@ out:
 
 	// Restore previous rendertarget, etc
 	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+
+	this->_deviceResources->EndAnnotatedEvent();
+}
+
+void PrimarySurface::RenderDefaultBackground()
+{
+	if (!g_bRenderDefaultStarfield)
+		return;
+
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	float x0, y0, x1, y1;
+	D3D11_VIEWPORT viewport;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderDefaultBackground");
+
+	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+	renderer->SaveContext();
+
+	Vector4 Rs, Us, Fs;
+	Matrix4 Heading, ViewMatrix;
+	// The following transform chain was copied from RenderSkyBox() because why duplicate
+	// efforts? We just need to make sure the direction vector in the shader is the same
+	// we used in PixelShaderVRGeom
+	if (g_bUseSteamVR)
+	{
+		Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+		ViewMatrix = g_VSMatrixCB.fullViewMat; // See RenderSpeedEffect() for details
+		ViewMatrix.invert();
+		Matrix4 S = Matrix4().scale(-1, -1, 1);
+		ViewMatrix = S * ViewMatrix * S * Heading;
+
+		// ViewMatrix maps OPT-World coords to "Normal Mapping"/DX11 Viewspace coords:
+		// X+ (Rt, OPT) maps to X+
+		// Z+ (Up, OPT) maps to Y+
+		// Y- (Fd, OPT) maps to Z+
+		// In order to map from DX11 Viewspace coords to DX11 World coords, we need
+		// to invert ViewMatrix and then rename Z+ --> Y+ and Z+ --> Y-
+		Matrix4 swapScale({ 1,0,0,0,  0,0,1,0,  0,-1,0,0,  0,0,0,1 });
+		// Finally, the skymap appears to be upside down, so let's rotate it around the
+		// Z axis to recover the regular orientation:
+		Matrix4 SkyMapRotation = Matrix4().rotateZ(180.0f);
+		ViewMatrix.invert();
+		// The damnedest thing happened here... We're rendering a single quad, and we're
+		// in this path right after we update fullViewMat, so the matrix should be valid.
+		// And yet, when the external camera is enabled in VR, I get the "swimming background"
+		// effect. But why? Is the matrix not orthonormal in external view?
+		g_ShadertoyBuffer.viewMat = SkyMapRotation * swapScale * ViewMatrix;
+	}
+	else
+	{
+		// Non-VR path:
+		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+
+		Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+		GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
+		ViewMatrix = swap * Heading * swap * ViewMatrix;
+		g_ShadertoyBuffer.viewMat = ViewMatrix;
+	}
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	//g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
+	g_ShadertoyBuffer.VRmode = 3; // Render the background
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
+
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_externalHUDPS_VR : resources->_externalHUDPS);
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
+	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the starfield should always be displayed
+	resources->InitDepthStencilState(resources->_mainDepthState, nullptr);
+
+	// Render the default background
+	{
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width  = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			else
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
+		if (g_bEnableVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+
+		// These are the same settings we used previously when rendering the HUD during a draw() call.
+		// We use these settings to place the HUD at different depths
+		g_VSCBuffer.z_override = g_fHUDDepth;
+		g_VSCBuffer.z_override = 65536.0f;
+		//if (g_bFloatingAimingHUD)
+		//	g_VSCBuffer.bPreventTransform = 1.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bEnableVR)
+			resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
+		else
+			resources->InitVertexShader(resources->_vertexShader);
+
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_backgroundRTV.Get(),
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRVs:
+		ID3D11ShaderResourceView* srvs[] = {
+			resources->_textureCubeSRV /* .Get() */, // 21
+		};
+		context->PSSetShaderResources(21, 1, srvs);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
+
+		if (g_bDumpSSAOBuffers) {
+			DirectX::SaveWICTextureToFile(context, resources->_backgroundBuffer, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_defaultBackground.jpg");
+		}
+	}
+
+	// Restore previous rendertarget, etc
+	renderer->RestoreContext();
 
 	this->_deviceResources->EndAnnotatedEvent();
 }
@@ -6785,7 +6998,9 @@ void PrimarySurface::TagXWALights()
 {
 	int numSuns = 0;
 	const int numLights = *s_XwaGlobalLightsCount;
-	const int curRegion = PlayerDataTable[*g_playerIndex].currentRegion;
+	// When the player is in the hangar, the current region is maxRegion + 1 (apparently).
+	// So, in that case, we're defaulting to the first region instead.
+	const int curRegion = *g_playerInHangar ? 0 : PlayerDataTable[*g_playerIndex].currentRegion;
 
 	constexpr int MAX_FLIGHT_GROUPS = 192;
 	constexpr int MAX_PLANET_IDS    = 104;
@@ -6793,8 +7008,8 @@ void PrimarySurface::TagXWALights()
 	constexpr int CraftId_183_9001_1100_ResData_Backdrop = 183;
 	const XwaMission* mission = *(XwaMission**)0x09EB8E0;
 
-	log_debug("[DBG] ------------------------------");
-	log_debug("[DBG] Tagging Lights");
+	log_debug("[DBG] [FG] ------------------------------");
+	log_debug("[DBG] [FG] Tagging Lights. curRegion: %d", curRegion);
 
 	// Clear all previous tags so that we can start from scratch.
 	for (int i = 0; i < numLights; i++)
@@ -6813,12 +7028,30 @@ void PrimarySurface::TagXWALights()
 
 		if (CraftId == CraftId_183_9001_1100_ResData_Backdrop && PlanetId < MAX_PLANET_IDS)
 		{
-			const short SX   = mission->FlightGroups[FGIdx].StartPoints->X;
-			const short SY   = mission->FlightGroups[FGIdx].StartPoints->Y;
-			const short SZ   = mission->FlightGroups[FGIdx].StartPoints->Z;
-			const int region = mission->FlightGroups[FGIdx].StartPointRegions[0];
+			const short SX     = mission->FlightGroups[FGIdx].StartPoints->X;
+			const short SY     = mission->FlightGroups[FGIdx].StartPoints->Y;
+			const short SZ     = mission->FlightGroups[FGIdx].StartPoints->Z;
+			const int   region = mission->FlightGroups[FGIdx].StartPointRegions[0];
+
+			// By looking here:
+			// https://github.com/MikeG621/Platform/blob/master/Xwa/FlightGroup.cs
+			// and Yogeme, it turns out that GlobalCargo is mapped to the "shadow" field
+			// when this is a backdrop -- and sometimes this field can be negative, hence
+			// the use of max(0, X) below:
+			int shadow = (int)mission->FlightGroups[FGIdx].GlobalCargoIndex;
+			const char* spCargo = mission->FlightGroups[FGIdx].SpecialCargo;
+			if (shadow == 255) shadow = 0;
+
+			// The scale of the backdrops is pre-determined. The first two backdrops are
+			// scale = 0.895 (and it appears that "shadow" is always 5 in this case).
+			// The rest of the backdrops are scale 1.055 and "shadow" can be any number
+			// See Yogeme, XwaForm.cs, search for "0.895"
 
 			const int ModelIndex = g_XwaPlanets[PlanetId].ModelIndex;
+			const uint8_t BackdropFlags = g_XwaPlanets[PlanetId].BackdropFlags;
+
+			/*log_debug("[DBG] [FG] FGIdx: %d, PlanetId: %d-%d, region: %d, ModelIndex: %d",
+				FGIdx, PlanetId, shadow, region, ModelIndex);*/
 			if (region == curRegion && ModelIndex < MAX_MODEL_IDX)
 			{
 				const int GroupId = g_ExeObjectsTable[ModelIndex].DataIndex1;
@@ -6827,12 +7060,12 @@ void PrimarySurface::TagXWALights()
 				Vector3 S = Vector3((float)SX, (float)-SY, (float)SZ);
 				S = S.normalize();
 
-				// We only care about the GroupIds that correspond to suns.
+				// These are the GroupIds that correspond to suns:
 				if (9001 <= GroupId && GroupId <= 9010)
 				{
-					log_debug("[DBG] [%s], CraftId: %d, PlanetId: %d, S:[%0.3f, %0.3f, %0.3f]",
+					log_debug("[DBG] [FG] [%s], CraftId: %d, PlanetId: %d, S:[%0.3f, %0.3f, %0.3f]",
 						mission->FlightGroups[FGIdx].Name, CraftId, PlanetId, S.x, S.y, S.z);
-					log_debug("[DBG]     region: %d, curRegion: %d, Group-Id: %d-%d",
+					log_debug("[DBG] [FG]    region: %d, curRegion: %d, Group-Id: %d-%d",
 						region, curRegion, GroupId, ImageId);
 
 					// Now check the lights in this region to find a match
@@ -6847,7 +7080,7 @@ void PrimarySurface::TagXWALights()
 							L = L.normalize();
 							float dot = L.dot(S);
 
-							log_debug("[DBG] light: %d: [%0.3f, %0.3f, %0.3f], dot: %0.3f, %s",
+							log_debug("[DBG] [FG] light: %d: [%0.3f, %0.3f, %0.3f], dot: %0.3f, %s",
 								LightIdx, L.x, L.y, L.z, dot, (dot > 0.975f) ? "SUN" : "");
 							if (dot > 0.975f)
 							{
@@ -6859,11 +7092,12 @@ void PrimarySurface::TagXWALights()
 							}
 						}
 					}
-
 				}
 			}
 		}
 	}
+	// The hangar appears to be maxRegion + 1, which means there's never an entry
+	// for it in the FGs.
 
 	// Finish tagging all the other lights
 	for (int i = 0; i < numLights; i++)
@@ -6893,17 +7127,201 @@ void PrimarySurface::TagXWALights()
 	{
 		if (g_XWALightInfo[i].bIsSun)
 		{
-			log_debug("[DBG] Light: %d is a SUN", i);
+			log_debug("[DBG] [FG] Light: %d is a SUN", i);
 			numSuns++;
 		}
 	}
 
 	if (numSuns == 0)
 	{
-		log_debug("[DBG] WARNING: No suns after tagging! Enabling first light");
+		log_debug("[DBG] [FG] WARNING: No suns after tagging! Enabling first light");
 		g_XWALightInfo[0].bIsSun = true;
 	}
-	log_debug("[DBG] ------------------------------");
+	log_debug("[DBG] [FG] ------------------------------");
+}
+
+/*
+* Tag the backdrops by looking at the Flight Groups and checking the GroupId-ImageId.
+*/
+void PrimarySurface::TagXWABackdrops()
+{
+	if (g_iBackdropsToTag > 0 && g_iBackdropsToTag == g_iBackdropsTagged)
+		return;
+
+	if (g_playerIndex == nullptr || g_playerInHangar == nullptr)
+		return;
+
+	// When the player is in the hangar, the current region is maxRegion + 1 (apparently).
+	// So, in that case, we're defaulting to the first region instead.
+	const int curRegion = *g_playerInHangar ? 0 : PlayerDataTable[*g_playerIndex].currentRegion;
+
+	constexpr int MAX_FLIGHT_GROUPS = 192;
+	constexpr int MAX_PLANET_IDS    = 104;
+	constexpr int MAX_MODEL_IDX     = 557;
+	constexpr int CraftId_183_9001_1100_ResData_Backdrop = 183;
+	const XwaMission* mission = *(XwaMission**)0x09EB8E0;
+
+	if (g_bBackdropsReset)
+	{
+		log_debug("[DBG] [CUBE] ------------------------------");
+		log_debug("[DBG] [CUBE] Tagging Backdrops. curRegion: %d", curRegion);
+	}
+
+	// From:
+	// https://github.com/JeremyAnsel/xwa_hooks/blob/master/xwa_hook_backdrops/hook_backdrops/backdrops.cpp
+	// Starfield Zenith (Up) is Z+ (StarPoints[0].Z = 1)
+	// GlobalCargoIndex is the same as shadow (for instance 5)
+	// Cargo = "0.0" (string)
+	// SpecialCargo = "0.94" (string). This is the scale.
+
+	// Nadir is Z-, all other fields are equal to the Zenith
+	// North (Fwd) is Y-, SpecialCargo is "1.053"
+
+	for (int FGIdx = 0; FGIdx < MAX_FLIGHT_GROUPS; FGIdx++)
+	{
+		const int CraftId  = mission->FlightGroups[FGIdx].CraftId;
+		const int PlanetId = mission->FlightGroups[FGIdx].PlanetId;
+
+		if (CraftId == CraftId_183_9001_1100_ResData_Backdrop && PlanetId < MAX_PLANET_IDS)
+		{
+			const short SX     = mission->FlightGroups[FGIdx].StartPoints->X;
+			const short SY     = mission->FlightGroups[FGIdx].StartPoints->Y;
+			const short SZ     = mission->FlightGroups[FGIdx].StartPoints->Z;
+			const int   region = mission->FlightGroups[FGIdx].StartPointRegions[0];
+
+			// By looking here:
+			// https://github.com/MikeG621/Platform/blob/master/Xwa/FlightGroup.cs
+			// and Yogeme, it turns out that GlobalCargo is mapped to the "shadow" field
+			// when this is a backdrop -- and sometimes this field can be negative, hence
+			// the use of max(0, X) below:
+			int shadow = (int)mission->FlightGroups[FGIdx].GlobalCargoIndex;
+			const char* spCargo = mission->FlightGroups[FGIdx].SpecialCargo;
+			if (shadow == 255) shadow = 0;
+
+			// The scale of the backdrops is pre-determined. The first two backdrops are
+			// scale = 0.895 (and it appears that "shadow" is always 5 in this case).
+			// The rest of the backdrops are scale 1.055 and "shadow" can be any number
+			// See Yogeme, XwaForm.cs, search for "0.895"
+
+			const int ModelIndex = g_XwaPlanets[PlanetId].ModelIndex;
+			const uint8_t BackdropFlags = g_XwaPlanets[PlanetId].BackdropFlags;
+
+			/*log_debug("[DBG] [FG] FGIdx: %d, PlanetId: %d-%d, region: %d, ModelIndex: %d",
+			FGIdx, PlanetId, shadow, region, ModelIndex);*/
+			if (region == curRegion && ModelIndex < MAX_MODEL_IDX)
+			{
+				const int GroupId = g_ExeObjectsTable[ModelIndex].DataIndex1;
+				const int ImageId = g_ExeObjectsTable[ModelIndex].DataIndex2;
+
+				Vector3 S = Vector3((float)SX, (float)SY, (float)SZ);
+				S.normalize();
+
+				if (9001 <= GroupId && GroupId <= 9010)
+				{
+					// This is a Sun, ignore for now...
+				}
+				// Starfields tend to have ModelIndex == 0
+				else if (ModelIndex == 0 && GroupId < 0)
+				{
+					if (g_bBackdropsReset)
+						log_debug("[DBG] [CUBE] Backdrop. region: %d, PlanetId: %d-%d, S:[%0.3f, %0.3f, %0.3f], scale: %s",
+							region, PlanetId, shadow, S.x, S.y, S.z, spCargo);
+
+					// Let's see if this backdrop is contained in Planet2.dat:
+					const auto& it = g_BackdropIdToGroupId.find(PlanetId);
+					if (it != g_BackdropIdToGroupId.end())
+					{
+						// This backdrop can be a planet, nebula or starfield
+						int groupId = it->second;
+						int key = MakeKeyFromGroupIdImageId(groupId, shadow);
+						// Check if this backdrop is a starfield
+						if (g_StarfieldGroupIdImageIdMap.find(key) != g_StarfieldGroupIdImageIdMap.end())
+						{
+							if (g_bBackdropsReset) g_iBackdropsToTag++;
+							if (g_bBackdropsReset)
+								log_debug("[DBG] [CUBE]    STARFIELD --> GroupId-ImageId: %d-%d", groupId, shadow);
+							const auto& it = g_GroupIdImageIdToTextureMap.find(key);
+							if (it != g_GroupIdImageIdToTextureMap.end())
+							{
+								Direct3DTexture* tex = (Direct3DTexture*)it->second;
+								if (g_bBackdropsReset)
+									log_debug("[DBG] [CUBE]        Corresponding Texture Found: 0x%x, 0x%x",
+										tex, tex->_textureView.Get());
+								g_iBackdropsTagged++;
+								// Classify this starfield and store it
+								if (fabs(S.z - 1.0f) < 0.01f)
+								{
+									g_StarfieldSRVs[STARFIELD_TYPE::TOP] = tex;
+								}
+								else if (fabs(S.z + 1.0f) < 0.01f)
+								{
+									g_StarfieldSRVs[STARFIELD_TYPE::BOTTOM] = tex;
+								}
+								else if (fabs(S.x - 1.0f) < 0.01f)
+								{
+									g_StarfieldSRVs[STARFIELD_TYPE::RIGHT] = tex;
+								}
+								else if (fabs(S.x + 1.0f) < 0.01f)
+								{
+									g_StarfieldSRVs[STARFIELD_TYPE::LEFT] = tex;
+								}
+								else if (fabs(S.y - 1.0f) < 0.01f)
+								{
+									g_StarfieldSRVs[STARFIELD_TYPE::BACK] = tex;
+								}
+								else if (fabs(S.y + 1.0f) < 0.01f)
+								{
+									g_StarfieldSRVs[STARFIELD_TYPE::FRONT] = tex;
+								}
+							}
+							else
+							{
+								if (g_bBackdropsReset)
+									log_debug("[DBG] [CUBE]        NO Corresponding Texture Found!!!");
+							}
+						}
+						else
+						{
+							// This backdrop is a planet
+							if (g_bBackdropsReset)
+								log_debug("[DBG] [CUBE]    PLANET/NEBULA --> GroupId-ImageId: %d-%d", groupId, shadow);
+						}
+					}
+					else
+					{
+						if (g_bBackdropsReset)
+							log_debug("[DBG] [CUBE]    UNCLASSIFIED");
+					}
+				}
+				else
+				{
+					// NEBULA.DAT
+					// 7001-100  --> 64-0
+					// 7002-200  --> 65-0
+					// ...
+					// 7011-1100 --> 73-0
+
+					// GALAXY.DAT
+					// 8001-100  --> 74-0
+					// ...
+					// 8007-700  --> 80-0
+					// ...
+					// 8010-1000 --> 83-0
+					if (g_bBackdropsReset)
+						log_debug("[DBG] [CUBE] UNK: GroupId-ImageId: %d-%d, PlanetId: %d",
+							GroupId, ImageId, PlanetId);
+				}
+			}
+		}
+	}
+
+	if (g_bBackdropsReset)
+	{
+		log_debug("[DBG] [CUBE] Total backdrops: %d, tagged so far: %d",
+			g_iBackdropsToTag, g_iBackdropsTagged);
+		log_debug("[DBG] [CUBE] ------------------------------");
+	}
+	g_bBackdropsReset = false;
 }
 
 /*
@@ -6931,6 +7349,12 @@ void PrimarySurface::TagAndFadeXWALights()
 			OldTagXWALights();
 		}
 	}
+
+	// WIP: Re-enable later
+	/*if (g_iPresentCounter > 0)
+	{
+		TagXWABackdrops();
+	}*/
 
 	// Display debug information on g_XWALightInfo (are the lights tagged, are they suns?)
 	if (g_bDumpSSAOBuffers) {
@@ -9899,6 +10323,28 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
+			// Overwrite the backdrop with a texture cube. Warning: This obviously interferes with the
+			// SkyCylinder below. Use one or the other!
+#ifdef DISABLED
+			if (g_bUseTextureCube && !g_bReplaceBackdrops && !g_bMapMode)
+			{
+				RenderSkyBoxVR(false);
+				g_bBackgroundCaptured = true;
+				if (g_bDumpSSAOBuffers)
+					DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBufferAfterSkybox.dds");
+			}
+#endif
+
+			if (!g_bUseTextureCube && g_bReplaceBackdrops && !g_bMapMode)
+			{
+				/*if (RenderSkyCylinder())
+					g_bBackgroundCaptured = true;*/
+
+				if (g_bDumpSSAOBuffers)
+					DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBufferAfterSkyCylinder.dds");
+			}
+
+#ifdef DISABLED
 			if (!g_bBackgroundCaptured)
 			{
 				g_bBackgroundCaptured = true;
@@ -9911,10 +10357,10 @@ HRESULT PrimarySurface::Flip(
 					if (g_bUseSteamVR)
 						context->ClearRenderTargetView(resources->_renderTargetViewHd, resources->clearColor);
 				}
-
-				if (g_bDumpSSAOBuffers)
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBufferP.dds");
 			}
+#endif
+			if (g_bDumpSSAOBuffers)
+				DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBuffer.dds");
 
 			context->ResolveSubresource(resources->_transpBufferAsInput1, 0, resources->_transpBuffer1, 0, BACKBUFFER_FORMAT);
 			context->ResolveSubresource(resources->_transpBufferAsInput2, 0, resources->_transpBuffer2, 0, BACKBUFFER_FORMAT);
@@ -10036,6 +10482,15 @@ HRESULT PrimarySurface::Flip(
 					EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
 					renderer->RenderVRDots();
 				}
+
+				// Render the skybox after the deferred pass. This helps debug the skybox, for instance,
+				// by highlighting areas designated as "Up" or "Forward" that are visible at all times.
+				/*
+				if (g_bUseSteamVR && g_bUseTextureCube && !g_bMapMode)
+				{
+					RenderSkyBox(true);
+				}
+				*/
 
 				if (g_bDumpSSAOBuffers) {
 					//DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg, L"C:\\Temp\\_offscreenBuffer.jpg");
@@ -10602,7 +11057,6 @@ HRESULT PrimarySurface::Flip(
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				g_iReactorExplosionCount = 0;
 				g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
-				g_bBackgroundCaptured = false;
 
 				if (*g_playerInHangar && !g_bPrevPlayerInHangar)
 				{
@@ -12231,7 +12685,6 @@ void PrimarySurface::RenderBracket()
 	g_xwa_bracket.clear();
 
 	this->_deviceResources->EndAnnotatedEvent();
-
 }
 
 void PrimarySurface::CacheBracketsVR()
@@ -12351,6 +12804,208 @@ void PrimarySurface::CacheBracketsVR()
 	// This method should only be called in VR mode:
 	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
 	renderer->RenderVRBrackets();
+}
+
+void RenderSkyBox()
+{
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return;
+	if (!g_bRendering3D || g_playerIndex == nullptr) return;
+	if (g_HyperspacePhaseFSM != HS_INIT_ST) return;
+
+	const bool bExternalCamera = g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME &&
+		PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+
+	// DEBUG: Replace the sides of the texture map with custom data. In this case, the sides
+	// will be painted different colors.
+#ifdef DISABLED
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	bool bFirstTime = true;
+	if (bFirstTime)
+	{
+		D3D11_BOX box;
+		box.left = 0;
+		box.top = 0;
+		box.front = 0;
+		box.right = 1024;
+		box.bottom = 1024;
+		box.back = 1;
+		float colors[6][4] = {
+			{ 1.0f, 0.0f, 0.0f, 1.0f },
+			{ 0.0f, 1.0f, 0.0f, 1.0f },
+			{ 0.0f, 0.0f, 1.0f, 1.0f },
+
+			{ 0.0f, 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 0.0f, 1.0f, 1.0f },
+			{ 1.0f, 1.0f, 0.0f, 1.0f }
+		};
+
+		for (int i = 0; i < 6; i++)
+		{
+			context->ClearRenderTargetView(resources->_shadertoyRTV, colors[i]);
+			context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_shadertoyBufMSAA, 0, BACKBUFFER_FORMAT);
+			context->CopySubresourceRegion(resources->_textureCube, i, 0, 0, 0,
+				resources->_shadertoyBuf, 0, &box);
+		}
+		bFirstTime = true;
+	}
+#endif
+
+	const float Zfar = *(float*)0x05B46B4;
+	// Save the current projection constants
+	float f0 = *(float*)0x08C1600;
+	float f1 = *(float*)0x0686ACC;
+	float f2 = *(float*)0x080ACF8;
+	float f3 = *(float*)0x07B33C0;
+	float f4 = *(float*)0x064D1AC;
+
+	if (bExternalCamera)
+	{
+		// These are the constants used when rendering the cockpit. The HUD is not at the center
+		// of the screen when using these:
+		*(float*)0x08C1600 = g_f0x08C1600;
+		*(float*)0x0686ACC = g_f0x0686ACC;
+		*(float*)0x080ACF8 = g_f0x080ACF8;
+		*(float*)0x07B33C0 = g_f0x07B33C0;
+		*(float*)0x064D1AC = g_f0x064D1AC;
+	}
+
+	//Matrix4 Heading;
+	//GetHyperspaceEffectMatrix(&Heading);
+	//GetCockpitViewMatrix(&Heading);
+	Vector4 Rs, Us, Fs;
+	Matrix4 Heading, ViewMatrix;
+	if (g_bUseSteamVR)
+	{
+		Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+		ViewMatrix = g_VSMatrixCB.fullViewMat; // See RenderSpeedEffect() for details
+		ViewMatrix.invert();
+		Matrix4 S = Matrix4().scale(-1, -1, 1);
+		ViewMatrix = S * ViewMatrix * S * Heading;
+
+		// DEBUG:
+		Vector4 U = ViewMatrix * Vector4(0, 0, 1, 0);
+		Vector4 F = ViewMatrix * Vector4(0, -1, 0, 0);
+		g_VRGeometryCBuffer.U = float4(U.x, U.y, U.z, 0);
+		g_VRGeometryCBuffer.F = float4(F.x, F.y, F.z, 0);
+		//log_debug_vr("Up: %0.3f, %0.3f, %0.3f", U.x, U.y, U.z);
+		//log_debug_vr("Fd: %0.3f, %0.3f, %0.3f", F.x, F.y, F.z);
+
+		// ViewMatrix maps OPT-World coords to "Normal Mapping"/DX11 Viewspace coords:
+		// X+ (Rt, OPT) maps to X+
+		// Z+ (Up, OPT) maps to Y+
+		// Y- (Fd, OPT) maps to Z+
+		// In order to map from DX11 Viewspace coords to DX11 World coords, we need
+		// to invert ViewMatrix and then rename Z+ --> Y+ and Z+ --> Y-
+		Matrix4 swapScale({ 1,0,0,0,  0,0,1,0,  0,-1,0,0,  0,0,0,1 });
+		// Finally, the skymap appears to be upside down, so let's rotate it around the
+		// Z axis to recover the regular orientation:
+		Matrix4 SkyMapRotation = Matrix4().rotateZ(180.0f);
+		ViewMatrix.invert();
+		g_VRGeometryCBuffer.viewMat = SkyMapRotation * swapScale * ViewMatrix;
+	}
+	else
+	{
+		// Non-VR path:
+		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+
+		Matrix4 Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+		GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
+		ViewMatrix = swap * Heading * swap * ViewMatrix;
+		g_VRGeometryCBuffer.viewMat = ViewMatrix;
+	}
+
+	static bool bBracketIsCached = false;
+	static BracketVR screenBracket = {};
+
+	// Add a single bracket covering the whole screen
+	g_bracketsVR.clear();
+	if (!bBracketIsCached)
+	{
+		float W = g_fCurInGameWidth;
+		float H = g_fCurInGameHeight;
+		float desiredZ = 65536.0f;
+		float X = W / 2.0f, Y = H / 2.0f;
+		float Z = Zfar / (desiredZ * METERS_TO_OPT);
+		float3 P = InverseTransformProjectionScreen({ X, Y, Z, Z });
+		P.y = -P.y;
+		P.z = -P.z;
+
+		float3 Q = InverseTransformProjectionScreen({ X + W, Y + H, Z, Z });
+		Q.y = -Q.y;
+		Q.z = -Q.z;
+
+		screenBracket.posOPT.x = P.x;
+		screenBracket.posOPT.y = P.z;
+		screenBracket.posOPT.z = P.y;
+		screenBracket.halfWidthOPT = fabs(Q.x - P.x);
+		screenBracket.color = Vector3(1, 1, 1);
+		//if (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) bBracketIsCached = true;
+	}
+	g_bracketsVR.push_back(screenBracket);
+
+	// Restore the original projection deltas
+	if (bExternalCamera)
+	{
+		*(float*)0x08C1600 = f0;
+		*(float*)0x0686ACC = f1;
+		*(float*)0x080ACF8 = f2;
+		*(float*)0x07B33C0 = f3;
+		*(float*)0x064D1AC = f4;
+	}
+
+	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+	renderer->RenderSkyBox(false);
+}
+
+bool PrimarySurface::RenderSkyCylinder()
+{
+	if (!g_bRendering3D) return false;
+
+	const bool bExternalCamera = g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME &&
+		PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	const bool bPlayerInHangar = *g_playerInHangar;
+
+	if (g_bUseSteamVR)
+	{
+		if (bPlayerInHangar)
+		{
+			// If VR is on, and we're in the hangar and inside the cockpit, then we don't need to run
+			// this code. In fact, we only need this for VR + Exterior view, but it's nice to see this
+			// working inside the cockpit as well.
+			if (!bExternalCamera)
+				return false;
+		}
+	}
+	else
+	{
+		// In Non-VR mode, the mouse look code follows a different path -- which I won't bother
+		// coding for!
+		if (bPlayerInHangar)
+			return false;
+	}
+
+	Vector4 Rs, Us, Fs;
+	Matrix4 ViewMatrix;
+	Matrix4 Heading = GetPlayerCraftMatrix(Rs, Us, Fs, -1.0f, false, false);
+	if (g_bUseSteamVR)
+	{
+		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+		ViewMatrix = g_VSMatrixCB.fullViewMat; // See RenderSpeedEffect() for details
+		ViewMatrix.invert();
+		ViewMatrix = swap * ViewMatrix * swap * Heading;
+	}
+	else
+	{
+		// Non-VR path:
+		GetCockpitViewMatrixSpeedEffectOPTSys(&ViewMatrix, false);
+		ViewMatrix = ViewMatrix * Heading;
+	}
+	g_VRGeometryCBuffer.viewMat = ViewMatrix;
+
+	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+	renderer->RenderSkyCylinder();
+	return true;
 }
 
 /*

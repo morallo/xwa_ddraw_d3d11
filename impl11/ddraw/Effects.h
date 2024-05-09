@@ -204,6 +204,26 @@ extern std::vector<Matrix4> g_TLASMatrices;
 extern std::map<int32_t, std::tuple<std::string, int, int>> g_DebugMeshToNameMap;
 #endif
 
+/// <summary>
+/// Maps GroupId-ImageId keys to Direct3DTexture pointers.
+/// Used to associate Backdrop Ids with GroupId-ImageId pairs.
+/// </summary>
+extern std::map<int, void*> g_GroupIdImageIdToTextureMap;
+namespace STARFIELD_TYPE
+{
+	enum STARFIELD_TYPE
+	{
+		TOP = 0,
+		BOTTOM,
+		FRONT,
+		BACK,
+		LEFT,
+		RIGHT,
+		MAX
+	};
+};
+extern Direct3DTexture* g_StarfieldSRVs[STARFIELD_TYPE::MAX];
+
 // ********************************
 // DATReader function pointers
 constexpr uint32_t DAT_READER_VERSION_101 = 65537; // 1.0.1 -- default version
@@ -216,6 +236,8 @@ typedef bool(_cdecl * ReadDATImageDataFun)(uint8_t *RawData_out, int RawData_siz
 typedef bool(_cdecl* ReadFlippedDATImageDataFun)(uint8_t* RawData_out, int RawData_size);
 typedef int(_cdecl * GetDATGroupImageCountFun)(int GroupId);
 typedef bool(_cdecl * GetDATGroupImageListFun)(int GroupId, short *ImageIds_out, int ImageIds_size);
+typedef int(_cdecl* GetDATGroupCountFun)();
+typedef bool(_cdecl* GetDATGroupListFun)(short* GroupIds_out);
 
 extern LoadDATFileFun LoadDATFile;
 extern GetDATImageMetadataFun GetDATImageMetadata;
@@ -224,6 +246,8 @@ extern ReadDATImageDataFun ReadDATImageData;
 extern SetDATVerbosityFun SetDATVerbosity;
 extern GetDATGroupImageCountFun GetDATGroupImageCount;
 extern GetDATGroupImageListFun GetDATGroupImageList;
+extern GetDATGroupCountFun GetDATGroupCount;
+extern GetDATGroupListFun GetDATGroupList;
 
 bool InitDATReader();
 void CloseDATReader();

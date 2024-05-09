@@ -196,6 +196,7 @@
 #endif
 
 #include <WICTextureLoader.h>
+#include <DDSTextureLoader.h>
 #include <openvr.h>
 #include <vector>
 #include "SteamVR.h"
@@ -210,6 +211,7 @@ void SetPresentCounter(int val, int b_resetReticle);
 void ReloadInterdictionMap();
 void ClearGlobalTextureMap();
 void ClearCachedSRVs();
+void ClearGroupIdImageIdToTextureMap();
 
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
@@ -1718,6 +1720,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_AuxTextureVector.clear();
 	ClearGlobalTextureMap();
 	ClearCachedSRVs();
+	ClearGroupIdImageIdToTextureMap();
 	DeleteRandomVectorTexture();
 	ResetXWALightInfo();
 	g_HiResTimer.ResetGlobalTime();
@@ -1743,6 +1746,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_backgroundBufferSRV.Release();
 	this->_transp1SRV.Release();
 	this->_transp2SRV.Release();
+	//if (g_bUseTextureCube) this->_textureCubeSRV.Release();
 	this->_offscreenBuffer.Release();
 	this->_offscreenBufferHdBackground.Release();
 	this->_offscreenBufferAsInput.Release();
@@ -1753,6 +1757,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_transpBuffer2.Release();
 	this->_transpBufferAsInput1.Release();
 	this->_transpBufferAsInput2.Release();
+	//if (g_bUseTextureCube) this->_textureCube.Release();
 	if (this->_useMultisampling)
 		this->_shadertoyBufMSAA.Release();
 	this->_shadertoyBuf.Release();
@@ -1884,6 +1889,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_renderTargetViewSSMask.Release();
 		this->_transp1RTV.Release();
 		this->_transp2RTV.Release();
+		this->_backgroundRTV.Release();
 		//this->_renderTargetViewEmissionMask.Release();
 		if (g_bUseSteamVR) {
 			this->_offscreenBufferBloomMaskR.Release();
@@ -2573,6 +2579,34 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr))
 				goto out;
 
+			// Some missions don't have a starfield (!) so we're going to have to load
+			// a default starfield for those missions just in case.
+			//if (g_bUseTextureCube)
+			{
+				CD3D11_TEXTURE2D_DESC tmpDesc = desc;
+
+				/*
+				desc.ArraySize = 6;
+				desc.MiscFlags |= D3D11_RESOURCE_MISC_TEXTURECUBE;
+				desc.MipLevels = 1;
+				desc.Width = desc.Height = 2048;
+
+				step = "textureCube";
+				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_textureCube);
+				if (FAILED(hr))
+					goto out;
+				*/
+
+				//HRESULT res = DirectX::CreateDDSTextureFromFile(this->_d3dDevice, L"C:\\temp\\skymap.dds", (ID3D11Resource **)&_textureCube, &_textureCubeSRV);
+				HRESULT res = DirectX::CreateDDSTextureFromFile(this->_d3dDevice, L".\\Effects\\DefaultStarfield.dds", NULL, &_textureCubeSRV);
+				if (SUCCEEDED(res))
+					log_debug("[DBG] [CUBE] Loaded DefaultStarfield.dds");
+				else
+					log_debug("[DBG] [CUBE] ERROR 0x%d, could not load DefaultStarfield.dds", res);
+
+				desc = tmpDesc;
+			}
+
 			// ReticleBufAsInput
 			// Not rendered in stereo.
 			desc.ArraySize = 1;
@@ -3109,6 +3143,23 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				&shaderResourceViewDesc, &this->_transp2SRV)))
 				goto out;
 
+			// Use either this version or the one above where a DDS is loaded. Can't use
+			// both!
+			/*if (g_bUseTextureCube)
+			{
+				step = "_textureCubeSRV";
+
+				D3D11_SHADER_RESOURCE_VIEW_DESC tmpDesc = shaderResourceViewDesc;
+				shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+				shaderResourceViewDesc.TextureCube.MipLevels = 1;
+				shaderResourceViewDesc.TextureCube.MostDetailedMip = 0;
+
+				if (FAILED(this->_d3dDevice->CreateShaderResourceView(this->_textureCube,
+					&shaderResourceViewDesc, &this->_textureCubeSRV)))
+					goto out;
+				shaderResourceViewDesc = tmpDesc;
+			}*/
+
 			step = "_shadertoySRV";
 			hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBuf, &shaderResourceViewDesc, &this->_shadertoySRV);
 			if (FAILED(hr)) {
@@ -3565,6 +3616,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		step = "_transp2RTV";
 		if (FAILED(this->_d3dDevice->CreateRenderTargetView(this->_transpBuffer2,
 			&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_transp2RTV)))
+			goto out;
+
+		step = "_backgroundRTV";
+		if (FAILED(this->_d3dDevice->CreateRenderTargetView(this->_backgroundBuffer,
+			&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR), &this->_backgroundRTV)))
 			goto out;
 
 		// _ReticleRTV
@@ -4931,10 +4987,10 @@ HRESULT DeviceResources::LoadResources()
 		return hr;
 
 	// Create the constant buffer for the VR Geometry
-	if (g_bUseSteamVR)
+	//if (g_bUseSteamVR)
 	{
-		constantBufferDesc.ByteWidth = 128;
-		static_assert(sizeof(VRGeometryCBuffer) == 128, "sizeof(VRGeometryCBuffer) must be 128");
+		constantBufferDesc.ByteWidth = 224;
+		static_assert(sizeof(VRGeometryCBuffer) == 224, "sizeof(VRGeometryCBuffer) must be 224");
 		if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &_VRGeometryCBuffer)))
 			return hr;
 	}

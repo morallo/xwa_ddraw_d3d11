@@ -131,6 +131,8 @@ public:
 
 	void RenderExternalHUD();
 
+	void RenderDefaultBackground();
+
 	inline void AddSpeedPoint(const Matrix4 &H, D3DTLVERTEX *particles, Vector4 Q, float zdisp, int ofs, float craft_speed);
 
 	int AddGeometry(const Matrix4 & ViewMatrix, D3DTLVERTEX * particles, Vector4 Q, float zdisp, int ofs);
@@ -144,6 +146,8 @@ public:
 	void OldTagXWALights();
 
 	void TagXWALights();
+
+	void TagXWABackdrops();
 
 	void TagAndFadeXWALights();
 
@@ -222,6 +226,8 @@ public:
 	void RenderBracket();
 
 	void CacheBracketsVR();
+
+	bool RenderSkyCylinder();
 
 	void RenderSynthDCElems();
 

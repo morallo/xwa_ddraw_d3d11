@@ -186,4 +186,29 @@ extern bool g_isInRenderHyperspaceLines;
 extern std::map<int, int> g_MeshTagMap;
 extern std::map<int, int> g_FGToLODMap;
 
+/// <summary>
+/// Used to map Backdrop Id's as used in Yogeme to Group Id's as used in Planet.dat. We can
+/// have planets, nebulae or starfields here.
+/// </summary>
+extern std::map<int, int> g_BackdropIdToGroupId;
+/// <summary>
+/// If a GroupId-ImageId is in this map, then it's a starfield.
+/// </summary>
+extern std::map<int, bool> g_StarfieldGroupIdImageIdMap;
+/// <summary>
+/// Set to true every time a new mission or region is loaded. When true, we must parse
+/// the backdrops and count how many we need to tag
+/// </summary>
+extern bool g_bBackdropsReset;
+/// <summary>
+/// Counts how many backdrops need to be tagged in the current region. Only updated when
+/// g_bBackdropsReset is true.
+/// </summary>
+extern int g_iBackdropsToTag;
+/// <summary>
+/// Counts how many backdrops have been tagged so far.
+/// </summary>
+extern int g_iBackdropsTagged;
+
+
 void ClearCachedSRVs();

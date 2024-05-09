@@ -10,6 +10,14 @@ bool g_bEnableAnimations = true;
 extern bool g_bKeepMouseInsideWindow;
 extern char g_curOPTLoaded[MAX_OPT_NAME];
 
+// SkyBox/SkyCylinder:
+constexpr int RENDER_SKY_BOX_MODE      = 2;
+constexpr int RENDER_SKY_CYLINDER_MODE = 3;
+constexpr float BACKGROUND_CUBE_SIZE_METERS = 1000.0f;
+constexpr float BACKGROUND_CUBE_HALFSIZE_METERS = BACKGROUND_CUBE_SIZE_METERS / 2.0f;
+constexpr float BACKGROUND_CYL_RATIO = 1.09f; // 1.053f ? 1.375f ?
+static constexpr int s_numCylTriangles = 12;
+
 // Raytracing
 extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
@@ -24,8 +32,8 @@ extern LONG g_directBuilderNextInnerNode;
 bool g_bUseCentroids = true;
 
 static bool s_captureProjectionDeltas = true;
-float g_f0x08C1600, g_f0x0686ACC;
-float g_f0x080ACF8, g_f0x07B33C0, g_f0x064D1AC;
+float g_f0x08C1600 = NAN, g_f0x0686ACC = NAN;
+float g_f0x080ACF8 = NAN, g_f0x07B33C0 = NAN, g_f0x064D1AC = NAN;
 
 RTCDevice g_rtcDevice = nullptr;
 RTCScene g_rtcScene = nullptr;
@@ -150,6 +158,11 @@ Intersection ClosestHit(BVHNode* g_BVH, float3 origin, int Offset, float3& P_out
 Vector4 SteamVRToOPTCoords(Vector4 P);
 void SetLights(DeviceResources* resources, float fSSDOEnabled);
 
+inline int MakeKeyFromGroupIdImageId(int groupId, int imageId)
+{
+	return (groupId << 16) | (imageId);
+}
+
 //#define DUMP_TLAS 1
 #undef DUMP_TLAS
 #ifdef DUMP_TLAS
@@ -198,6 +211,13 @@ Matrix4 GetBLASMatrix(TLASLeafItem& tlasLeaf, int *matrixSlot)
 {
 	*matrixSlot = TLASGetMatrixSlot(tlasLeaf);
 	return g_TLASMatrices[*matrixSlot];
+}
+
+void ClearGroupIdImageIdToTextureMap()
+{
+	g_GroupIdImageIdToTextureMap.clear();
+	for (int i = 0; i < STARFIELD_TYPE::MAX; i++)
+		g_StarfieldSRVs[i] = nullptr;
 }
 
 float4 TransformProjection(float3 input)
@@ -1688,6 +1708,14 @@ int EffectsRenderer::LoadOBJ(int gloveIdx, Matrix4 R, char* sFileName, int profi
 	return triangles.size();
 }
 
+/// <summary>
+/// Creates a rectangle in OPT coords on the X-Z plane (Y = 0, meaning
+/// that the rectangle is at a fixed depth and facing the camera).
+/// An optional displacement vector can be specified to translate the mesh.
+/// tris must have at least 2 elements.
+/// meshVertices must have at least 4 elements.
+/// texCoords must have at least 4 elements.
+/// </summary>
 void EffectsRenderer::CreateRectangleMesh(
 	float widthMeters,
 	float heightMeters,
@@ -1762,16 +1790,177 @@ void EffectsRenderer::CreateRectangleMesh(
 		&CD3D11_SHADER_RESOURCE_VIEW_DESC(texCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoordsCount), &texCoordsSRV);
 }
 
+/// <summary>
+/// Creates a "flat" rectangle (i.e. lying on the X-Y plane in OPT coords with Z = 0,
+/// meaning that it's aligned with the global starfield horizon).
+/// An optional displacement vector can be specified to translate the mesh.
+/// tris must have at least 2 elements.
+/// meshVertices must have at least 4 elements.
+/// texCoords must have at least 4 elements.
+/// </summary>
+void EffectsRenderer::CreateFlatRectangleMesh(
+	float widthMeters,
+	float depthMeters,
+	XwaVector3 dispMeters,
+	/* out */ D3dTriangle* tris,
+	/* out */ XwaVector3* meshVertices,
+	/* out */ XwaTextureVertex* texCoords,
+	/* out */ ComPtr<ID3D11Buffer>& vertexBuffer,
+	/* out */ ComPtr<ID3D11Buffer>& indexBuffer,
+	/* out */ ComPtr<ID3D11Buffer>& meshVerticesBuffer,
+	/* out */ ComPtr<ID3D11ShaderResourceView>& meshVerticesSRV,
+	/* out */ ComPtr<ID3D11Buffer>& texCoordsBuffer,
+	/* out */ ComPtr<ID3D11ShaderResourceView>& texCoordsSRV)
+{
+	ID3D11Device* device = _deviceResources->_d3dDevice;
+
+	constexpr int numVertices = 4;
+	D3dVertex _vertices[numVertices];
+
+	// The OPT/D3dHook system uses an indexing scheme, but I don't need it here,
+	// so let's just use an "identity function":
+	_vertices[0] = { 0, 0, 0, 0 };
+	_vertices[1] = { 1, 0, 1, 0 };
+	_vertices[2] = { 2, 0, 2, 0 };
+	_vertices[3] = { 3, 0, 3, 0 };
+
+	tris[0] = { 0, 1, 2 };
+	tris[1] = { 0, 2, 3 };
+
+	D3D11_SUBRESOURCE_DATA initialData;
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+
+	initialData.pSysMem = _vertices;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(D3dVertex), D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &vertexBuffer);
+
+	initialData.pSysMem = tris;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(g_vrKeybNumTriangles * sizeof(D3dTriangle), D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &indexBuffer);
+
+	// Create the mesh
+	const float halfW = widthMeters / 2.0f * METERS_TO_OPT;
+	const float halfD = depthMeters / 2.0f * METERS_TO_OPT;
+	XwaVector3  disp  = dispMeters * METERS_TO_OPT;
+	meshVertices[0] = { -halfW + disp.x,  halfD + disp.y, disp.z }; // Left-Back
+	meshVertices[1] = {  halfW + disp.x,  halfD + disp.y, disp.z }; // Right-Back
+	meshVertices[2] = {  halfW + disp.x, -halfD + disp.y, disp.z }; // Right-Front
+	meshVertices[3] = { -halfW + disp.x, -halfD + disp.y, disp.z }; // Left-Front
+
+	initialData.pSysMem = meshVertices;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(XwaVector3),
+		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &meshVerticesBuffer);
+	device->CreateShaderResourceView(meshVerticesBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(meshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, numVertices), &meshVerticesSRV);
+
+	// Create the UVs
+	constexpr int texCoordsCount = 4;
+	texCoords[0] = { 1, 0 };
+	texCoords[1] = { 1, 1 };
+	texCoords[2] = { 0, 1 };
+	texCoords[3] = { 0, 0 };
+
+	initialData.pSysMem = texCoords;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(texCoordsCount * sizeof(XwaTextureVertex),
+		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &texCoordsBuffer);
+	device->CreateShaderResourceView(texCoordsBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(texCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, texCoordsCount), &texCoordsSRV);
+}
+
+/// <summary>
+/// Creates a quarter of a vertical cylinder (a "side") consisting of 6 segments.
+/// Each segment has constant depth (Y) and goes vertically along the X-Z plane
+/// measuring heightMeters. The radius of the cylinder is widthMeters / 2.
+/// An optional displacement vector can be specified to translate the mesh.
+/// tris must have at least 12 elements.
+/// meshVertices must have at least 14 elements.
+/// texCoords must have at least 14 elements.
+/// </summary>
+void EffectsRenderer::CreateCylinderSideMesh(
+	float widthMeters,
+	float heightMeters,
+	XwaVector3 dispMeters,
+	/* out */ D3dTriangle* tris,
+	/* out */ XwaVector3* meshVertices,
+	/* out */ XwaTextureVertex* texCoords,
+	/* out */ ComPtr<ID3D11Buffer>& vertexBuffer,
+	/* out */ ComPtr<ID3D11Buffer>& indexBuffer,
+	/* out */ ComPtr<ID3D11Buffer>& meshVerticesBuffer,
+	/* out */ ComPtr<ID3D11ShaderResourceView>& meshVerticesSRV,
+	/* out */ ComPtr<ID3D11Buffer>& texCoordsBuffer,
+	/* out */ ComPtr<ID3D11ShaderResourceView>& texCoordsSRV)
+{
+	ID3D11Device* device = _deviceResources->_d3dDevice;
+
+	constexpr int numVertices = 14;
+	D3dVertex _vertices[numVertices];
+
+	// The OPT/D3dHook system uses an indexing scheme, but I don't need it here,
+	// so let's just use an "identity function":
+	for (int i = 0; i < numVertices; i++)
+		_vertices[i] = { i, 0, i, 0 };
+
+	for (int i = 0, j = 0; i < s_numCylTriangles; i += 2, j += 2)
+	{
+		//int j = i * 4;
+		tris[i + 0] = { j + 0, j + 1, j + 2 };
+		tris[i + 1] = { j + 2, j + 1, j + 3 };
+		/*log_debug("[DBG] [CUBE] tri[%d] = {%d, %d, %d}",
+			i, tris[i].v1, tris[i].v2, tris[i].v3);
+		log_debug("[DBG] [CUBE] tri[%d] = {%d, %d, %d}",
+			i+1, tris[i+1].v1, tris[i+1].v2, tris[i+1].v3);*/
+	}
+
+	D3D11_SUBRESOURCE_DATA initialData;
+	initialData.SysMemPitch = 0;
+	initialData.SysMemSlicePitch = 0;
+
+	initialData.pSysMem = _vertices;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(D3dVertex),
+		D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &vertexBuffer);
+
+	initialData.pSysMem = tris;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(s_numCylTriangles * sizeof(D3dTriangle),
+		D3D11_BIND_INDEX_BUFFER, D3D11_USAGE_IMMUTABLE), &initialData, &indexBuffer);
+
+	// Create the mesh
+	const float halfW = widthMeters  / 2.0f * METERS_TO_OPT;
+	const float halfH = heightMeters / 2.0f * METERS_TO_OPT;
+	XwaVector3  disp  = dispMeters * METERS_TO_OPT;
+	for (int n = 0, i = 0; n <= 6; n++, i += 2)
+	{
+		float ang = 135.0f - 15.0f * n;
+		float xn =  halfW * cos(ang * DEG_TO_RAD);
+		float yn = -halfW * sin(ang * DEG_TO_RAD);
+		meshVertices[i + 0] = { xn + disp.x, yn + disp.y,  halfH + disp.z };
+		meshVertices[i + 1] = { xn + disp.x, yn + disp.y, -halfH + disp.z };
+
+		// Create the UVs
+		float un = 1.0f - n / 6.0f;
+		texCoords[i + 0] = { un, 0 };
+		texCoords[i + 1] = { un, 1 };
+
+		//log_debug("[DBG] [CUBE] verts[%d, %d]: (%0.3f, %0.3f):%0.3f", i, i+1, xn, yn, un);
+	}
+
+	initialData.pSysMem = meshVertices;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(XwaVector3),
+		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &meshVerticesBuffer);
+	device->CreateShaderResourceView(meshVerticesBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(meshVerticesBuffer, DXGI_FORMAT_R32G32B32_FLOAT, 0, numVertices), &meshVerticesSRV);
+
+	initialData.pSysMem = texCoords;
+	device->CreateBuffer(&CD3D11_BUFFER_DESC(numVertices * sizeof(XwaTextureVertex),
+		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE), &initialData, &texCoordsBuffer);
+	device->CreateShaderResourceView(texCoordsBuffer,
+		&CD3D11_SHADER_RESOURCE_VIEW_DESC(texCoordsBuffer, DXGI_FORMAT_R32G32_FLOAT, 0, numVertices), &texCoordsSRV);
+}
+
 void EffectsRenderer::CreateVRMeshes()
 {
 	int res;
 
-	// The VR keyboard/gloves only make sense when VR is on
-	if (!g_bUseSteamVR)
-		return;
-
 	// *************************************************
-	// Gloves
+	// Rects used to display VR dots and other things
 	// *************************************************
 	log_debug("[DBG] [AC] Creating VR Dot buffers");
 	CreateRectangleMesh(0.017f, 0.017f, { 0, 0, 0 },
@@ -1863,6 +2052,108 @@ void EffectsRenderer::CreateVRMeshes()
 	// TODO: Check for memory leaks. Should I Release() these resources?
 }
 
+void EffectsRenderer::CreateBackgroundMeshes()
+{
+	if (!g_bReplaceBackdrops)
+		return;
+
+	log_debug("[DBG] [CUBE] Creating Background Meshes");
+
+	D3dTriangle tris[12];
+	XwaVector3 meshVertices[14];
+	XwaTextureVertex texCoords[14];
+
+	// CreateFlatRectangleMesh() scales the dimensions by METERS_TO_OPT, so we can just specify meters:
+	// Create the caps of the sky cylinder:
+	CreateFlatRectangleMesh(BACKGROUND_CUBE_SIZE_METERS, BACKGROUND_CUBE_SIZE_METERS,
+		{ 0, 0, 0 }, tris, meshVertices, texCoords,
+		_bgCapVertexBuffer, _bgCapIndexBuffer,
+		_bgCapMeshVerticesBuffer, _bgCapMeshVerticesSRV,
+		_bgCapTexCoordsBuffer, _bgCapMeshTexCoordsSRV);
+
+	// Create the sides of the cube (we're going to use this for planets and other flat background surfaces.
+	CreateRectangleMesh(BACKGROUND_CUBE_SIZE_METERS, BACKGROUND_CUBE_SIZE_METERS,
+		{ 0, 0, 0 }, tris, meshVertices, texCoords,
+		_bgSideVertexBuffer, _bgSideIndexBuffer,
+		_bgSideMeshVerticesBuffer, _bgSideMeshVerticesSRV,
+		_bgSideTexCoordsBuffer, _bgSideMeshTexCoordsSRV);
+
+	// Create the sides of the cylinder
+	CreateCylinderSideMesh(BACKGROUND_CUBE_SIZE_METERS, BACKGROUND_CYL_RATIO * BACKGROUND_CUBE_SIZE_METERS,
+		{ 0, 0, 0 }, tris, meshVertices, texCoords,
+		_bgCylVertexBuffer, _bgCylIndexBuffer,
+		_bgCylMeshVerticesBuffer, _bgCylMeshVerticesSRV,
+		_bgCylTexCoordsBuffer, _bgCylMeshTexCoordsSRV);
+}
+
+void EffectsRenderer::CreateBackdropIdMapping()
+{
+	if (!g_bReplaceBackdrops)
+		return;
+
+	log_debug("[DBG] [CUBE] Creating mission -> backdrop mapping");
+	if (!InitDATReader()) // This call is idempotent and does nothing when DATReader is already loaded
+		log_debug("[DBG] [CUBE] Could not load DATReader!");
+
+	g_BackdropIdToGroupId.clear();
+	LoadDATFile(".\\ResData\\Planet.dat");
+	int numGroups = GetDATGroupCount();
+	log_debug("[DBG] [CUBE] numGroups: %d", numGroups);
+	short* groups = new short[numGroups];
+	GetDATGroupList(groups);
+	for (int i = 0; i < numGroups; i++)
+	{
+		int backdropId = i + 1;
+		// Backdrop #25 does not exist:
+		if (backdropId >= 25) backdropId++;
+		log_debug("[DBG] [CUBE]   backdropId[%d] = %d", backdropId, groups[i]);
+		g_BackdropIdToGroupId[backdropId] = groups[i];
+	}
+	delete[] groups;
+
+	// Populate the starfield map
+	g_StarfieldGroupIdImageIdMap.clear();
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6104, 0)] = true;
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6079, 2)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6079, 3)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6079, 4)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6079, 5)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6079, 6)] = true;
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6034, 3)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6034, 4)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6034, 5)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6034, 6)] = true;
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6042, 1)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6042, 2)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6042, 3)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6042, 4)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6042, 5)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6042, 6)] = true;
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6094, 1)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6094, 2)] = true; // Cap
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6094, 3)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6094, 4)] = true; // Cap
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6094, 5)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6094, 6)] = true; // Cap
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6083, 2)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6083, 3)] = true; // Cap
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6083, 5)] = true;
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6084, 1)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6084, 2)] = true; // Cap
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6084, 4)] = true;
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6084, 6)] = true; // Cap
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6094, 2)] = true; // Cap
+
+	g_StarfieldGroupIdImageIdMap[MakeKeyFromGroupIdImageId(6104, 5)] = true; // Cap
+}
+
 void EffectsRenderer::CreateShaders() {
 	ID3D11Device* device = _deviceResources->_d3dDevice;
 
@@ -1871,6 +2162,9 @@ void EffectsRenderer::CreateShaders() {
 	//StartCascadedShadowMap();
 
 	CreateVRMeshes();
+
+	CreateBackgroundMeshes();
+	CreateBackdropIdMapping();
 }
 
 void ResetGimbalLockFix()
@@ -4062,7 +4356,7 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 		g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
 	} */
-	else if (_lastTextureSelected->is_Spark || _lastTextureSelected->is_HitEffect) {
+	else if (_lastTextureSelected->is_Spark) {
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
@@ -5114,15 +5408,46 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	ComPtr<ID3D11Buffer> oldPSConstantBuffer;
 	ComPtr<ID3D11ShaderResourceView> oldVSSRV[3];
 
+	const bool bExternalCamera = g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME &&
+		PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+
+#ifdef DISABLED
 	if (s_captureProjectionDeltas)
 	{
+		// DEBUG: Display changes in projection constants.
+		// There's two sets of constants: cockpit camera and external camera. The change is small, though.
+#ifdef DISABLED
+		if (g_f0x08C1600 != *(float*)0x08C1600 ||
+			g_f0x0686ACC != *(float*)0x0686ACC ||
+			g_f0x080ACF8 != *(float*)0x080ACF8 ||
+			g_f0x07B33C0 != *(float*)0x07B33C0 ||
+			g_f0x064D1AC != *(float*)0x064D1AC)
+		{
+			log_debug("[DBG] [PRJ] Projection constants change detected.");
+			log_debug("[DBG] [PRJ] Prev: %0.3f, %0.3f :: %0.3f, %0.3f, %0.3f",
+				g_f0x08C1600,
+				g_f0x0686ACC,
+				g_f0x080ACF8,
+				g_f0x07B33C0,
+				g_f0x064D1AC);
+			log_debug("[DBG] [PRJ] New: %0.3f, %0.3f :: %0.3f, %0.3f, %0.3f",
+				*(float*)0x08C1600,
+				*(float*)0x0686ACC,
+				*(float*)0x080ACF8,
+				*(float*)0x07B33C0,
+				*(float*)0x064D1AC);
+		}
+#endif
 		g_f0x08C1600 = *(float*)0x08C1600;
 		g_f0x0686ACC = *(float*)0x0686ACC;
 		g_f0x080ACF8 = *(float*)0x080ACF8;
 		g_f0x07B33C0 = *(float*)0x07B33C0;
 		g_f0x064D1AC = *(float*)0x064D1AC;
+
+		_frameConstants = _constants;
 		s_captureProjectionDeltas = false;
 	}
+#endif
 
 	context->VSGetConstantBuffers(0, 1, oldVSConstantBuffer.GetAddressOf());
 	context->PSGetConstantBuffers(0, 1, oldPSConstantBuffer.GetAddressOf());
@@ -5506,6 +5831,21 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// other subclasses.
 	ExtraPreprocessing();
 
+	// Capture the projection constants and other data needed to render the sky cylinder.
+	if (s_captureProjectionDeltas)
+	{
+		s_captureProjectionDeltas = false;
+
+		g_f0x08C1600 = *(float*)0x08C1600;
+		g_f0x0686ACC = *(float*)0x0686ACC;
+		g_f0x080ACF8 = *(float*)0x080ACF8;
+		g_f0x07B33C0 = *(float*)0x07B33C0;
+		g_f0x064D1AC = *(float*)0x064D1AC;
+
+		_frameConstants = _constants;
+		_frameVSCBuffer = g_VSCBuffer;
+	}
+
 	// Apply the changes to the vertex and pixel shaders
 	//if (bModifiedShaders) 
 	{
@@ -5654,6 +5994,7 @@ inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer() {
 	// the cockpit on the regularRTV
 	if (_overrideRTV == TRANSP_LYR_1) return resources->_transp1RTV;
 	if (_overrideRTV == TRANSP_LYR_2) return resources->_transp2RTV;
+	if (_overrideRTV == BACKGROUND_LYR) return resources->_backgroundRTV;
 	// Normal output buffer (_offscreenBuffer)
 	return regularRTV;
 }
@@ -5918,6 +6259,7 @@ void EffectsRenderer::RenderScene(bool bBindTranspLyr1)
 	auto& resources = _deviceResources;
 	auto& context = _deviceResources->_d3dDeviceContext;
 
+#ifdef DISABLED
 	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
 	{
 		// Temporarily replace the background with a solid color to debug MSAA halos:
@@ -5939,14 +6281,13 @@ void EffectsRenderer::RenderScene(bool bBindTranspLyr1)
 			context->CopyResource(resources->_backgroundBuffer, resources->_offscreenBuffer);
 			// Wipe out the background:
 			context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
-			//if (g_bUseSteamVR)
-				//context->ClearRenderTargetView(resources->_renderTargetViewHd, resources->clearColor); // Probably not necessary
 		}
 
 		if (g_bDumpSSAOBuffers)
 			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"c:\\temp\\_backgroundBuffer.dds");
 		g_bBackgroundCaptured = true;
 	}
+#endif
 
 	unsigned short scissorLeft = *(unsigned short*)0x07D5244;
 	unsigned short scissorTop = *(unsigned short*)0x07CA354;
@@ -6168,7 +6509,7 @@ void EffectsRenderer::RenderTransparency()
 		if (!g_bInTechRoom)
 		{
 			// We can't select TRANSP_LYR_1 here, because some OPTs have solid areas and transparency,
-			// like the windows on the CRS. If we set _overrideRTV to TRANSP_LRY_1, then the whole window
+			// like the windows on the CRS. If we set _overrideRTV to TRANSP_LYR_1, then the whole window
 			// is rendered on a transparent layer which is later blended without shading the solid areas.
 			// Instead, we bind transp1RTV during RenderScene() below so that we can selectively render
 			// to that layer or offscreenBuffer depending on the alpha channel.
@@ -6220,7 +6561,7 @@ void EffectsRenderer::RenderVRDots()
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	// Set the proper rastersizer and depth stencil states for transparency
+	// Set the proper rasterizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
 	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
@@ -6410,7 +6751,7 @@ void EffectsRenderer::RenderVRBrackets()
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	// Set the proper rastersizer and depth stencil states for transparency
+	// Set the proper rasterizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
 	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
@@ -6599,7 +6940,7 @@ void EffectsRenderer::RenderVRHUD()
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	// Set the proper rastersizer and depth stencil states for transparency
+	// Set the proper rasterizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
 	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
@@ -6760,6 +7101,369 @@ void EffectsRenderer::RenderVRHUD()
 	_deviceResources->EndAnnotatedEvent();
 }
 
+void EffectsRenderer::RenderSkyBox(bool debug)
+{
+	if (!g_bRendering3D)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderSkyBox");
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
+	float black[4] = { 0, 0, 0, 1 };
+	context->ClearRenderTargetView(resources->_backgroundRTV, black);
+	if (!g_bRenderDefaultStarfield)
+		return;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rasterizer and depth stencil states for transparency
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	// _mainDepthState is COMPARE_ALWAYS, so the VR dots are always displayed
+	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	g_PSCBuffer.bIsShadeless = RENDER_SKY_BOX_MODE;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
+	g_VRGeometryCBuffer.numStickyRegions = 0;
+	// Disable region highlighting
+	g_VRGeometryCBuffer.clicked[0] = false;
+	g_VRGeometryCBuffer.clicked[1] = false;
+
+	// Flags used in RenderScene():
+	_bIsCockpit = !bGunnerTurret;
+	_bIsGunner = bGunnerTurret;
+	_bIsBlastMark = false;
+
+	// Set the mesh buffers
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrDotMeshVerticesSRV.Get(), nullptr, _vrDotMeshTexCoordsSRV.Get(), nullptr };
+	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+	_deviceResources->InitVertexBuffer(_vrDotVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(nullptr, true);
+	_deviceResources->InitIndexBuffer(_vrDotIndexBuffer.Get(), true);
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
+	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
+
+	// Let's replace transformWorldView with the identity matrix:
+	Matrix4 Id;
+	const float* m = Id.get();
+	for (int i = 0; i < 16; i++) _frameConstants.transformWorldView[i] = m[i];
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_frameConstants, 0, 0);
+	_trianglesCount = g_vrDotNumTriangles;
+
+	// Get the width in OPT-scale of the mesh that will be rendered:
+	// 0 -> 1
+	// |
+	// 3
+	const float meshWidth = g_vrDotMeshVertices[1].x - g_vrDotMeshVertices[0].x;
+
+	ID3D11ShaderResourceView* srvs[] = {
+		resources->_textureCubeSRV /* .Get() */, // 21
+	};
+	context->PSSetShaderResources(21, 1, srvs);
+	_overrideRTV = BACKGROUND_LYR;
+
+	for (const auto& bracketVR : g_bracketsVR)
+	{
+		Vector4 dotPosSteamVR;
+		dotPosSteamVR.x = bracketVR.posOPT.x * OPT_TO_METERS;
+		dotPosSteamVR.y = bracketVR.posOPT.z * OPT_TO_METERS;
+		dotPosSteamVR.z = bracketVR.posOPT.y * OPT_TO_METERS;
+		dotPosSteamVR.w = 1.0f;
+		const float meshScale = (bracketVR.halfWidthOPT * 2.0f) / meshWidth;
+
+		Matrix4 DotTransform;
+		{
+			Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+
+			DotTransform.identity();
+			Vector3 posOPT = { dotPosSteamVR.x * METERS_TO_OPT,
+							   dotPosSteamVR.z * METERS_TO_OPT,
+							   dotPosSteamVR.y * METERS_TO_OPT };
+			Matrix4 T = Matrix4().translate(posOPT);
+			DotTransform = swapScale * T * Matrix4().scale(meshScale);
+		}
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+
+	RestoreContext();
+	_overrideRTV = TRANSP_LYR_NONE;
+	g_bracketsVR.clear();
+	_deviceResources->EndAnnotatedEvent();
+}
+
+void EffectsRenderer::RenderSkyCylinder()
+{
+	if (!g_bRendering3D || g_HyperspacePhaseFSM != HS_INIT_ST)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderSkyCylinder");
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rasterizer and depth stencil states for transparency
+	//_deviceResources->InitBlendState(_solidBlendState, nullptr);
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
+	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	g_PSCBuffer.bIsShadeless = RENDER_SKY_CYLINDER_MODE;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
+	g_VRGeometryCBuffer.numStickyRegions = 0;
+	// Disable region highlighting
+	g_VRGeometryCBuffer.clicked[0] = false;
+	g_VRGeometryCBuffer.clicked[1] = false;
+
+	// Flags used in RenderScene():
+	_bIsCockpit = !bGunnerTurret;
+	_bIsGunner = bGunnerTurret;
+	_bIsBlastMark = false;
+
+	// Apply the VS and PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &_frameVSCBuffer);
+	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
+	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
+
+	_overrideRTV = BACKGROUND_LYR;
+	float black[4] = { 0, 0, 0, 1 };
+	context->ClearRenderTargetView(resources->_backgroundRTV, black);
+	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+
+	const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	// Let's replace transformWorldView with the identity matrix:
+	Matrix4 Id;
+	const float* m = Id.get();
+	for (int i = 0; i < 16; i++) _frameConstants.transformWorldView[i] = m[i];
+	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_frameConstants, 0, 0);
+
+	ID3D11ShaderResourceView* vsSSRV[4] = { nullptr, nullptr, nullptr, nullptr };
+
+	// ***************************************************
+	// Caps
+	// ***************************************************
+	// Set the mesh buffers
+	vsSSRV[0] = _bgCapMeshVerticesSRV.Get();
+	vsSSRV[2] = _bgCapMeshTexCoordsSRV.Get();
+	context->VSSetShaderResources(0, 4, vsSSRV);
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(_bgCapVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(_bgCapIndexBuffer.Get(), true);
+	_trianglesCount = 2;
+
+	// Top cap (Z+):
+	{
+		ID3D11ShaderResourceView* srvs[] = {
+			g_StarfieldSRVs[STARFIELD_TYPE::TOP] != nullptr ?
+				g_StarfieldSRVs[STARFIELD_TYPE::TOP]->_textureView.Get() : nullptr
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+
+		// The caps are created at the origin, so we need to translate them to the poles:
+		Matrix4 T = Matrix4().translate(0, 0, BACKGROUND_CYL_RATIO * BACKGROUND_CUBE_HALFSIZE_METERS * METERS_TO_OPT);
+		Matrix4 DotTransform = swapScale * g_VRGeometryCBuffer.viewMat * T;
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+
+	// Bottom cap (Z-):
+	{
+		ID3D11ShaderResourceView* srvs[] = {
+			g_StarfieldSRVs[STARFIELD_TYPE::BOTTOM] != nullptr ?
+			g_StarfieldSRVs[STARFIELD_TYPE::BOTTOM]->_textureView.Get() : nullptr
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+
+		// The caps are created at the origin, so we need to translate them to the poles:
+		Matrix4 T = Matrix4().translate(0, 0, -BACKGROUND_CYL_RATIO * BACKGROUND_CUBE_HALFSIZE_METERS * METERS_TO_OPT);
+		Matrix4 DotTransform = swapScale * g_VRGeometryCBuffer.viewMat * T;
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+
+	// ***************************************************
+	// Sides
+	// ***************************************************
+#ifdef DISABLED
+	_trianglesCount = 2;
+	// Set the mesh buffers
+	vsSSRV[0] = _bgSideMeshVerticesSRV.Get();
+	vsSSRV[2] = _bgSideMeshTexCoordsSRV.Get();
+	context->VSSetShaderResources(0, 4, vsSSRV);
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(_bgSideVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(_bgSideIndexBuffer.Get(), true);
+
+	// Front (Y-):
+	{
+		Matrix4 T = Matrix4().translate(0, -BACKGROUND_CUBE_HALFSIZE_METERS * METERS_TO_OPT, 0);
+		Matrix4 DotTransform = swapScale * g_VRGeometryCBuffer.viewMat * T;
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+#endif
+
+	_trianglesCount = s_numCylTriangles;
+	// Set the mesh buffers
+	vsSSRV[0] = _bgCylMeshVerticesSRV.Get();
+	vsSSRV[2] = _bgCylMeshTexCoordsSRV.Get();
+	context->VSSetShaderResources(0, 4, vsSSRV);
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(_bgCylVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(_bgCylIndexBuffer.Get(), true);
+	_trianglesCount = s_numCylTriangles;
+
+	// Front (Y-):
+	{
+		ID3D11ShaderResourceView* srvs[] = {
+			g_StarfieldSRVs[STARFIELD_TYPE::FRONT] != nullptr ?
+			g_StarfieldSRVs[STARFIELD_TYPE::FRONT]->_textureView.Get() : nullptr
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+		Matrix4 DotTransform = swapScale * g_VRGeometryCBuffer.viewMat;
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+
+	// Left: (X-):
+	{
+		ID3D11ShaderResourceView* srvs[] = {
+			g_StarfieldSRVs[STARFIELD_TYPE::LEFT] != nullptr ?
+			g_StarfieldSRVs[STARFIELD_TYPE::LEFT]->_textureView.Get() : nullptr
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+		Matrix4 DotTransform = swapScale * g_VRGeometryCBuffer.viewMat * Matrix4().rotateZ(90.0f);
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+
+	// Back: (Y+):
+	{
+		ID3D11ShaderResourceView* srvs[] = {
+			g_StarfieldSRVs[STARFIELD_TYPE::BACK] != nullptr ?
+			g_StarfieldSRVs[STARFIELD_TYPE::BACK]->_textureView.Get() : nullptr
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+		Matrix4 DotTransform = swapScale * g_VRGeometryCBuffer.viewMat * Matrix4().rotateZ(180.0f);
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+
+	// Right: (X+):
+	{
+		ID3D11ShaderResourceView* srvs[] = {
+			g_StarfieldSRVs[STARFIELD_TYPE::RIGHT] != nullptr ?
+			g_StarfieldSRVs[STARFIELD_TYPE::RIGHT]->_textureView.Get() : nullptr
+		};
+		context->PSSetShaderResources(0, 1, srvs);
+		Matrix4 DotTransform = swapScale * g_VRGeometryCBuffer.viewMat * Matrix4().rotateZ(270.0f);
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+
+		RenderScene(false);
+	}
+
+	RestoreContext();
+	_overrideRTV = TRANSP_LYR_NONE;
+	_deviceResources->EndAnnotatedEvent();
+}
+
 void EffectsRenderer::RenderVRKeyboard()
 {
 	if (!g_bUseSteamVR || !g_bActiveCockpitEnabled || !g_bRendering3D)
@@ -6893,7 +7597,7 @@ void EffectsRenderer::RenderVRKeyboard()
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	// Set the proper rastersizer and depth stencil states for transparency
+	// Set the proper rasterizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
 	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
 	//_deviceResources->InitBlendState(_solidBlendState, nullptr);
@@ -6998,7 +7702,7 @@ void EffectsRenderer::RenderVRGloves()
 
 	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
 	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
-	// Set the proper rastersizer and depth stencil states for transparency
+	// Set the proper rasterizer and depth stencil states for transparency
 	_deviceResources->InitBlendState(_solidBlendState, nullptr);
 	_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 

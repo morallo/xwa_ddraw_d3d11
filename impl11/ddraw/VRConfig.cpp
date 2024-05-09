@@ -247,7 +247,6 @@ float g_fInterdictionShakeInVR = 0.0f;
 float g_fInterdictionAngleScale = 0.25f;
 
 int g_iDelayedDumpDebugBuffers = 0;
-bool g_bBackgroundCaptured = false; // Reset on every frame
 bool g_bMapMode = false; // Recomputed on every frame
 
 // white_point = 1 --> OK
@@ -2037,6 +2036,7 @@ bool LoadBloomParams() {
 	g_BloomConfig.fLasersStrength = 4.0f;
 	g_BloomConfig.fEngineGlowStrength = 0.5f;
 	g_BloomConfig.fSparksStrength = 0.5f;
+	g_BloomConfig.fHitEffectsStrength = 1.0f;
 	g_BloomConfig.fSkydomeLightStrength = 0.1f;
 	g_BloomConfig.fBracketStrength = 0.0f;
 	g_BloomPSCBuffer.general_bloom_strength = 1.0f;
@@ -2108,6 +2108,9 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "sparks_strength") == 0) {
 				g_BloomConfig.fSparksStrength = fValue;
+			}
+			else if (_stricmp(param, "hit_effects_strength") == 0) {
+				g_BloomConfig.fHitEffectsStrength = fValue;
 			}
 			else if (_stricmp(param, "cockpit_sparks_strength") == 0) {
 				g_BloomConfig.fCockpitSparksStrength = fValue;
@@ -2979,6 +2982,21 @@ bool LoadSSAOParams() {
 					g_RTExcludeShipCategories[Genus_Satellite] = true;
 					log_debug("[DBG] [BVH] Excluding Satellites");
 				}
+			}
+
+			if (_stricmp(param, "use_skybox") == 0)
+			{
+				g_bUseTextureCube = (bool)fValue;
+				if (g_bUseTextureCube) log_debug("[DBG] [CUBE] Using Texture Cubes");
+			}
+			if (_stricmp(param, "replace_backdrops") == 0)
+			{
+				g_bReplaceBackdrops = (bool)fValue;
+				if (g_bReplaceBackdrops) log_debug("[DBG] [CUBE] Replacing Backdrops");
+			}
+			if (_stricmp(param, "render_default_starfield") == 0)
+			{
+				g_bRenderDefaultStarfield = (bool)fValue;
 			}
 		}
 	}

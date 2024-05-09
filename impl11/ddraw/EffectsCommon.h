@@ -190,6 +190,7 @@ typedef struct BloomConfigStruct {
 	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
 	float fTurboLasersStrength, fLensFlareStrength, fExplosionsStrength, fSunsStrength;
 	float fCockpitSparksStrength, fMissileStrength, fSkydomeLightStrength, fBracketStrength;
+	float fHitEffectsStrength;
 	float uvStepSize1, uvStepSize2;
 	int iNumPasses;
 } BloomConfig;
@@ -401,6 +402,12 @@ struct VRGeometryCBuffer {
 	float    strokeWidth;
 	float3   bracketColor;
 	// 128 bytes
+	float4   U;
+	// 144 bytes
+	Matrix4  viewMat;
+	// 208 bytes
+	float4   F;
+	// 224 bytes
 };
 
 typedef struct {
