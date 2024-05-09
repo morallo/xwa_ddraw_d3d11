@@ -739,7 +739,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'W':
 				//ToggleCSM();
 
-				g_iDelayedDumpDebugBuffers = 30;
+				g_iDelayedDumpDebugBuffers = 160;
 				log_debug("[DBG] Delayed debug dump set");
 
 				//g_bGlobalSpecToggle = !g_bGlobalSpecToggle;

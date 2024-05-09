@@ -3069,6 +3069,12 @@ HRESULT Direct3DDevice::Execute(
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
 		UpdateViewMatrix(); // g_ExecuteCount == 1 && !g_bInTechRoom
+
+		if (!g_bMapMode)
+		{
+			//RenderSkyBox();
+			resources->_primarySurface->RenderDefaultBackground();
+		}
 	}
 
 	// Render images
@@ -6274,10 +6280,12 @@ HRESULT Direct3DDevice::BeginScene()
 			context->ClearRenderTargetView(resources->_renderTargetViewDepthBufR, infinity);
 	}
 
-	if (!g_bInTechRoom && !g_bMapMode)
+	// This fix didn't work quite well, it won't show consitently in the hangar and for some reason
+	// messed up VR in older versions of XWAU (?)
+	/*if (!g_bInTechRoom && !g_bMapMode)
 	{
 		RenderSkyBox();
-	}
+	}*/
 
 	if (!bTransitionToHyperspace) {
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);

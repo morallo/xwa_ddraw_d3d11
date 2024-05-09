@@ -5661,6 +5661,206 @@ out:
 	this->_deviceResources->EndAnnotatedEvent();
 }
 
+void PrimarySurface::RenderDefaultBackground()
+{
+	auto& resources = this->_deviceResources;
+	auto& device = resources->_d3dDevice;
+	auto& context = resources->_d3dDeviceContext;
+
+	float x0, y0, x1, y1;
+	D3D11_VIEWPORT viewport;
+	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	//const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderDefaultBackground");
+
+	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
+	renderer->SaveContext();
+
+	float x, y;
+	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height,
+		g_ReticleCentroid.x, g_ReticleCentroid.y, &x, &y);
+	x /= g_fCurScreenWidth;
+	y /= g_fCurScreenHeight;
+
+	// SunCoords[0].xy: Reticle Centroid
+	// SunCoords[0].z: Inverse reticle scale
+	// SunCoords[0].w: Reticle visible (0 off, 1 on)
+
+	// SunCoords[1].x: Triangle pointer angle
+	// SunCoords[1].y: Triangle pointer displacement
+	// SunCoords[1].z: Triangle pointer scale (animated)
+	// SunCoords[1].w: Render triangle pointer (0 off, 1 on)
+
+	// Send the reticle centroid to the shader:
+	/*g_ShadertoyBuffer.SunCoords[0].x = x;
+	g_ShadertoyBuffer.SunCoords[0].y = y;
+	g_ShadertoyBuffer.SunCoords[0].z = 1.0f / g_fReticleScale;
+	g_ShadertoyBuffer.SunCoords[0].w = (float)(!bReticleInvisible);*/
+
+	// Not sure if multiplying by preserveAspectRatioComp is necessary
+	//g_TriangleCentroidSC.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
+	//g_TriangleCentroidSC.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
+	/*float ang = PI + atan2(g_TriangleCentroid.y, g_TriangleCentroid.x);
+	g_ShadertoyBuffer.SunCoords[1].x = ang;
+	g_ShadertoyBuffer.SunCoords[1].y = g_fTrianglePointerDist;
+	g_ShadertoyBuffer.SunCoords[1].z = 0.1f + 0.05f * time;
+	g_ShadertoyBuffer.SunCoords[1].w = (float)(!bTriangleInvisible);*/
+
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+
+	Vector4 Rs, Us, Fs;
+	Matrix4 Heading, ViewMatrix;
+	// The following transform chain was copied from RenderSkyBox() because why duplicate
+	// efforts? We just need to make sure the direction vector in the shader is the same
+	// we used in PixelShaderVRGeom
+	if (g_bUseSteamVR)
+	{
+		Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+		ViewMatrix = g_VSMatrixCB.fullViewMat; // See RenderSpeedEffect() for details
+		ViewMatrix.invert();
+		Matrix4 S = Matrix4().scale(-1, -1, 1);
+		ViewMatrix = S * ViewMatrix * S * Heading;
+
+		// ViewMatrix maps OPT-World coords to "Normal Mapping"/DX11 Viewspace coords:
+		// X+ (Rt, OPT) maps to X+
+		// Z+ (Up, OPT) maps to Y+
+		// Y- (Fd, OPT) maps to Z+
+		// In order to map from DX11 Viewspace coords to DX11 World coords, we need
+		// to invert ViewMatrix and then rename Z+ --> Y+ and Z+ --> Y-
+		Matrix4 swapScale({ 1,0,0,0,  0,0,1,0,  0,-1,0,0,  0,0,0,1 });
+		// Finally, the skymap appears to be upside down, so let's rotate it around the
+		// Z axis to recover the regular orientation:
+		Matrix4 SkyMapRotation = Matrix4().rotateZ(180.0f);
+		ViewMatrix.invert();
+		// The damnedest thing happened here... We're rendering a single quad, and we're
+		// in this path right after we update fullViewMat, so the matrix should be valid.
+		// And yet, when the external camera is enabled in VR, I get the "swimming background"
+		// effect. But why? Is the matrix not orthonormal in external view?
+		g_ShadertoyBuffer.viewMat = SkyMapRotation * swapScale * ViewMatrix;
+	}
+	else
+	{
+		// Non-VR path:
+		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+
+		Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+		GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
+		ViewMatrix = swap * Heading * swap * ViewMatrix;
+		g_ShadertoyBuffer.viewMat = ViewMatrix;
+	}
+
+	g_ShadertoyBuffer.x0 = x0;
+	g_ShadertoyBuffer.y0 = y0;
+	g_ShadertoyBuffer.x1 = x1;
+	g_ShadertoyBuffer.y1 = y1;
+	//g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
+	g_ShadertoyBuffer.VRmode = 3; // Render the background
+	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	/*g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;*/
+
+	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_externalHUDPS_VR : resources->_externalHUDPS);
+	// We need this to ensure backface culling is disabled
+	resources->InitRasterizerState(resources->_rasterizerState);
+	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the starfield should always be displayed
+	resources->InitDepthStencilState(resources->_mainDepthState, nullptr);
+
+	// Render the default background
+	{
+		// Set the new viewport (a full quad covering the full screen)
+		viewport.Width  = g_fCurScreenWidth;
+		viewport.Height = g_fCurScreenHeight;
+		// VIEWPORT-LEFT
+		if (g_bEnableVR) {
+			if (g_bUseSteamVR)
+				viewport.Width = (float)resources->_backbufferWidth;
+			else
+				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
+		}
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// We don't need to clear the current vertex and pixel constant buffers.
+		// Since we've just finished rendering 3D, they should contain values that
+		// can be reused. So let's just overwrite the values that we need.
+		g_VSCBuffer.aspect_ratio      =  g_fAspectRatio;
+		g_VSCBuffer.z_override        = -1.0f;
+		g_VSCBuffer.sz_override       = -1.0f;
+		g_VSCBuffer.mult_z_override   = -1.0f;
+		g_VSCBuffer.apply_uv_comp     =  false;
+		g_VSCBuffer.bPreventTransform =  0.0f;
+		g_VSCBuffer.bFullTransform    =  0.0f;
+		if (g_bEnableVR)
+		{
+			g_VSCBuffer.viewportScale[0] = 1.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = 1.0f / resources->_displayHeight;
+		}
+		else
+		{
+			g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+			g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+		}
+
+		// These are the same settings we used previously when rendering the HUD during a draw() call.
+		// We use these settings to place the HUD at different depths
+		g_VSCBuffer.z_override = g_fHUDDepth;
+		g_VSCBuffer.z_override = 65536.0f;
+		//if (g_bFloatingAimingHUD)
+		//	g_VSCBuffer.bPreventTransform = 1.0f;
+
+		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
+		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+		g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
+		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+		UINT stride = sizeof(D3DTLVERTEX), offset = 0;
+		resources->InitVertexBuffer(resources->_hyperspaceVertexBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_inputLayout);
+		if (g_bEnableVR)
+			resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
+		else
+			resources->InitVertexShader(resources->_vertexShader);
+
+		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		// Set the RTV:
+		ID3D11RenderTargetView *rtvs[1] = {
+			resources->_backgroundRTV.Get(),
+		};
+		context->OMSetRenderTargets(1, rtvs, NULL);
+		// Set the SRVs:
+		ID3D11ShaderResourceView* srvs[] = {
+			resources->_textureCubeSRV /* .Get() */, // 21
+		};
+		context->PSSetShaderResources(21, 1, srvs);
+		if (g_bUseSteamVR)
+			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
+		else
+			context->Draw(6, 0);
+
+		if (g_bDumpSSAOBuffers) {
+			DirectX::SaveWICTextureToFile(context, resources->_backgroundBuffer, GUID_ContainerFormatJpeg,
+				L"C:\\Temp\\_defaultBackground.jpg");
+		}
+	}
+
+	// Restore previous rendertarget, etc
+	//resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+	renderer->RestoreContext();
+
+	this->_deviceResources->EndAnnotatedEvent();
+}
+
 inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles, int idx)
 {
 	const float FOVFactor = g_ShadertoyBuffer.FOVscale;
@@ -12707,7 +12907,6 @@ void RenderSkyBox()
 	Matrix4 Heading, ViewMatrix;
 	if (g_bUseSteamVR)
 	{
-		// Maybe try using GetCurrentHeadingViewMatrix() instead?
 		Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 		ViewMatrix = g_VSMatrixCB.fullViewMat; // See RenderSpeedEffect() for details
 		ViewMatrix.invert();

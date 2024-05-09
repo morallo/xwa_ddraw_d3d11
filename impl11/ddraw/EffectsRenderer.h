@@ -162,9 +162,6 @@ protected:
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 	Matrix4 GetShadowMapLimits(const AABB &aabb, float *OBJrange, float *OBJminZ);
 
-	void SaveContext();
-	void RestoreContext();
-
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 	int LoadDATImage(char* sDATFileName, int GroupId, int ImageId, ID3D11ShaderResourceView** srv,
 		short* Width_out=nullptr, short* Height_out=nullptr);
@@ -190,7 +187,9 @@ public:
 	virtual void HangarShadowSceneHook(const SceneCompData* scene);
 	virtual void RenderScene(bool bBindTranspLyr1);
 	virtual void UpdateTextures(const SceneCompData* scene);
-	
+	void SaveContext();
+	void RestoreContext();
+
 	// State Management
 	void DoStateManagement(const SceneCompData* scene);
 	void ApplyMaterialProperties();
