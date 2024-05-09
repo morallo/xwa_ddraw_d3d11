@@ -190,6 +190,7 @@ typedef struct BloomConfigStruct {
 	float fLightMapsStrength, fLasersStrength, fHyperStreakStrength, fHyperTunnelStrength;
 	float fTurboLasersStrength, fLensFlareStrength, fExplosionsStrength, fSunsStrength;
 	float fCockpitSparksStrength, fMissileStrength, fSkydomeLightStrength, fBracketStrength;
+	float fHitEffectsStrength;
 	float uvStepSize1, uvStepSize2;
 	int iNumPasses;
 } BloomConfig;

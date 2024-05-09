@@ -4356,7 +4356,7 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 		g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;
 	} */
-	else if (_lastTextureSelected->is_Spark || _lastTextureSelected->is_HitEffect) {
+	else if (_lastTextureSelected->is_Spark) {
 		_bModifiedShaders = true;
 		g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
 		g_PSCBuffer.bIsEngineGlow = 1;

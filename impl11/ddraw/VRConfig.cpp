@@ -2036,6 +2036,7 @@ bool LoadBloomParams() {
 	g_BloomConfig.fLasersStrength = 4.0f;
 	g_BloomConfig.fEngineGlowStrength = 0.5f;
 	g_BloomConfig.fSparksStrength = 0.5f;
+	g_BloomConfig.fHitEffectsStrength = 1.0f;
 	g_BloomConfig.fSkydomeLightStrength = 0.1f;
 	g_BloomConfig.fBracketStrength = 0.0f;
 	g_BloomPSCBuffer.general_bloom_strength = 1.0f;
@@ -2107,6 +2108,9 @@ bool LoadBloomParams() {
 			}
 			else if (_stricmp(param, "sparks_strength") == 0) {
 				g_BloomConfig.fSparksStrength = fValue;
+			}
+			else if (_stricmp(param, "hit_effects_strength") == 0) {
+				g_BloomConfig.fHitEffectsStrength = fValue;
 			}
 			else if (_stricmp(param, "cockpit_sparks_strength") == 0) {
 				g_BloomConfig.fCockpitSparksStrength = fValue;

@@ -5157,9 +5157,16 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.fBloomStrength = g_b3DSunPresent ? 0.0f : g_BloomConfig.fSunsStrength;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
-					else if (lastTextureSelected->is_Spark || lastTextureSelected->is_HitEffect) {
+					else if (lastTextureSelected->is_Spark) {
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = g_BloomConfig.fSparksStrength;
+						g_PSCBuffer.bIsEngineGlow = 1;
+					}
+					else if (lastTextureSelected->is_HitEffect)
+					{
+						bModifiedShaders = true;
+						g_PSCBuffer.fBloomStrength = g_BloomConfig.fHitEffectsStrength;
+						resources->_overrideRTV = TRANSP_LYR_1;
 						g_PSCBuffer.bIsEngineGlow = 1;
 					}
 					else if (lastTextureSelected->is_CockpitSpark) {
