@@ -2990,6 +2990,10 @@ bool LoadSSAOParams() {
 				g_bReplaceBackdrops = (bool)fValue;
 				if (g_bReplaceBackdrops) log_debug("[DBG] [CUBE] Replacing Backdrops");
 			}
+			if (_stricmp(param, "render_default_starfield") == 0)
+			{
+				g_bRenderDefaultStarfield = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);

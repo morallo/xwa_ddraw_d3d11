@@ -5663,6 +5663,9 @@ out:
 
 void PrimarySurface::RenderDefaultBackground()
 {
+	if (!g_bRenderDefaultStarfield)
+		return;
+
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -5670,45 +5673,12 @@ void PrimarySurface::RenderDefaultBackground()
 	float x0, y0, x1, y1;
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	//const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 
 	this->_deviceResources->BeginAnnotatedEvent(L"RenderDefaultBackground");
 
 	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
 	renderer->SaveContext();
-
-	float x, y;
-	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
-		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height,
-		g_ReticleCentroid.x, g_ReticleCentroid.y, &x, &y);
-	x /= g_fCurScreenWidth;
-	y /= g_fCurScreenHeight;
-
-	// SunCoords[0].xy: Reticle Centroid
-	// SunCoords[0].z: Inverse reticle scale
-	// SunCoords[0].w: Reticle visible (0 off, 1 on)
-
-	// SunCoords[1].x: Triangle pointer angle
-	// SunCoords[1].y: Triangle pointer displacement
-	// SunCoords[1].z: Triangle pointer scale (animated)
-	// SunCoords[1].w: Render triangle pointer (0 off, 1 on)
-
-	// Send the reticle centroid to the shader:
-	/*g_ShadertoyBuffer.SunCoords[0].x = x;
-	g_ShadertoyBuffer.SunCoords[0].y = y;
-	g_ShadertoyBuffer.SunCoords[0].z = 1.0f / g_fReticleScale;
-	g_ShadertoyBuffer.SunCoords[0].w = (float)(!bReticleInvisible);*/
-
-	// Not sure if multiplying by preserveAspectRatioComp is necessary
-	//g_TriangleCentroidSC.x *= g_ShadertoyBuffer.preserveAspectRatioComp[0];
-	//g_TriangleCentroidSC.y *= g_ShadertoyBuffer.preserveAspectRatioComp[1];
-	/*float ang = PI + atan2(g_TriangleCentroid.y, g_TriangleCentroid.x);
-	g_ShadertoyBuffer.SunCoords[1].x = ang;
-	g_ShadertoyBuffer.SunCoords[1].y = g_fTrianglePointerDist;
-	g_ShadertoyBuffer.SunCoords[1].z = 0.1f + 0.05f * time;
-	g_ShadertoyBuffer.SunCoords[1].w = (float)(!bTriangleInvisible);*/
-
-	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 
 	Vector4 Rs, Us, Fs;
 	Matrix4 Heading, ViewMatrix;
@@ -5751,6 +5721,7 @@ void PrimarySurface::RenderDefaultBackground()
 		g_ShadertoyBuffer.viewMat = ViewMatrix;
 	}
 
+	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
@@ -5759,8 +5730,8 @@ void PrimarySurface::RenderDefaultBackground()
 	g_ShadertoyBuffer.VRmode = 3; // Render the background
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	/*g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
-	g_ShadertoyBuffer.FOVscale = g_fFOVscale;*/
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 	resources->InitPixelShader(g_bUseSteamVR ? resources->_externalHUDPS_VR : resources->_externalHUDPS);
@@ -5855,7 +5826,6 @@ void PrimarySurface::RenderDefaultBackground()
 	}
 
 	// Restore previous rendertarget, etc
-	//resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
 	renderer->RestoreContext();
 
 	this->_deviceResources->EndAnnotatedEvent();
