@@ -11205,12 +11205,20 @@ HRESULT PrimarySurface::Flip(
 			}
 
 			// Reapply the MetricRec constants if necessary
-			if (g_bMetricParamsNeedReapply) {
+			//if (g_bMetricParamsNeedReapply)
+			{
+				const bool bExternalView = (g_playerIndex == nullptr) ? false : PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+				const float y_center = g_MetricRecCBuffer.mr_y_center;
+				// In external view, we need to set y_center to 0, or the background will "swim".
+				// In cockpit view, we must use mr_y_center. Either way, we store the current value
+				// before modifying it, and then we restore it at the end.
+				g_MetricRecCBuffer.mr_y_center = bExternalView ? 0.0f : y_center;
 				// This probably is a good place to set the VS constant buffer:
 				resources->InitVSConstantBufferMetricRec(resources->_metricRecVSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
 				// TODO: Do we need this CB in the pixel shaders? Maybe if we replace the Shadertoy CB settings...
 				resources->InitPSConstantBufferMetricRec(resources->_metricRecPSConstantBuffer.GetAddressOf(), &g_MetricRecCBuffer);
-				log_debug("[DBG] Reapplied MetricRec CBs");
+				//log_debug("[DBG] Reapplied MetricRec CBs");
+				g_MetricRecCBuffer.mr_y_center = y_center;
 				g_bMetricParamsNeedReapply = false;
 			}
 			// Reset the Reticle Centroid *after* it has been used by ComputeHyperFOVParams
