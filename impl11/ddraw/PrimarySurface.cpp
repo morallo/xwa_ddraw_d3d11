@@ -5681,6 +5681,13 @@ void PrimarySurface::RenderDefaultBackground()
 	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
 	renderer->SaveContext();
 
+	const int cameraObjIdx = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
+	const int objectIndex = PlayerDataTable[*g_playerIndex].objectIndex;
+	// If the external camea is enabled and objectIndex != cameraObjIdx, then the camera is
+	// trained on a ship that is not controlled by the player. In that case, the heading of
+	// the player's ship should not affect the current view.
+	const bool bUseHeading = !bExternalView || (cameraObjIdx == objectIndex);
+
 	Vector4 Rs, Us, Fs;
 	Matrix4 Heading, ViewMatrix;
 	// The following transform chain was copied from RenderSkyBox() because why duplicate
@@ -5688,7 +5695,7 @@ void PrimarySurface::RenderDefaultBackground()
 	// we used in PixelShaderVRGeom
 	if (g_bUseSteamVR)
 	{
-		Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+		if (bUseHeading) Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 		ViewMatrix = g_VSMatrixCB.fullViewMat; // See RenderSpeedEffect() for details
 		ViewMatrix.invert();
 		Matrix4 S = Matrix4().scale(-1, -1, 1);
@@ -5716,7 +5723,7 @@ void PrimarySurface::RenderDefaultBackground()
 		// Non-VR path:
 		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 
-		Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+		if (bUseHeading) Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
 		GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
 		ViewMatrix = swap * Heading * swap * ViewMatrix;
 		g_ShadertoyBuffer.viewMat = ViewMatrix;
@@ -10146,7 +10153,7 @@ HRESULT PrimarySurface::Flip(
 		const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 		const bool bCockpitDisplayed = PlayerDataTable[*g_playerIndex].cockpitDisplayed;
 		const int cameraObjIdx = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
-		int FlyByCameraTime = PlayerDataTable[*g_playerIndex].Camera.FlyByCameraTime;
+		const int FlyByCameraTime = PlayerDataTable[*g_playerIndex].Camera.FlyByCameraTime;
 
 		// This moves the external camera when in the hangar:
 		//static __int16 yaw = 0;
