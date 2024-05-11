@@ -5989,6 +5989,10 @@ inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer() {
 	auto& resources = this->_deviceResources;
 
 	ID3D11RenderTargetView *regularRTV = resources->_renderTargetView.Get();
+	// When the Tech Room is displayed, there's no deferred rendering. Everything goes directly
+	// to the offscreenBuffer:
+	if (g_bInTechRoom) return regularRTV;
+
 	// Since we're now splitting the background and the 3D content, we don't need the shadertoyRTV
 	// anymore. When hyperspace is activated, no external OPTs are rendered, so we still just get
 	// the cockpit on the regularRTV
