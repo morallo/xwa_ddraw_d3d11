@@ -5731,7 +5731,9 @@ void PrimarySurface::RenderDefaultBackground()
 	g_ShadertoyBuffer.VRmode = 3; // Render the background
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	//g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
+	// Using 0.0 instead of y_center causes the background to swim in external view!
+	g_ShadertoyBuffer.y_center = g_fYCenter;
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
