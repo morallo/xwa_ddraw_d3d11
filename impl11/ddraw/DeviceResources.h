@@ -379,7 +379,7 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _transp1SRV;
 	ComPtr<ID3D11ShaderResourceView> _transp2SRV;
 	//ComPtr<ID3D11ShaderResourceView> _textureCubeSRV;
-	ID3D11ShaderResourceView* _textureCubeSRV;
+	ID3D11ShaderResourceView* _textureCubeSRV = nullptr;
 	// Dynamic Cockpit
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;    // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds

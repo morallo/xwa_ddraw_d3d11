@@ -2581,7 +2581,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 			// Some missions don't have a starfield (!) so we're going to have to load
 			// a default starfield for those missions just in case.
-			//if (g_bUseTextureCube)
+			if (_textureCubeSRV == nullptr)
 			{
 				CD3D11_TEXTURE2D_DESC tmpDesc = desc;
 
@@ -2603,7 +2603,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_debug("[DBG] [CUBE] Loaded DefaultStarfield.dds");
 				else
 					log_debug("[DBG] [CUBE] ERROR 0x%d, could not load DefaultStarfield.dds", res);
-
 				desc = tmpDesc;
 			}
 
