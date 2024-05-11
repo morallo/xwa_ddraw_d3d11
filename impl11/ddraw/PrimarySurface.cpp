@@ -4495,8 +4495,9 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		fShakeAmplitude = lerp(4.0f, 7.0f, timeInHyperspace);
 		iLinearTime = 2.0f + iTime;
 		g_ShadertoyBuffer.bloom_strength = g_BloomConfig.fHyperTunnelStrength;
-		// Re-set the twirl for the tunnel. This field is used in other places with different meanings
-		g_ShadertoyBuffer.twirl = 1.0f;
+		// Re-set the twirl for the tunnel later. This field is used in other places with different meanings
+		//g_ShadertoyBuffer.twirl = 1.0f;
+		g_ShadertoyBuffer.twirl = g_HyperTwirl;
 
 		if (g_config.StayInHyperspace) {
 			if (!g_bKeybExitHyperspace) {

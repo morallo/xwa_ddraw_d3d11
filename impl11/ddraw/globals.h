@@ -84,6 +84,7 @@ extern HyperspacePhaseEnum g_HyperspacePhaseFSM;
 extern short g_fLastCockpitCameraYaw, g_fLastCockpitCameraPitch;
 extern int g_lastCockpitXReference, g_lastCockpitYReference, g_lastCockpitZReference;
 extern float g_fHyperspaceTunnelSpeed, g_fHyperShakeRotationSpeed, g_fHyperLightRotationSpeed, g_fHyperspaceRand;
+extern float g_HyperTwirl;
 extern float g_fCockpitCameraYawOnFirstHyperFrame, g_fCockpitCameraPitchOnFirstHyperFrame, g_fCockpitCameraRollOnFirstHyperFrame;
 extern float g_fHyperTimeOverride; // DEBUG, remove later
 extern int g_iHyperStateOverride; // DEBUG, remove later

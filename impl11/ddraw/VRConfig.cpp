@@ -3067,7 +3067,7 @@ bool LoadHyperParams() {
 				g_fHyperspaceTunnelSpeed = fValue;
 			}
 			else if (_stricmp(param, "twirl") == 0) {
-				g_ShadertoyBuffer.twirl = fValue;
+				g_HyperTwirl = fValue;
 			}
 			else if (_stricmp(param, "debug_mode") == 0) {
 				g_bHyperDebugMode = (bool)fValue;
