@@ -4878,6 +4878,8 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BACKGROUND;
 					// Redirect all background objects to the proper layer:
 					resources->_overrideRTV = BACKGROUND_LYR;
+					if (g_bDebugDefaultStarfield)
+						goto out;
 				}
 
 				// Apply specific material properties for the current texture

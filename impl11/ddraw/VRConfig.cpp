@@ -2998,6 +2998,10 @@ bool LoadSSAOParams() {
 			{
 				g_bRenderDefaultStarfield = (bool)fValue;
 			}
+			if (_stricmp(param, "debug_default_starfield") == 0)
+			{
+				g_bDebugDefaultStarfield = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);
