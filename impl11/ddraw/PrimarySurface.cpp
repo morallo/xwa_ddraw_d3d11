@@ -5664,7 +5664,7 @@ out:
 
 void PrimarySurface::RenderDefaultBackground()
 {
-	if (!g_bRenderDefaultStarfield)
+	if (!g_bRenderDefaultStarfield || !g_bRendering3D)
 		return;
 
 	auto& resources = this->_deviceResources;
@@ -5675,6 +5675,7 @@ void PrimarySurface::RenderDefaultBackground()
 	D3D11_VIEWPORT viewport;
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	const bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
 
 	this->_deviceResources->BeginAnnotatedEvent(L"RenderDefaultBackground");
 
@@ -5695,28 +5696,51 @@ void PrimarySurface::RenderDefaultBackground()
 	// we used in PixelShaderVRGeom
 	if (g_bUseSteamVR)
 	{
-		if (bUseHeading) Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 		ViewMatrix = g_VSMatrixCB.fullViewMat; // See RenderSpeedEffect() for details
 		ViewMatrix.invert();
-		Matrix4 S = Matrix4().scale(-1, -1, 1);
-		ViewMatrix = S * ViewMatrix * S * Heading;
 
-		// ViewMatrix maps OPT-World coords to "Normal Mapping"/DX11 Viewspace coords:
-		// X+ (Rt, OPT) maps to X+
-		// Z+ (Up, OPT) maps to Y+
-		// Y- (Fd, OPT) maps to Z+
-		// In order to map from DX11 Viewspace coords to DX11 World coords, we need
-		// to invert ViewMatrix and then rename Z+ --> Y+ and Z+ --> Y-
-		Matrix4 swapScale({ 1,0,0,0,  0,0,1,0,  0,-1,0,0,  0,0,0,1 });
-		// Finally, the skymap appears to be upside down, so let's rotate it around the
+		// The skymap appears to be upside down, so let's rotate it around the
 		// Z axis to recover the regular orientation:
 		Matrix4 SkyMapRotation = Matrix4().rotateZ(180.0f);
-		ViewMatrix.invert();
-		// The damnedest thing happened here... We're rendering a single quad, and we're
-		// in this path right after we update fullViewMat, so the matrix should be valid.
-		// And yet, when the external camera is enabled in VR, I get the "swimming background"
-		// effect. But why? Is the matrix not orthonormal in external view?
-		g_ShadertoyBuffer.viewMat = SkyMapRotation * swapScale * ViewMatrix;
+
+#ifdef DISABLED
+		// TODO: Fix the Gunner Turret transform chain
+		if (bGunnerTurret)
+		{
+			Matrix4 M = Matrix4().scale(-1.0f, 1.0f, -1.0f);
+			Matrix4 swap1({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+			Matrix4 swap2({ 0,1,0,0,  1,0,0,0,  0,0,1,0,  0,0,0,1 });
+			Matrix4 GunnerMatrix;
+			Matrix4 S = Matrix4().scale(1, 1, -1);
+			if (bUseHeading) GetGunnerTurretViewMatrixSpeedEffect(&GunnerMatrix);
+			//if (bUseHeading) GunnerMatrix = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+			ViewMatrix = S * ViewMatrix * S * GunnerMatrix;
+			//g_ShadertoyBuffer.viewMat = SkyMapRotation * ViewMatrix;
+			//g_ShadertoyBuffer.viewMat = swap * GunnerMatrix * swap;
+			g_ShadertoyBuffer.viewMat = swap2 * swap1 * M * ViewMatrix * M * swap1 * swap2;
+		}
+		else
+#endif
+		{
+			if (bUseHeading) Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+			Matrix4 S = Matrix4().scale(-1, -1, 1);
+			ViewMatrix = S * ViewMatrix * S * Heading;
+
+			// ViewMatrix maps OPT-World coords to "Normal Mapping"/DX11 Viewspace coords:
+			// X+ (Rt, OPT) maps to X+
+			// Z+ (Up, OPT) maps to Y+
+			// Y- (Fd, OPT) maps to Z+
+			// In order to map from DX11 Viewspace coords to DX11 World coords, we need
+			// to invert ViewMatrix and then rename Z+ --> Y+ and Z+ --> Y-
+			Matrix4 swapScale({ 1,0,0,0,  0,0,1,0,  0,-1,0,0,  0,0,0,1 });
+
+			ViewMatrix.invert();
+			// The damnedest thing happened here... We're rendering a single quad, and we're
+			// in this path right after we update fullViewMat, so the matrix should be valid.
+			// And yet, when the external camera is enabled in VR, I get the "swimming background"
+			// effect. But why? Is the matrix not orthonormal in external view?
+			g_ShadertoyBuffer.viewMat = SkyMapRotation * swapScale * ViewMatrix;
+		}
 	}
 	else
 	{
@@ -5738,9 +5762,12 @@ void PrimarySurface::RenderDefaultBackground()
 	g_ShadertoyBuffer.VRmode = 3; // Render the background
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-	//g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
-	// Using 0.0 instead of y_center causes the background to swim in external view!
-	g_ShadertoyBuffer.y_center = g_fYCenter;
+	// This setting (y_center) interacts with g_MetricRecCBuffer.mr_y_center, even if they're
+	// actually different values used in different places (one is a VS constant, the other is
+	// a post-proc PS constant). Now that g_MetricRecCBuffer is applied on every frame, we need
+	// to go back to the old behavior where an external view needs y_center = 0, otherwise the
+	// background will "swim" again:
+	g_ShadertoyBuffer.y_center = bExternalView ? 0.0f : g_fYCenter;
 	g_ShadertoyBuffer.FOVscale = g_fFOVscale;
 
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
