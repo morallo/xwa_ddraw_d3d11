@@ -2551,7 +2551,7 @@ inline ID3D11RenderTargetView *Direct3DDevice::SelectOffscreenBuffer() {
 	ID3D11RenderTargetView* regularRTV = resources->_renderTargetView.Get();
 	// When the Tech Room is displayed, there's no deferred rendering. Everything goes directly
 	// to the offscreenBuffer:
-	if (g_bInTechRoom) return regularRTV;
+	if (g_bInTechRoom || g_bMapMode) return regularRTV;
 
 	// Since we're now splitting the background and the 3D content, we don't need the shadertoyRTV
 	// anymore. When hyperspace is activated, no external OPTs are rendered, so we still just get
@@ -6245,11 +6245,12 @@ HRESULT Direct3DDevice::BeginScene()
 
 	// BeginScene():ClearRenderTargetView: Clear all RTVs in this section (there's more blocks below)
 	if (!bTransitionToHyperspace) {
-		context->ClearRenderTargetView(this->_deviceResources->_renderTargetView, this->_deviceResources->clearColor);
+		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
 		context->ClearRenderTargetView(resources->_shadertoyRTV, resources->clearColorRGBA);
 		context->ClearRenderTargetView(resources->_transp1RTV, resources->clearColor);
 		context->ClearRenderTargetView(resources->_transp2RTV, resources->clearColor);
 		context->ClearRenderTargetView(resources->_ReticleRTV, resources->clearColorRGBA);
+		context->ClearRenderTargetView(resources->_backgroundRTV, resources->clearColor);
 
 		if (g_bUseSteamVR) {
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewR, this->_deviceResources->clearColor);
