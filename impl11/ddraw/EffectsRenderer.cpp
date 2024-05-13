@@ -2,6 +2,8 @@
 #include "EffectsRenderer.h"
 #include <algorithm>
 
+void ProcessKeyboard();
+
 // DEBUG vars
 int g_iD3DExecuteCounter = 0, g_iD3DExecuteCounterSkipHi = -1, g_iD3DExecuteCounterSkipLo = -1;
 
@@ -2265,6 +2267,8 @@ void ApplyGimbalLockFix(float elapsedTime, CraftInstance *craftInstance)
 void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 {
 	D3dRenderer::SceneBegin(deviceResources);
+
+	ProcessKeyboard();
 
 #ifdef DISABLED
 	{
@@ -8605,4 +8609,28 @@ void EffectsRenderer::RenderDeferredDrawCalls()
 
 	//RenderVRHUD();
 	_deviceResources->EndAnnotatedEvent();
+}
+
+void ProcessKeyboard()
+{
+	bool AltKey   = (GetAsyncKeyState(VK_MENU)    & 0x8000) == 0x8000;
+	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
+	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) == 0x8000;
+	bool RKey     = (GetAsyncKeyState(0x52) & 0x8000) == 0x8000;
+
+	static bool prevRKey = false;
+	// Alt Key
+	if (AltKey && !ShiftKey && !CtrlKey)
+	{
+		// Alt+R: Toggle RT Soft Shadows
+		if (RKey && !prevRKey)
+		{
+			g_bRTEnableSoftShadows = !g_bRTEnableSoftShadows;
+			log_debug("[DBG] g_bRTEnableSoftShadows: %d", g_bRTEnableSoftShadows);
+			DisplayTimedMessage(3, 0, g_bRTEnableSoftShadows ?
+				"Raytraced Soft Shadows" : "Raytraced Hard Shadows");
+		}
+	}
+
+	prevRKey = RKey;
 }

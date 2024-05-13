@@ -272,13 +272,13 @@ void RunAction(WORD *action) {
 }
 
 LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	bool AltKey   = (GetAsyncKeyState(VK_MENU)		& 0x8000) == 0x8000;
-	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL)	& 0x8000) == 0x8000;
-	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)		& 0x8000) == 0x8000;
-	bool UpKey    = (GetAsyncKeyState(VK_UP)		& 0x8000) == 0x8000;
-	bool DownKey  = (GetAsyncKeyState(VK_DOWN)		& 0x8000) == 0x8000;
-	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)		& 0x8000) == 0x8000;
-	bool RightKey = (GetAsyncKeyState(VK_RIGHT)		& 0x8000) == 0x8000;
+	bool AltKey   = (GetAsyncKeyState(VK_MENU)    & 0x8000) == 0x8000;
+	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
+	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) == 0x8000;
+	bool UpKey    = (GetAsyncKeyState(VK_UP)      & 0x8000) == 0x8000;
+	bool DownKey  = (GetAsyncKeyState(VK_DOWN)    & 0x8000) == 0x8000;
+	bool LeftKey  = (GetAsyncKeyState(VK_LEFT)    & 0x8000) == 0x8000;
+	bool RightKey = (GetAsyncKeyState(VK_RIGHT)   & 0x8000) == 0x8000;
 
 	/*
 	if (AltKey && !CtrlKey && !ShiftKey) {
@@ -1148,12 +1148,6 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				log_debug("[DBG] Raytraced Cockpit Shadows: %d", g_bRTEnabledInCockpit);
 				DisplayTimedMessage(3, 0, g_bRTEnabledInCockpit ?
 					"Raytraced Cockpit Shadows" : "Shadow Mapped Cockpit Shadows");
-				return 0;
-			case 'S':
-				g_bRTEnableSoftShadows = !g_bRTEnableSoftShadows;
-				log_debug("[DBG] g_bRTEnableSoftShadows: %d", g_bRTEnableSoftShadows);
-				DisplayTimedMessage(3, 0, g_bRTEnableSoftShadows ?
-					"Raytraced Soft Shadows" : "Raytraced Hard Shadows");
 				return 0;
 			// Ctrl+Shift+W: Toggle keyboard joystick emulation
 			case 'W':
