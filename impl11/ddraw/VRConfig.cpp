@@ -17,7 +17,7 @@
 // This value (2.0f) was determined experimentally. It provides an almost 1:1 metric reconstruction when compared with the original models
 //const float DEFAULT_FOCAL_DIST = 2.0f; 
 const float DEFAULT_METRIC_MULT = 1.0f;
-const float DEFAULT_HUD_PARALLAX = 1.7f;
+const float DEFAULT_HUD_PARALLAX = 65536.0f;
 const float DEFAULT_TEXT_PARALLAX = 0.45f;
 const float DEFAULT_FLOATING_GUI_PARALLAX = 0.450f;
 const float DEFAULT_FLOATING_OBJ_PARALLAX = -0.025f;
