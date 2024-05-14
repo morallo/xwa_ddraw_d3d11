@@ -41,7 +41,7 @@ TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 
 void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
-void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result);
+void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result, bool applyHeadingInGunnerTurret=true);
 void DisplayBox(char *name, Box box);
 Vector3 project(Vector3 pos3D, Matrix4 viewMatrix, Matrix4 projEyeMatrix /*, float *sx, float *sy */);
 inline void backProject(float sx, float sy, float rhw, Vector3 *P);
@@ -3954,7 +3954,7 @@ Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool inve
  * Get the combined Heading + Cockpit Camera View matrix that transforms from XWA's system to
  * PixelShader (Z+) coordinates.
  */
-Matrix4 GetCurrentHeadingViewMatrix() {
+Matrix4 GetCurrentHeadingViewMatrix(bool applyHeadingInGunnerTurret) {
 	Vector4 Rs, Us, Fs;
 	Matrix4 H = GetCurrentHeadingMatrix(Rs, Us, Fs, false, false);
 
@@ -3965,7 +3965,7 @@ Matrix4 GetCurrentHeadingViewMatrix() {
 		if (PlayerDataTable[*g_playerIndex].gunnerTurretActive) {
 			Matrix4 GunnerMatrix;
 			Matrix4 S = Matrix4().scale(1, 1, -1);
-			GetGunnerTurretViewMatrixSpeedEffect(&GunnerMatrix);
+			GetGunnerTurretViewMatrixSpeedEffect(&GunnerMatrix, applyHeadingInGunnerTurret);
 			ViewMatrix = S * ViewMatrix * S * GunnerMatrix;
 		}
 		else {
@@ -4224,29 +4224,37 @@ void PrimarySurface::GetHyperspaceEffectMatrix(Matrix4 *result) {
 }
 
 /*
- * Returns the gunner turret view matrix for the speed effect shaders
+ * Returns the gunner turret view matrix for the speed effect shaders.
+ * If applyHeading is true, then the ship's *inverse* heading is applied to the matrix,
+ * which makes the resulting matrix relative to the gunner turret only. This is what we need
+ * for the speed effect, because we're only interested in the relative motion between the
+ * gunner turret and the ship.
+ * If applyHeading is false, then the ship's heading is part of the resulting matrix. This is
+ * what we need if we want to transform the global lights or a textue cube into the gunner turret's
+ * frame of reference.
  */
-void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result) {
+void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result, Vector3& R, Vector3& U, Vector3& F, bool applyHeading)
+{
 	// This is what the matrix looks like when looking forward:
 	// F: [-0.257, 0.963, 0.080], R: [0.000, 0.083, -0.996], U: [-0.966, -0.256, -0.021]
-	float factor = 32768.0f;
+	static const float factor = 32768.0f;
 	/*
 	short *Turret = (short *)(0x8B94E0 + 0x21E);
 	Vector3 F(Turret[0] / factor, Turret[1] / factor, Turret[2] / factor);
 	Vector3 R(Turret[3] / factor, Turret[4] / factor, Turret[5] / factor);
 	Vector3 U(Turret[6] / factor, Turret[7] / factor, Turret[8] / factor);
 	*/
-	Vector3 F(
+	F = Vector3(
 		PlayerDataTable[*g_playerIndex].gunnerTurretF[0] / factor, 
 		PlayerDataTable[*g_playerIndex].gunnerTurretF[1] / factor, 
 		PlayerDataTable[*g_playerIndex].gunnerTurretF[2] / factor
 	);
-	Vector3 R(
+	R = Vector3(
 		PlayerDataTable[*g_playerIndex].gunnerTurretR[0] / factor,
 		PlayerDataTable[*g_playerIndex].gunnerTurretR[1] / factor,
 		PlayerDataTable[*g_playerIndex].gunnerTurretR[2] / factor
 	);
-	Vector3 U(
+	U = Vector3(
 		PlayerDataTable[*g_playerIndex].gunnerTurretU[0] / factor,
 		PlayerDataTable[*g_playerIndex].gunnerTurretU[1] / factor,
 		PlayerDataTable[*g_playerIndex].gunnerTurretU[2] / factor
@@ -4258,9 +4266,12 @@ void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result) {
 	//	R.x, R.y, R.z, U.x, U.y, U.z, F.x, F.y, F.z);
 
 	// Transform the turret's orientation into the canonical x-y-z axes:
-	R = Heading * R;
-	U = Heading * U;
-	F = Heading * F;
+	if (applyHeading)
+	{
+		R = Heading * R;
+		U = Heading * U;
+		F = Heading * F;
+	}
 	// At this point the original [R, U, F] should always map to [0,0,1], [-1,0,0], [0,1,0] and this should only
 	// change if the turret moves
 	//log_debug("[DBG] [GUN] (2) R: [%0.3f, %0.3f, %0.3f], U: [%0.3f, %0.3f, %0.3f], F: [%0.3f, %0.3f, %0.3f]",
@@ -4275,6 +4286,15 @@ void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result) {
 	Matrix4 rotX;
 	rotX.rotateX(180.0f);
 	*result = rotX * viewMat;
+}
+
+/*
+* Returns the gunner turret view matrix for the speed effect shaders
+*/
+void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 *result, bool applyHeadingInGunnerTurret)
+{
+	Vector3 R, U, F;
+	GetGunnerTurretViewMatrixSpeedEffect(result, R, U, F, applyHeadingInGunnerTurret);
 }
 
 /*
@@ -5703,24 +5723,13 @@ void PrimarySurface::RenderDefaultBackground()
 		// Z axis to recover the regular orientation:
 		Matrix4 SkyMapRotation = Matrix4().rotateZ(180.0f);
 
-#ifdef DISABLED
-		// TODO: Fix the Gunner Turret transform chain
 		if (bGunnerTurret)
 		{
-			Matrix4 M = Matrix4().scale(-1.0f, 1.0f, -1.0f);
-			Matrix4 swap1({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
-			Matrix4 swap2({ 0,1,0,0,  1,0,0,0,  0,0,1,0,  0,0,0,1 });
-			Matrix4 GunnerMatrix;
-			Matrix4 S = Matrix4().scale(1, 1, -1);
-			if (bUseHeading) GetGunnerTurretViewMatrixSpeedEffect(&GunnerMatrix);
-			//if (bUseHeading) GunnerMatrix = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
-			ViewMatrix = S * ViewMatrix * S * GunnerMatrix;
-			//g_ShadertoyBuffer.viewMat = SkyMapRotation * ViewMatrix;
-			//g_ShadertoyBuffer.viewMat = swap * GunnerMatrix * swap;
-			g_ShadertoyBuffer.viewMat = swap2 * swap1 * M * ViewMatrix * M * swap1 * swap2;
+			Heading = GetCurrentHeadingViewMatrix(false);
+			Heading.invert();
+			g_ShadertoyBuffer.viewMat = Heading;
 		}
 		else
-#endif
 		{
 			if (bUseHeading) Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 			Matrix4 S = Matrix4().scale(-1, -1, 1);

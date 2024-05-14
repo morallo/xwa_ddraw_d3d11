@@ -10,7 +10,7 @@ class Direct3DTexture;
 
 void InitHeadingMatrix();
 Matrix4 GetCurrentHeadingMatrix(Vector4 &Rs, Vector4 &Us, Vector4 &Fs, bool invert, bool debug);
-Matrix4 GetCurrentHeadingViewMatrix();
+Matrix4 GetCurrentHeadingViewMatrix(bool applyHeadingInGunnerTurret=true);
 void UpdateViewMatrix();
 
 class PrimarySurface : public IDirectDrawSurface

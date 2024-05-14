@@ -6008,7 +6008,7 @@ HRESULT Direct3DDevice::BeginScene()
 	// Update the hi-res timer
 	g_HiResTimer.GetElapsedTime();
 
-	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix();
+	g_CurrentHeadingViewMatrix = GetCurrentHeadingViewMatrix(true);
 	UpdateDCHologramState();
 
 	// Update the global game event
