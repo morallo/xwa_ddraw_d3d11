@@ -2079,12 +2079,14 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 	Vector4 light;
 	int i;
 
+	const bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
 	// XWA's world coord system *for this case*:
 	// X+: Right
 	// Y+: Forwards
 	// Z+: Up
 	Vector4 Rs, Us, Fs;
-	Matrix4 H = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, false, false); // SetLights()
+	Matrix4 Heading;
+	Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, false, false); // SetLights()
 	// I tried reading the 3x3 matrix from CockpitLook before the roll inertia was applied and putting
 	// that in SharedMem in order to fix "dancing RT shadows". Didn't work. Still, this code might be
 	// useful later.
@@ -2205,12 +2207,52 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 
 			if (g_bUseSteamVR)
 			{
-				light = Vinv * swapFlip * H * xwaLight;
+				light = Vinv * swapFlip * Heading * xwaLight;
 			}
 			else
 			{
-				light = g_CurrentHeadingViewMatrix * xwaLight;
-				light.z = -light.z; // Once more we invert Z because normal mapping has Z+ pointing to the camera
+				// Non-VR path:
+				if (!bGunnerTurret)
+				{
+					// Once more we invert Z because normal mapping has Z+ pointing to the camera:
+					const static Matrix4 zNeg = Matrix4().scale(1, 1, -1);
+					light = zNeg * g_CurrentHeadingViewMatrix * xwaLight;
+
+					// If we look at the elements of zNeg * g_CurrentHeadingViewMatrix, we can create
+					// a gunner turret matrix below that has the same elements. That should fix the
+					// lighting in that situation.
+					// And just for the record, from inspecting this matrix the global coord sys looks like this:
+					// X- --> Right
+					// Y- --> Up
+					// Z- --> Forward
+					// And the matrix stores the [Forward, Left, Down] vectors.
+					/*Matrix4 T = zNeg * g_CurrentHeadingViewMatrix;
+					const float *m = T.get();
+					log_debug("[DBG] A: %0.3f, %0.3f, %0.3f, B: %0.3f, %0.3f, %0.3f, C: %0.3f, %0.3f, %0.3f",
+						m[0], m[4], m[8],
+						m[1], m[5], m[9],
+						m[2], m[6], m[10]);*/
+				}
+				else
+				{
+					const static Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+					Matrix4 ViewMatrix;
+					// This section is copied from the RenderDefaultBackground() method:
+					Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+					GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
+					ViewMatrix = swap * Heading * swap * ViewMatrix;
+					// This section swaps and flips the elements to get the same matrix we
+					// see in the regular cockpit path.
+					ViewMatrix = swap * ViewMatrix;
+					ViewMatrix.transpose();
+					ViewMatrix = Matrix4().scale(1, 1, -1) * ViewMatrix;
+					/*const float *m = ViewMatrix.get();
+					log_debug("[DBG] A: %0.3f, %0.3f, %0.3f, B: %0.3f, %0.3f, %0.3f, C: %0.3f, %0.3f, %0.3f",
+						m[0], m[4], m[8],
+						m[1], m[5], m[9],
+						m[2], m[6], m[10]);*/
+					light = ViewMatrix * xwaLight;
+				}
 			}
 
 			// Forward: -Z, Up: +Y, Right: +X
