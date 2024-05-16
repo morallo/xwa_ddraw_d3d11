@@ -2207,7 +2207,28 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 
 			if (g_bUseSteamVR)
 			{
-				light = Vinv * swapFlip * Heading * xwaLight;
+				if (!bGunnerTurret)
+				{
+					light = Vinv * swapFlip * Heading * xwaLight;
+					/*Matrix4 T = Vinv * swapFlip * Heading;
+					const float *m = T.get();
+					log_debug("[DBG] C::A: %0.3f, %0.3f, %0.3f, B: %0.3f, %0.3f, %0.3f, C: %0.3f, %0.3f, %0.3f",
+						m[0], m[4], m[8],
+						m[1], m[5], m[9],
+						m[2], m[6], m[10]);*/
+				}
+				else
+				{
+					Heading = GetCurrentHeadingViewMatrix(false);
+					Heading = Matrix4().scale(1, 1, -1) * Heading;
+
+					/*const float *m = Heading.get();
+					log_debug("[DBG] T::A: %0.3f, %0.3f, %0.3f, B: %0.3f, %0.3f, %0.3f, C: %0.3f, %0.3f, %0.3f",
+						m[0], m[4], m[8],
+						m[1], m[5], m[9],
+						m[2], m[6], m[10]);*/
+					light = Heading * xwaLight;
+				}
 			}
 			else
 			{
