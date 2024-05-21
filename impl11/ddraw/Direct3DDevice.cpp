@@ -5275,6 +5275,8 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.rand1 = 1.0f;
 				}
 
+				// [XWA-MAP-RENDER] The map icons are rendered in this path.
+
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
 				// processing needed for VR.
 				if (!g_bEnableVR) {

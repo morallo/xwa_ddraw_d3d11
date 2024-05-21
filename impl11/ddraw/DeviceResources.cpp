@@ -5827,6 +5827,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		UINT stride = sizeof(MainVertex);
 		UINT offset = 0;
 
+		// [XWA-MAP-RENDER] This path renders the square grid and the vertical lines when the map is displayed.
+
 		// RenderMain() will render the sub-component CMD *iff* the hook_d3d is disabled.
 		if (bRenderToDC) {
 			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetViewDynCockpit.GetAddressOf(), NULL);
