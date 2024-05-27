@@ -8229,8 +8229,10 @@ void EffectsRenderer::RenderHangarShadowMap()
 	// Make hangar shadows darker, as in the original version
 	g_ShadowMapVSCBuffer.sm_black_levels[1] = 0.05f;
 
-	// Adjust the range for the shadow maps. The first light is only for the cockpit:
-	g_ShadowMapVSCBuffer.sm_minZ[0] = 0.0f;
+	// Adjust the range for the shadow maps. The first light is only for the cockpit. If we are in
+	// external view, then we need to invalidate the light or a black band will appear near the
+	// bottom of the screen
+	g_ShadowMapVSCBuffer.sm_minZ[0] = _bExternalCamera ? 65535.0f /* invalidate */ : 0.0f;
 	g_ShadowMapVSCBuffer.sm_maxZ[0] = DEFAULT_COCKPIT_SHADOWMAP_MAX_Z;
 	// The second light is for the hangar:
 	g_ShadowMapVSCBuffer.sm_minZ[1] = _bExternalCamera ? 0.0f : DEFAULT_COCKPIT_SHADOWMAP_MAX_Z - DEFAULT_COCKPIT_SHADOWMAP_MAX_Z / 2.0f;
