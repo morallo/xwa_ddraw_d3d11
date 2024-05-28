@@ -2027,7 +2027,12 @@ Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, float scaleF
 	MobileObjectEntry* mobileObject = NULL;
 	Matrix4 H;
 
-	if (GetPlayerCraftInstanceSafe(&object, &mobileObject) != NULL)
+	// When Alt+U is pressed, the camera switches to CraftIndex below.
+	// During regular flight, CraftIndex == *g_playerIndex, so we can just
+	// use CraftIndex in both cases and use its corresponding mobileObject entry.
+	const int craftIndex = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
+
+	if (GetCraftInstanceSafe(craftIndex, &object, &mobileObject) != NULL)
 	{
 		Rs.x = mobileObject->transformMatrix.Right_X / 32768.0f;
 		Rs.y = mobileObject->transformMatrix.Right_Y / 32768.0f;
@@ -5766,11 +5771,12 @@ void PrimarySurface::RenderDefaultBackground()
 	renderer->SaveContext();
 
 	const int cameraObjIdx = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
-	const int objectIndex = PlayerDataTable[*g_playerIndex].objectIndex;
-	// If the external camea is enabled and objectIndex != cameraObjIdx, then the camera is
+	//const int objectIndex  = PlayerDataTable[*g_playerIndex].objectIndex;
+	// If the external camera is enabled and objectIndex != cameraObjIdx, then the camera is
 	// trained on a ship that is not controlled by the player. In that case, the heading of
 	// the player's ship should not affect the current view.
-	const bool bUseHeading = !bExternalView || (cameraObjIdx == objectIndex);
+	//const bool bUseHeading = !bExternalView || (cameraObjIdx == objectIndex);
+	const bool bUseHeading = true;
 
 	Vector4 Rs, Us, Fs;
 	Matrix4 Heading, ViewMatrix;
