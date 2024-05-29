@@ -25,6 +25,7 @@ bool g_bUseTextureCube = false;
 bool g_bRenderDefaultStarfield = true;
 bool g_bDebugDefaultStarfield = false;
 bool g_bReplaceBackdrops = false;
+bool g_bDefaultStarfieldRendered = false; // Reset on every frame
 const bool DEFAULT_INTERLEAVED_REPROJECTION = false;
 const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE = false;
 bool g_bInterleavedReprojection = DEFAULT_INTERLEAVED_REPROJECTION;

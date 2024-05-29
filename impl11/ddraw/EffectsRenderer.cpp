@@ -6267,6 +6267,15 @@ void EffectsRenderer::RenderScene(bool bBindTranspLyr1)
 	auto& resources = _deviceResources;
 	auto& context = _deviceResources->_d3dDeviceContext;
 
+	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
+	{
+		g_externalCameraState.craftIndex = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
+		if (PlayerDataTable[*g_playerIndex].Camera.ExternalCamera) {
+			g_externalCameraState.yaw   = -(float)PlayerDataTable[*g_playerIndex].Camera.Yaw   / 65536.0f * 360.0f;
+			g_externalCameraState.pitch =  (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
+		}
+	}
+
 #ifdef DISABLED
 	if (g_iD3DExecuteCounter == 0 && !g_bInTechRoom)
 	{

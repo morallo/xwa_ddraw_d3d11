@@ -36,6 +36,9 @@ extern LBVH* g_ACTLASTree;
 extern float g_f0x08C1600, g_f0x0686ACC;
 extern float g_f0x080ACF8, g_f0x07B33C0, g_f0x064D1AC;
 
+// Set to true when rendering the default starfield during Flip()
+static bool s_bUseExternalCameraState = false;
+
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 
@@ -2030,7 +2033,13 @@ Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, float scaleF
 	// When Alt+U is pressed, the camera switches to CraftIndex below.
 	// During regular flight, CraftIndex == *g_playerIndex, so we can just
 	// use CraftIndex in both cases and use its corresponding mobileObject entry.
-	const int craftIndex = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
+	// In some cases (if Direct3DDevice::Execute() is never called in a frame,
+	// this happens when Ctrl+End is used to hide the HUD and there's no backdrops
+	// visible), PlayerDataTable may not provide the correct external camera parameters.
+	// In that case, s_bUseExternalCameraState should be set so that we can use the captured
+	// camera state instead.
+	const int craftIndex = s_bUseExternalCameraState ?
+		g_externalCameraState.craftIndex : PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
 
 	if (GetCraftInstanceSafe(craftIndex, &object, &mobileObject) != NULL)
 	{
@@ -4101,12 +4110,18 @@ void GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert=true)
 		float yaw, pitch;
 
 		if (PlayerDataTable[*g_playerIndex].Camera.ExternalCamera) {
-			yaw = -(float)PlayerDataTable[*g_playerIndex].Camera.Yaw / 65536.0f * 360.0f;
-			pitch = (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
+			yaw   = -(float)PlayerDataTable[*g_playerIndex].Camera.Yaw   / 65536.0f * 360.0f;
+			pitch =  (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
+
+			if (s_bUseExternalCameraState)
+			{
+				yaw   = g_externalCameraState.yaw;
+				pitch = g_externalCameraState.pitch;
+			}
 		}
 		else {
-			yaw = -(float)PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f;
-			pitch = (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
+			yaw   = -(float)PlayerDataTable[*g_playerIndex].MousePositionX / 65536.0f * 360.0f;
+			pitch =  (float)PlayerDataTable[*g_playerIndex].MousePositionY / 65536.0f * 360.0f;
 		}
 
 		Matrix4 rotMatrixYaw, rotMatrixPitch, rotMatrixRoll;
@@ -5752,7 +5767,7 @@ out:
 
 void PrimarySurface::RenderDefaultBackground()
 {
-	if (!g_bRenderDefaultStarfield || !g_bRendering3D)
+	if (!g_bRenderDefaultStarfield || !g_bRendering3D || g_bDefaultStarfieldRendered)
 		return;
 
 	auto& resources = this->_deviceResources;
@@ -5897,7 +5912,6 @@ void PrimarySurface::RenderDefaultBackground()
 
 		// These are the same settings we used previously when rendering the HUD during a draw() call.
 		// We use these settings to place the HUD at different depths
-		g_VSCBuffer.z_override = g_fHUDDepth;
 		g_VSCBuffer.z_override = 65536.0f;
 		//if (g_bFloatingAimingHUD)
 		//	g_VSCBuffer.bPreventTransform = 1.0f;
@@ -5939,6 +5953,8 @@ void PrimarySurface::RenderDefaultBackground()
 				L"C:\\Temp\\_defaultBackground.jpg");
 		}
 	}
+
+	g_bDefaultStarfieldRendered = true;
 
 	// Restore previous rendertarget, etc
 	renderer->RestoreContext();
@@ -10438,6 +10454,13 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
+			if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
+			{
+				s_bUseExternalCameraState = true;
+				resources->_primarySurface->RenderDefaultBackground();
+				s_bUseExternalCameraState = false;
+			}
+
 			// Overwrite the backdrop with a texture cube. Warning: This obviously interferes with the
 			// SkyCylinder below. Use one or the other!
 #ifdef DISABLED
@@ -11137,7 +11160,7 @@ HRESULT PrimarySurface::Flip(
 				//log_debug("[DBG] hud_color, border: 0x%x, inside: 0x%x", *g_XwaFlightHudBorderColor, *g_XwaFlightHudColor);
 			}
 
-			// RESET CONTROL VARS, FRAME COUNTERS, CLEAR VECTORS, ETC
+			// RESET CONTROL VARS, FRAME COUNTERS, CLEAR VECTORS, RESET COUNTERS, ETC
 			{
 				g_iDrawCounter = 0; // g_iExecBufCounter = 0;
 				g_iNonZBufferCounter = 0; g_iDrawCounterAfterHUD = -1;
@@ -11172,6 +11195,7 @@ HRESULT PrimarySurface::Flip(
 				g_iNumSunCentroids = 0; // Reset the number of sun centroids seen in this frame
 				g_iReactorExplosionCount = 0;
 				g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
+				g_bDefaultStarfieldRendered = false;
 
 				if (*g_playerInHangar && !g_bPrevPlayerInHangar)
 				{

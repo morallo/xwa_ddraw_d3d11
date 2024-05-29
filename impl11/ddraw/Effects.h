@@ -20,6 +20,14 @@ typedef enum {
 	SSO_PBR,
 } SSAOTypeEnum;
 
+struct ExternalCameraState
+{
+	int craftIndex;
+	float yaw, pitch;
+	bool defaultBackgroundRendered;
+};
+extern ExternalCameraState g_externalCameraState;
+
 // In order to blend the background with the hyperspace effect when exiting, we need to extend the
 // effect for a few more frames. To do that, we need to track the current state of the effect and
 // that's why we need a small state machine:

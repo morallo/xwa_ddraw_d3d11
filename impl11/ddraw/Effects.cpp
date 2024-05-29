@@ -14,6 +14,8 @@ OPTMeshTransformCBuffer g_OPTMeshTransformCB;
 RTConstantsBuffer       g_RTConstantsBuffer;
 VRGeometryCBuffer       g_VRGeometryCBuffer;
 
+ExternalCameraState     g_externalCameraState;
+
 /*
  * Used to store a list of textures for fast lookup. For instance, all suns must
  * have their associated lights reset after jumping through hyperspace; and all
