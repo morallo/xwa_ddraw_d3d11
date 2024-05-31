@@ -9647,11 +9647,15 @@ void PrimarySurface::RenderRTShadowMask()
 	context->ClearRenderTargetView(resources->_rtShadowMaskRTV, bgColor);
 
 	// I need to Resolve by Resolves... I'm pretty sure some of these are redundant:
-	context->ResolveSubresource(resources->_normBuf, 0, resources->_normBufMSAA, 0, AO_DEPTH_BUFFER_FORMAT);
+	if (resources->_useMultisampling) {
+		context->ResolveSubresource(resources->_normBuf, 0, resources->_normBufMSAA, 0, AO_DEPTH_BUFFER_FORMAT);
+	}
 	context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
 	if (g_bUseSteamVR) {
-		context->ResolveSubresource(resources->_normBuf, D3D11CalcSubresource(0, 1, 1),
-			resources->_normBufMSAA, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+		if (resources->_useMultisampling) {
+			context->ResolveSubresource(resources->_normBuf, D3D11CalcSubresource(0, 1, 1),
+				resources->_normBufMSAA, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+		}
 		context->ResolveSubresource(resources->_depthBufAsInput, D3D11CalcSubresource(0, 1, 1),
 			resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 	}
