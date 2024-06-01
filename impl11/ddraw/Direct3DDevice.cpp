@@ -3074,12 +3074,6 @@ HRESULT Direct3DDevice::Execute(
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
 		UpdateViewMatrix(); // g_ExecuteCount == 1 && !g_bInTechRoom
-
-		if (!g_bMapMode)
-		{
-			//RenderSkyBox();
-			resources->_primarySurface->RenderDefaultBackground();
-		}
 	}
 
 	// Render images
@@ -6344,6 +6338,18 @@ HRESULT Direct3DDevice::BeginScene()
 		for (int i = 0; i < length; i++)
 		{
 			buffer[i] = 0x200000;
+		}
+	}
+
+	// Capture the state of the external camera. We'll use this information to render the default
+	// starfield at the end of the frame.
+	{
+		g_externalCameraState.craftIndex = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
+		g_externalCameraState.externalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+		if (g_externalCameraState.externalCamera)
+		{
+			g_externalCameraState.yaw   = -(float)PlayerDataTable[*g_playerIndex].Camera.Yaw   / 65536.0f * 360.0f;
+			g_externalCameraState.pitch =  (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
 		}
 	}
 

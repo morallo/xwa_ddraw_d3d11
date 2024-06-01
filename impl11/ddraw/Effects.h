@@ -25,6 +25,7 @@ struct ExternalCameraState
 	int craftIndex;
 	float yaw, pitch;
 	bool defaultBackgroundRendered;
+	bool externalCamera;
 };
 extern ExternalCameraState g_externalCameraState;
 
