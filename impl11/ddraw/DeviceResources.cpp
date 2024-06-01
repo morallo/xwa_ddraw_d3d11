@@ -1936,15 +1936,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			this->_offscreenBufferAsInputBloomMaskR.Release();
 			this->_offscreenAsInputBloomMaskSRV_R.Release();
 			this->_renderTargetViewBloomMaskR.Release();*/
-			this->_bloomOutput1R.Release();
-			this->_bloomOutput2R.Release();
-			this->_bloomOutputSumR.Release();
-			this->_renderTargetViewBloom1R.Release();
-			this->_renderTargetViewBloom2R.Release();
-			this->_renderTargetViewBloomSumR.Release();
-			this->_bloomOutput1SRV_R.Release();
-			this->_bloomOutput2SRV_R.Release();
-			this->_bloomOutputSumSRV_R.Release();
+			//this->_bloomOutput1R.Release();
+			//this->_bloomOutput2R.Release();
+			//this->_bloomOutputSumR.Release();
+			//this->_renderTargetViewBloom1R.Release();
+			//this->_renderTargetViewBloom2R.Release();
+			//this->_renderTargetViewBloomSumR.Release();
+			//this->_bloomOutput1SRV_R.Release();
+			//this->_bloomOutput2SRV_R.Release();
+			//this->_bloomOutputSumSRV_R.Release();
 		}
 	}
 
@@ -2735,46 +2735,46 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _bloomOutputSum with combined flags\n");
 				}
 
-				if (g_bUseSteamVR) {
-					step = "_bloomOutput1R";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1R);
-					if (FAILED(hr)) {
-						log_err("Failed to create _bloomOutput1R\n");
-						log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
-					else {
-						log_err("Successfully created _bloomOutput1R with combined flags\n");
-					}
+				//if (g_bUseSteamVR) {
+				//	step = "_bloomOutput1R";
+				//	hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput1R);
+				//	if (FAILED(hr)) {
+				//		log_err("Failed to create _bloomOutput1R\n");
+				//		log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+				//		log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				//		log_err_desc(step, hWnd, hr, desc);
+				//		goto out;
+				//	}
+				//	else {
+				//		log_err("Successfully created _bloomOutput1R with combined flags\n");
+				//	}
 
-					step = "_bloomOutput2R";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput2R);
-					if (FAILED(hr)) {
-						log_err("Failed to create _bloomOutput2R\n");
-						log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
-					else {
-						log_err("Successfully created _bloomOutput2R with combined flags\n");
-					}
+				//	step = "_bloomOutput2R";
+				//	hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutput2R);
+				//	if (FAILED(hr)) {
+				//		log_err("Failed to create _bloomOutput2R\n");
+				//		log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+				//		log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				//		log_err_desc(step, hWnd, hr, desc);
+				//		goto out;
+				//	}
+				//	else {
+				//		log_err("Successfully created _bloomOutput2R with combined flags\n");
+				//	}
 
-					step = "_bloomOutputSumR";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutputSumR);
-					if (FAILED(hr)) {
-						log_err("Failed to create _bloomOutputSumR\n");
-						log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
-					else {
-						log_err("Successfully created _bloomOutputSumR with combined flags\n");
-					}
-				}
+				//	step = "_bloomOutputSumR";
+				//	hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_bloomOutputSumR);
+				//	if (FAILED(hr)) {
+				//		log_err("Failed to create _bloomOutputSumR\n");
+				//		log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+				//		log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				//		log_err_desc(step, hWnd, hr, desc);
+				//		goto out;
+				//	}
+				//	else {
+				//		log_err("Successfully created _bloomOutputSumR with combined flags\n");
+				//	}
+				//}
 
 				// Restore the previous bind flags, just in case there is a dependency on these later on
 				desc.BindFlags = curFlags;
@@ -3230,17 +3230,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR)
-				{
-					step = "_offscreenAsInputBloomSRV_R";
-					hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
-						&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-						goto out;
-					}
-				}
+				//if (g_bUseSteamVR)
+				//{
+				//	step = "_offscreenAsInputBloomSRV_R";
+				//	hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenBufferAsInputBloomMaskR,
+				//		&shaderResourceViewDesc, &this->_offscreenAsInputBloomMaskSRV_R);
+				//	if (FAILED(hr)) {
+				//		log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				//		log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				//		goto out;
+				//	}
+				//}
 
 				step = "_bloomOutput1SRV";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1,
@@ -3274,36 +3274,36 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR) {
-					shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
+				//if (g_bUseSteamVR) {
+				//	shaderResourceViewDesc.Format = BLOOM_BUFFER_FORMAT;
 
-					step = "_bloomOutput1SRV_R";
-					hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1R,
-						&shaderResourceViewDesc, &this->_bloomOutput1SRV_R);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-						goto out;
-					}
+				//	step = "_bloomOutput1SRV_R";
+				//	hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput1R,
+				//		&shaderResourceViewDesc, &this->_bloomOutput1SRV_R);
+				//	if (FAILED(hr)) {
+				//		log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				//		log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				//		goto out;
+				//	}
 
-					step = "_bloomOutput2SRV_R";
-					hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput2R,
-						&shaderResourceViewDesc, &this->_bloomOutput2SRV_R);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-						goto out;
-					}
+				//	step = "_bloomOutput2SRV_R";
+				//	hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutput2R,
+				//		&shaderResourceViewDesc, &this->_bloomOutput2SRV_R);
+				//	if (FAILED(hr)) {
+				//		log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				//		log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				//		goto out;
+				//	}
 
-					step = "_bloomOutputSumSRV_R";
-					hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutputSumR,
-						&shaderResourceViewDesc, &this->_bloomOutputSumSRV_R);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-						goto out;
-					}
-				}
+				//	step = "_bloomOutputSumSRV_R";
+				//	hr = this->_d3dDevice->CreateShaderResourceView(this->_bloomOutputSumR,
+				//		&shaderResourceViewDesc, &this->_bloomOutputSumSRV_R);
+				//	if (FAILED(hr)) {
+				//		log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+				//		log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+				//		goto out;
+				//	}
+				//}
 				shaderResourceViewDesc.Format = oldFormat;
 			}
 
@@ -3737,11 +3737,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr)) goto out;
 
 			if (g_bUseSteamVR) {
-				step = "_renderTargetViewBloomMaskR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR,
-					&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BLOOM_BUFFER_FORMAT),
-					&this->_renderTargetViewBloomMaskR);
-				if (FAILED(hr)) goto out;
+				//step = "_renderTargetViewBloomMaskR";
+				//hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMaskR,
+				//	&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BLOOM_BUFFER_FORMAT),
+				//	&this->_renderTargetViewBloomMaskR);
+				//if (FAILED(hr)) goto out;
 
 				//step = "_renderTargetViewEmissionMaskR";
 				//hr = this->_d3dDevice->CreateRenderTargetView(this->_ssEmissionMaskR, &renderTargetViewDescNoMSAA, &this->_renderTargetViewEmissionMaskR);
@@ -3771,19 +3771,19 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSum, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloomSum);
 			if (FAILED(hr)) goto out;
 
-			if (g_bUseSteamVR) {
-				step = "_renderTargetViewBloom1R";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom1R);
-				if (FAILED(hr)) goto out;
+			//if (g_bUseSteamVR) {
+			//	step = "_renderTargetViewBloom1R";
+			//	hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput1R, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom1R);
+			//	if (FAILED(hr)) goto out;
 
-				step = "_renderTargetViewBloom2R";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2R, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom2R);
-				if (FAILED(hr)) goto out;
+			//	step = "_renderTargetViewBloom2R";
+			//	hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutput2R, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloom2R);
+			//	if (FAILED(hr)) goto out;
 
-				step = "_renderTargetViewBloomSumR";
-				hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloomSumR);
-				if (FAILED(hr)) goto out;
-			}
+			//	step = "_renderTargetViewBloomSumR";
+			//	hr = this->_d3dDevice->CreateRenderTargetView(this->_bloomOutputSumR, &GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloomSumR);
+			//	if (FAILED(hr)) goto out;
+			//}
 		}
 
 		// SSAO RTVs

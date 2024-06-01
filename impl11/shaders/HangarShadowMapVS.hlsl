@@ -6,17 +6,17 @@ Buffer<float3> g_vertices : register(t0);
 
 struct VertexShaderInput
 {
-	int4 index : POSITION;
+	float4 index : POSITION;
 };
 
-struct PixelShaderInput
+struct SHADOW_PS_INPUT
 {
 	float4 pos : SV_POSITION;
 };
 
-PixelShaderInput main(VertexShaderInput input)
+SHADOW_PS_INPUT main(VertexShaderInput input)
 {
-	PixelShaderInput output;
+	SHADOW_PS_INPUT output;
 
 	float3 v = g_vertices[input.index.x];
 	// OPT (object space) to viewspace transform:

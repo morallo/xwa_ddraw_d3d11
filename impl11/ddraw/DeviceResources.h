@@ -268,10 +268,10 @@ public:
 	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
 	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
 	ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator
-	ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
-	ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
-	// Ambient Occlusion
+	//ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
+	//ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
+	//ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
+	//// Ambient Occlusion
 	ComPtr<ID3D11Texture2D> _depthBuf;
 	ComPtr<ID3D11Texture2D> _depthBufR;
 	ComPtr<ID3D11Texture2D> _depthBufAsInput;
