@@ -8272,7 +8272,11 @@ void EffectsRenderer::RenderHangarShadowMap()
 	// Init the Viewport. This viewport has the dimensions of the shadowmap texture
 	_deviceResources->InitViewport(&g_ShadowMapping.ViewPort);
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	_deviceResources->InitInputLayout(resources->_shadowMapInputLayout);
+	// When rendering the cockpit shadow map, we use an externally-generated OBJ file.
+	// That OBJ file does not have indexed geometry, so we use resources->_shadowMapInputLayout.
+	// Here, however, we use the OPT geometry in the hangar to render the shadow map.
+	// The OPT geometry is indexed, so we need to use _inputLayout.
+	_deviceResources->InitInputLayout(_inputLayout);
 
 	_deviceResources->InitVertexShader(resources->_hangarShadowMapVS);
 	_deviceResources->InitPixelShader(resources->_shadowMapPS);

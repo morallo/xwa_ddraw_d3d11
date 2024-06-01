@@ -6,7 +6,7 @@ Buffer<float3> g_vertices : register(t0);
 
 struct VertexShaderInput
 {
-	float4 index : POSITION;
+	uint4 index : POSITION;
 };
 
 struct SHADOW_PS_INPUT
