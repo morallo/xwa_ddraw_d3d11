@@ -2038,8 +2038,11 @@ Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, float scaleF
 	// visible), PlayerDataTable may not provide the correct external camera parameters.
 	// In that case, s_bUseExternalCameraState should be set so that we can use the captured
 	// camera state instead.
-	const int craftIndex = s_bUseExternalCameraState ?
-		g_externalCameraState.craftIndex : PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
+	int16_t craftIndex = s_bUseExternalCameraState ?
+		g_externalCameraState.craftIndex :
+		(g_playerIndex != nullptr ? PlayerDataTable[*g_playerIndex].Camera.CraftIndex : 0);
+	// craftIndex can be -1 (65536) in the hangar and probably in other circumstances too:
+	if (craftIndex < 0) craftIndex = 0;
 
 	if (GetCraftInstanceSafe(craftIndex, &object, &mobileObject) != NULL)
 	{

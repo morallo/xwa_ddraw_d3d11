@@ -981,11 +981,11 @@ CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry** object, MobileObjectEntr
 	return craftInstance;
 }
 
-CraftInstance* GetCraftInstanceSafe(int objectIndex, ObjectEntry** object, MobileObjectEntry **mobileObject)
+CraftInstance* GetCraftInstanceSafe(int16_t objectIndex, ObjectEntry** object, MobileObjectEntry **mobileObject)
 {
 	// I've seen the game crash when trying to access the CraftInstance table in the
 	// first few frames of a new mission. Let's add this test to prevent this crash.
-	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return NULL;
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME || objectIndex < 0) return NULL;
 
 	// Fetch the pointer to the current CraftInstance
 	if (objectIndex < 0) return NULL;
