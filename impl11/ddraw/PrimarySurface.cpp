@@ -1664,8 +1664,8 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
 	// next pass:
 	context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
+	//if (g_bUseSteamVR)
+	//	context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
 
 	// DEBUG
 	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
@@ -1686,8 +1686,8 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	// Copy _bloomOutput1 over _bloomOutputSum
 	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
-	if (g_bUseSteamVR)
-		context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
+	//if (g_bUseSteamVR)
+	//	context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
 	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
