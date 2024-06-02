@@ -3061,6 +3061,8 @@ HRESULT Direct3DDevice::Execute(
 		}
 	}
 
+	// This block calls UpdateViewMatrix(). It was moved to BeginScene().
+#ifdef DISABLED
 	/*
 	 * When the game is displaying 3D geometry in the tech room, we have a hybrid situation.
 	 * First, the game will call UpdateViewMatrix() at the beginning of 2D content, like the Concourse
@@ -3073,8 +3075,9 @@ HRESULT Direct3DDevice::Execute(
 		// Synchronization point to wait for vsync before we start to send work to the GPU
 		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
 		// (that's what happens if we sync after Submit+Present)
-		UpdateViewMatrix(); // g_ExecuteCount == 1 && !g_bInTechRoom
+		UpdateViewMatrix(); // DISABLED g_ExecuteCount == 1 && !g_bInTechRoom
 	}
+#endif
 
 	// Render images
 	if (SUCCEEDED(hr))
@@ -6339,6 +6342,21 @@ HRESULT Direct3DDevice::BeginScene()
 		{
 			buffer[i] = 0x200000;
 		}
+	}
+
+	/*
+	* When the game is displaying 3D geometry in the tech room, we have a hybrid situation.
+	* First, the game will call UpdateViewMatrix() at the beginning of 2D content, like the Concourse
+	* and 2D menus, but if the Tech Room is displayed, then it will come down this path to render 3D
+	* content before going back to the 2D path and executing the final Flip().
+	* In other words, when the Tech Room is displayed, we already called UpdateViewMatrix(), so we
+	* don't need to call it again here.
+	*/
+	if (!g_bInTechRoom) {
+		// Synchronization point to wait for vsync before we start to send work to the GPU
+		// This avoids blocking the CPU while the compositor waits for the pixel shader effects to run in the GPU
+		// (that's what happens if we sync after Submit+Present)
+		UpdateViewMatrix(); // BeginScene(), !g_bInTechRoom
 	}
 
 	// Capture the state of the external camera. We'll use this information to render the default
