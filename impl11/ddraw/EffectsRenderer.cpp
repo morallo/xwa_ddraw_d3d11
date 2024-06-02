@@ -8115,7 +8115,7 @@ void EffectsRenderer::RenderCockpitShadowMap()
 	// Init the Viewport. This viewport has the dimensions of the shadowmap texture
 	_deviceResources->InitViewport(&g_ShadowMapping.ViewPort);
 	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitInputLayout(resources->_shadowMapInputLayout);
 
 	_deviceResources->InitVertexShader(resources->_shadowMapVS);
 	_deviceResources->InitPixelShader(resources->_shadowMapPS);
