@@ -37,7 +37,7 @@ extern float g_f0x08C1600, g_f0x0686ACC;
 extern float g_f0x080ACF8, g_f0x07B33C0, g_f0x064D1AC;
 
 // Set to true when rendering the default starfield during Flip()
-static bool s_bUseExternalCameraState = false;
+bool g_bUseExternalCameraState = false;
 
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
@@ -2038,7 +2038,7 @@ Matrix4 GetPlayerCraftMatrix(Vector4& Rs, Vector4& Us, Vector4& Fs, float scaleF
 	// visible), PlayerDataTable may not provide the correct external camera parameters.
 	// In that case, s_bUseExternalCameraState should be set so that we can use the captured
 	// camera state instead.
-	int16_t craftIndex = s_bUseExternalCameraState ?
+	int16_t craftIndex = g_bUseExternalCameraState ?
 		g_externalCameraState.craftIndex :
 		(g_playerIndex != nullptr ? PlayerDataTable[*g_playerIndex].Camera.CraftIndex : 0);
 	// craftIndex can be -1 (65536) in the hangar and probably in other circumstances too:
@@ -4111,12 +4111,15 @@ void GetCockpitViewMatrixSpeedEffect(Matrix4 *result, bool invert=true)
 	else 
 	{
 		float yaw, pitch;
+		const bool externalCamera = g_bUseExternalCameraState ? g_externalCameraState.externalCamera :
+			PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 
-		if (PlayerDataTable[*g_playerIndex].Camera.ExternalCamera) {
+		if (externalCamera)
+		{
 			yaw   = -(float)PlayerDataTable[*g_playerIndex].Camera.Yaw   / 65536.0f * 360.0f;
 			pitch =  (float)PlayerDataTable[*g_playerIndex].Camera.Pitch / 65536.0f * 360.0f;
 
-			if (s_bUseExternalCameraState)
+			if (g_bUseExternalCameraState)
 			{
 				yaw   = g_externalCameraState.yaw;
 				pitch = g_externalCameraState.pitch;
@@ -5873,6 +5876,28 @@ void PrimarySurface::RenderDefaultBackground()
 	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the starfield should always be displayed
 	resources->InitDepthStencilState(resources->_mainDepthState, nullptr);
+
+	ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
+	if (s_transparentBlendState == nullptr)
+	{
+		D3D11_BLEND_DESC transparentBlendDesc{};
+		transparentBlendDesc.AlphaToCoverageEnable       = FALSE;
+		transparentBlendDesc.IndependentBlendEnable      = FALSE;
+		transparentBlendDesc.RenderTarget[0].BlendEnable = TRUE;
+		// We're rendering the default starfield *after* the backdrops. That means that the
+		// destination RTV may already have a populated alpha channel. Since we want to preserve
+		// the existing render, we're using INV_DEST_ALPHA with the source color:
+		transparentBlendDesc.RenderTarget[0].SrcBlend  = D3D11_BLEND_INV_DEST_ALPHA;
+		transparentBlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_DEST_ALPHA;
+		transparentBlendDesc.RenderTarget[0].BlendOp   = D3D11_BLEND_OP_ADD;
+
+		transparentBlendDesc.RenderTarget[0].SrcBlendAlpha  = D3D11_BLEND_SRC_ALPHA;
+		transparentBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
+		transparentBlendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_MAX;
+		transparentBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		device->CreateBlendState(&transparentBlendDesc, &s_transparentBlendState);
+	}
+	resources->InitBlendState(s_transparentBlendState, nullptr);
 
 	// Render the default background
 	{
@@ -10463,9 +10488,9 @@ HRESULT PrimarySurface::Flip(
 
 			if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
 			{
-				s_bUseExternalCameraState = true;
+				g_bUseExternalCameraState = true;
 				resources->_primarySurface->RenderDefaultBackground();
-				s_bUseExternalCameraState = false;
+				g_bUseExternalCameraState = false;
 			}
 
 			// Overwrite the backdrop with a texture cube. Warning: This obviously interferes with the

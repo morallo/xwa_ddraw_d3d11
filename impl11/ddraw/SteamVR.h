@@ -27,6 +27,7 @@ extern bool g_bRenderDefaultStarfield;
 extern bool g_bDebugDefaultStarfield;
 extern bool g_bReplaceBackdrops;
 extern bool g_bDefaultStarfieldRendered;
+extern bool g_bUseExternalCameraState;
 extern bool g_bSteamVRMirrorWindowLeftEye;
 extern const bool DEFAULT_INTERLEAVED_REPROJECTION;
 extern const bool DEFAULT_STEAMVR_POS_FROM_FREEPIE;
