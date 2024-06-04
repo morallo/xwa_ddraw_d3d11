@@ -5,19 +5,17 @@
 #ifdef INSTANCED_RENDERING
 // The (Smooth) Normals buffer
 Texture2DArray texNormal : register(t0);
-SamplerState samplerNormal : register(s0);
+SamplerState sampler0    : register(s0);
 
 // The position/depth buffer
 Texture2DArray texPos : register(t1);
-SamplerState sampPos : register(s1);
 #else
 // The (Smooth) Normals buffer
-Texture2D texNormal : register(t0);
-SamplerState samplerNormal : register(s0);
+Texture2D texNormal   : register(t0);
+SamplerState sampler0 : register(s0);
 
 // The position/depth buffer
 Texture2D texPos : register(t1);
-SamplerState sampPos : register(s1);
 #endif
 
 struct PixelShaderInput
@@ -44,11 +42,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	// DEBUG
 
 #ifdef INSTANCED_RENDERING
-    const float3 P      = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
-    const float4 Normal = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
+	const float3 P      = texPos.Sample(sampler0, float3(input.uv, input.viewId)).xyz;
+	const float4 Normal = texNormal.Sample(sampler0, float3(input.uv, input.viewId));
 #else
-	const float3 P      = texPos.Sample(sampPos, input.uv).xyz;
-    const float4 Normal = texNormal.Sample(samplerNormal, input.uv);
+	const float3 P      = texPos.Sample(sampler0, input.uv).xyz;
+	const float4 Normal = texNormal.Sample(sampler0, input.uv);
 #endif
 	const float3 N      = Normal.xyz;
 
