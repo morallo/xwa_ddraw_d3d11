@@ -1274,6 +1274,10 @@ void Direct3DTexture::TagTexture() {
 					{
 						LoadPOVOffsetFromIniFile();
 					}
+					// Load the Holo Offset from the current INI file
+					{
+						LoadHoloOffsetFromIniFile();
+					}
 					// Load the HUD color from the current INI file
 					{
 						LoadHUDColorFromIniFile();

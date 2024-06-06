@@ -569,5 +569,7 @@ void DisplayTimedMessageV(uint32_t seconds, int row, const char* format, ...);
 
 bool SavePOVOffsetToIniFile();
 bool LoadPOVOffsetFromIniFile();
+bool SaveHoloOffsetToIniFile();
+bool LoadHoloOffsetFromIniFile();
 bool LoadHUDColorFromIniFile();
 void ApplyCustomHUDColor();

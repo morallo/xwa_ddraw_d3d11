@@ -123,6 +123,8 @@ float g_fTurnRateScale = 1.0f;
 float CurPlayerYawRateDeg = 0, CurPlayerPitchRateDeg = 0, CurPlayerRollRateDeg = 0;
 
 //float g_HMDYaw = 0, g_HMDPitch = 0, g_HMDRoll = 0;
+constexpr float HOLO_DISP_Z = METERS_TO_OPT * 0.01f;
+constexpr float HOLO_DISP_Y = METERS_TO_OPT * 0.01f;
 
 float lerp(float x, float y, float s);
 
@@ -5685,6 +5687,13 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Animate the current mesh (if applicable)
 	ApplyMeshTransform();
 
+	// Displace the hologram textures
+	if (_bIsHologram)
+	{
+		g_OPTMeshTransformCB.MeshTransform = Matrix4().translate(g_HologramDisp);
+		g_OPTMeshTransformCB.MeshTransform.transpose();
+	}
+
 	ApplyActiveCockpit(scene);
 
 	if (g_bInTechRoom)
@@ -8622,9 +8631,18 @@ void ProcessKeyboard()
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)    & 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
 	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) == 0x8000;
-	bool RKey     = (GetAsyncKeyState(0x52) & 0x8000) == 0x8000;
+	bool RKey     = (GetAsyncKeyState(0x52)       & 0x8000) == 0x8000;
+	bool UpKey    = (GetAsyncKeyState(VK_UP)      & 0x8000) == 0x8000;
+	bool DnKey    = (GetAsyncKeyState(VK_DOWN)    & 0x8000) == 0x8000;
+	bool LtKey    = (GetAsyncKeyState(VK_LEFT)    & 0x8000) == 0x8000;
+	bool RtKey    = (GetAsyncKeyState(VK_RIGHT)   & 0x8000) == 0x8000;
 
-	static bool prevRKey = false;
+	static bool prevRKey  = false;
+	static bool prevUpKey = false;
+	static bool prevDnKey = false;
+	static bool prevLtKey = false;
+	static bool prevRtKey = false;
+
 	// Alt Key
 	if (AltKey && !ShiftKey && !CtrlKey)
 	{
@@ -8636,7 +8654,39 @@ void ProcessKeyboard()
 			DisplayTimedMessage(3, 0, g_bRTEnableSoftShadows ?
 				"Raytraced Soft Shadows" : "Raytraced Hard Shadows");
 		}
+
+		if (UpKey && !prevUpKey)
+		{
+			g_HologramDisp.z += HOLO_DISP_Z;
+			SaveHoloOffsetToIniFile();
+		}
+
+		if (DnKey && !prevDnKey)
+		{
+			g_HologramDisp.z -= HOLO_DISP_Z;
+			SaveHoloOffsetToIniFile();
+		}
+
+		if (LtKey && !prevLtKey)
+		{
+			g_HologramDisp.y += HOLO_DISP_Y;
+			SaveHoloOffsetToIniFile();
+		}
+
+		if (RtKey && !prevRtKey)
+		{
+			g_HologramDisp.y -= HOLO_DISP_Y;
+			SaveHoloOffsetToIniFile();
+		}
 	}
 
-	prevRKey = RKey;
+	// I don't think Shift+Alt + Left/Right is currently used anywhere. We could
+	// potentially use those key combinations to move the holograms left and right.
+	// ... but first we'd need to compute the centroid of each hologram.
+
+	prevRKey  = RKey;
+	prevUpKey = UpKey;
+	prevDnKey = DnKey;
+	prevLtKey = LtKey;
+	prevRtKey = RtKey;
 }

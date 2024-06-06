@@ -210,6 +210,7 @@ D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 
 Vector3 g_CockpitPOVOffset = { 0, 0, 0 };
 Vector3 g_GunnerTurretPOVOffset = { 0, 0, 0 };
+Vector3 g_HologramDisp = { 0, 0, 0 };
 
 // **************************
 // DATReader global vars and function pointers
@@ -823,6 +824,220 @@ bool LoadPOVOffsetFromIniFile()
 	}
 
 	log_debug("[DBG] [POV] numlines read: %d", line);
+	fclose(in_file);
+	return true;
+}
+
+/*
+ * Saves the current Hologram offset to the current .ini file.
+ */
+bool SaveHoloOffsetToIniFile()
+{
+	char sFileName[256], *sTempFileName = "./TempIniFile.txt";
+	char sCraftName[128];
+	FILE* in_file, *out_file;
+	int error = 0, line = 0, len = 0;
+	char buf[256];
+	// In order to parse the .ini file, we need a finite state machine so that we can
+	// tell when we see the [Section] we're interested in, and when we exit that same
+	// [Section]
+	enum FSM {
+		INIT_ST,
+		IN_TAG_ST,
+	} fsm = INIT_ST;
+
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+	const char* sectionName = bGunnerTurret ? "GunnerTurretHoloOffsets" : "CockpitHoloOffsets";
+	Vector3 POVOffset = bGunnerTurret ? g_GunnerTurretPOVOffset : g_CockpitPOVOffset;
+
+	if (strlen(g_sCurrentCockpit) <= 0) {
+		log_debug("[DBG] [HOLO] Cockpit name hasn't been captured, will not write current Holo Offset");
+		return false;
+	}
+
+	// We need to remove the word "Cockpit" from g_sCurrentCockpit:
+	strncpy_s(sCraftName, 128, g_sCurrentCockpit, 128);
+	len = strlen(sCraftName);
+	sCraftName[len - 7] = 0;
+
+	snprintf(sFileName, 256, ".\\FlightModels\\%s.ini", sCraftName);
+	log_debug("[DBG] [HOLO] Saving current Holo Offset [%s] to INI file [%s]...", sectionName, sFileName);
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not read [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when reading [%s]", error, sFileName);
+		return false;
+	}
+
+	// Create sTempFileName
+	try {
+		error = fopen_s(&out_file, sTempFileName, "wt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not create temporary file: [%s]", sTempFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when creating [%s]", error, sTempFileName);
+		return false;
+	}
+
+	bool bHoloWritten = false;
+	int prevLineLen = 0;
+	bool bPrevLineBlank = false;
+	while (fgets(buf, 256, in_file) != NULL) {
+		line++;
+		// Commented lines are automatically pass-through
+		if (buf[0] == ';') {
+			fprintf(out_file, buf);
+			continue;
+		}
+
+		// Catch section names
+		if (buf[0] == '[') {
+			if (strstr(buf, sectionName) != NULL) {
+				fsm = IN_TAG_ST;
+			}
+			else {
+				if (fsm == IN_TAG_ST) {
+					// A new [section] is beginning and we just skipped over the [sectionName] region.
+					// Let's write the new POV offset here, at the same location it was previously within
+					// the .ini file.
+					fsm = INIT_ST;
+					if (!bPrevLineBlank)
+						fprintf(out_file, "\n");
+					fprintf(out_file, "[%s]\n", sectionName);
+					fprintf(out_file, "OffsetX = %0.3f\n", g_HologramDisp.x);
+					fprintf(out_file, "OffsetY = %0.3f\n", g_HologramDisp.y);
+					fprintf(out_file, "OffsetZ = %0.3f\n", g_HologramDisp.z);
+					fprintf(out_file, "\n");
+					bHoloWritten = true;
+				}
+			}
+		}
+
+		// If we're not in-tag, then just pass-through:
+		if (fsm != IN_TAG_ST) {
+			prevLineLen = strlen(buf);
+			bPrevLineBlank = (prevLineLen == 1) && buf[prevLineLen - 1] == '\n';
+			fprintf(out_file, buf);
+		}
+	}
+
+	// This DC file may not have the POV section, so let's add it:
+	if (!bHoloWritten) {
+		if (!bPrevLineBlank)
+			fprintf(out_file, "\n");
+		fprintf(out_file, "[%s]\n", sectionName);
+		fprintf(out_file, "OffsetX = %0.3f\n", g_HologramDisp.x);
+		fprintf(out_file, "OffsetY = %0.3f\n", g_HologramDisp.y);
+		fprintf(out_file, "OffsetZ = %0.3f\n", g_HologramDisp.z);
+		bHoloWritten = true;
+	}
+
+	fclose(out_file);
+	fclose(in_file);
+
+	// Swap the files
+	remove(sFileName);
+	rename(sTempFileName, sFileName);
+	return true;
+}
+
+/*
+ * Loads the current Hologram Offset from the current .ini file.
+ */
+bool LoadHoloOffsetFromIniFile()
+{
+	char sFileName[256], sCraftName[128];
+	char buf[256], param[128], svalue[128];
+	FILE* in_file;
+	int error = 0, line = 0, len = 0;
+	float fValue;
+	// In order to parse the .ini file, we need a finite state machine so that we can
+	// tell when we see the [Section] we're interested in, and when we exit that same
+	// [Section]
+	enum FSM {
+		OUT_OF_TAG_ST,
+		IN_CP_TAG_ST,
+		IN_GT_TAG_ST,
+	} fsm = OUT_OF_TAG_ST;
+
+	log_debug("[DBG] [HOLO] LoadHoloOffset");
+	g_HologramDisp = { 0, 0, 0 };
+
+	if (strlen(g_sCurrentCockpit) <= 0) {
+		log_debug("[DBG] [HOLO] Cockpit name hasn't been captured, cannot read current Holo Offset");
+		return false;
+	}
+
+	// We need to remove the word "Cockpit" from g_sCurrentCockpit:
+	strncpy_s(sCraftName, 128, g_sCurrentCockpit, 128);
+	len = strlen(sCraftName);
+	sCraftName[len - 7] = 0;
+
+	snprintf(sFileName, 256, ".\\FlightModels\\%s.ini", sCraftName);
+	log_debug("[DBG] [HOLO] Loading current Holo Offset from INI file [%s]...", sFileName);
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [HOLO] Could not read [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [HOLO] Error %d when reading [%s]", error, sFileName);
+		return false;
+	}
+
+	while (fgets(buf, 256, in_file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		// Catch section names
+		if (buf[0] == '[') {
+			if (strstr(buf, "CockpitHoloOffsets") != NULL)
+				fsm = IN_CP_TAG_ST;
+			else if (strstr(buf, "GunnerTurretHoloOffsets") != NULL)
+				fsm = IN_GT_TAG_ST;
+			else
+				fsm = OUT_OF_TAG_ST;
+		}
+
+		if (fsm == IN_CP_TAG_ST || fsm == IN_GT_TAG_ST) {
+			Vector3& POVOffset = fsm == IN_CP_TAG_ST ? g_CockpitPOVOffset : g_GunnerTurretPOVOffset;
+			if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
+				fValue = (float)atof(svalue);
+				// Read the relevant parameters
+				if (_stricmp(param, "OffsetX") == 0) {
+					log_debug("[DBG] [HOLO] Read [%d] OffsetX: %0.3f", fsm, fValue);
+					g_HologramDisp.x = fValue;
+				}
+				if (_stricmp(param, "OffsetY") == 0) {
+					log_debug("[DBG] [HOLO] Read [%d] OffsetY: %0.3f", fsm, fValue);
+					g_HologramDisp.y = fValue;
+				}
+				if (_stricmp(param, "OffsetZ") == 0) {
+					log_debug("[DBG] [HOLO] Read [%d] OffsetZ: %0.3f", fsm, fValue);
+					g_HologramDisp.z = fValue;
+				}
+			}
+		}
+	}
+
+	log_debug("[DBG] [HOLO] numlines read: %d", line);
 	fclose(in_file);
 	return true;
 }
