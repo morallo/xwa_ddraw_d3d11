@@ -1542,6 +1542,11 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
 			// Input:  _bloomSum, _offscreenBufferAsInput
 			// Output: _offscreenBuffer
+			if (g_bDumpSSAOBuffers)
+			{
+				DirectX::SaveDDSTextureToFile(context, resources->_bloomOutputSum, L"C:\\Temp\\_bloomOutputSum.dds");
+			}
+
 			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomCombinePS_VR : resources->_bloomCombinePS);
 			context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 				0, BACKBUFFER_FORMAT);
@@ -1552,13 +1557,6 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			}
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputShaderResourceView.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
-			/*
-			ID3D11RenderTargetView *rtvs[2] = {
-				resources->_renderTargetView.Get(),
-				resources->_renderTargetViewBloom1.Get()
-			};
-			context->OMSetRenderTargets(2, rtvs, NULL);
-			*/
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 	}
