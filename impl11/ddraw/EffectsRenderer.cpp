@@ -6195,8 +6195,8 @@ bool EffectsRenderer::DCReplaceTextures()
 					g_DCPSCBuffer.bgColor[numCoords] = dc_element->coords.uWHColor[i];
 				else
 					g_DCPSCBuffer.bgColor[numCoords] = _bIsTargetHighlighted ?
-					dc_element->coords.uHGColor[i] :
-					dc_element->coords.uBGColor[i];
+						dc_element->coords.uHGColor[i] :
+						dc_element->coords.uBGColor[i];
 				// The hologram property will make *all* uvcoords in this DC element
 				// holographic as well:
 				//bIsHologram |= (dc_element->bHologram);
@@ -6216,6 +6216,21 @@ bool EffectsRenderer::DCReplaceTextures()
 			// Artifacts appear on ships with no beam weapon in the beam weapon DC cockpit area, for instance.
 			if (numCoords == 0 && !g_PSCBuffer.bUseCoverTexture)
 				goto out;
+
+			if (_bDCIsTransparent)
+			{
+				_bModifiedBlendState = true;
+				EnableTransparency();
+
+				// Disable ZWrite:
+				ComPtr<ID3D11DepthStencilState> depthState = nullptr;
+				D3D11_DEPTH_STENCIL_DESC desc;
+				desc.DepthEnable    = FALSE;
+				desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthFunc      = D3D11_COMPARISON_ALWAYS;
+				desc.StencilEnable  = FALSE;
+				resources->InitDepthStencilState(depthState, &desc);
+			}
 
 			// slot 0 is the cover texture
 			// slot 1 is the HUD offscreen buffer
