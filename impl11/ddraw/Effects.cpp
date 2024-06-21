@@ -752,6 +752,8 @@ bool LoadPOVOffsetFromIniFile()
 		IN_CP_TAG_ST,
 		IN_GT_TAG_ST,
 	} fsm = OUT_OF_TAG_ST;
+	g_CockpitPOVOffset = { 0, 0, 0 };
+	g_GunnerTurretPOVOffset = { 0, 0, 0 };
 
 	log_debug("[DBG] [POV] LoadPOVOffset");
 	if (g_pSharedDataCockpitLook == NULL || !g_SharedMemCockpitLook.IsDataReady()) {
@@ -849,7 +851,6 @@ bool SaveHoloOffsetToIniFile()
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
 	const char* sectionName = bGunnerTurret ? "GunnerTurretHoloOffsets" : "CockpitHoloOffsets";
-	Vector3 POVOffset = bGunnerTurret ? g_GunnerTurretPOVOffset : g_CockpitPOVOffset;
 
 	if (strlen(g_sCurrentCockpit) <= 0) {
 		log_debug("[DBG] [HOLO] Cockpit name hasn't been captured, will not write current Holo Offset");
