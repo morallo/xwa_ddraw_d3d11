@@ -1666,10 +1666,10 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	//	context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
 
 	// DEBUG
-	/*if (g_iPresentCounter == 100 || g_bDumpBloomBuffers) {
+	/*if (g_bDumpSSAOBuffers) {
 		wchar_t filename[80];
-		swprintf_s(filename, 80, L"c:\\temp\\_bloom2Buffer-Level-%d.jpg", PyramidLevel);
-		DirectX::SaveWICTextureToFile(context, resources->_bloomOutput2, GUID_ContainerFormatJpeg, filename);
+		swprintf_s(filename, 80, L"c:\\temp\\_bloomInput-Level-%d.dds", PyramidLevel);
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, filename);
 	}*/
 	// DEBUG
 
