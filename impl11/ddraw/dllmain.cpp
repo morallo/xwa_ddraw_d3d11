@@ -225,6 +225,17 @@ void POVReset()
 	g_bYCenterHasBeenFixed = false;
 }
 
+void ResetCockpitShake()
+{
+	if (g_playerIndex == nullptr)
+		return;
+
+	PlayerDataTable[*g_playerIndex].Camera.ShakeX = 0;
+	PlayerDataTable[*g_playerIndex].Camera.ShakeY = 0;
+	PlayerDataTable[*g_playerIndex].Camera.ShakeZ = 0;
+	//DisplayTimedMessage(3, 0, "Resetting Cockpit Shake");
+}
+
 #define MAX_ACTION_LEN 10
 void RunAction(WORD *action) {
 	// Scan codes from: http://www.philipstorr.id.au/pcbook/book3/scancode.htm
@@ -1206,6 +1217,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 						g_GunnerTurretPOVOffset = { 0, 0, 0 };
 					SavePOVOffsetToIniFile();
 				}
+
 				return 0;
 			}
 		}
@@ -1235,6 +1247,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 			case VK_OEM_PERIOD:
 				POVReset();
+				ResetCockpitShake();
 				break;
 
 			case 'D' :
