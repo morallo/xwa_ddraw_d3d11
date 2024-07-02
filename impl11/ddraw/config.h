@@ -71,3 +71,14 @@ public:
 };
 
 extern Config g_config;
+
+class CraftConfig
+{
+public:
+	CraftConfig();
+
+	int Craft_Size;
+	int Craft_Offset_2DF;
+};
+
+extern CraftConfig g_craftConfig;

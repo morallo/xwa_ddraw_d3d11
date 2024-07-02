@@ -42,6 +42,7 @@ bool g_bUseExternalCameraState = false;
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 
+CraftInstanceHardpoint GetHardpoint(CraftInstance* craftInstance, int index);
 void ZToDepthRHW(float Z, float *sz, float *rhw);
 void GetCraftViewMatrix(Matrix4 *result);
 void GetGunnerTurretViewMatrixSpeedEffect(Matrix4 * result, bool applyHeadingInGunnerTurret=true);
@@ -12450,9 +12451,9 @@ void PrimarySurface::RenderText()
 		if (PlayerDataTable[*g_playerIndex].warheadArmed && PlayerDataTable[*g_playerIndex].primarySecondaryArmed)
 			warheadStartIdx += 2;
 		if (warheadStartIdx < 16)
-			countL = craftInstance->Hardpoints[warheadStartIdx++].Count;
+			countL = GetHardpoint(craftInstance, warheadStartIdx++).Count;
 		if (warheadStartIdx < 16)
-			countR = craftInstance->Hardpoints[warheadStartIdx++].Count;
+			countR = GetHardpoint(craftInstance, warheadStartIdx++).Count;
 
 		// The following will render a rectangle on the text buffer, which is then captured by DC. This can be used
 		// to clear text right here without using more shaders.
@@ -13279,14 +13280,14 @@ void PrimarySurface::RenderSynthDCElems()
 
 			int LaserIdx = 0;
 			for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
-				BYTE WeaponType = craftInstance->Hardpoints[i].WeaponType;
+				BYTE WeaponType = GetHardpoint(craftInstance, i).WeaponType;
 				if (WeaponType == 1 || WeaponType == 2) {
 					// Render the laser and ion energy bars
-					//float Energy = (float)craftInstance->Hardpoints[i].Energy / 127.0f;
+					//float Energy = (float)GetHardpoint(craftInstance, i).Energy / 127.0f;
 					// The game displays 12 energy bars 6 bars stacked on top of each other.
 					// 127 / 12 = 10.58, so we divide by 10.58 and see how many bars we should
 					// display:
-					float Energy = trunc((float)(craftInstance->Hardpoints[i].Energy) / 10.58f);
+					float Energy = trunc((float)(GetHardpoint(craftInstance, i).Energy) / 10.58f);
 					float Energy0 = Energy > 6.0f ? 1.0f : Energy / 6.0f;
 					float Energy1 = Energy > 6.0f ? (Energy - 6.0f) / 6.0f : 0.0f;
 					D2D1_RECT_F bar;

@@ -365,3 +365,18 @@ Config::Config()
 
 	DisableProcessWindowsGhosting();
 }
+
+CraftConfig::CraftConfig()
+{
+	auto lines = GetFileLines("hook_opt_limit.cfg");
+
+	if (lines.empty())
+	{
+		lines = GetFileLines("hooks.ini", "hook_opt_limit");
+	}
+
+	this->Craft_Size = 0x3F9 + GetFileKeyValueInt(lines, "Craft_ExtraSize", 0);
+	this->Craft_Offset_2DF = 0x3F9 + GetFileKeyValueInt(lines, "Craft_Offset_2DF", 0x2DF - 0x3F9);
+}
+
+CraftConfig g_craftConfig;

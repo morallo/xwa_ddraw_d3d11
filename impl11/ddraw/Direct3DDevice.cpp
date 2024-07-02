@@ -665,6 +665,12 @@ void RenderSkyBox();
 
 float clamp(float val, float min, float max);
 
+CraftInstanceHardpoint GetHardpoint(CraftInstance* craftInstance, int index)
+{
+	CraftInstanceHardpoint* hardpoints = (CraftInstanceHardpoint*)((int)craftInstance + g_craftConfig.Craft_Offset_2DF);
+	return hardpoints[index];
+}
+
 /*
  * Converts a metric (OPT-scale?) depth value to in-game (sz, rhw) values, copying the behavior of the game.
  * This is the old formula. Jeremy modified it to improve the precision, but it's still a good reference
@@ -2658,7 +2664,8 @@ void CountLasersAndIons(CraftInstance *craftInstance) {
 	// This would be a somewhat exotic setup, but we might need this and the only way
 	// would be to detect when we switch from one type of cannon to another.
 	for (int i = 0; i < craftInstance->NumberOfLasers; i++) {
-		switch (craftInstance->Hardpoints[i].WeaponType) {
+		switch (GetHardpoint(craftInstance, i).WeaponType)
+		{
 		case 1:
 			g_iNumLaserCannons++;
 			break;
@@ -6191,9 +6198,9 @@ HRESULT Direct3DDevice::BeginScene()
 		}
 		// Deactivate lasers and ions if they ran out of energy
 		for (int i = 0; i < craftInstance->NumberOfLasers; i++)
-			// Not sure if I should also check that craftInstance->Hardpoints[i].WeaponType
+			// Not sure if I should also check that GetHardpoint(craftInstance, i).WeaponType
 			// is either 1 or 2 (lasers or ions). It doesn't seem to be necessary.
-			if (craftInstance->Hardpoints[i].Energy == 0)
+			if (GetHardpoint(craftInstance, i).Energy == 0)
 				g_GameEvent.CannonReady[i] = false;
 
 
