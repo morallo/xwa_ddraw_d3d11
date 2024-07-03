@@ -67,7 +67,6 @@
     <FxCompile Include="ShadowMapPS.hlsl" />
     <FxCompile Include="ShadowMapVS.hlsl" />
     <FxCompile Include="EdgeDetector.hlsl" />
-    <FxCompile Include="SpeedEffectPixelShader.hlsl" />
     <FxCompile Include="SteamVRMirrorPixelShader.hlsl" />
     <FxCompile Include="StarDebug.hlsl" />
     <FxCompile Include="PixelShaderDCHolo.hlsl" />
@@ -111,6 +110,8 @@
     <FxCompile Include="SunFlareShaderVR.hlsl" />
     <FxCompile Include="LaserPointer.hlsl" />
     <FxCompile Include="PixelShaderVRGeom.hlsl" />
+    <FxCompile Include="SpeedEffectPixelShader.hlsl" />
+    <FxCompile Include="SpeedEffectPixelShaderVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -227,6 +228,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="LaserPointerCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SpeedEffectPixelShaderCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>

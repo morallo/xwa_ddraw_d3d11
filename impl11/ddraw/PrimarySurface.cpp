@@ -6006,7 +6006,7 @@ inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
 	particles[idx].sx = FOVFactor * (P.x / P.z);
 	particles[idx].sy = FOVFactor * (P.y / P.z) + y_center;
 	particles[idx].sz = 0.0f; // We need to do this or the point will be clipped by DX. Setting it to 2.0 will clip it
-	particles[idx].rhw = P.z; // Only used in VR to back-project (Ignored in non-VR mode)
+	particles[idx].rhw = P.z; // Stores the original metric Z. Used in non-VR to clip particles. In VR it's also used for back-projection.
 }
 
 inline void PrimarySurface::AddSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles,
@@ -6207,14 +6207,8 @@ void PrimarySurface::RenderSpeedEffect()
 	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 
-	resources->InitPixelShader(resources->_speedEffectPS);
+	resources->InitPixelShader(g_bUseSteamVR ? resources->_speedEffectPS_VR : resources->_speedEffectPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-
-	context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer, 0, BACKBUFFER_FORMAT);
-	if (g_bUseSteamVR)
-		context->ResolveSubresource(
-			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
-			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 	// Update the position of the particles, project them to 2D and add them to the vertex buffer
 	{
@@ -6245,16 +6239,14 @@ void PrimarySurface::RenderSpeedEffect()
 			// If the particle is behind the camera, or outside the clipping space, then
 			// compute a new position for it. We need to test both the head and the tail
 			// of the particle, or we'll get ugly artifacts when looking back.
-			if (
-				// Clip the head
+			if (// Clip the head
 				RH.z < 1.0f || RH.z > g_fSpeedShaderParticleRange ||
 				RH.x < -g_fSpeedShaderParticleRange || RH.x > g_fSpeedShaderParticleRange ||
 				RH.y < -g_fSpeedShaderParticleRange || RH.y > g_fSpeedShaderParticleRange ||
 				// Clip the tail
 				RT.z < 1.0f || RT.z > g_fSpeedShaderParticleRange ||
 				RT.x < -g_fSpeedShaderParticleRange || RT.x > g_fSpeedShaderParticleRange ||
-				RT.y < -g_fSpeedShaderParticleRange || RT.y > g_fSpeedShaderParticleRange
-				)
+				RT.y < -g_fSpeedShaderParticleRange || RT.y > g_fSpeedShaderParticleRange)
 			{
 				// Compute a new random position for this particle
 				float x = (((float)rand() / RAND_MAX) - 0.5f);
@@ -6296,9 +6288,8 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	}
 
-	// First render: Render the speed effect
 	// input: None
-	// output: renderTargetViewPost
+	// output: renderTargetView
 	{
 		if (g_bEnableVR)
 		{
@@ -6359,7 +6350,6 @@ void PrimarySurface::RenderSpeedEffect()
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		// Set the RTV:
 		ID3D11RenderTargetView *rtvs[1] = {
-			//resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
 			resources->_renderTargetView.Get(), // Render directly to the offscreenBuffer
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
