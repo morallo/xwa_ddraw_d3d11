@@ -47,17 +47,18 @@ PixelShaderOutput main(PixelShaderInput input) {
 #else
 	const float3 depth = texPos.Sample(sampPos, uv).xyz;
 #endif
-	if (curZ >= depth.z)
+
+	if (curZ >= 60.0 ||  // Avoid adding speed trails inside the cockpit
+	    curZ >= depth.z) // Apply the depth mask
 		discard;
 
-	// Alpha can be 1 and that's OK: in the speed compose shader we'll use the intensity
-	// of the particle for blending.
-	output.color = float4(0.0, 0.0, 0.0, 1.0);
-	//float L = length(input.uv) - 0.75;
-	//L = (L <= 0.0) ? 1.0 : 0.0;
-	// The speed is encoded in the blue component of the color, so that's why
-	// we multiply by input.color.b
+	// The speed is encoded in the blue component of the input color, so that's why
+	// we multiply by input.color.b.
 	output.color.rgb = input.color.b * smoothstep(0.9, 0.6, length(input.uv));
-	//output.color.rg = L;
+	// The blending is controlled by InitBlendState() when this shader is called. It's
+	// equivalent to the direct addition of the speed trail and the existing offscreenBuffer
+	// contents.
+	output.color.a   = 1.0;
+
 	return output;
 }

@@ -6164,6 +6164,8 @@ void PrimarySurface::RenderSpeedEffect()
 	static float ZTimeDisp[MAX_SPEED_PARTICLES] = { 0 };
 	float craft_speed = PlayerDataTable[*g_playerIndex].currentSpeed / g_fSpeedShaderScaleFactor;
 
+	SaveContext();
+
 	/*
 	viewMode1 and viewMode2 both become 18 in external view and 0 in cockpit view.
 	They don't change when fly-by camera is active
@@ -6206,6 +6208,27 @@ void PrimarySurface::RenderSpeedEffect()
 	// The A-Wing's max speed seems to be 270
 	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
+
+	// Blend the speed particle with the current offscreenBuffer.
+	ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
+	if (s_transparentBlendState == nullptr)
+	{
+		D3D11_BLEND_DESC transparentBlendDesc{};
+		transparentBlendDesc.AlphaToCoverageEnable       = FALSE;
+		transparentBlendDesc.IndependentBlendEnable      = FALSE;
+		transparentBlendDesc.RenderTarget[0].BlendEnable = TRUE;
+		// The original blending is a simple addition of the two colors:
+		transparentBlendDesc.RenderTarget[0].SrcBlend    = D3D11_BLEND_ONE;
+		transparentBlendDesc.RenderTarget[0].DestBlend   = D3D11_BLEND_ONE;
+		transparentBlendDesc.RenderTarget[0].BlendOp     = D3D11_BLEND_OP_ADD;
+
+		transparentBlendDesc.RenderTarget[0].SrcBlendAlpha  = D3D11_BLEND_SRC_ALPHA;
+		transparentBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
+		transparentBlendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_MAX;
+		transparentBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		device->CreateBlendState(&transparentBlendDesc, &s_transparentBlendState);
+	}
+	resources->InitBlendState(s_transparentBlendState, nullptr);
 
 	resources->InitPixelShader(g_bUseSteamVR ? resources->_speedEffectPS_VR : resources->_speedEffectPS);
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
@@ -6288,7 +6311,7 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	}
 
-	// input: None
+	// input: depthBuf (to mask the cockpit)
 	// output: renderTargetView
 	{
 		if (g_bUseSteamVR)
@@ -6299,7 +6322,6 @@ void PrimarySurface::RenderSpeedEffect()
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			resources->InitViewport(&viewport);
 		}
 		else
 		{
@@ -6309,9 +6331,8 @@ void PrimarySurface::RenderSpeedEffect()
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
 			viewport.MaxDepth = D3D11_MAX_DEPTH;
-			resources->InitViewport(&viewport);
-			//resources->InitViewport(&g_nonVRViewport);
 		}
+		resources->InitViewport(&viewport);
 
 		// We don't need to clear the current vertex and pixel constant buffers.
 		// Since we've just finished rendering 3D, they should contain values that
@@ -6382,97 +6403,8 @@ void PrimarySurface::RenderSpeedEffect()
 		}
 	}
 
-	// Second render: compose the cockpit over the previous effect
-	if (false)
-	{
-		// Reset the viewport for non-VR mode, post-proc viewport (cover the whole screen)
-		viewport.TopLeftX = 0.0f;
-		viewport.TopLeftY = 0.0f;
-		viewport.Width    = g_fCurScreenWidth;
-		viewport.Height   = g_fCurScreenHeight;
-		viewport.MaxDepth = D3D11_MAX_DEPTH;
-		viewport.MinDepth = D3D11_MIN_DEPTH;
-		resources->InitViewport(&viewport);
-
-		// Reset the vertex shader to regular 2D post-process
-		// Set the Vertex Shader Constant buffers
-		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
-
-		// Set/Create the VertexBuffer and set the topology, etc
-		UINT stride = sizeof(MainVertex), offset = 0;
-		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
-		resources->InitInputLayout(resources->_mainInputLayout);
-		resources->InitVertexShader(g_bUseSteamVR ? resources->_mainVertexShaderVR : resources->_mainVertexShader);
-
-		// Reset the UV limits for this shader
-		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
-		g_ShadertoyBuffer.x0 = x0;
-		g_ShadertoyBuffer.y0 = y0;
-		g_ShadertoyBuffer.x1 = x1;
-		g_ShadertoyBuffer.y1 = y1;
-		g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
-		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
-		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
-
-		resources->InitPixelShader(g_bUseSteamVR ? resources->_speedEffectComposePS_VR : resources->_speedEffectComposePS);
-		// Clear all the render target views
-		ID3D11RenderTargetView *rtvs_null[5] = {
-			NULL, // Main RTV
-			NULL, // Bloom
-			NULL, // Depth
-			NULL, // Norm Buf
-			NULL, // SSAO Mask
-		};
-		context->OMSetRenderTargets(5, rtvs_null, NULL);
-
-		// DEBUG
-		/*
-		if (g_iPresentCounter == CAPTURE_FRAME)
-		{
-			DirectX::SaveWICTextureToFile(context, resources->_shadertoyAuxBuf, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_shadertoyAuxBuf.jpg");
-			DirectX::SaveWICTextureToFile(context, resources->_shadertoyBuf, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_shadertoyBuf.jpg");
-			DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_offscreenBuf-1.jpg");
-			DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferPost, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_offscreenBufferPost-1.jpg");
-		}
-		*/
-		// DEBUG
-
-		// The output from the previous effect will be in offscreenBufferPost, so let's resolve it
-		// to _shadertoyBuf to use it now:
-		context->ResolveSubresource(resources->_shadertoyBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-		if (g_bUseSteamVR)
-			context->ResolveSubresource(
-				resources->_shadertoyBuf, D3D11CalcSubresource(0, 1, 1),
-				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
-
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
-		ID3D11RenderTargetView *rtvs[1] = {
-			resources->_renderTargetViewPost.Get(), // Render to offscreenBufferPost instead of offscreenBuffer
-		};
-		context->OMSetRenderTargets(1, rtvs, NULL);
-		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[3] = {
-			resources->_offscreenAsInputShaderResourceView.Get(), // The current render
-			resources->_shadertoySRV.Get(),	 // The effect rendered in the previous pass
-			resources->_depthBufSRV.Get(),   // The depth buffer
-		};
-		context->PSSetShaderResources(0, 3, srvs);
-		if (g_bUseSteamVR)
-			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
-		else
-			context->Draw(6, 0);
-	}
-
-	// Copy the result (_offscreenBufferPost) to the _offscreenBuffer so that it gets displayed
-	//context->CopyResource(resources->_offscreenBuffer, resources->_offscreenBufferPost);
-
 	// Restore previous rendertarget, etc
-	resources->InitInputLayout(resources->_inputLayout); // Not sure this is really needed
+	RestoreContext();
 
 	this->_deviceResources->EndAnnotatedEvent();
 }
