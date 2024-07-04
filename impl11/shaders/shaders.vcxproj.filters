@@ -57,7 +57,6 @@
     <FxCompile Include="SunFlareShader.hlsl" />
     <FxCompile Include="SunShader.hlsl" />
     <FxCompile Include="SunFlareCompose.hlsl" />
-    <FxCompile Include="SpeedEffectCompose.hlsl" />
     <FxCompile Include="SpeedEffectVertexShader.hlsl" />
     <FxCompile Include="AddGeometryVertexShader.hlsl" />
     <FxCompile Include="AddGeometryPixelShader.hlsl" />
@@ -67,7 +66,6 @@
     <FxCompile Include="ShadowMapPS.hlsl" />
     <FxCompile Include="ShadowMapVS.hlsl" />
     <FxCompile Include="EdgeDetector.hlsl" />
-    <FxCompile Include="SpeedEffectPixelShader.hlsl" />
     <FxCompile Include="SteamVRMirrorPixelShader.hlsl" />
     <FxCompile Include="StarDebug.hlsl" />
     <FxCompile Include="PixelShaderDCHolo.hlsl" />
@@ -92,7 +90,6 @@
     <FxCompile Include="SpeedEffectVertexShaderVR.hlsl" />
     <FxCompile Include="FXAA_VR.hlsl" />
     <FxCompile Include="HyperComposeVR.hlsl" />
-    <FxCompile Include="SpeedEffectComposeVR.hlsl" />
     <FxCompile Include="bloom\BloomHGaussPS_VR.hlsl" />
     <FxCompile Include="bloom\BloomVGaussPS_VR.hlsl" />
     <FxCompile Include="bloom\BloomBufferAddPS_VR.hlsl" />
@@ -111,6 +108,8 @@
     <FxCompile Include="SunFlareShaderVR.hlsl" />
     <FxCompile Include="LaserPointer.hlsl" />
     <FxCompile Include="PixelShaderVRGeom.hlsl" />
+    <FxCompile Include="SpeedEffectPixelShader.hlsl" />
+    <FxCompile Include="SpeedEffectPixelShaderVR.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">
@@ -178,9 +177,6 @@
     <ClInclude Include="HyperComposeCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
-    <ClInclude Include="SpeedEffectComposeCommon.h">
-      <Filter>Fichiers d%27en-tête</Filter>
-    </ClInclude>
     <ClInclude Include="bloom\BloomHGaussPSCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
@@ -227,6 +223,9 @@
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
     <ClInclude Include="LaserPointerCommon.h">
+      <Filter>Fichiers d%27en-tête</Filter>
+    </ClInclude>
+    <ClInclude Include="SpeedEffectPixelShaderCommon.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
   </ItemGroup>
