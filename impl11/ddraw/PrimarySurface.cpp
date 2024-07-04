@@ -6291,16 +6291,10 @@ void PrimarySurface::RenderSpeedEffect()
 	// input: None
 	// output: renderTargetView
 	{
-		if (g_bEnableVR)
+		if (g_bUseSteamVR)
 		{
-			// This should be the same viewport used in the Execute() function
-			// Set the new viewport (a full quad covering the full screen)
-			// VIEWPORT-LEFT
-			if (g_bUseSteamVR)
-				viewport.Width = (float)resources->_backbufferWidth;
-			else
-				viewport.Width = (float)resources->_backbufferWidth / 2.0f;
-			viewport.Height   = g_fCurScreenHeight;
+			viewport.Width    = (float)resources->_backbufferWidth;
+			viewport.Height   = (float)resources->_backbufferHeight;
 			viewport.TopLeftX = 0.0f;
 			viewport.TopLeftY = 0.0f;
 			viewport.MinDepth = D3D11_MIN_DEPTH;
@@ -6347,7 +6341,13 @@ void PrimarySurface::RenderSpeedEffect()
 		resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 		resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
 
-		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		context->ResolveSubresource(resources->_depthBufAsInput, 0, resources->_depthBuf, 0, AO_DEPTH_BUFFER_FORMAT);
+		if (g_bUseSteamVR)
+		{
+			context->ResolveSubresource(resources->_depthBufAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
+		}
+
 		// Set the RTV:
 		ID3D11RenderTargetView *rtvs[1] = {
 			resources->_renderTargetView.Get(), // Render directly to the offscreenBuffer

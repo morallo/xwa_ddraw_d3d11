@@ -97,6 +97,12 @@ PixelShaderInput main(VertexShaderInput input)
 		//output.pos.xyz /= output.pos.w;
 		//output.pos.w = 1.0f;
 
+		// Since we project 3D->2D again in this shader, we also need to update the
+		// projected 2D coords that will be used in the pixel shader to compute the UVs.
+		// DirectX does an implicit division by w; but here we need to do it explicitly
+		// since this is not the SV_POSITION member:
+		output.pos3D.xy = output.pos.xy / output.pos.w;
+
 		// The following value is like the depth-buffer value. Setting it to 2 will remove
 		// this point
 		output.pos.z = 0.0f; // It's OK to ovewrite z after the projection, I'm doing this in SBSVertexShader already
