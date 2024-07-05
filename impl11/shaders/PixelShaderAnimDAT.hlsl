@@ -41,6 +41,7 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
+	const uint bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
 	float2 UV = input.tex * float2(AspectRatio, 1) + Offset.xy;
 	if (Clamp) UV = saturate(UV);
 
@@ -69,8 +70,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.ssMask = 0;
 
 	float3 N = normalize(input.normal.xyz);
-	N.y = -N.y; // Invert the Y axis, originally Y+ is down
-	N.z = -N.z;
+	N.yz = -N.yz; // Invert the Y axis, originally Y+ is down
 	output.normal = float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
@@ -109,6 +109,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		// layer. Doing discard now will remove both layers!
 		//if (bInHyperspace && output.bloom.a < 0.5)
 		//	discard;
+	}
+
+	// Make blast marks shadeless/prevent them from overwriting normals, depth, masks, etc.
+	if (bIsBlastMark)
+	{
+		output.pos3D     = 0;
+		output.normal    = 0;
+		output.ssaoMask  = 0;
+		output.ssMask.ba = texelColor.a;
 	}
 
 	return output;

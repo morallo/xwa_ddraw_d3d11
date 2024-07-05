@@ -4602,9 +4602,12 @@ HRESULT Direct3DDevice::Execute(
 						// draw call. So, here we enable this flag so that we *don't* render blast marks as glass.
 						bModifiedShaders = true;
 						g_PSCBuffer.special_control.bBlastMark = 1;
-						//g_PSCBuffer.GreebleDist1 = g_fBlastMarkOfsX;
-						//g_PSCBuffer.GreebleDist2 = g_fBlastMarkOfsY;
-						resources->_overrideRTV = TRANSP_LYR_1;
+
+						// Using this layer makes blast marks shadeless, but it also defeats the depth stencil, so
+						// the blast marks show through the cockpit sometimes. I don't know why this is happening,
+						// but keeping the blast marks on the offscreenBuffer appears to work.
+						//resources->_overrideRTV = TRANSP_LYR_1;
+						resources->_overrideRTV = TRANSP_LYR_NONE;
 					}
 				}
 

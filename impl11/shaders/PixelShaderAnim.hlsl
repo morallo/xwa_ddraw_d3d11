@@ -197,8 +197,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	}
 	output.bloom = max(output.bloom, ScreenLyrBloom);
 
-	//if (bIsShadeless)
-	//	output.ssMask.ba = alpha;
+	// Make blast marks shadeless/prevent them from overwriting normals, depth, masks, etc.
+	if (bIsBlastMark)
+	{
+		output.pos3D     = 0;
+		output.normal    = 0;
+		output.ssaoMask  = 0;
+		output.ssMask.ba = texelColor.a;
+	}
 
 	return output;
 }
