@@ -1245,6 +1245,10 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				ApplyCustomHUDColor();
 				break;
 
+			case VK_NUMPAD5:
+				ResetCockpitShake();
+				break;
+
 			case VK_OEM_PERIOD:
 				POVReset();
 				ResetCockpitShake();
