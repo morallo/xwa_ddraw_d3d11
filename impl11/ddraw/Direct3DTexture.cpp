@@ -311,7 +311,10 @@ int Direct3DTexture::GetHeight() {
 
 Direct3DTexture::~Direct3DTexture()
 {
-	*this->_textureView.GetAddressOf() = nullptr;
+	// I added this to fix some release underflows; but it appears to be causing some
+	// textures to be released when they are still being used.
+	// See commit c7226e59 for more details.
+	//*this->_textureView.GetAddressOf() = nullptr;
 }
 
 HRESULT Direct3DTexture::QueryInterface(
