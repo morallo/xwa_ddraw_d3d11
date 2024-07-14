@@ -1,6 +1,7 @@
 #include "common.h"
 #include "reticle.h"
 #include <vector>
+#include "Effects.h"
 
 /*
 hook_reticle mapping:
@@ -49,10 +50,11 @@ std::vector<char*> CustomWLight_MR_ResNames;
 std::vector<char*> CustomWLight_RR_ResNames;
 
 /*
- Converts an index number as specified in the custom reticle files to a slot index
- as stored in HUD.dat.
+Converts an index number as specified in the custom reticle files to a slot index
+as stored in HUD.dat.
 */
-int ReticleIndexToHUDSlot(int ReticleIndex) {
+int ReticleIndexToHUDSlotOld(int ReticleIndex)
+{
 	// I hate this stupid numbering system
 	// The reticles start at 5151
 	// Every 14 slots, the group number will increase
@@ -65,6 +67,77 @@ int ReticleIndexToHUDSlot(int ReticleIndex) {
 	log_debug("[DBG] [RET] index: %d, sub_slot: %d, super_slot: %d, slot_mod: %d slot: %d",
 		ReticleIndex, sub_slot, super_slot, slot_mod, slot);
 	return slot;
+}
+
+std::string GetHUDDatFileName()
+{
+	const char *sFileName = "./ResData.txt";
+	std::string result = "./ResData/HUD_xwau.dat";
+	int error;
+	FILE* file;
+
+	log_debug("[DBG] [RET] Loading HUD dat file from %s", sFileName);
+	try {
+		error = fopen_s(&file, sFileName, "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] [RET] Could not load [%s]", sFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] [RET] Error %d when loading [%s]", error, sFileName);
+		return result;
+	}
+
+	char buf[256];
+	int line = 1;
+	while (fgets(buf, 256, file) != NULL) {
+		line++;
+		// Skip comments and blank lines
+		if (buf[0] == ';' || buf[0] == '#')
+			continue;
+		if (strlen(buf) == 0)
+			continue;
+
+		if (stristr(buf, "ResData\\HUD") != NULL)
+		{
+			result = buf;
+			// Remove any blank chars at the end of the string
+			result.erase(result.find_last_not_of(" \n\r\t")+1);
+			log_debug("[DBG] [RET] Found reticles are stored in [%s]", result.c_str());
+			break;
+		}
+	}
+
+	fclose(file);
+	return result;
+}
+
+int ReticleIndexToHUDSlot(int ReticleIndex)
+{
+	static short* s_ReticleSlots = nullptr;
+	if (s_ReticleSlots == nullptr)
+	{
+		bool res = true;
+		std::string hudFileName = GetHUDDatFileName();
+
+		log_debug("[DBG] [RET] Loading [%s]...", hudFileName.c_str());
+		res = LoadDATFile(hudFileName.c_str());
+		if (res == false)
+		{
+			log_debug("[DBG] [RET] Error loading [%s]", hudFileName.c_str());
+			return ReticleIndexToHUDSlotOld(ReticleIndex);
+		}
+		const int RETICLE_GROUP_ID = 12000;
+		int numImages = GetDATGroupImageCount(RETICLE_GROUP_ID);
+		log_debug("[DBG] [RET] %s has %d images in group %d",
+			hudFileName.c_str(), numImages, RETICLE_GROUP_ID);
+		s_ReticleSlots = new short[numImages];
+		GetDATGroupImageList(RETICLE_GROUP_ID, s_ReticleSlots, numImages);
+	}
+
+	// DAT images start at index 1, but arrays in C are 0-based:
+	return s_ReticleSlots[ReticleIndex - 1];
 }
 
 /*
@@ -141,7 +214,7 @@ bool LoadReticleTXTFile(char* sFileName) {
 				ResName = new char[80];
 				ReticleIndexToHUDresname(iValue, ResName, 80);
 				strcpy_s(g_sLaserLockedReticleResName, 80, ResName);
-				log_debug("[DBG] [RET] Laser Highlight Reticle Center: %s", ResName);
+				log_debug("[DBG] [RET] Laser Highlight Reticle Center: %s Added", ResName);
 			}
 			else if (_stricmp(param, "Reticle_7") == 0) { // Warhead reticle
 				log_debug("[DBG] [RET] Reticle_7: %d", iValue);
