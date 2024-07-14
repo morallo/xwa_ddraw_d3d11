@@ -1204,7 +1204,7 @@ void Direct3DTexture::TagTexture() {
 			this->is_TurboLaser = true;
 		}
 
-		if (strstr(surface->_cname, "Cockpit") != NULL) {
+		if (stristr(surface->_cname, "Cockpit.opt") != NULL) {
 			this->is_CockpitTex = true;
 
 			// DEBUG
