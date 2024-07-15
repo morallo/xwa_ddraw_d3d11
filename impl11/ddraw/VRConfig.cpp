@@ -414,10 +414,11 @@ void LoadVRParams() {
 				g_fAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
 			} */
-			else if (_stricmp(param, CONCOURSE_ASPECT_RATIO_VRPARAM) == 0) {
+			// The concourse aspect ratio may not be necessary anymore:
+			/*else if (_stricmp(param, CONCOURSE_ASPECT_RATIO_VRPARAM) == 0) {
 				g_fConcourseAspectRatio = fValue;
 				g_bOverrideAspectRatio = true;
-			}
+			}*/
 			else if (_stricmp(param, K1_VRPARAM) == 0) {
 				g_fLensK1 = fValue;
 			}
