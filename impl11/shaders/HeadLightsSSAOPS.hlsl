@@ -12,34 +12,29 @@
 #include "shading_system.h"
 #include "SSAOPSConstantBuffer.h"
 
+SamplerState sampler0 : register(s0);
 
  // The color buffer
 Texture2D texColor : register(t0);
-SamplerState sampColor : register(s0);
 
 // The SSAO buffer
 Texture2D texSSAO : register(t1);
-SamplerState samplerSSAO : register(s1);
 
 // The Background buffer
 Texture2D texBackground : register(t2);
 
 // The SSAO mask
 Texture2D texSSAOMask : register(t3);
-SamplerState samplerSSAOMask : register(s3);
 
 
 // The position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t4);
-SamplerState sampPos  : register(s4);
 
 // The Normals buffer
 Texture2D texNormal : register(t5);
-SamplerState samplerNormal : register(s5);
 
 // The Shading System Mask buffer
 Texture2D texSSMask : register(t6);
-SamplerState samplerSSMask : register(s6);
 
 // Transparent layer 1
 Texture2D transp1 : register(t18);
@@ -87,7 +82,7 @@ inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+	return texPos.SampleLevel(sampler0, uv, level).xyz;
 }
 
 // See: https://wickedengine.net/2017/10/22/which-blend-state-for-me/
@@ -138,15 +133,15 @@ float4 BlendTransparentLayers(
 PixelShaderOutput main(PixelShaderInput input)
 {
 	float2 input_uv_sub  = input.uv * amplifyFactor;
-	float4 texelColor    = texColor.Sample(sampColor, input.uv);
-	float4 Normal        = texNormal.Sample(samplerNormal, input.uv);
-	float3 ssao          = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
-	float3 ssaoMask      = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask        = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float3 background    = texBackground.Sample(sampColor, input.uv).rgb;
-	float4 transpColor1  = transp1.Sample(sampColor, input.uv);
-	float4 transpColor2  = transp2.Sample(sampColor, input.uv);
-	float4 reticleColor  = reticleTex.Sample(sampColor, input.uv);
+	float4 texelColor    = texColor.Sample(sampler0, input.uv);
+	float4 Normal        = texNormal.Sample(sampler0, input.uv);
+	float3 ssao          = texSSAO.Sample(sampler0, input_uv_sub).rgb;
+	float3 ssaoMask      = texSSAOMask.Sample(sampler0, input.uv).xyz;
+	float3 ssMask        = texSSMask.Sample(sampler0, input.uv).xyz;
+	float3 background    = texBackground.Sample(sampler0, input.uv).rgb;
+	float4 transpColor1  = transp1.Sample(sampler0, input.uv);
+	float4 transpColor2  = transp2.Sample(sampler0, input.uv);
+	float4 reticleColor  = reticleTex.Sample(sampler0, input.uv);
 	float3 color         = texelColor.rgb;
 	float  mask          = ssaoMask.x;
 	float  gloss_mask    = ssaoMask.y;

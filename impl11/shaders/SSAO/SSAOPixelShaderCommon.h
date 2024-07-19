@@ -6,36 +6,31 @@
 #include "..\shader_common.h"
 #include "..\SSAOPSConstantBuffer.h"
 
+SamplerState sampler0 : register(s0);
 #ifdef INSTANCED_RENDERING
 // The 3D position buffer (linear X,Y,Z)
-Texture2DArray    texPos : register(t0);
-SamplerState sampPos : register(s0);
+Texture2DArray texPos : register(t0);
 
 // The normal buffer
 Texture2DArray    texNorm : register(t1);
-SamplerState sampNorm : register(s1);
 
 // The color buffer
 Texture2DArray    texColor : register(t2);
-SamplerState sampColor : register(s2);
 #else
 // The 3D position buffer (linear X,Y,Z)
 Texture2D texPos : register(t0);
-SamplerState sampPos : register(s0);
 
 // The normal buffer
 Texture2D texNorm : register(t1);
-SamplerState sampNorm : register(s1);
 
 // The color buffer
 Texture2D texColor : register(t2);
-SamplerState sampColor : register(s2);
 #endif
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float4 pos  : SV_POSITION;
+	float2 uv   : TEXCOORD;
 #ifdef INSTANCED_RENDERING
 	uint viewId : SV_RenderTargetArrayIndex;
 #endif
@@ -60,7 +55,7 @@ inline float3 getPosition(in float2 uv, in float level)
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+	return texPos.SampleLevel(sampler0, uv, level).xyz;
 }
 
 #ifdef INSTANCED_RENDERING
@@ -69,7 +64,7 @@ inline float3 getNormal(in float3 uv, in float level)
 inline float3 getNormal(in float2 uv, in float level)
 #endif
 {
-	return texNorm.Sample(sampNorm, uv, level).xyz;
+	return texNorm.Sample(sampler0, uv, level).xyz;
 }
 
 #ifdef INSTANCED_RENDERING

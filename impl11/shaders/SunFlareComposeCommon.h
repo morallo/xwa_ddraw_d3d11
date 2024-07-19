@@ -6,22 +6,19 @@
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
 
+SamplerState sampler0 : register(s0);
 #ifdef INSTANCED_RENDERING
 // The color texture
-Texture2DArray    colorTex : register(t0);
-SamplerState colorSampler : register(s0);
+Texture2DArray colorTex : register(t0);
 
 // The flare texture
-Texture2DArray    flareTex : register(t1);
-SamplerState flareSampler : register(s1);
+Texture2DArray flareTex : register(t1);
 #else
 // The color texture
 Texture2D colorTex : register(t0);
-SamplerState colorSampler : register(s0);
 
 // The flare texture
 Texture2D flareTex : register(t1);
-SamplerState flareSampler : register(s1);
 #endif
 
 // The depth texture (shadertoyAuxBuf)
@@ -32,8 +29,8 @@ SamplerState depthSampler : register(s2);
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float4 pos    : SV_POSITION;
+	float2 uv     : TEXCOORD;
 #ifdef INSTANCED_RENDERING
 	uint   viewId : SV_RenderTargetArrayIndex;
 #endif
@@ -56,11 +53,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 
 #ifdef INSTANCED_RENDERING
-	float4 color = colorTex.Sample(colorSampler, float3(input.uv, input.viewId));
-	float4 flare = flareTex.Sample(flareSampler, float3(input.uv, input.viewId));
+	float4 color = colorTex.Sample(sampler0, float3(input.uv, input.viewId));
+	float4 flare = flareTex.Sample(sampler0, float3(input.uv, input.viewId));
 #else
-	float4 color = colorTex.Sample(colorSampler, input.uv);
-	float4 flare = flareTex.Sample(flareSampler, input.uv);
+	float4 color = colorTex.Sample(sampler0, input.uv);
+	float4 flare = flareTex.Sample(sampler0, input.uv);
 #endif
 
 	float2 sunPos;

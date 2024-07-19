@@ -13,14 +13,6 @@ static const float3 yellow_color = float3(0.7, 0.65, 0.15);
 static const float rotation_speed = 2.3;
 static const float t2 = 4.0;
 
-// The Foreground Color Buffer (_shadertoyBuf)
-//Texture2D fgColorTex : register(t0);
-//SamplerState fgColorSampler : register(s0);
-//
-//// The Background Color Buffer (_shadertoyAuxBuf)
-//Texture2D bgColorTex : register(t1);
-//SamplerState bgColorSampler : register(s1);
-
 // From https://www.shadertoy.com/view/4sc3z2
 // and https://www.shadertoy.com/view/XsX3zB
 #define MOD3 vec3(.1031,.11369,.13787)

@@ -12,19 +12,17 @@
 #include "ShadertoyCBuffer.h"
 #include "metric_common.h"
 
+SamplerState sampler0 : register(s0);
 #ifdef INSTANCED_RENDERING
  // The background texture
 Texture2DArray bgTex : register(t0);
-SamplerState   bgSampler : register(s0);
 #else
  // The background texture
 Texture2D    bgTex : register(t0);
-SamplerState bgSampler : register(s0);
 #endif
 
 // The reticle texture
-Texture2D    reticleTex : register(t1);
-SamplerState reticleSampler : register(s1);
+Texture2D   reticleTex : register(t1);
 
 TextureCube skybox : register(t21);
 
@@ -69,7 +67,7 @@ PixelShaderOutput RenderSkyBox(PixelShaderInput input)
 	V.yz = -V.yz;
 	// That way, viewMat below is the same we already figured out for PixelShaderVRGeom:
 	V = mul(viewMat, float4(V, 0)).xyz;
-	output.color = float4(skybox.Sample(bgSampler, V.xyz).rgb, 1);
+	output.color = float4(skybox.Sample(sampler0, V.xyz).rgb, 1);
 	return output;
 }
 
@@ -188,9 +186,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// texture using input.uv, we'll get one SBS image on the left, and one SBS image on the
 	// right. That's 4 images in one screen!
 #ifdef INSTANCED_RENDERING
-	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
+	if (VRmode == 0) output.color = bgTex.Sample(sampler0, float3(input.uv, input.viewId));
 #else
-	if (VRmode == 0) output.color = bgTex.Sample(bgSampler, input.uv);
+	if (VRmode == 0) output.color = bgTex.Sample(sampler0, input.uv);
 #endif
 
 	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / min(iResolution.x, iResolution.y);
@@ -255,7 +253,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		//float2 reticleUV = (v.xy * reticleScale * mr_vr_aspect_ratio_comp + reticleCentroid.xy);
 		float2 reticleUV = (v.xy * reticleScale + reticleCentroid.xy);
 
-		float4 reticle = reticleTex.Sample(reticleSampler, reticleUV);
+		float4 reticle = reticleTex.Sample(sampler0, reticleUV);
 		float alpha = 3.0 * dot(0.333, reticle);
 		// DEBUG
 		//output.color = float4(col, 0.8 * dm); // Render the synthetic reticle

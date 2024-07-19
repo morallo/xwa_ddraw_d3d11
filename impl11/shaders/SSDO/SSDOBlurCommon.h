@@ -4,34 +4,28 @@
  * Licensed under the MIT license. See LICENSE.txt
  */
 
+SamplerState sampler0 : register(s0);
 #ifdef INSTANCED_RENDERING
 // The SSAO Buffer
 Texture2DArray SSAOTex : register(t0);
-SamplerState SSAOSampler : register(s0);
 
 // The FG Depth Buffer
 Texture2DArray DepthTex : register(t1);
-SamplerState DepthSampler : register(s1);
 
 // The Normal Buffer
 Texture2DArray NormalTex : register(t2);
-SamplerState NormalSampler : register(s2);
 
 // The Bent Normals
 //Texture2DArray BentTex : register(t3);
-//SamplerState BentSampler : register(s3);
 #else
 // The SSAO Buffer
 Texture2D SSAOTex : register(t0);
-SamplerState SSAOSampler : register(s0);
 
 // The FG Depth Buffer
 Texture2D DepthTex : register(t1);
-SamplerState DepthSampler : register(s1);
 
 // The Normal Buffer
 Texture2D NormalTex : register(t2);
-SamplerState NormalSampler : register(s2);
 #endif
 
 struct BlurData {
@@ -66,9 +60,7 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 ssao     : SV_TARGET0;
-	//float4 bent     : SV_TARGET1;
-	//float4 emission : SV_TARGET2;
+	float4 ssao : SV_TARGET0;
 };
 
 float compute_spatial_tap_weight(in BlurData center, in BlurData tap)
@@ -100,9 +92,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	//float3 tap_bent, bent_sum, bent_sum_noweight;
 	//float3 tap_em, em_sum, em_sum_noweight;
 #ifdef INSTANCED_RENDERING
-	float3 P = DepthTex.Sample(DepthSampler, float3(input.uv,input.viewId)).xyz;
+	float3 P = DepthTex.Sample(sampler0, float3(input.uv,input.viewId)).xyz;
 #else
-    float3 P = DepthTex.Sample(DepthSampler, input.uv).xyz;
+    float3 P = DepthTex.Sample(sampler0, input.uv).xyz;
 #endif
 	BlurData center, tap;
 	center.pos = P;
@@ -111,11 +103,11 @@ PixelShaderOutput main(PixelShaderInput input) {
 	output.ssao     = float4(0, 0, 0, 1);
 
 #ifdef INSTANCED_RENDERING
-	ssao_sum      = SSAOTex.Sample(SSAOSampler, float3(input_uv_scaled,input.viewId)).xyz;
-	center.normal = NormalTex.Sample(NormalSampler, float3(input.uv, input.viewId)).xyz;
+	ssao_sum      = SSAOTex.Sample(sampler0, float3(input_uv_scaled,input.viewId)).xyz;
+	center.normal = NormalTex.Sample(sampler0, float3(input.uv, input.viewId)).xyz;
 #else
-    ssao_sum      = SSAOTex.Sample(SSAOSampler, input_uv_scaled).xyz;
-    center.normal = NormalTex.Sample(NormalSampler, input.uv).xyz;
+    ssao_sum      = SSAOTex.Sample(sampler0, input_uv_scaled).xyz;
+    center.normal = NormalTex.Sample(sampler0, input.uv).xyz;
 #endif
 	blurweight = 1;
 	ssao_sum_noweight = ssao_sum;
@@ -128,13 +120,13 @@ PixelShaderOutput main(PixelShaderInput input) {
 		cur_offset = pixelSize * offsets[i];
 		cur_offset_scaled = amplifyFactor * cur_offset;
 #ifdef INSTANCED_RENDERING
-		tap_ssao   = SSAOTex.Sample(SSAOSampler, float3(input_uv_scaled + cur_offset_scaled,input.viewId)).xyz;
-		tap.pos    = DepthTex.Sample(DepthSampler, float3(input.uv + cur_offset,input.viewId)).xyz;
-		tap.normal = NormalTex.Sample(NormalSampler, float3(input.uv + cur_offset,input.viewId)).xyz;
+		tap_ssao   = SSAOTex.Sample(sampler0, float3(input_uv_scaled + cur_offset_scaled,input.viewId)).xyz;
+		tap.pos    = DepthTex.Sample(sampler0, float3(input.uv + cur_offset,input.viewId)).xyz;
+		tap.normal = NormalTex.Sample(sampler0, float3(input.uv + cur_offset,input.viewId)).xyz;
 #else
-        tap_ssao   = SSAOTex.Sample(SSAOSampler, input_uv_scaled + cur_offset_scaled).xyz;
-        tap.pos    = DepthTex.Sample(DepthSampler, input.uv + cur_offset).xyz;
-        tap.normal = NormalTex.Sample(NormalSampler, input.uv + cur_offset).xyz;
+        tap_ssao   = SSAOTex.Sample(sampler0, input_uv_scaled + cur_offset_scaled).xyz;
+        tap.pos    = DepthTex.Sample(sampler0, input.uv + cur_offset).xyz;
+        tap.normal = NormalTex.Sample(sampler0, input.uv + cur_offset).xyz;
 #endif
 
 		tap_weight = compute_spatial_tap_weight(center, tap);

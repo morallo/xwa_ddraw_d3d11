@@ -15,7 +15,6 @@ SamplerState sampler0 : register(s0);
 
 // HUD offscreen buffer
 Texture2D    texture1 : register(t1);
-SamplerState sampler1 : register(s1);
 
 // When the Dynamic Cockpit is active:
 // texture0 == cover texture and

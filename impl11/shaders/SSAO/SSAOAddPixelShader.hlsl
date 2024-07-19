@@ -16,31 +16,26 @@
 
 // The color buffer
 Texture2D texColor : register(t0);
-SamplerState sampColor : register(s0);
+SamplerState sampler0 : register(s0);
 
 // The SSAO buffer
 Texture2D texSSAO : register(t1);
-SamplerState samplerSSAO : register(s1);
 
 // The Background buffer
 Texture2D texBackground : register(t2);
 
 // The SSAO mask
 Texture2D texSSAOMask : register(t3);
-SamplerState samplerSSAOMask : register(s3);
 
 
 // The position/depth buffer
 Texture2D texPos : register(t4);
-SamplerState sampPos : register(s4);
 
 // The (Smooth) Normals buffer
 Texture2D texNormal : register(t5);
-SamplerState samplerNormal : register(s5);
 
 // The Shading System Mask buffer
 Texture2D texSSMask : register(t6);
-SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2D rtShadowMask : register(t17);
@@ -101,7 +96,7 @@ inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+	return texPos.SampleLevel(sampler0, uv, level).xyz;
 }
 
 // From https://www.gamedev.net/tutorials/programming/graphics/effect-area-light-shadows-part-1-pcss-r4971/
@@ -125,7 +120,7 @@ inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize,
 		ofs.x = -radius;
 		for (int j = -filterSize; j <= filterSize; j++)
 		{
-			float4 tmp = texShadowMap.Gather(sampPos, //samplerShadowMap,
+			float4 tmp = texShadowMap.Gather(sampler0, //samplerShadowMap,
 				float3(sm_pos + ofs, idx));
 			// We're comparing depth values here. For OBJ-based shadow maps, 1 is infinity 0 is ZNear
 			// so if a dpeth value is *lower* than Q.z it's an occluder
@@ -189,15 +184,15 @@ float4 BlendTransparentLayers(
 PixelShaderOutput main(PixelShaderInput input)
 {
 	float2 input_uv_sub   = input.uv * amplifyFactor;
-	float4 texelColor     = texColor.Sample(sampColor, input.uv);
-	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
-	float3 ssao           = texSSAO.Sample(samplerSSAO, input_uv_sub).rgb;
-	float3 background     = texBackground.Sample(sampColor, input.uv).rgb;
-	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float4 transpColor1   = transp1.Sample(sampColor, input.uv);
-	float4 transpColor2   = transp2.Sample(sampColor, input.uv);
-	float4 reticleColor   = reticleTex.Sample(sampColor, input.uv);
+	float4 texelColor     = texColor.Sample(sampler0, input.uv);
+	float4 Normal         = texNormal.Sample(sampler0, input.uv);
+	float3 ssao           = texSSAO.Sample(sampler0, input_uv_sub).rgb;
+	float3 background     = texBackground.Sample(sampler0, input.uv).rgb;
+	float3 ssaoMask       = texSSAOMask.Sample(sampler0, input.uv).xyz;
+	float3 ssMask         = texSSMask.Sample(sampler0, input.uv).xyz;
+	float4 transpColor1   = transp1.Sample(sampler0, input.uv);
+	float4 transpColor2   = transp2.Sample(sampler0, input.uv);
+	float4 reticleColor   = reticleTex.Sample(sampler0, input.uv);
 
 	float3 color          = texelColor.rgb;
 	float  mask           = ssaoMask.x;
@@ -286,7 +281,7 @@ PixelShaderOutput main(PixelShaderInput input)
 			float2 uv;
 			float rtVal = 0;
 			const int range = 2;
-			const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+			const float rtCenter = rtShadowMask.Sample(sampler0, input.uv).x;
 			//const float wsize = (2 * range + 1) * (2 * range + 1);
 			const float2 uv_delta = float2(RTShadowMaskPixelSizeX * RTShadowMaskSizeFactor,
 				RTShadowMaskPixelSizeY * RTShadowMaskSizeFactor);
@@ -306,7 +301,7 @@ PixelShaderOutput main(PixelShaderInput input)
 					[unroll]
 					for (j = -1; j <= 1; j++)
 					{
-						rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
+						rtMin = min(rtMin, rtShadowMask.Sample(sampler0, uv).x);
 						uv.x += uv_delta_d.x;
 					}
 					uv.y += uv_delta_d.y;
@@ -324,14 +319,14 @@ PixelShaderOutput main(PixelShaderInput input)
 				[unroll]
 				for (j = -range; j <= range; j++)
 				{
-					const float z = texPos.Sample(sampPos, uv).z;
+					const float z = texPos.Sample(sampler0, uv).z;
 					const float delta_z = abs(P.z - z);
 					const float delta_ij = -RTGaussFactor * (i * i + j * j);
 					//const float G = RTUseGaussFilter ? exp(delta_ij) : 1.0;
 					const float G = exp(delta_ij);
 					// Objects far away should have bigger thresholds too
 					if (delta_z < RTSoftShadowThresholdMult * P.z)
-						rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
+						rtVal += G * rtShadowMask.Sample(sampler0, uv).x;
 					else
 						rtVal += G * rtMin;
 					Gsum += G;

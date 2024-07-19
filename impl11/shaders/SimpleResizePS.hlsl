@@ -8,10 +8,10 @@ Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
 Texture2D signatureTex : register(t1);
-SamplerState signatureSamp : register(s1) =
-	sampler_state {
-		Filter = MIN_MAG_MIP_POINT; // No interpolation
-	};
+//SamplerState signatureSamp : register(s1) =
+//	sampler_state {
+//		Filter = MIN_MAG_MIP_POINT; // No interpolation
+//	};
 
 cbuffer ConstantBuffer : register(b0)
 {
@@ -43,6 +43,6 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	if (input.tex.y < v)
 		return float4(texelColor.rgb, 1.0f);
 	else
-		//return float4(1, 0, 0, 1);
-		return signatureTex.Sample(signatureSamp, input.tex);
+		//return signatureTex.Sample(signatureSamp, input.tex);
+		return signatureTex.Sample(sampler0, input.tex);
 }

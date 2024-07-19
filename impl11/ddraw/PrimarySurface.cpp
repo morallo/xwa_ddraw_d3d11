@@ -3387,8 +3387,7 @@ void PrimarySurface::DeferredPass()
 	}
 
 	// Set the PCF sampler state
-	if (g_ShadowMapping.bEnabled)
-		context->PSSetSamplers(7, 1, resources->_shadowPCFSamplerState.GetAddressOf());
+	context->PSSetSamplers(7, 1, resources->_shadowPCFSamplerState.GetAddressOf());
 
 	// The pos/depth texture must be resolved to _depthAsInput/_depthAsInputR already
 	// Deferred pass, Left Image

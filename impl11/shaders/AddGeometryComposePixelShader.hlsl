@@ -7,17 +7,15 @@
 #include "ShadertoyCBuffer.h"
 
 // The offscreenBuffer up to this point
-Texture2DArray    colorTex     : register(t0);
-SamplerState colorSampler : register(s0);
+Texture2DArray colorTex : register(t0);
+SamplerState   sampler0 : register(s0);
 
 // The effects (trails, additional geometry, etc) buffer up to this point
-Texture2DArray    effectTex     : register(t1);
-SamplerState effectSampler : register(s1);
+Texture2DArray effectTex : register(t1);
 
 /*
 // The pos3D buffer
 Texture2D    posTex     : register(t2);
-SamplerState posSampler : register(s2);
 */
 
 struct PixelShaderInput
@@ -36,8 +34,8 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 
-	float4 texColor = colorTex.Sample(colorSampler, float3(input.uv,input.viewId));
-	float4 effectColor = effectTex.Sample(effectSampler, float3(input.uv, input.viewId));
+	float4 texColor = colorTex.Sample(sampler0, float3(input.uv, input.viewId));
+	float4 effectColor = effectTex.Sample(sampler0, float3(input.uv, input.viewId));
 
 	// Initialize the result:
 	output.color = texColor;

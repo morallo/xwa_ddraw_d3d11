@@ -13,14 +13,6 @@
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
 
-//// The Foreground Color Buffer (_shadertoyBuf)
-//Texture2D fgColorTex : register(t0);
-//SamplerState fgColorSampler : register(s0);
-//
-//// The Background Color Buffer (_shadertoyAuxBuf)
-//Texture2D bgColorTex : register(t1);
-//SamplerState bgColorSampler : register(s1);
-
 // The way this shader works is by looking at the screen as if it were a disk and then
 // this disk is split into a number of slices centered at the origin. Each slice renders
 // a single trail. So this setting controls the overall density of the effect:

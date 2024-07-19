@@ -18,33 +18,28 @@
 #undef PBR_DYN_LIGHTS
 //#define PBR_DYN_LIGHTS
 
+SamplerState sampler0 : register(s0);
 #ifdef INSTANCED_RENDERING
 // The color buffer
 Texture2DArray texColor : register(t0);
-SamplerState sampColor : register(s0);
 
 // The SSDO Direct buffer
 Texture2DArray texSSDO : register(t1);
-SamplerState samplerSSDO : register(s1);
 
 // The Background buffer
 Texture2DArray texBackground : register(t2);
 
 // The SSAO mask
 Texture2DArray texSSAOMask : register(t3);
-SamplerState samplerSSAOMask : register(s3);
 
 // The position/depth buffer
 Texture2DArray texPos : register(t4);
-SamplerState sampPos : register(s4);
 
 // The (Smooth) Normals buffer
 Texture2DArray texNormal : register(t5);
-SamplerState samplerNormal : register(s5);
 
 // The Shading System Mask buffer
 Texture2DArray texSSMask : register(t6);
-SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2DArray rtShadowMask : register(t17);
@@ -57,30 +52,24 @@ Texture2DArray transp2 : register(t19);
 #else
 // The color buffer
 Texture2D texColor : register(t0);
-SamplerState sampColor : register(s0);
 
 // The SSDO Direct buffer
 Texture2D texSSDO : register(t1);
-SamplerState samplerSSDO : register(s1);
 
 // The Background buffer
 Texture2D texBackground : register(t2);
 
 // The SSAO mask
 Texture2D texSSAOMask : register(t3);
-SamplerState samplerSSAOMask : register(s3);
 
 // The position/depth buffer
 Texture2D texPos : register(t4);
-SamplerState sampPos : register(s4);
 
 // The (Smooth) Normals buffer
 Texture2D texNormal : register(t5);
-SamplerState samplerNormal : register(s5);
 
 // The Shading System Mask buffer
 Texture2D texSSMask : register(t6);
-SamplerState samplerSSMask : register(s6);
 
 // The RT Shadow Mask
 Texture2D rtShadowMask : register(t17);
@@ -210,7 +199,7 @@ inline float ShadowMapPCF(float idx, float3 Q, float resolution, int filterSize,
 		ofs.x = -radius;
 		for (int j = -filterSize; j <= filterSize; j++)
 		{
-			float4 tmp = texShadowMap.Gather(sampPos, //samplerShadowMap,
+			float4 tmp = texShadowMap.Gather(sampler0, //samplerShadowMap,
 				float3(sm_pos + ofs, idx));
 			// We're comparing depth values here. For OBJ-based shadow maps, 1 is infinity 0 is ZNear
 			// so if a dpeth value is *lower* than Q.z it's an occluder
@@ -283,27 +272,27 @@ PixelShaderOutput main(PixelShaderInput input)
 	float2 input_uv_sub   = input.uv * amplifyFactor;
 	//float2 input_uv_sub2  = input.uv * amplifyFactor;
 #ifdef INSTANCED_RENDERING
-	float4 texelColor     = texColor.Sample(sampColor, float3(input.uv, input.viewId));
-	float4 Normal         = texNormal.Sample(samplerNormal, float3(input.uv, input.viewId));
-	float3 pos3D          = texPos.Sample(sampPos, float3(input.uv, input.viewId)).xyz;
-	float3 ssdo           = texSSDO.Sample(samplerSSDO, float3(input_uv_sub, input.viewId)).rgb;
-	float3 background     = texBackground.Sample(sampColor, float3(input.uv, input.viewId)).rgb;
-	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, float3(input.uv, input.viewId)).xyz;
-	float3 ssMask         = texSSMask.Sample(samplerSSMask, float3(input.uv, input.viewId)).xyz;
-	float4 transpColor1   = transp1.Sample(sampColor, float3(input.uv, input.viewId));
-	float4 transpColor2   = transp2.Sample(sampColor, float3(input.uv, input.viewId));
+	float4 texelColor     = texColor.Sample(sampler0, float3(input.uv, input.viewId));
+	float4 Normal         = texNormal.Sample(sampler0, float3(input.uv, input.viewId));
+	float3 pos3D          = texPos.Sample(sampler0, float3(input.uv, input.viewId)).xyz;
+	float3 ssdo           = texSSDO.Sample(sampler0, float3(input_uv_sub, input.viewId)).rgb;
+	float3 background     = texBackground.Sample(sampler0, float3(input.uv, input.viewId)).rgb;
+	float3 ssaoMask       = texSSAOMask.Sample(sampler0, float3(input.uv, input.viewId)).xyz;
+	float3 ssMask         = texSSMask.Sample(sampler0, float3(input.uv, input.viewId)).xyz;
+	float4 transpColor1   = transp1.Sample(sampler0, float3(input.uv, input.viewId));
+	float4 transpColor2   = transp2.Sample(sampler0, float3(input.uv, input.viewId));
 #else
-	float4 texelColor     = texColor.Sample(sampColor, input.uv);
-	float4 Normal         = texNormal.Sample(samplerNormal, input.uv);
-	float3 pos3D          = texPos.Sample(sampPos, input.uv).xyz;
-	float3 ssdo           = texSSDO.Sample(samplerSSDO, input_uv_sub).rgb;
-	float3 background     = texBackground.Sample(sampColor, input.uv).rgb;
+	float4 texelColor     = texColor.Sample(sampler0, input.uv);
+	float4 Normal         = texNormal.Sample(sampler0, input.uv);
+	float3 pos3D          = texPos.Sample(sampler0, input.uv).xyz;
+	float3 ssdo           = texSSDO.Sample(sampler0, input_uv_sub).rgb;
+	float3 background     = texBackground.Sample(sampler0, input.uv).rgb;
 	//float3 background     = 0;
-	float3 ssaoMask       = texSSAOMask.Sample(samplerSSAOMask, input.uv).xyz;
-	float3 ssMask         = texSSMask.Sample(samplerSSMask, input.uv).xyz;
-	float4 transpColor1   = transp1.Sample(sampColor, input.uv);
-	float4 transpColor2   = transp2.Sample(sampColor, input.uv);
-	float4 reticleColor   = reticleTex.Sample(sampColor, input.uv);
+	float3 ssaoMask       = texSSAOMask.Sample(sampler0, input.uv).xyz;
+	float3 ssMask         = texSSMask.Sample(sampler0, input.uv).xyz;
+	float4 transpColor1   = transp1.Sample(sampler0, input.uv);
+	float4 transpColor2   = transp2.Sample(sampler0, input.uv);
+	float4 reticleColor   = reticleTex.Sample(sampler0, input.uv);
 #endif
 	float3 color          = texelColor.rgb;
 	float  mask           = ssaoMask.x;
@@ -410,9 +399,9 @@ PixelShaderOutput main(PixelShaderInput input)
 			float rtVal = 0;
 			const int range = 2;
 #ifdef INSTANCED_RENDERING
-            const float rtCenter = rtShadowMask.Sample(sampColor, float3(input.uv, input.viewId)).x;
+            const float rtCenter = rtShadowMask.Sample(sampler0, float3(input.uv, input.viewId)).x;
 #else
-            const float rtCenter = rtShadowMask.Sample(sampColor, input.uv).x;
+            const float rtCenter = rtShadowMask.Sample(sampler0, input.uv).x;
 #endif
 			// When RTShadowMaskSizeFactor is 1, we won't get soft shadows because the uv_delta
 			// is too small. So we need to set a lower bound to have a good delta.
@@ -436,9 +425,9 @@ PixelShaderOutput main(PixelShaderInput input)
 					for (j = -1; j <= 1; j++)
 					{
 #ifdef INSTANCED_RENDERING
-                        rtMin = min(rtMin, rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x);
+                        rtMin = min(rtMin, rtShadowMask.Sample(sampler0, float3(uv, input.viewId)).x);
 #else
-                        rtMin = min(rtMin, rtShadowMask.Sample(sampColor, uv).x);
+                        rtMin = min(rtMin, rtShadowMask.Sample(sampler0, uv).x);
 #endif
 						uv.x += uv_delta_d.x;
                     }
@@ -458,9 +447,9 @@ PixelShaderOutput main(PixelShaderInput input)
 				for (j = -range; j <= range; j++)
 				{
 #ifdef INSTANCED_RENDERING
-                    const float z = texPos.Sample(sampPos, float3(uv, input.viewId)).z;
+                    const float z = texPos.Sample(sampler0, float3(uv, input.viewId)).z;
 #else
-                    const float z = texPos.Sample(sampPos, uv).z;
+                    const float z = texPos.Sample(sampler0, uv).z;
 #endif
 					const float delta_z = abs(P.z - z);
 					const float delta_ij = -RTGaussFactor * (i * i + j * j);
@@ -469,9 +458,9 @@ PixelShaderOutput main(PixelShaderInput input)
 					// Objects far away should have bigger thresholds too
 					if (delta_z < RTSoftShadowThresholdMult * P.z)
 #ifdef INSTANCED_RENDERING
-                        rtVal += G * rtShadowMask.Sample(sampColor, float3(uv, input.viewId)).x;
+                        rtVal += G * rtShadowMask.Sample(sampler0, float3(uv, input.viewId)).x;
 #else
-                        rtVal += G * rtShadowMask.Sample(sampColor, uv).x;
+                        rtVal += G * rtShadowMask.Sample(sampler0, uv).x;
 #endif
 					else
 						rtVal += G * rtMin;

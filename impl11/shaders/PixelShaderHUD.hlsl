@@ -11,11 +11,9 @@ SamplerState sampler0 : register(s0);
 
 // texture1 == HUD background
 Texture2D    texture1 : register(t1);
-SamplerState sampler1 : register(s1);
 
 // texture2 == HUD Text
 Texture2D    texture2 : register(t2);
-SamplerState sampler2 : register(s2);
 
 struct PixelShaderInput
 {
@@ -33,8 +31,8 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 texelColor   = texture0.Sample(sampler0, input.tex);
-	float4 texelColorBG = texture1.Sample(sampler1, input.tex);
-	float4 texelText    = texture2.Sample(sampler2, input.tex);
+	float4 texelColorBG = texture1.Sample(sampler0, input.tex);
+	float4 texelText    = texture2.Sample(sampler0, input.tex);
 	float  alpha   = texelColor.w;
 	float  alphaBG = texelColorBG.w;
 	float3 diffuse = input.color.xyz;
@@ -93,8 +91,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		{
 			// Sample the HUD FG and BG from a different location:
 			texelColor   = texture0.Sample(sampler0, dyn_uv);
-			texelColorBG = texture1.Sample(sampler1, dyn_uv);
-			texelText    = texture2.Sample(sampler2, dyn_uv);
+			texelColorBG = texture1.Sample(sampler0, dyn_uv);
+			texelText    = texture2.Sample(sampler0, dyn_uv);
 			// Fix the text alpha and blend it with the HUD foreground
 			float textAlpha = saturate(3.25 * dot(0.333, texelText.rgb));
 			texelColor.rgb  = lerp(texelColor.rgb, texelText.rgb, textAlpha);

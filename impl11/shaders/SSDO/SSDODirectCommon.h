@@ -10,53 +10,46 @@
 
 #define AO_INTENSITY 4.0
 
+SamplerState sampler0 : register(s2);
 #ifdef INSTANCED_RENDERING
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2DArray    texPos   : register(t0);
-SamplerState sampPos  : register(s0) = 
-	sampler_state {
-		Filter = MIN_MAG_MIP_LINEAR;
-	};
+//SamplerState sampPos  : register(s0) = 
+//	sampler_state {
+//		Filter = MIN_MAG_MIP_LINEAR;
+//	};
 
 // The normal buffer
 Texture2DArray    texNorm   : register(t1);
-SamplerState sampNorm  : register(s1);
 
 // The color buffer
 Texture2DArray    texColor  : register(t2);
-SamplerState sampColor : register(s2);
 
 // The ssao mask
 Texture2DArray    texSSAOMask  : register(t3);
-SamplerState sampSSAOMask : register(s3);
 
 // The bloom mask
 Texture2DArray    texBloomMask  : register(t4);
-SamplerState sampBloomMask : register(s4);
 #else
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D texPos : register(t0);
-SamplerState sampPos : register(s0) =
-	sampler_state
-{
-    Filter = MIN_MAG_MIP_LINEAR;
-};
+//SamplerState sampPos : register(s0) =
+//	sampler_state
+//{
+//    Filter = MIN_MAG_MIP_LINEAR;
+//};
 
 // The normal buffer
 Texture2D texNorm : register(t1);
-SamplerState sampNorm : register(s1);
 
 // The color buffer
 Texture2D texColor : register(t2);
-SamplerState sampColor : register(s2);
 
 // The ssao mask
 Texture2D texSSAOMask : register(t3);
-SamplerState sampSSAOMask : register(s3);
 
 // The bloom mask
 Texture2D texBloomMask : register(t4);
-SamplerState sampBloomMask : register(s4);
 #endif
 
 struct PixelShaderInput
@@ -70,9 +63,7 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 ssao        : SV_TARGET0; // SSDO Direct output
-	//float4 bentNormal  : SV_TARGET1; // Bent Normal
-	//float4 emission    : SV_TARGET2; // Emission Mask
+	float4 ssao : SV_TARGET0; // SSDO Direct output
 };
 
 #ifdef INSTANCED_RENDERING
@@ -80,11 +71,11 @@ inline float3 getPosition(in float2 uv,in uint viewId,in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, float3(uv,viewId), level).xyz;
+	return texPos.SampleLevel(sampler0, float3(uv,viewId), level).xyz;
 }
 	
 inline float3 getNormal(in float2 uv,in uint viewId, in float level) {
-	return texNorm.SampleLevel(sampNorm, float3(uv,viewId), level).xyz;
+	return texNorm.SampleLevel(sampler0, float3(uv,viewId), level).xyz;
 }
 #else
 inline float3 getPosition(in float2 uv, in float level)
@@ -92,12 +83,12 @@ inline float3 getPosition(in float2 uv, in float level)
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-    return texPos.SampleLevel(sampPos, uv, level).xyz;
+    return texPos.SampleLevel(sampler0, uv, level).xyz;
 }
 	
 inline float3 getNormal(in float2 uv, in float level)
 {
-    return texNorm.SampleLevel(sampNorm, uv, level).xyz;
+    return texNorm.SampleLevel(sampler0, uv, level).xyz;
 }
 #endif
 
@@ -142,10 +133,10 @@ inline ColNorm doSSDODirect(
 
 #ifdef INSTANCED_RENDERING
 	float3 occluder = getPosition(sample_uv, viewId, miplevel);
-	float3 occ_mask = texSSAOMask.SampleLevel(sampSSAOMask, float3(sample_uv,viewId), 0).xyz;
+	float3 occ_mask = texSSAOMask.SampleLevel(sampler0, float3(sample_uv,viewId), 0).xyz;
 #else
     float3 occluder = getPosition(sample_uv, miplevel);
-    float3 occ_mask = texSSAOMask.SampleLevel(sampSSAOMask, sample_uv, 0).xyz;
+    float3 occ_mask = texSSAOMask.SampleLevel(sampler0, sample_uv, 0).xyz;
 #endif
 	float  occ_material = occ_mask.x;
 
@@ -351,9 +342,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float3 ssao_mask = texSSAOMask.SampleLevel(sampSSAOMask, input.uv, 0).xyz;
 	//float  material  = mask.x;
 #ifdef INSTANCED_RENDERING
-	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, float3(input.uv,input.viewId), 0);
+	float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampler0, float3(input.uv,input.viewId), 0);
 #else
-    float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampBloomMask, input.uv, 0);
+    float4 bloom_mask_rgba = texBloomMask.SampleLevel(sampler0, input.uv, 0);
 #endif
 	float bloom_mask = bloom_mask_rgba.a * dot(0.333, bloom_mask_rgba.rgb);
 	//float3 bentNormal = float3(0, 0, 0);

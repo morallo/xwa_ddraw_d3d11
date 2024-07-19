@@ -4,22 +4,19 @@
 // Based on the implementation from:
 // https://learnopengl.com/Advanced-Lighting/Bloom
 
+SamplerState sampler0 : register(s0);
 #ifdef INSTANCED_RENDERING
 // This texture slot should be the original backbuffer SRV
 Texture2DArray texture0 : register(t0);
-SamplerState sampler0 : register(s0);
 
 // This texture slot should be the bloom texture
 Texture2DArray bloomTex : register(t1);
-SamplerState bloomSampler : register(s1);
 #else
 // This texture slot should be the original backbuffer SRV
 Texture2D texture0 : register(t0);
-SamplerState sampler0 : register(s0);
 
 // This texture slot should be the bloom texture
 Texture2D bloomTex : register(t1);
-SamplerState bloomSampler : register(s1);
 #endif
 
 cbuffer ConstantBuffer : register(b2)
@@ -32,8 +29,8 @@ cbuffer ConstantBuffer : register(b2)
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float4 pos  : SV_POSITION;
+	float2 uv   : TEXCOORD;
 #ifdef INSTANCED_RENDERING
 	uint viewId : SV_RenderTargetArrayIndex;
 #endif
@@ -136,10 +133,10 @@ float4 main(PixelShaderInput input) : SV_TARGET
 {
 #ifdef INSTANCED_RENDERING
 	float4 color = texture0.Sample(sampler0, float3(input.uv, input.viewId));
-	float3 bloom = bloomTex.Sample(bloomSampler, float3(input.uv, input.viewId)).rgb;
+	float3 bloom = bloomTex.Sample(sampler0, float3(input.uv, input.viewId)).rgb;
 #else
 	float4 color = texture0.Sample(sampler0, input.uv);
-	float3 bloom = bloomTex.Sample(bloomSampler, input.uv).rgb;
+	float3 bloom = bloomTex.Sample(sampler0, input.uv).rgb;
 #endif
 	color.w = 1.0f;
 

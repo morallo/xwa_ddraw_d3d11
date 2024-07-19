@@ -32,13 +32,11 @@ SamplerState bgSampler : register(s0) =
 		Filter = MIN_MAG_MIP_LINEAR;
 	};
 #else
-SamplerState bgSampler : register(s0);
+SamplerState sampler0 : register(s0);
 #endif
 
-
 // The depth buffer: we'll use this as a mask since the sun should be at infinity
-Texture2D    depthTex     : register(t1);
-SamplerState depthSampler : register(s1);
+Texture2D    depthTex : register(t1);
 
 #define INFINITY_Z 30000.0
 
@@ -73,7 +71,7 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color  : SV_TARGET0;
+	float4 color : SV_TARGET0;
 };
 
 /*
@@ -317,12 +315,12 @@ PixelShaderOutput main(PixelShaderInput input) {
 	else
 #ifdef GENMIPMAPS_DEBUG
 		// DEBUG section. This will enable mip maps in this shader
-		output.color = bgTex.SampleLevel(bgSampler, input.uv, 5.0);
+		output.color = bgTex.SampleLevel(sampler0, input.uv, 5.0);
 #else
 #ifdef INSTANCED_RENDERING
-        output.color = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
+        output.color = bgTex.Sample(sampler0, float3(input.uv, input.viewId));
 #else
-        output.color = bgTex.Sample(bgSampler, input.uv);
+        output.color = bgTex.Sample(sampler0, input.uv);
 #endif
 #endif
 
@@ -356,7 +354,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		// sunPos is (0,0) at the screen center and is in the range -1..1 for each axis
 		sunPos = (2.0 * SunCoords[0].xy - iResolution.xy) / min(iResolution.x, iResolution.y);
 		// Sample the depth at the location of the sun:
-		sunPos3D = depthTex.Sample(depthSampler, SunCoords[0].xy / iResolution.xy).xyz;
+		sunPos3D = depthTex.Sample(sampler0, SunCoords[0].xy / iResolution.xy).xyz;
 	}
 	else {
 		// DirectSBS path: we'll sample the depth buffer in SunFlareCompose. The reason is that the

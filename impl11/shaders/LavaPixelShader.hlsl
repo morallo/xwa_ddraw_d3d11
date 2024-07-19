@@ -13,14 +13,13 @@
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
 
+SamplerState sampler0 : register(s0);
 // The base texture. We can probably use this as an alpha mask to blend the lava effect with
 // this texture?
 Texture2D    texture0 : register(t0);
-SamplerState sampler0 : register(s0);
 
 // Gray noise texture
 Texture2D	 noiseTex  : register(t1);
-SamplerState noiseSamp : register(s1);
 
 #define LavaSize iResolution.x
 #define LavaBloom iResolution.y
@@ -60,7 +59,7 @@ mat2 makem2(in float theta) {
 
 float noise(in vec2 x) 
 {
-	return noiseTex.SampleLevel(noiseSamp, x * 0.01, 0).r;
+	return noiseTex.SampleLevel(sampler0, x * 0.01, 0).r;
 }
 
 vec2 gradn(vec2 p)

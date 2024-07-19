@@ -9,13 +9,12 @@
 //#define thickness 0.0015
 #define thickness 0.003
 
+SamplerState sampler0  : register(s0);
 // The texture to process
-Texture2D    procTex     : register(t0);
-SamplerState procSampler : register(s0);
+Texture2D    procTex   : register(t0);
 
 // The texture with the sub-component CMD
-Texture2D    subCMDTex     : register(t1);
-SamplerState subCMDSampler : register(s1);
+Texture2D    subCMDTex : register(t1);
 
 //static float4 LuminanceDot = float4(0.33, 0.5, 0.16, 0.15);
 
@@ -47,15 +46,15 @@ float noise(in vec3 x)
 
 struct PixelShaderInput
 {
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 uv     : TEXCOORD0;
-	float4 pos3D  : COLOR1;
+	float4 pos   : SV_POSITION;
+	float4 color : COLOR0;
+	float2 uv    : TEXCOORD0;
+	float4 pos3D : COLOR1;
 };
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
+	float4 color : SV_TARGET0;
 };
 
 /*
@@ -109,7 +108,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 		{
 			//float2 ofs = vec2(i - 1, j - 1) / iResolution.xy;
 			//float2 ofsInGame = vec2(i - 1, j - 1) / inGameResolution.xy;
-			col = procTex.SampleLevel(procSampler, uv + ofs, 0);
+			col = procTex.SampleLevel(sampler0, uv + ofs, 0);
 			col.rgb = col.a * col.rgb;
 #ifdef DISABLED
 			// This block renders noise, but it doesn't look that good.
@@ -124,7 +123,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 			
 			// Dilate the subCMD bracket:
 			if (!render2Denabled) {
-				subCMDtap = subCMDTex.SampleLevel(subCMDSampler, uvInGame + ofsInGame, 0);
+				subCMDtap = subCMDTex.SampleLevel(sampler0, uvInGame + ofsInGame, 0);
 				subCMD = max(subCMD, subCMDtap);
 			}
 			ofs.x += incr.x;

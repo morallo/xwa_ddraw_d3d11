@@ -7,44 +7,41 @@
 #include "..\shading_system.h"
 #include "..\SSAOPSConstantBuffer.h"
 
+SamplerState sampler0 : register(s0);
 // The Foreground 3D position buffer (linear X,Y,Z)
 Texture2D    texPos   : register(t0);
-SamplerState sampPos  : register(s0);
 
 // The normal buffer
 Texture2D    texNorm   : register(t1);
-SamplerState sampNorm  : register(s1);
 
 // The original color buffer 
 Texture2D    texColor  : register(t2);
-SamplerState sampColor : register(s2);
 
 // The SSDO buffer with direct lighting from the previous pass
 //Texture2D    texSSDO  : register(t3);
-//SamplerState sampSSDO : register(s3);
 
 struct PixelShaderInput
 {
 	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float2 uv  : TEXCOORD;
 };
 
 struct PixelShaderOutput
 {
 	// The output of this stage should probably be another temporary RGB buffer -- not the SSAO buffer
 	// ...maybe the ssaoBufR from SteamVR? (and viceversa when the right eye is being shaded?)
-	float4 ssao        : SV_TARGET0;
+	float4 ssao : SV_TARGET0;
 };
 
 inline float3 getPosition(in float2 uv, in float level) {
 	// The use of SampleLevel fixes the following error:
 	// warning X3595: gradient instruction used in a loop with varying iteration
 	// This happens because the texture is sampled within an if statement (if FGFlag then...)
-	return texPos.SampleLevel(sampPos, uv, level).xyz;
+	return texPos.SampleLevel(sampler0, uv, level).xyz;
 }
 
 inline float3 getNormal(in float2 uv, in float level) {
-	return texNorm.SampleLevel(sampNorm, uv, level).xyz;
+	return texNorm.SampleLevel(sampler0, uv, level).xyz;
 }
 
 /*
@@ -112,7 +109,7 @@ inline float3 doSSDOIndirect(in float2 sample_uv, in float3 P, in float3 Normal,
 	float3 L			   = LightVector[0].xyz;
 	float2 sample_uv_sub   = sample_uv * ssao_amplifyFactor;
 	float3 occluder_Normal = getNormal(sample_uv, miplevel); // I can probably read this normal off of the bent buffer later (?)
-	float3 occluder_color  = texColor.SampleLevel(sampColor, sample_uv, miplevel).xyz; // I think this is supposed to be occ_diffuse * occ_color
+	float3 occluder_color  = texColor.SampleLevel(sampler0, sample_uv, miplevel).xyz; // I think this is supposed to be occ_diffuse * occ_color
 	//float3 occluder_ssdo   = texSSDO.SampleLevel(sampSSDO, sample_uv_sub, 0).xxx; // xyz
 	// diff: Vector from current pos (P) to the sampled neighbor
 	const float3 diff      = occluder - P;

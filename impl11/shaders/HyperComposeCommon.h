@@ -6,29 +6,24 @@
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
 
+SamplerState   sampler0 : register(s0);
 // The foreground texture (shadertoyBuf)
 #ifdef INSTANCED_RENDERING
 Texture2DArray fgTex : register(t0);
-SamplerState   fgSampler : register(s0);
 
 // The background texture (shadertoyAuxBuf)
 Texture2DArray bgTex : register(t1);
-SamplerState   bgSampler : register(s1);
 
 // The hyperspace effect texture (offscreenAsInput)
 Texture2DArray effectTex : register(t2);
-SamplerState   effectSampler : register(s2);
 #else
 Texture2D    fgTex : register(t0);
-SamplerState fgSampler : register(s0);
 
 // The background texture (shadertoyAuxBuf)
 Texture2D    bgTex : register(t1);
-SamplerState bgSampler : register(s1);
 
 // The hyperspace effect texture (offscreenAsInput)
 Texture2D    effectTex : register(t2);
-SamplerState effectSampler : register(s2);
 #endif
 
 #define interdict_mix twirl
@@ -44,8 +39,8 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
+	float4 color : SV_TARGET0;
+	float4 bloom : SV_TARGET1;
 };
 
 // The HyperZoom effect probably can't be applied in this shader because it works
@@ -63,13 +58,13 @@ PixelShaderOutput main(PixelShaderInput input)
 	float bloom  = 0;
 
 #ifdef INSTANCED_RENDERING
-	float4 fgColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
-	float4 bgColor = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
-	float4 effectColor = effectTex.Sample(effectSampler, float3(input.uv, input.viewId));
+	float4 fgColor = fgTex.Sample(sampler0, float3(input.uv, input.viewId));
+	float4 bgColor = bgTex.Sample(sampler0, float3(input.uv, input.viewId));
+	float4 effectColor = effectTex.Sample(sampler0, float3(input.uv, input.viewId));
 #else
-	float4 fgColor = fgTex.Sample(fgSampler, input.uv);
-	float4 bgColor = bgTex.Sample(bgSampler, input.uv);
-	float4 effectColor = effectTex.Sample(effectSampler, input.uv);
+	float4 fgColor = fgTex.Sample(sampler0, input.uv);
+	float4 bgColor = bgTex.Sample(sampler0, input.uv);
+	float4 effectColor = effectTex.Sample(sampler0, input.uv);
 #endif
 
 	/*

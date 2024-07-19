@@ -21,13 +21,12 @@ static const float4 BG_COLOR     = float4(0.1, 0.1, 0.5, 1.0);
 //static const float4 BORDER_COLOR = float4(0.4, 0.4, 0.9, 1.0);
 static const float4 BLACK        = 0.0;
 
+SamplerState sampler0 : register(s0);
 // HUD offscreen buffer
 Texture2D    texture1 : register(t1);
-SamplerState sampler1 : register(s1);
 
 // HUD text
 Texture2D    texture2 : register(t2);
-SamplerState sampler2 : register(s2);
 
 // When the Dynamic Cockpit is active:
 // texture0 == cover texture and
@@ -253,9 +252,9 @@ PixelShaderOutput main(PixelShaderInput input)
 		if (all(dyn_uv >= src[i].xy) && all(dyn_uv <= src[i].zw))
 		{
 			// Sample the dynamic cockpit texture:
-			hud_texelColor = obj_alpha_override * texture1.Sample(sampler1, dyn_uv);
+			hud_texelColor = obj_alpha_override * texture1.Sample(sampler0, dyn_uv);
 			// Sample the text texture and fix the alpha:
-			float4 texelText = texture2.Sample(sampler2, dyn_uv);
+			float4 texelText = texture2.Sample(sampler0, dyn_uv);
 			//float textAlpha = text_alpha_override * saturate(3.25 * dot(0.333, texelText.rgb));
 			float textAlpha = text_alpha_override * saturate(10.0 * dot(float3(0.33, 0.5, 0.16), texelText.rgb));
 			// Blend the text with the DC buffer
