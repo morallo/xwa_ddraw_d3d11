@@ -1873,6 +1873,15 @@ void PrimarySurface::DrawHUDVertices() {
 	
 	// Apply view transform to the HUD to fix it in space. It needs the inverse of the fullViewMat that contains the headtracking pose.
 	g_VSMatrixCB.fullViewMat.invert();
+	Matrix4 hudTransform;
+	// g_HologramDisp is in OPT coords, but here we need SteamVR/meters, so we swap
+	// Y and Z and reduce the scale a bit:
+	hudTransform.translate(0.1f * g_HologramDisp.x,
+	                       0.1f * g_HologramDisp.z,
+	                       0.1f * g_HologramDisp.y);
+	Matrix4 curMat = g_VSMatrixCB.fullViewMat;
+	g_VSMatrixCB.fullViewMat = g_VSMatrixCB.fullViewMat * hudTransform;
+
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
 	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
@@ -1994,21 +2003,8 @@ void PrimarySurface::DrawHUDVertices() {
 		context->Draw(6, 0);
 
 out:
-	/*
-	// Restore the state
-	ID3D11ShaderResourceView *null_srvs[3] = { NULL, NULL, NULL };
-	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), resources->_depthStencilViewL.Get());
-	context->PSSetShaderResources(0, 3, null_srvs);
-	resources->InitViewport(&g_nonVRViewport);
-	resources->InitVertexShader(resources->_vertexShader);
-	resources->InitPixelShader(resources->_pixelShaderTexture);
-	resources->InitRasterizerState(resources->_rasterizerState);
-	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	resources->InitInputLayout(resources->_inputLayout);
-	//UINT stride = sizeof(D3DTLVERTEX);
-	//UINT offset = 0;
-	//resources->InitVertexBuffer(_vertexBuffer.GetAddressOf(), &stride, &offset);
-	*/
+	// Restore the old view matrix
+	g_VSMatrixCB.fullViewMat = curMat;
 	this->_deviceResources->EndAnnotatedEvent();
 
 }
