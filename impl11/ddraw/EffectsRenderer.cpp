@@ -8646,12 +8646,14 @@ void ProcessKeyboard()
 	bool AltKey   = (GetAsyncKeyState(VK_MENU)    & 0x8000) == 0x8000;
 	bool CtrlKey  = (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0x8000;
 	bool ShiftKey = (GetAsyncKeyState(VK_SHIFT)   & 0x8000) == 0x8000;
+	bool HKey     = (GetAsyncKeyState(0x48)       & 0x8000) == 0x8000;
 	bool RKey     = (GetAsyncKeyState(0x52)       & 0x8000) == 0x8000;
 	bool UpKey    = (GetAsyncKeyState(VK_UP)      & 0x8000) == 0x8000;
 	bool DnKey    = (GetAsyncKeyState(VK_DOWN)    & 0x8000) == 0x8000;
 	bool LtKey    = (GetAsyncKeyState(VK_LEFT)    & 0x8000) == 0x8000;
 	bool RtKey    = (GetAsyncKeyState(VK_RIGHT)   & 0x8000) == 0x8000;
 
+	static bool prevHKey  = false;
 	static bool prevRKey  = false;
 	static bool prevUpKey = false;
 	static bool prevDnKey = false;
@@ -8661,6 +8663,11 @@ void ProcessKeyboard()
 	// Alt Key
 	if (AltKey && !ShiftKey && !CtrlKey)
 	{
+		/*if (HKey && !prevHKey)
+		{
+			g_bSkipHUD = !g_bSkipHUD;
+		}*/
+
 		// Alt+R: Toggle RT Soft Shadows
 		if (RKey && !prevRKey)
 		{
@@ -8699,6 +8706,7 @@ void ProcessKeyboard()
 	// potentially use those key combinations to move the holograms left and right.
 	// ... but first we'd need to compute the centroid of each hologram.
 
+	prevHKey  = HKey;
 	prevRKey  = RKey;
 	prevUpKey = UpKey;
 	prevDnKey = DnKey;
