@@ -1,13 +1,12 @@
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
 
+SamplerState   sampler0 : register(s0);
 #ifdef INSTANCED_RENDERING
-Texture2DArray texPos  : register(t4);
-SamplerState   sampPos : register(s4);
+Texture2DArray texPos   : register(t4);
 #else
 // The position/depth buffer
-Texture2D    texPos  : register(t4);
-SamplerState sampPos : register(s4);
+Texture2D texPos : register(t4);
 #endif
 
 struct PixelShaderInput
@@ -43,9 +42,9 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// to do a depth test and discard pixels that should not be rendered:
 	const float  curZ  = input.pos3D.z;
 #ifdef INSTANCED_RENDERING
-	const float3 depth = texPos.Sample(sampPos, float3(uv, input.viewId)).xyz;
+	const float3 depth = texPos.Sample(sampler0, float3(uv, input.viewId)).xyz;
 #else
-	const float3 depth = texPos.Sample(sampPos, uv).xyz;
+	const float3 depth = texPos.Sample(sampler0, uv).xyz;
 #endif
 
 	if (curZ >= 60.0 ||  // Avoid adding speed trails inside the cockpit
