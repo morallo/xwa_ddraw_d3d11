@@ -6252,6 +6252,13 @@ HRESULT Direct3DDevice::BeginScene()
 	auto& context = this->_deviceResources->_d3dDeviceContext;
 	auto& resources = this->_deviceResources;
 
+	// Some of the RTVs bound for the forward rendering pass are also used as SRVs during the
+	// deferred pass. To avoid having the same resource bound as SRV and RTV we need to unbind
+	// the SRVs first:
+	ID3D11ShaderResourceView *SRVs[5] = { nullptr, nullptr, nullptr, nullptr, nullptr };
+	// The first 2 SRVs are actually used during the forward pass (it's the texture and the lightmap)
+	context->PSSetShaderResources(2, 5, SRVs);
+
 	// BeginScene():ClearRenderTargetView: Clear all RTVs in this section (there's more blocks below)
 	if (!bTransitionToHyperspace) {
 		context->ClearRenderTargetView(resources->_renderTargetView, resources->clearColor);
