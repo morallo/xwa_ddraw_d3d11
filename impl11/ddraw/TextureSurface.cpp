@@ -131,8 +131,13 @@ ULONG TextureSurface::Release()
 
 	if (this->_refCount == 0)
 	{
-		//log_debug("[DBG] [DC] Releasing TextureSurface [%s], 0x%x", this->_name, this);
-		delete this;
+		//log_debug("[DBG] [DC] Releasing TextureSurface [%s], 0x%x", this->_name.c_str(), this);
+		// This if() does not appear in Jeremy's code, it's just "delete this;"
+		// However, I found out that for textures with no name, calling "delete this;" causes an
+		// underflow (the texture is released even when it's refcount is already 0).
+		// So, I don't understand why, but this avoids the underflow for now:
+		if (this->_name.size() > 0)
+			delete this;
 		return 0;
 	}
 
