@@ -957,6 +957,7 @@ void ShowMatrix3(const Matrix3& mat, char* name)
 	log_debug("[DBG] =========================================");
 }
 
+#ifdef DISABLED
 // ----------------------------------------------------------------------------
 // Numerical diagonalization of 3x3 matrices
 // Copyright (C) 2006  Joachim Kopp
@@ -1276,3 +1277,4 @@ int EigenSys(Matrix3& A, Matrix3& V, Vector3& w)
 	V.set(v);
 	return res;
 }
+#endif
