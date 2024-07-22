@@ -345,6 +345,7 @@ public:
 	// Bloom
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask  = NULL; // Renders to _offscreenBufferBloomMask
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR = NULL; // Renders to _offscreenBufferBloomMaskR
+	ComPtr<ID3D11RenderTargetView> _inputBloomMaskRTV = NULL;  // Renders to _offscreenBufferAsInputBloomMask
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1;    // Renders to bloomOutput1
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2;    // Renders to bloomOutput2
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum;  // Renders to bloomOutputSum

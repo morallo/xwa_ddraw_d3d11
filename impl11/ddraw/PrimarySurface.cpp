@@ -1502,11 +1502,11 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			break;
 		case 1: // Vertical Gaussian Blur
 			// Input:  _bloomOutput1
-			// Output: _bloomOutput2
+			// Output: _offscreenBufferAsInputBloomMask
 			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomVGaussPS_VR : resources->_bloomVGaussPS);
 			context->PSSetShaderResources(0, 1, resources->_bloomOutput1SRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);
+			context->ClearRenderTargetView(resources->_inputBloomMaskRTV, bgColor);
+			context->OMSetRenderTargets(1, resources->_inputBloomMaskRTV.GetAddressOf(), NULL);
 			break;
 		case 2: // Horizontal Gaussian Blur
 			// Input:  _bloomOutput2
@@ -1532,10 +1532,10 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 		case 4:
-			// Input: _bloomOutput2, _bloomSum
+			// Input: _bloomInputMask, _bloomSum
 			// Output: _bloomOutput1
 			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomBufferAddPS_VR : resources->_bloomBufferAddPS);
-			context->PSSetShaderResources(0, 1, resources->_bloomOutput2SRV.GetAddressOf());
+			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
 			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
 			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
 			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
@@ -1647,6 +1647,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	}*/
 	// DEBUG
 
+#ifdef DISABLED
 	for (int i = 0; i < AdditionalPasses; i++) {
 		this->_deviceResources->BeginAnnotatedEvent(L"AdditionalBloomPass");
 		// Alternating between 2.0 and 1.5 avoids banding artifacts
@@ -1660,11 +1661,9 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 		BloomBasicPass(1, fZoomFactor);
 		this->_deviceResources->EndAnnotatedEvent();
 	}
-	// The blur output will *always* be in bloom2, let's copy it to the bloom masks to reuse it for the
-	// next pass:
-	context->CopyResource(resources->_offscreenBufferAsInputBloomMask, resources->_bloomOutput2);
-	//if (g_bUseSteamVR)
-	//	context->CopyResource(resources->_offscreenBufferAsInputBloomMaskR, resources->_bloomOutput2R);
+#endif
+	// The output from the blur operation will be in _offscreenAsInputBloomMaskSRV, so it can be re-used to
+	// blur the next pyramid level.
 
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {

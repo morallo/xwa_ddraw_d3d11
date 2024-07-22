@@ -1864,6 +1864,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_offscreenBufferAsInputBloomMask.Release();
 		this->_offscreenAsInputBloomMaskSRV.Release();
 		this->_renderTargetViewBloomMask.Release();
+		this->_inputBloomMaskRTV.Release();
 		this->_bloomOutput1.Release();
 		this->_bloomOutput1SRV.Release();
 
@@ -2619,7 +2620,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			desc.ArraySize = g_bUseSteamVR ? 2 : 1;
 
 			if (g_bReshadeEnabled) {
+				auto tmp = desc;
 				desc.Format = BLOOM_BUFFER_FORMAT;
+				desc.BindFlags |= D3D11_BIND_RENDER_TARGET; // SRV + RTV;
 				step = "_offscreenBufferAsInputBloomMask";
 				hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMask);
 				if (FAILED(hr)) {
@@ -2627,6 +2630,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err_desc(step, hWnd, hr, desc);
 					goto out;
 				}
+				desc = tmp;
 
 				if (g_bUseSteamVR) {
 					step = "_offscreenBufferAsInputBloomMaskR";
@@ -3710,7 +3714,15 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (g_bReshadeEnabled) {
 			
 			step = "_renderTargetViewBloomMask";
-			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask, &GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BLOOM_BUFFER_FORMAT), &this->_renderTargetViewBloomMask);
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferBloomMask,
+				&GetRtvDesc(this->_useMultisampling, g_bUseSteamVR, BLOOM_BUFFER_FORMAT),
+				&this->_renderTargetViewBloomMask);
+			if (FAILED(hr)) goto out;
+
+			step = "_inputBloomMaskRTV";
+			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferAsInputBloomMask,
+				&GetRtvDesc(false, g_bUseSteamVR, BLOOM_BUFFER_FORMAT),
+				&this->_inputBloomMaskRTV);
 			if (FAILED(hr)) goto out;
 
 			step = "_renderTargetViewSSAOMask";
