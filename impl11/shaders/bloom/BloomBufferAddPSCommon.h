@@ -32,8 +32,8 @@ cbuffer ConstantBuffer : register(b2)
 
 struct PixelShaderInput
 {
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+	float4 pos    : SV_POSITION;
+	float2 uv     : TEXCOORD;
 #ifdef INSTANCED_RENDERING
 	uint   viewId : SV_RenderTargetArrayIndex;
 #endif

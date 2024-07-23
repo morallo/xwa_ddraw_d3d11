@@ -1,6 +1,6 @@
 //static const float weight[5] = {0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216}; // Original (approx kernel size 9, sigma = 1.75)
-//static const float weight[4] = {0.383103	, 0.241843,	0.060626, 0.00598}; // Kernel size 7, sigma = 1.0
-static const float weight[3] = {0.38774,	 0.24477, 0.06136}; // Kernel size 5, sigma = 1.0
+//static const float weight[4] = {0.383103, 0.241843,	0.060626, 0.00598}; // Kernel size 7, sigma = 1.0
+static const float weight[3] = {0.38774, 0.24477, 0.06136}; // Kernel size 5, sigma = 1.0
 //static const float weight[2] = {0.44198, 0.27901}; // Kernel size 3, sigma = 1.0
 
 
@@ -15,18 +15,9 @@ static const float weight[3] = {0.38774,	 0.24477, 0.06136}; // Kernel size 5, s
 
 //static const float weight[6] = {0.382925, 0.24173,   0.060598,  0.005977, 0.000229, 0.000003};
 
-static float BUFFER_WIDTH  = 3840;
-static float BUFFER_HEIGHT = 2160;
-
-static float BUFFER_RCP_WIDTH  = 1.0 / BUFFER_WIDTH;
-static float BUFFER_RCP_HEIGHT = 1.0 / BUFFER_HEIGHT;
-
-static const float2 SCREEN_SIZE = float2(BUFFER_WIDTH, BUFFER_HEIGHT);
-static const float2 PIXEL_SIZE  = float2(BUFFER_RCP_WIDTH, BUFFER_RCP_HEIGHT);
-
 static float BLOOM_INTENSITY = 1.2; // Original value: 1.2
-static float BLOOM_CURVE = 10.0;	    // Original value: 1.5
-static float BLOOM_SAT = 16.0;		// Original value: 2.0
+static float BLOOM_CURVE = 10.0;    // Original value: 1.5
+static float BLOOM_SAT = 16.0;      // Original value: 2.0
 static float BLOOM_LAYER_MULT_1 = 0.05;
 static float BLOOM_LAYER_MULT_2 = 0.05;
 static float BLOOM_LAYER_MULT_3 = 0.05;
