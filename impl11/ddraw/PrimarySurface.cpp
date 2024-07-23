@@ -1437,7 +1437,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
   * For pass 0, the input texture must be resolved already to 
   * _offscreenBufferAsInputReshadeMask, _offscreenBufferAsInputReshadeMaskR
   */
-void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
+void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, int level) {
 
 	//this->_deviceResources->BeginAnnotatedEvent(L"BloomBasicPass");
 	auto& resources = this->_deviceResources;
@@ -1532,13 +1532,27 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 		case 4:
-			// Input: _bloomInputMask, _bloomSum
-			// Output: _bloomOutput1
+			// Input: _bloomInputMask, {_bloomSum|_bloom2}
+			// Output: {_bloom2|_bloomSum}
+			// slot 0: mask
+			// slot 1: accumulator
 			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomBufferAddPS_VR : resources->_bloomBufferAddPS);
 			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
-			context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
-			context->ClearRenderTargetView(resources->_renderTargetViewBloom1, bgColor);
-			context->OMSetRenderTargets(1, resources->_renderTargetViewBloom1.GetAddressOf(), NULL);
+			// We're going to flip-flip between rendering to bloom2 and bloomSum to avoid a CopyResource into
+			// bloomSum (copy operations are expensive).
+			// If there's 5 levels, this flip-flopping will end up with the final output in bloomSum:
+			if (level % 2 == 0)
+			{
+				context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
+				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
+				context->OMSetRenderTargets(1, resources->_renderTargetViewBloomSum.GetAddressOf(), NULL);
+			}
+			else
+			{
+				context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
+				context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
+				context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);
+			}
 			break;
 		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
 			// Input:  _bloomSum, _offscreenBufferAsInput
@@ -1565,7 +1579,7 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor) {
 		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 	else
 		context->Draw(6, 0);
-\
+
 	// Restore previous rendertarget, etc
 	// TODO: Is this really needed?
 	viewport.Width  = screen_res_x;
@@ -1618,7 +1632,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 
 	// Initial Horizontal Gaussian Blur from Masked Buffer. input: reshade mask, output: bloom1
 	// This pass will downsample the image according to fViewportDivider:
-	BloomBasicPass(0, fZoomFactor);
+	BloomBasicPass(0, fZoomFactor, PyramidLevel);
 	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
@@ -1637,7 +1651,7 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	g_BloomPSCBuffer.amplifyFactor	= 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	// Vertical Gaussian Blur. input: bloom1, output: bloom2
-	BloomBasicPass(1, fZoomFactor);
+	BloomBasicPass(1, fZoomFactor, PyramidLevel);
 	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
@@ -1676,16 +1690,12 @@ void PrimarySurface::BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasse
 	g_BloomPSCBuffer.amplifyFactor = 1.0f / fZoomFactor;
 	resources->InitPSConstantBufferBloom(resources->_bloomConstantBuffer.GetAddressOf(), &g_BloomPSCBuffer);
 	this->_deviceResources->BeginAnnotatedEvent(L"MergeBloomPass");
-	// Combine. input: offscreenBuffer (will be resolved), bloom2; output: offscreenBuffer/bloom1
-	//BloomBasicPass(3, fZoomFactor);
 
-	// Accummulate the bloom buffer, input: bloom2, bloomSum; output: bloom1
-	BloomBasicPass(4, fZoomFactor);
+	// Accummulate the bloom buffer, input: {bloom2|bloomSum}, bloomMask; output: {bloom2|bloomSum}
+	// The output flip-flops between bloom2 and bloomSum, but it's setup so that the final
+	// pyramid level will render to bloomSum.
+	BloomBasicPass(4, fZoomFactor, PyramidLevel);
 
-	// Copy _bloomOutput1 over _bloomOutputSum
-	context->CopyResource(resources->_bloomOutputSum, resources->_bloomOutput1);
-	//if (g_bUseSteamVR)
-	//	context->CopyResource(resources->_bloomOutputSumR, resources->_bloomOutput1R);
 	this->_deviceResources->EndAnnotatedEvent();
 	// DEBUG
 	/*if (g_bDumpSSAOBuffers) {
@@ -10860,8 +10870,9 @@ HRESULT PrimarySurface::Flip(
 				// Initialize the accummulator buffer
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
-				if (g_bUseSteamVR)
-					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);
+				context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
+				/*if (g_bUseSteamVR)
+					context->ClearRenderTargetView(resources->_renderTargetViewBloomSumR, bgColor);*/
 
 				// DEBUG
 				/*if (g_bDumpSSAOBuffers) {
@@ -10893,7 +10904,7 @@ HRESULT PrimarySurface::Flip(
 					// Add the accumulated bloom with the offscreen buffer
 					// Input: _bloomSum, _offscreenBufferAsInput
 					// Output: _offscreenBuffer
-					BloomBasicPass(5, 1.0f);
+					BloomBasicPass(5, 1.0f, 0);
 				//}
 
 				// DEBUG

@@ -83,7 +83,7 @@ public:
 
 	void barrelEffectSteamVR();
 
-	void BloomBasicPass(int pass, float fZoomFactor);
+	void BloomBasicPass(int pass, float fZoomFactor, int level);
 
 	void BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
 
