@@ -1532,28 +1532,34 @@ void PrimarySurface::BloomBasicPass(int pass, float fZoomFactor, int level) {
 			context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 			break;
 		case 4:
-			// Input: _bloomInputMask, {_bloomSum|_bloom2}
-			// Output: {_bloom2|_bloomSum}
-			// slot 0: mask
-			// slot 1: accumulator
-			resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomBufferAddPS_VR : resources->_bloomBufferAddPS);
-			context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
-			// We're going to flip-flip between rendering to bloom2 and bloomSum to avoid a CopyResource into
-			// bloomSum (copy operations are expensive).
-			// If there's 5 levels, this flip-flopping will end up with the final output in bloomSum:
-			if (level % 2 == 0)
 			{
-				context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
-				context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
-				context->OMSetRenderTargets(1, resources->_renderTargetViewBloomSum.GetAddressOf(), NULL);
+				// Input: _bloomInputMask, {_bloomSum|_bloom2}
+				// Output: {_bloom2|_bloomSum}
+				// slot 0: mask
+				// slot 1: accumulator
+				resources->InitPixelShader(g_bUseSteamVR ? resources->_bloomBufferAddPS_VR : resources->_bloomBufferAddPS);
+				context->PSSetShaderResources(0, 1, resources->_offscreenAsInputBloomMaskSRV.GetAddressOf());
+				// We're going to flip-flip between rendering to bloom2 and bloomSum to avoid a CopyResource into
+				// bloomSum (copy operations are expensive).
+				// We need to control for both even and odd number of levels.
+				// Odd number of levels: check (level % 2 == 0)
+				// Even number of levels: check (level % 2 == 1)
+				// Either way, on the last level we should be rendering to bloomSum:
+				const int modulus = (g_BloomConfig.iNumPasses % 2 == 0) ? 1 : 0;
+				if (level % 2 == modulus)
+				{
+					context->PSSetShaderResources(1, 1, resources->_bloomOutput2SRV.GetAddressOf());
+					context->ClearRenderTargetView(resources->_renderTargetViewBloomSum, bgColor);
+					context->OMSetRenderTargets(1, resources->_renderTargetViewBloomSum.GetAddressOf(), NULL);
+				}
+				else
+				{
+					context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
+					context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
+					context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);
+				}
+				break;
 			}
-			else
-			{
-				context->PSSetShaderResources(1, 1, resources->_bloomOutputSumSRV.GetAddressOf());
-				context->ClearRenderTargetView(resources->_renderTargetViewBloom2, bgColor);
-				context->OMSetRenderTargets(1, resources->_renderTargetViewBloom2.GetAddressOf(), NULL);
-			}
-			break;
 		case 5: // Final pass to combine the bloom accumulated texture with the offscreenBuffer
 			// Input:  _bloomSum, _offscreenBufferAsInput
 			// Output: _offscreenBuffer
