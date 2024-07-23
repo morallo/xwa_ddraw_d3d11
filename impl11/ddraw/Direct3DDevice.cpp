@@ -6280,8 +6280,6 @@ HRESULT Direct3DDevice::BeginScene()
 	if (g_bBloomEnabled || resources->_renderTargetViewBloomMask != NULL) 
 		if (!bTransitionToHyperspace) {
 			context->ClearRenderTargetView(resources->_renderTargetViewBloomMask, resources->clearColor);
-			if (g_bUseSteamVR)
-				context->ClearRenderTargetView(resources->_renderTargetViewBloomMaskR, resources->clearColor);
 		}
 
 	//if (g_bReshadeEnabled /*&& !bTransitionToHyperspace*/)

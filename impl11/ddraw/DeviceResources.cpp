@@ -1891,11 +1891,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_backgroundRTV.Release();
 		//this->_renderTargetViewEmissionMask.Release();
 		if (g_bUseSteamVR) {
-			this->_offscreenBufferBloomMaskR.Release();
-			this->_offscreenBufferAsInputBloomMaskR.Release();
-			this->_offscreenAsInputBloomMaskSRV_R.Release();
-			this->_renderTargetViewBloomMaskR.Release();
-
 			this->_ssaoMaskR.Release();
 			//this->_ssEmissionMaskR.Release();
 			this->_ssMaskR.Release();
@@ -2434,15 +2429,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 
 				if (g_bUseSteamVR) {
-					desc.Format = BLOOM_BUFFER_FORMAT;
-					step = "_offscreenBufferBloomMaskR";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferBloomMaskR);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
-
 					// Create ssaoMaskMSAA_R, ssMaskMSAA_R and normBufMSSA_R
 					if (this->_useMultisampling) {
 						desc.Format = AO_MASK_FORMAT;
@@ -2632,15 +2618,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 				desc = tmp;
 
-				if (g_bUseSteamVR) {
-					step = "_offscreenBufferAsInputBloomMaskR";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_offscreenBufferAsInputBloomMaskR);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
-				}
 				desc.Format = oldFormat;
 			}
 

@@ -262,16 +262,11 @@ public:
 	ComPtr<ID3D11Texture2D> _shadertoyAuxBufR;  // No MSAA
 	// Bloom
 	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
-	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMaskR; // Used to render the bloom mask to the right image (SteamVR)
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask
-	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMaskR; // Used to resolve offscreenBufferBloomMaskR
 	ComPtr<ID3D11Texture2D> _bloomOutput1; // Output from bloom pass 1
 	ComPtr<ID3D11Texture2D> _bloomOutput2; // Output from bloom pass 2
 	ComPtr<ID3D11Texture2D> _bloomOutputSum; // Bloom accummulator
-	//ComPtr<ID3D11Texture2D> _bloomOutput1R; // Output from bloom pass 1, right image (SteamVR)
-	//ComPtr<ID3D11Texture2D> _bloomOutput2R; // Output from bloom pass 2, right image (SteamVR)
-	//ComPtr<ID3D11Texture2D> _bloomOutputSumR; // Bloom accummulator (SteamVR)
-	//// Ambient Occlusion
+	// Ambient Occlusion
 	ComPtr<ID3D11Texture2D> _depthBuf;
 	ComPtr<ID3D11Texture2D> _depthBufR;
 	ComPtr<ID3D11Texture2D> _depthBufAsInput;
@@ -344,14 +339,10 @@ public:
 	ComPtr<ID3D11RenderTargetView> _shadertoyRTV_R;
 	// Bloom
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMask  = NULL; // Renders to _offscreenBufferBloomMask
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomMaskR = NULL; // Renders to _offscreenBufferBloomMaskR
 	ComPtr<ID3D11RenderTargetView> _inputBloomMaskRTV = NULL;  // Renders to _offscreenBufferAsInputBloomMask
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1;    // Renders to bloomOutput1
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2;    // Renders to bloomOutput2
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSum;  // Renders to bloomOutputSum
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom1R;   // Renders to bloomOutput1R
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloom2R;   // Renders to bloomOutput2R
-	ComPtr<ID3D11RenderTargetView> _renderTargetViewBloomSumR; // Renders to bloomOutputSumR
 	// Ambient Occlusion
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBuf;
 	ComPtr<ID3D11RenderTargetView> _renderTargetViewDepthBufR;
@@ -393,13 +384,9 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV_R;
 	// Bloom
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
-	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV_R;
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV;     // SRV for bloomOutput1
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV;     // SRV for bloomOutput2
 	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV;   // SRV for bloomOutputSum
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV_R;   // SRV for bloomOutput1R
-	ComPtr<ID3D11ShaderResourceView> _bloomOutput2SRV_R;   // SRV for bloomOutput2R
-	ComPtr<ID3D11ShaderResourceView> _bloomOutputSumSRV_R; // SRV for bloomOutputSumR
 	// Ambient Occlusion
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV;    // SRV for depthBufAsInput
 	ComPtr<ID3D11ShaderResourceView> _depthBufSRV_R;  // SRV for depthBufAsInputR

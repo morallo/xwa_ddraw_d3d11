@@ -10995,11 +10995,6 @@ HRESULT PrimarySurface::Flip(
 				DirectX::SaveWICTextureToFile(context, resources->_offscreenBuffer, GUID_ContainerFormatJpeg,
 					L"C:\\Temp\\_offscreenBuf.jpg");
 				DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
-				if (g_bUseSteamVR) {
-					DirectX::SaveWICTextureToFile(context, resources->_offscreenBufferR, GUID_ContainerFormatJpeg,
-						L"C:\\Temp\\_offscreenBufR.jpg");
-					DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMaskR, L"C:\\Temp\\_bloomMask1R.dds");
-				}
 			}
 
 			// Final _offscreenBuffer --> _backBuffer copy. The offscreenBuffer SHOULD CONTAIN the fully-rendered image at this point.
