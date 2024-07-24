@@ -123,8 +123,9 @@ float g_fTurnRateScale = 1.0f;
 float CurPlayerYawRateDeg = 0, CurPlayerPitchRateDeg = 0, CurPlayerRollRateDeg = 0;
 
 //float g_HMDYaw = 0, g_HMDPitch = 0, g_HMDRoll = 0;
-constexpr float HOLO_DISP_Z = METERS_TO_OPT * 0.01f;
+constexpr float HOLO_DISP_X = METERS_TO_OPT * 0.01f;
 constexpr float HOLO_DISP_Y = METERS_TO_OPT * 0.01f;
+constexpr float HOLO_DISP_Z = METERS_TO_OPT * 0.01f;
 
 float lerp(float x, float y, float s);
 
@@ -8691,6 +8692,22 @@ void ProcessKeyboard()
 
 		if (LtKey && !prevLtKey)
 		{
+			g_HologramDisp.x -= HOLO_DISP_X;
+			SaveHoloOffsetToIniFile();
+		}
+
+		if (RtKey && !prevRtKey)
+		{
+			g_HologramDisp.x += HOLO_DISP_X;
+			SaveHoloOffsetToIniFile();
+		}
+	}
+
+	// Alt + Shift Key
+	if (AltKey && ShiftKey && !CtrlKey)
+	{
+		if (LtKey && !prevLtKey)
+		{
 			g_HologramDisp.y += HOLO_DISP_Y;
 			SaveHoloOffsetToIniFile();
 		}
@@ -8701,10 +8718,6 @@ void ProcessKeyboard()
 			SaveHoloOffsetToIniFile();
 		}
 	}
-
-	// I don't think Shift+Alt + Left/Right is currently used anywhere. We could
-	// potentially use those key combinations to move the holograms left and right.
-	// ... but first we'd need to compute the centroid of each hologram.
 
 	prevHKey  = HKey;
 	prevRKey  = RKey;
