@@ -4804,7 +4804,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override  = 65535.0f;
+		g_VSCBuffer.z_override     = 65535.0f;
 		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
@@ -4825,6 +4825,11 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+		if (g_bDumpSSAOBuffers)
+		{
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_hyperZoomInput.dds");
+		}
+
 		// Set the RTV:
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 		// Set the SRV:
@@ -4839,7 +4844,6 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 				resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
-		// Activate the hyperExitPS
 		resources->InitPixelShader(resources->_hyperExitPS);
 	}
 	// End of hyperzoom
