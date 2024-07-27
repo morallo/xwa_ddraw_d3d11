@@ -4825,15 +4825,24 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
+			0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(
+				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+
 		if (g_bDumpSSAOBuffers)
 		{
 			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_hyperZoomInput.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"C:\\Temp\\_hyperZoomBgInput.dds");
 		}
 
 		// Set the RTV:
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
 		// Set the SRV:
 		context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
+		context->PSSetShaderResources(2, 1, resources->_backgroundBufferSRV.GetAddressOf());
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else

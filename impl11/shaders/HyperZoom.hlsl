@@ -8,21 +8,26 @@ static const float t2_zoom = 1.5;
 // This is the overlap between the exit trails and the zoom:
 static const float t_overlap = 1.5;
 
-// The background texture (shadertoyAuxBuf)
-Texture2D    bgTex     : register(t0);
-SamplerState bgSampler : register(s0);
+// The 3D background texture (shadertoyAuxBuf).
+// This texture only contains 3D content that appears in the background, like other ships, bases, etc.
+Texture2D    bgTexOPT      : register(t0);
+// This texture is the stellar background only, no 3D content.
+Texture2D    texBackground : register(t2); // Not an error, I'm placing the background on slot #2 everywhere
+SamplerState bgSampler     : register(s0);
+
+//Texture2D bgTex : register(t0);
 
 struct PixelShaderInput
 {
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 uv     : TEXCOORD0;
-	float4 pos3D  : COLOR1;
+	float4 pos   : SV_POSITION;
+	float4 color : COLOR0;
+	float2 uv    : TEXCOORD0;
+	float4 pos3D : COLOR1;
 };
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
+	float4 color : SV_TARGET0;
 };
 
 // Distort effect based on: https://stackoverflow.com/questions/6030814/add-fisheye-effect-to-images-at-runtime-using-opengl-es
@@ -42,37 +47,42 @@ vec3 distort(in vec2 uv, in float distortion,
 		uv_scaled.y < 0.0 || uv_scaled.y > 1.0)
 		return 0.0;
 
-	vec3 col = bgTex.SampleLevel(bgSampler, uv_scaled, 0).rgb;
+	//vec3 col = bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0).rgb;
+	// Blend the stellar background with the background 3D content
+	vec4 colOPT = bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0);
+	vec3 bgCol  = texBackground.SampleLevel(bgSampler, uv_scaled, 0).rgb;
+	vec3 col = lerp(bgCol, colOPT.rgb, colOPT.a);
+
 	if (r > fade_t) {
-		fade = 1.0 - (min(1.0, r) - fade_t) / (1.0 - fade_t);
+		fade  = 1.0 - (min(1.0, r) - fade_t) / (1.0 - fade_t);
 		fade *= fade;
-		fade = mix(1.0, fade, fade_apply);
+		fade  = mix(1.0, fade, fade_apply);
 	}
 	return fade * col;
 }
 
 float3 HyperZoom(in float2 uv, in float2 scr_center, in float x0, in float x1) {
-	vec3  col = 0.0;
-	vec3  res = 0.0;
-	uint  index;
+	vec3 col = 0.0;
+	vec3 res = 0.0;
+	uint index;
 
 	float dist_apply[7], dist[7];
 	float factors[7], fade[7], d_scale[7];
 	int iters[7];
 	factors[0] = 40.0; dist[0] = 5.00; dist_apply[0] = 1.0; fade[0] = 1.0;
 	factors[1] = 25.0; dist[1] = 5.00; dist_apply[1] = 1.0; fade[1] = 1.0;
-	factors[2] = 8.0;  dist[2] = 5.00; dist_apply[2] = 1.0; fade[2] = 1.0;
-	factors[3] = 5.0;  dist[3] = 5.00; dist_apply[3] = 1.0; fade[3] = 1.0;
-	factors[4] = 3.0;  dist[4] = 0.25; dist_apply[4] = 0.8; fade[4] = 1.0;
-	factors[5] = 1.5;  dist[5] = 0.15; dist_apply[5] = 0.2; fade[5] = 1.0;
-	factors[6] = 1.0;  dist[6] = 0.00; dist_apply[6] = 0.0; fade[6] = 0.0;
+	factors[2] =  8.0; dist[2] = 5.00; dist_apply[2] = 1.0; fade[2] = 1.0;
+	factors[3] =  5.0; dist[3] = 5.00; dist_apply[3] = 1.0; fade[3] = 1.0;
+	factors[4] =  3.0; dist[4] = 0.25; dist_apply[4] = 0.8; fade[4] = 1.0;
+	factors[5] =  1.5; dist[5] = 0.15; dist_apply[5] = 0.2; fade[5] = 1.0;
+	factors[6] =  1.0; dist[6] = 0.00; dist_apply[6] = 0.0; fade[6] = 0.0;
 	d_scale[0] = 1.00; iters[0] = 32;
 	d_scale[1] = 1.00; iters[1] = 32;
 	d_scale[2] = 0.80; iters[2] = 32;
 	d_scale[3] = 0.80; iters[3] = 32;
 	d_scale[4] = 0.75; iters[4] = 32;
 	d_scale[5] = 0.40; iters[5] = 32;
-	d_scale[6] = 0.00; iters[6] = 1;
+	d_scale[6] = 0.00; iters[6] =  1;
 
 	float t = min(1.0, max(iTime, 0.0) / t2_zoom); // Normalize time in [0..1]
 	t = 1.0 - t; // Reverse time to shrink streaks
@@ -85,14 +95,14 @@ float3 HyperZoom(in float2 uv, in float2 scr_center, in float x0, in float x1) {
 	//index = 4.0;
 	// DEBUG
 	int iters_mix = iters[index];
-	
+
 	if (index < 6) {
-		factors_mix		= lerp(factors[index], factors[index + 1], t1);
-		dist_mix			= lerp(dist[index], dist[index + 1], t1);
-		dist_apply_mix	= lerp(dist_apply[index], dist_apply[index + 1], t1);
-		fade_mix			= lerp(fade[index], fade[index + 1], t1);
-		iters_mix		= round(lerp(iters[index], iters[index + 1], t1));
-		d_scale_mix		= lerp(d_scale[index], d_scale[index + 1], t1);
+		factors_mix    = lerp(factors[index], factors[index + 1], t1);
+		dist_mix       = lerp(dist[index], dist[index + 1], t1);
+		dist_apply_mix = lerp(dist_apply[index], dist_apply[index + 1], t1);
+		fade_mix       = lerp(fade[index], fade[index + 1], t1);
+		iters_mix      = round(lerp(iters[index], iters[index + 1], t1));
+		d_scale_mix    = lerp(d_scale[index], d_scale[index + 1], t1);
 	}
 
 	vec2  d = -uv / float(iters_mix) * d_scale_mix;
@@ -102,10 +112,10 @@ float3 HyperZoom(in float2 uv, in float2 scr_center, in float x0, in float x1) {
 	for (int i = 0; i < iters_mix; i++)
 	{
 		vec2 uv_scaled = uv * factors_mix + scr_center;
-		res = distort(uv_scaled, dist_mix, dist_apply_mix, fade_mix, 
-					  scr_center, x0, x1);
+		res = distort(uv_scaled, dist_mix, dist_apply_mix, fade_mix,
+		              scr_center, x0, x1);
 		col += res;
-		uv += d;
+		uv  += d;
 	}
 	col = 1.2 * col / float(iters_mix);
 	return col;
