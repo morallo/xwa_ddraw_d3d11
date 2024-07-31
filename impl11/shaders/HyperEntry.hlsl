@@ -43,15 +43,15 @@ static const vec3 flare_col = vec3(0.9, 0.9, 1.4);
 
 struct PixelShaderInput
 {
-	float4 pos    : SV_POSITION;
-	float4 color  : COLOR0;
-	float2 uv     : TEXCOORD0;
-	float4 pos3D  : COLOR1;
+	float4 pos   : SV_POSITION;
+	float4 color : COLOR0;
+	float2 uv    : TEXCOORD0;
+	float4 pos3D : COLOR1;
 };
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
+	float4 color : SV_TARGET0;
 };
 
 float sdLine(in vec2 p, in vec2 a, in vec2 b, in float ring)

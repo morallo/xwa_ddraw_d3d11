@@ -67,9 +67,14 @@ PixelShaderOutput main(PixelShaderInput input)
 	float4 bgColor = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
 	float4 effectColor = effectTex.Sample(effectSampler, float3(input.uv, input.viewId));
 #else
-	float4 fgColor = fgTex.Sample(fgSampler, input.uv);
-	float4 bgColor = bgTex.Sample(bgSampler, input.uv);
-	float4 effectColor = effectTex.Sample(effectSampler, input.uv);
+	const float4 fgColor = fgTex.Sample(fgSampler, input.uv);
+	//float4 bgColor = bgTex.Sample(bgSampler, input.uv);
+	// The HYPER_ENTRY (1) and POST_HYPER_EXIT (4) states both have a background; but the background
+	// slot is not cleared after the HYPER_ENTRY. So we need to avoid sampling that texture during the
+	// tunnel and the initial phase of the HYPER_EXIT:
+	const bool bBGAvailable = (hyperspace_phase == 1) || (hyperspace_phase == 4);
+	const float4 bgColor = bBGAvailable ? bgTex.Sample(bgSampler, input.uv) : float4(0, 0, 0, 1);
+	const float4 effectColor = effectTex.Sample(effectSampler, input.uv);
 #endif
 
 	/*

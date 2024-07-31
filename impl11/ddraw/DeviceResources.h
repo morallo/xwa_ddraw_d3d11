@@ -231,6 +231,7 @@ public:
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputR; // When SteamVR is used, this is the right eye as input buffer
 	ComPtr<ID3D11Texture2D> _backgroundBuffer;        // MSAA, keeps the stellar background
 	ComPtr<ID3D11Texture2D> _backgroundBufferAsInput; // Non-MSAA, associated with an SRV
+	ComPtr<ID3D11Texture2D> _backgroundAuxBuffer;     // No MSAA, associated with an SRV
 	ComPtr<ID3D11Texture2D> _transpBuffer1;           // MSAA, keeps the first transparency layer
 	ComPtr<ID3D11Texture2D> _transpBufferAsInput1;    // Non-MSAA, associated with an SRV
 	ComPtr<ID3D11Texture2D> _transpBuffer2;           // MSAA, keeps the second transparency layer
@@ -259,7 +260,6 @@ public:
 	ComPtr<ID3D11Texture2D> _shadertoyBuf;      // No MSAA
 	ComPtr<ID3D11Texture2D> _shadertoyBufR;     // No MSAA
 	ComPtr<ID3D11Texture2D> _shadertoyAuxBuf;   // No MSAA
-	ComPtr<ID3D11Texture2D> _shadertoyAuxBufR;  // No MSAA
 	// Bloom
 	ComPtr<ID3D11Texture2D> _offscreenBufferBloomMask;  // Used to render the bloom mask
 	ComPtr<ID3D11Texture2D> _offscreenBufferAsInputBloomMask;  // Used to resolve offscreenBufferBloomMask
@@ -368,6 +368,7 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputShaderResourceViewR; // When SteamVR is enabled, this is the SRV for the right eye
 	ComPtr<ID3D11ShaderResourceView> _offscreenBufferHdSRV; // Used to display the HD Concourse
 	ComPtr<ID3D11ShaderResourceView> _backgroundBufferSRV;
+	ComPtr<ID3D11ShaderResourceView> _backgroundAuxBufferSRV;
 	ComPtr<ID3D11ShaderResourceView> _transp1SRV;
 	ComPtr<ID3D11ShaderResourceView> _transp2SRV;
 	//ComPtr<ID3D11ShaderResourceView> _textureCubeSRV;
@@ -381,7 +382,6 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;
 	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV;
-	ComPtr<ID3D11ShaderResourceView> _shadertoyAuxSRV_R;
 	// Bloom
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputBloomMaskSRV;
 	ComPtr<ID3D11ShaderResourceView> _bloomOutput1SRV;     // SRV for bloomOutput1

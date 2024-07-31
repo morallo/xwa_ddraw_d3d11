@@ -3609,8 +3609,6 @@ HRESULT Direct3DDevice::Execute(
 								g_bClearedAuxBuffer = true;
 								context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 								context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-								if (g_bUseSteamVR)
-									context->CopyResource(resources->_shadertoyAuxBufR, resources->_shadertoyAuxBuf);
 							}
 						}
 						break;
@@ -6273,6 +6271,17 @@ HRESULT Direct3DDevice::BeginScene()
 			context->ClearRenderTargetView(this->_deviceResources->_renderTargetViewHd, this->_deviceResources->clearColor);
 			context->ClearRenderTargetView(resources->_shadertoyRTV_R, resources->clearColorRGBA);
 		}
+	}
+	else if (g_TrackerType != TRACKER_STEAMVR)
+	{
+		// When we're transitioning into hyperspace we want to capture the current background so that we can
+		// blur it during hyperspace entry
+		// ... but only if SteamVR is not enabled (we need more work to enable that path)
+		context->ResolveSubresource(resources->_backgroundAuxBuffer, 0, resources->_backgroundBuffer, 0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+			context->ResolveSubresource(resources->_backgroundAuxBuffer, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		context->ClearRenderTargetView(resources->_backgroundRTV, resources->clearColor);
 	}
 
 	// Clear the Bloom Mask RTVs -- SSDO also uses the bloom mask (and maybe SSAO should too), so we have to clear them

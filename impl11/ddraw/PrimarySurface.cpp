@@ -4522,7 +4522,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	float timeInHyperspace = (float)PlayerDataTable[*g_playerIndex].timeInHyperspace;
 	float iLinearTime = 0.0f; // We need a "linear" time that we can use to control the speed of the shake and light rotation
 	float fShakeAmplitude = 0.0f;
-	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
+	//bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST);
+	bool bBGTextureAvailable = (g_HyperspacePhaseFSM == HS_POST_HYPER_EXIT_ST || g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST);
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	D3D11_VIEWPORT viewport{};
 
@@ -4565,7 +4566,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		// Max internal time: ~500
 		// Max shader time: 2.0 (t2)
 		g_bKeybExitHyperspace = false;
-		resources->InitPixelShader(resources->_hyperEntryPS);
+		resources->InitPixelShader(resources->_hyperZoomPS); // hyperEntryPS is activated after the HyperZoom shader
 		timeInHyperspace = timeInHyperspace / 650.0f; // 550.0f
 		iTime = lerp(0.0f, 2.0f, timeInHyperspace);
 		if (iTime > 2.0f) iTime = 2.0f;
@@ -4729,6 +4730,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	*/
 	// DEBUG
 	bool bDirectSBS = (g_bEnableVR && !g_bUseSteamVR);
+
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	if (g_bEnableVR)
 		GetHyperspaceEffectMatrix(&g_ShadertoyBuffer.viewMat); // New version for SteamVR
@@ -4746,24 +4748,33 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
 	g_ShadertoyBuffer.tunnel_speed = g_fHyperspaceTunnelSpeed;
-	g_ShadertoyBuffer.srand = g_fHyperspaceRand;
-	g_ShadertoyBuffer.iTime = iTime;
-	g_ShadertoyBuffer.VRmode = bDirectSBS;
+	g_ShadertoyBuffer.srand  = g_fHyperspaceRand;
+	g_ShadertoyBuffer.iTime  = iTime;
+	g_ShadertoyBuffer.VRmode = (int)bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	g_ShadertoyBuffer.hyperspace_phase = g_HyperspacePhaseFSM;
-	/*if (g_bEnableVR) {
+
+	/*
+	if (g_bEnableVR) {
 		if (g_HyperspacePhaseFSM == HS_HYPER_TUNNEL_ST)
 			g_ShadertoyBuffer.iResolution[1] *= g_fAspectRatio;
-	}*/
+	}
+	*/
 	resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
 
 	//const int CAPTURE_FRAME = 75; // Hyper-entry
 	//const int CAPTURE_FRAME = 150; // Tunnel
 
+	if (g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"C:\\Temp\\_hyperZoomBgInput.dds");
+		DirectX::SaveDDSTextureToFile(context, resources->_backgroundAuxBuffer, L"C:\\Temp\\_backgroundAuxBuffer.dds");
+	}
+
 	// Pre-render: Apply the hyperzoom if necessary
-	// input: shadertoyAuxBufSRV
-	// output: Renders to renderTargetViewPost, then resolves the output to shadertoyAuxBuf
+	// input:  _shadertoyAuxBufSRV (OPT/3D content), _backgroundBufferSRV (stellar background)
+	// output: Renders to renderTargetViewPost, then resolves the output to _shadertoyAuxBuf
 	if (bBGTextureAvailable)
 	{
 		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
@@ -4828,32 +4839,32 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer,
 			0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(
-				resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			context->ResolveSubresource(resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
 		if (g_bDumpSSAOBuffers)
 		{
-			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_hyperZoomInput.dds");
-			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"C:\\Temp\\_hyperZoomBgInput.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"C:\\Temp\\_hyperZoomOPTInput.dds");
 		}
 
 		// Set the RTV:
 		context->OMSetRenderTargets(1, resources->_renderTargetViewPost.GetAddressOf(), NULL);
-		// Set the SRV:
+		// Set the SRVs:
 		context->PSSetShaderResources(0, 1, resources->_shadertoyAuxSRV.GetAddressOf());
-		context->PSSetShaderResources(2, 1, resources->_backgroundBufferSRV.GetAddressOf());
+		context->PSSetShaderResources(2, 1, (g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ?
+			resources->_backgroundAuxBufferSRV.GetAddressOf() : resources->_backgroundBufferSRV.GetAddressOf());
+
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
 			context->Draw(6, 0);
+
 		context->ResolveSubresource(resources->_shadertoyAuxBuf, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		if (g_bUseSteamVR)
-			context->ResolveSubresource(
-				resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
+			context->ResolveSubresource(resources->_shadertoyAuxBuf, D3D11CalcSubresource(0, 1, 1),
 				resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 
-		resources->InitPixelShader(resources->_hyperExitPS);
+		resources->InitPixelShader((g_HyperspacePhaseFSM == HS_HYPER_ENTER_ST) ? resources->_hyperEntryPS : resources->_hyperExitPS);
 	}
 	// End of hyperzoom
 
@@ -4905,8 +4916,8 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 
 		// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 		// and text float
-		g_VSCBuffer.z_override		= 65535.0f;
-		g_VSCBuffer.scale_override	= 1.0f;
+		g_VSCBuffer.z_override     = 65535.0f;
+		g_VSCBuffer.scale_override = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
@@ -5073,7 +5084,7 @@ void PrimarySurface::RenderHyperspaceEffect(D3D11_VIEWPORT *lastViewport,
 			// This is the foreground of the hyperspace effect (the cockpit). We can dump this texture to check
 			// that the transparency is OK.
 			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyBuf, L"c:\\temp\\_hyperFG.dds");
-			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBufR, L"c:\\temp\\_hyperBG.dds");
+			DirectX::SaveDDSTextureToFile(context, resources->_shadertoyAuxBuf, L"c:\\temp\\_hyperBG.dds");
 			DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInput, L"c:\\temp\\_hyperEffect.dds");
 		}
 		// Set the SRVs:

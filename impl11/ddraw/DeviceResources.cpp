@@ -1742,6 +1742,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_renderTargetViewPost.Release();
 	this->_offscreenAsInputShaderResourceView.Release();
 	this->_backgroundBufferSRV.Release();
+	this->_backgroundAuxBufferSRV.Release();
 	this->_transp1SRV.Release();
 	this->_transp2SRV.Release();
 	//if (g_bUseTextureCube) this->_textureCubeSRV.Release();
@@ -1750,6 +1751,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_offscreenBufferAsInput.Release();
 	this->_offscreenBufferPost.Release();
 	this->_backgroundBuffer.Release();
+	this->_backgroundAuxBuffer.Release();
 	this->_backgroundBufferAsInput.Release();
 	this->_transpBuffer1.Release();
 	this->_transpBuffer2.Release();
@@ -1809,10 +1811,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		if (this->_useMultisampling)
 			this->_shadertoyBufMSAA_R.Release();
 		this->_shadertoyBufR.Release();
-		this->_shadertoyAuxBufR.Release();
 		this->_shadertoyRTV_R.Release();
 		this->_shadertoySRV_R.Release();
-		this->_shadertoyAuxSRV_R.Release();
 	}
 	if (g_b3DVisionEnabled) {
 		log_debug("[DBG] [3DV] Releasing 3D vision buffers");
@@ -2554,6 +2554,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr))
 				goto out;
 
+			step = "_backgroundAuxBuffer";
+			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_backgroundAuxBuffer);
+			if (FAILED(hr))
+				goto out;
+
 			step = "transpBufferAsInput1";
 			hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_transpBufferAsInput1);
 			if (FAILED(hr))
@@ -2661,14 +2666,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				if (g_bUseSteamVR) {
 					step = "_shadertoyBufR";
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyBufR);
-					if (FAILED(hr)) {
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
-
-					step = "_shadertoyAuxBufR";
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_shadertoyAuxBufR);
 					if (FAILED(hr)) {
 						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 						log_err_desc(step, hWnd, hr, desc);
@@ -3111,6 +3108,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			if (FAILED(hr))
 				goto out;
 
+			step = "_backgroundAuxBufferSRV";
+			hr = this->_d3dDevice->CreateShaderResourceView(this->_backgroundAuxBuffer,
+				&shaderResourceViewDesc, &this->_backgroundAuxBufferSRV);
+			if (FAILED(hr))
+				goto out;
+
 			step = "transp1SRV";
 			if (FAILED(this->_d3dDevice->CreateShaderResourceView(this->_transpBufferAsInput1,
 				&shaderResourceViewDesc, &this->_transp1SRV)))
@@ -3181,14 +3184,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				step = "_shadertoySRV_R";
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyBufR, &shaderResourceViewDesc, &this->_shadertoySRV_R);
-				if (FAILED(hr)) {
-					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-					goto out;
-				}
-
-				step = "_shadertoyAuxSRV_R";
-				hr = this->_d3dDevice->CreateShaderResourceView(this->_shadertoyAuxBufR, &shaderResourceViewDesc, &this->_shadertoyAuxSRV_R);
 				if (FAILED(hr)) {
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);

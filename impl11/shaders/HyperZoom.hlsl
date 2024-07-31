@@ -10,8 +10,10 @@ static const float t_overlap = 1.5;
 
 // The 3D background texture (shadertoyAuxBuf).
 // This texture only contains 3D content that appears in the background, like other ships, bases, etc.
+// This is _shaderToyAuxBuf:
 Texture2D    bgTexOPT      : register(t0);
 // This texture is the stellar background only, no 3D content.
+// This is _backgroundBuffer:
 Texture2D    texBackground : register(t2); // Not an error, I'm placing the background on slot #2 everywhere
 SamplerState bgSampler     : register(s0);
 
@@ -51,7 +53,7 @@ vec3 distort(in vec2 uv, in float distortion,
 	// Blend the stellar background with the background 3D content
 	vec4 colOPT = bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0);
 	vec3 bgCol  = texBackground.SampleLevel(bgSampler, uv_scaled, 0).rgb;
-	vec3 col = lerp(bgCol, colOPT.rgb, colOPT.a);
+	vec3 col    = lerp(bgCol, colOPT.rgb, colOPT.a);
 
 	if (r > fade_t) {
 		fade  = 1.0 - (min(1.0, r) - fade_t) / (1.0 - fade_t);
@@ -121,7 +123,7 @@ float3 HyperZoom(in float2 uv, in float2 scr_center, in float x0, in float x1) {
 	return col;
 }
 
-PixelShaderOutput main(PixelShaderInput input)
+PixelShaderOutput mainExit(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	float4 bgColor;
@@ -144,4 +146,71 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	output.color = float4(HyperZoom(uv, scr_center, x0, x1), 1.0);
 	return output;
+}
+
+vec3 addFade(in vec2 uv, in float fade_apply)
+{
+	const float2 scr_center = float2(0.5, 0.5);
+	const float r = length(uv - scr_center);
+	const float fade_outer = 0.25;
+	float fade = 1.0;
+
+	//vec3 col = bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0).rgb;
+	// Blend the stellar background with the background 3D content
+	vec4 colOPT = bgTexOPT.SampleLevel(bgSampler, uv, 0);
+	vec3 bgCol  = texBackground.SampleLevel(bgSampler, uv, 0).rgb;
+	vec3 col    = lerp(bgCol, colOPT.rgb, colOPT.a);
+
+	if (uv.x >= 0.0 && uv.x <= 1.0 &&
+	    uv.y >= 0.0 && uv.y <= 1.0)
+	{
+		if (r > fade_outer)
+		{
+			fade = 1.0 - (min(1.0, r) - fade_outer) / (1.0 - fade_outer);
+			fade *= fade;
+			fade = mix(1.0, fade, fade_apply);
+		}
+		return fade * col;
+	}
+
+	return 0;
+}
+
+
+PixelShaderOutput mainEntry(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+
+	float2 scr_center = float2(0.5, 0.5);
+	// Convert pixel coord into uv centered at the origin
+	float2 uv = input.uv - scr_center;
+
+	const int iterations = 32;
+	const float t = min(1.0, max(iTime, 0.0) / 2.0); // Normalize time in [0..1]
+
+	const float blurAmount = 0.7 * t;
+	float totalFade = 1.0 - t;
+    vec2 d   = -uv / float(iterations) * blurAmount;
+	vec3 col = 0;
+    vec3 res = 0;
+
+	for (int i = 0; i < iterations; i++)
+	{
+        vec2 uv_scaled = uv + scr_center;
+		res = addFade(uv_scaled, 3.0 * t);
+		col += res;
+		uv += d;
+	}
+	col = col / float(iterations);
+
+	output.color = float4(col, 1.0);
+	return output;
+}
+
+PixelShaderOutput main(PixelShaderInput input)
+{
+	if (hyperspace_phase == 1)
+		return mainEntry(input);
+	else
+		return mainExit(input);
 }
