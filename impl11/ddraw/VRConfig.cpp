@@ -3036,6 +3036,7 @@ bool LoadHyperParams() {
 	g_fHyperLightRotationSpeed = 50.0f;
 	g_fHyperShakeRotationSpeed = 50.0f;
 	g_bHyperDebugMode = false;
+	MAX_POST_HYPER_EXIT_FRAMES = 15;
 
 	try {
 		error = fopen_s(&file, "./hyperspace.cfg", "rt");
@@ -3094,6 +3095,9 @@ bool LoadHyperParams() {
 			}
 			else if (_stricmp(param, "interdiction_angle_scale") == 0) {
 				g_fInterdictionAngleScale = fValue;
+			}
+			else if (_stricmp(param, "hyperspace_exit_blur_frames") == 0) {
+				MAX_POST_HYPER_EXIT_FRAMES = (int)fValue;
 			}
 		}
 	}
