@@ -69,7 +69,21 @@ PixelShaderOutput RenderSkyBox(PixelShaderInput input)
 	V.yz = -V.yz;
 	// That way, viewMat below is the same we already figured out for PixelShaderVRGeom:
 	V = mul(viewMat, float4(V, 0)).xyz;
-	output.color = float4(skybox.Sample(bgSampler, V.xyz).rgb, 1);
+
+	// DefaultStarfield.dds is rendered *after* the backdrops have already been rendered.
+	// Sometimes, the backdrops (nebulae, planets) are semi-transparent. This wasn't a problem
+	// before because the original XWA starfield was almost completely black with just a few
+	// stars, so the semi-transparent backdrops were still visible.
+	// Now, if DefaultStarfield.dds is rendered after the semi-transparent backdrops, it will
+	// end up covering most of them. To solve this, DefaultStarfield.dds must be similar to the
+	// original starfield (all black with a few dots), and we can just discard the pixels that
+	// are black so that the existing backdrops can show through properly:
+	const float3 skyBoxColor = skybox.Sample(bgSampler, V.xyz).rgb;
+	const float  skyBoxVal   = dot(0.333, skyBoxColor);
+	if (skyBoxVal < 0.1)
+		discard;
+
+	output.color = float4(skyBoxColor, 1);
 	return output;
 }
 
