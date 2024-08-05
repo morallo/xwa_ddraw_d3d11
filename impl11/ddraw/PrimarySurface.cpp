@@ -10149,7 +10149,7 @@ HRESULT PrimarySurface::Flip(
 					g_bRendering3D = false;
 					g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
 					if (g_bDumpSSAOBuffers) {
-						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
+						//DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"c:\\temp\\_backgroundBuffer.dds");
 						DirectX::SaveDDSTextureToFile(context, resources->_normBuf, L"C:\\Temp\\_normBuf.dds");
 						DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"C:\\Temp\\_depthBuf.dds");
 						DirectX::SaveDDSTextureToFile(context, resources->_depthStencilL, L"C:\\Temp\\_depthStencilL.dds");
