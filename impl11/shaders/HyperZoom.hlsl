@@ -51,7 +51,8 @@ vec3 distort(in vec2 uv, in float distortion,
 
 	//vec3 col = bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0).rgb;
 	// Blend the stellar background with the background 3D content
-	vec4 colOPT = bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0);
+	// In VR, colOPT will also contain the cockpit. The cockpit will get blurred and that just looks weird
+	vec4 colOPT = VRmode == 0 ? bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0) : 0;
 	vec3 bgCol  = texBackground.SampleLevel(bgSampler, uv_scaled, 0).rgb;
 	vec3 col    = lerp(bgCol, colOPT.rgb, colOPT.a);
 
@@ -131,7 +132,7 @@ PixelShaderOutput mainExit(PixelShaderInput input)
 	float2 uv = input.uv;
 	float x0 = 0.0, x1 = 1.0;
 
-	if (VRmode) 
+	if (VRmode == 1) // DirectSBS path
 	{
 		if (uv.x < 0.5) {
 			scr_center = vec2(0.25, 0.5);
@@ -157,7 +158,8 @@ vec3 addFade(in vec2 uv, in float fade_apply)
 
 	//vec3 col = bgTexOPT.SampleLevel(bgSampler, uv_scaled, 0).rgb;
 	// Blend the stellar background with the background 3D content
-	vec4 colOPT = bgTexOPT.SampleLevel(bgSampler, uv, 0);
+	// In VR, colOPT will also contain the cockpit. The cockpit will get blurred and that just looks weird
+	vec4 colOPT = VRmode == 0 ? bgTexOPT.SampleLevel(bgSampler, uv, 0) : 0;
 	vec3 bgCol  = texBackground.SampleLevel(bgSampler, uv, 0).rgb;
 	vec3 col    = lerp(bgCol, colOPT.rgb, colOPT.a);
 

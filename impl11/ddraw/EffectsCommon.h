@@ -242,7 +242,7 @@ typedef struct ShadertoyCBStruct {
 	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
 	float iResolution[2];
-	// 0: Non-VR, 1: DirectSBS, 2: SteamVR. 
+	// 0: Non-VR, 1: DirectSBS, 2: SteamVR, 3: Render DefaultStarfield.dds (used in ExternalHUD.ps)
 	// Set to 1 when the Hyperspace Effect is in the HS_POST_HYPER_EXIT_ST state
 	// Used in the SunShader too.
 	int VRmode;
