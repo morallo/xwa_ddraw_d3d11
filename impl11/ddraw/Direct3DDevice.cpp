@@ -582,7 +582,7 @@ HiResTimer g_HiResTimer;
 /*********************************************************/
 // HYPERSPACE
 HyperspacePhaseEnum g_HyperspacePhaseFSM = HS_INIT_ST;
-int MAX_POST_HYPER_EXIT_FRAMES = 15;
+int MAX_POST_HYPER_EXIT_FRAMES = DEFAULT_MAX_POST_HYPER_EXIT_FRAMES;
 int g_iHyperExitPostFrames = 0;
 //Vector3 g_fCameraCenter(0.0f, 0.0f, 0.0f);
 float g_fHyperspaceTunnelSpeed = 5.5f, g_fHyperShakeRotationSpeed = 1.0f, g_fHyperLightRotationSpeed = 1.0f;

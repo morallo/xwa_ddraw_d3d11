@@ -40,6 +40,7 @@ enum HyperspacePhaseEnum {
 	HS_POST_HYPER_EXIT_ST = 4   // HyperExit streaks have finished rendering; but now we're blending with the backround
 };
 //const int MAX_POST_HYPER_EXIT_FRAMES = 10; // I had 20 here up to version 1.1.1. Making this smaller makes the zoom faster
+const int DEFAULT_MAX_POST_HYPER_EXIT_FRAMES = 20;
 extern int MAX_POST_HYPER_EXIT_FRAMES; // This setting is now configurable
 const int HYPER_INTERDICTION_STYLE = 2;
 

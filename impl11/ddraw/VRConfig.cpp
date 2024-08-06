@@ -3036,7 +3036,7 @@ bool LoadHyperParams() {
 	g_fHyperLightRotationSpeed = 50.0f;
 	g_fHyperShakeRotationSpeed = 50.0f;
 	g_bHyperDebugMode = false;
-	MAX_POST_HYPER_EXIT_FRAMES = 15;
+	MAX_POST_HYPER_EXIT_FRAMES = DEFAULT_MAX_POST_HYPER_EXIT_FRAMES;
 
 	try {
 		error = fopen_s(&file, "./hyperspace.cfg", "rt");
