@@ -361,7 +361,11 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 	static vr::TrackedDeviceIndex_t leftId  = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand);
 	static vr::TrackedDeviceIndex_t rightId = vr::VRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand);
 
+	// Use GetControllerState() to detect when controllers are disconnected:
 	vr::VRControllerState_t state;
+	g_contStates[0].bIsValid = g_pHMD->GetControllerState(leftId, &state, sizeof(state));
+	g_contStates[1].bIsValid = g_pHMD->GetControllerState(rightId, &state, sizeof(state));
+
 	if (g_pHMD->GetControllerState(unDevice, &state, sizeof(state)))
 	{
 		// Pose array predicted for current frame N, to use by ddraw to render current frame in GPU (minimize latency)
@@ -406,8 +410,9 @@ void GetSteamVRPositionalData(float* yaw, float* pitch, float* roll, float* x, f
 
 		for (int i = 0; i < 2; i++)
 		{
-			g_contStates[i].bIsValid = trackedControllerPose[i].bPoseIsValid;
-			g_contStates[i].pose = HmdMatrix34toMatrix4(trackedControllerPose[i].mDeviceToAbsoluteTracking);
+			// trackedControllerPose[i].bPoseIsValid returns random 8-bit numbers when the controllers are off
+			//g_contStates[i].bIsValid = trackedControllerPose[i].bPoseIsValid;
+			g_contStates[i].pose     = HmdMatrix34toMatrix4(trackedControllerPose[i].mDeviceToAbsoluteTracking);
 
 			// Get the state of the buttons
 			vr::VRControllerState_t state;
