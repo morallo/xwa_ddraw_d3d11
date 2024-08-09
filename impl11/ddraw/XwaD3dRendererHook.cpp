@@ -1605,7 +1605,7 @@ void D3dRenderer::GetViewportScale(float* viewportScale)
 
 void D3dRenderer::SetRenderTypeIllum(int type)
 {
-	auto context = _deviceResources->_d3dDeviceContext;
+	auto &context = _deviceResources->_d3dDeviceContext;
 	_constants.renderTypeIllum = type;
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_constants, 0, 0);
 }
