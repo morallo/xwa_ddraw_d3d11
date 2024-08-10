@@ -461,7 +461,7 @@ int Direct3DTexture::GetCachedSRV(char *sDATZIPFileName, int GroupId, int ImageI
 	return index;
 }
 
-int Direct3DTexture::AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, int index, ID3D11ShaderResourceView *srv)
+int Direct3DTexture::AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, int index)
 {
 	auto& resources = this->_deviceResources;
 	std::string hash = GetDATImageHash(sDATZIPFileName, GroupId, ImageId);
@@ -748,7 +748,7 @@ int Direct3DTexture::LoadDATImage(char *sDATFileName, int GroupId, int ImageId, 
 	if (cache)
 	{
 		index = resources->PushExtraTexture(*srv);
-		AddCachedSRV(sDATFileName, GroupId, ImageId, index, *srv);
+		AddCachedSRV(sDATFileName, GroupId, ImageId, index);
 		return index;
 	}
 	else
@@ -805,7 +805,7 @@ int Direct3DTexture::LoadZIPImage(char *sZIPFileName, int GroupId, int ImageId, 
 	if (cache)
 	{
 		index = resources->PushExtraTexture(*srv);
-		AddCachedSRV(sZIPFileName, GroupId, ImageId, index, *srv);
+		AddCachedSRV(sZIPFileName, GroupId, ImageId, index);
 		return index;
 	}
 	else

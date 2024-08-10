@@ -189,7 +189,7 @@ public:
 
 	std::string GetDATImageHash(char *sDATZIPFileName, int GroupId, int ImageId);
 	int GetCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, ID3D11ShaderResourceView **srv);
-	int AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, int index, ID3D11ShaderResourceView *srv);
+	int AddCachedSRV(char *sDATZIPFileName, int GroupId, int ImageId, int index);
 
 	void LoadAnimatedTextures(int ATCIndex);
 
