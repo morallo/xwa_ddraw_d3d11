@@ -1956,10 +1956,7 @@ void PrimarySurface::DrawHUDVertices() {
 
 	// Don't clear the render target, the offscreenBuffer already has the 3D render in it
 	// Render the left image
-	if (g_bUseSteamVR)
-		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
-	else
-		context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
 	// VIEWPORT-LEFT
 	if (g_bEnableVR) {
 		if (g_bUseSteamVR)

@@ -5799,6 +5799,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		D3D11_VIEWPORT viewport = { 0 };
 		UINT stride = sizeof(MainVertex);
 		UINT offset = 0;
+		auto& context = _d3dDeviceContext;
 
 		// [XWA-MAP-RENDER] This path renders the square grid and the vertical lines when the map is displayed.
 
@@ -5812,16 +5813,26 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 		float screen_res_x = (float)this->_backbufferWidth;
 		float screen_res_y = (float)this->_backbufferHeight;
-
-		bool bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
+		const bool bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
+		const bool bMapMode = (g_playerIndex != nullptr) && (PlayerDataTable[*g_playerIndex].mapState != 0);
 
 		if (!g_bEnableVR || bRenderToDC)
 		{
 			// The CMD sub-component bracket are drawn here... maybe the default starfield too?
-			// The map lines (both the grid and the vertical lines) are drawn here too
-			_d3dDeviceContext->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+			// The map lines (both the grid and the vertical lines) are drawn here.
+			// In VR mode, when the map is enabled, we render to the dynamic cockpit buffer. That way,
+			// we can use RenderHUD() to display the map as a flat surface.
+			if (g_bUseSteamVR && bMapMode)
+			{
+				context->OMSetRenderTargets(1, _renderTargetViewDynCockpit.GetAddressOf(), NULL);
+				this->_d3dDeviceContext->DrawIndexedInstanced(6, 1, 0, 0, 0);
+			}
+			else
+			{
+				context->OMSetRenderTargets(1, _renderTargetView.GetAddressOf(), _depthStencilViewL.Get());
+				this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
+			}
 
-			this->_d3dDeviceContext->DrawIndexed(6, 0, 0);
 			if (bRenderToDC)
 			{
 				//log_debug("[DBG] viewport: %0.3f, %0.3f, %0.3f, %0.3f",
