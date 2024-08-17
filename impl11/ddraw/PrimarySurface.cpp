@@ -1246,13 +1246,13 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		if (g_bSteamVRMirrorWindowLeftEye)
 		{
 			// If the HD Concourse is enabled, then offscreenBufferHd is already non-MSAA and SRV-ready
-			if (g_bRendering3D)
+			if (g_bRendering3D || !bIsInConcourseHD)
 				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 					0, BACKBUFFER_FORMAT);
 		}
 		else
 		{
-			if (g_bRendering3D)
+			if (g_bRendering3D || !bIsInConcourseHD)
 				context->ResolveSubresource(
 					resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 					resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
