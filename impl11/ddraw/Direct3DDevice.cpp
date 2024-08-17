@@ -3415,9 +3415,12 @@ HRESULT Direct3DDevice::Execute(
 					if ((g_bDynCockpitEnabled || g_bReshadeEnabled) && !g_bDCWasClearedOnThisFrame)
 					{
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
-						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
-						context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+						if (!g_bUseSteamVR || !g_bMapMode)
+						{
+							context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+							context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+							context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+						}
 						g_bDCWasClearedOnThisFrame = true;
 						//log_debug("[DBG] DC Clear RTVs");
 

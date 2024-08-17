@@ -1977,6 +1977,33 @@ void PrimarySurface::DrawHUDVertices() {
 	g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
 	// The viewMatrix is set at the beginning of the frame
 	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+	// When rendering the map in VR mode, we Resolve() the DC buffer right before we render it
+	if (g_bUseSteamVR && g_bMapMode)
+	{
+		// Copy or resolve the result
+		if (g_config.MultisamplingAntialiasingEnabled)
+		{
+			context->ResolveSubresource(resources->_offscreenAsInputDynCockpit,
+				0, resources->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(resources->_offscreenAsInputDynCockpitBG,
+				0, resources->_offscreenBufferDynCockpitBG, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(_deviceResources->_DCTextAsInput,
+				0, _deviceResources->_DCTextMSAA, 0, BACKBUFFER_FORMAT);
+		}
+		else
+		{
+			context->CopySubresourceRegion(resources->_offscreenAsInputDynCockpit, 0, 0, 0, 0, resources->_offscreenBufferDynCockpit, 0, NULL);
+			context->CopySubresourceRegion(resources->_offscreenAsInputDynCockpitBG, 0, 0, 0, 0, resources->_offscreenBufferDynCockpitBG, 0, NULL);
+			context->CopySubresourceRegion(resources->_DCTextAsInput, 0, 0, 0, 0, resources->_DCTextMSAA, 0, NULL);
+		}
+
+		float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+		context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+		context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+		context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+	}
+
 	// Set the HUD foreground, background and Text textures:
 	ID3D11ShaderResourceView *srvs[3] = {
 		resources->_offscreenAsInputDynCockpitSRV.Get(),
@@ -1985,11 +2012,15 @@ void PrimarySurface::DrawHUDVertices() {
 	};
 	context->PSSetShaderResources(0, 3, srvs);
 	// Draw the Left Image
-	//if (RenderHUD)
 	if (g_bUseSteamVR)
 		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 	else
 		context->Draw(6, 0);
+
+	if (g_bUseSteamVR && g_bMapMode && g_bDumpSSAOBuffers)
+	{
+		DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_mapVR.dds");
+	}
 
 	if (!g_bEnableVR || g_bUseSteamVR) // Shortcut for the SteamVR and non-VR path
 	{
@@ -9562,11 +9593,16 @@ nochange:
 		}
 	}
 
-	// Copy or resolve the result
-	if (g_config.MultisamplingAntialiasingEnabled)
-		context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
-	else
-		context->CopySubresourceRegion(resources->_offscreenAsInputDynCockpit, 0, 0, 0, 0, resources->_offscreenBufferPost, 0, NULL);
+	// When rendering the map in VR mode, we don't Resolve() here. We defer that operation until
+	// we render the HUD.
+	if (!g_bUseSteamVR || !g_bMapMode)
+	{
+		// Copy or resolve the result
+		if (g_config.MultisamplingAntialiasingEnabled)
+			context->ResolveSubresource(resources->_offscreenAsInputDynCockpit, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		else
+			context->CopySubresourceRegion(resources->_offscreenAsInputDynCockpit, 0, 0, 0, 0, resources->_offscreenBufferPost, 0, NULL);
+	}
 
 	// Restore previous rendertarget: this line is necessary or the 2D content won't be displayed
 	// after applying this effect.
@@ -10307,9 +10343,12 @@ HRESULT PrimarySurface::Flip(
 			// then we didn't do it!
 			if (!g_bDCWasClearedOnThisFrame) {
 				float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
-				context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
-				context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+				if (!g_bUseSteamVR || !g_bMapMode)
+				{
+					context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+					context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+					context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+				}
 				g_bDCWasClearedOnThisFrame = true;
 				//log_debug("[DBG] DC Clearing RTVs because GUI was off");
 			}
@@ -10714,7 +10753,7 @@ HRESULT PrimarySurface::Flip(
 			// Render the enhanced bracket after all the shading has been applied.
 			if (g_config.Radar2DRendererEnabled)
 			{
-				if (!g_bEnableVR)
+				if (!g_bEnableVR || (g_bUseSteamVR && g_bMapMode))
 					this->RenderBracket();
 				else
 					this->CacheBracketsVR();
@@ -11372,16 +11411,21 @@ HRESULT PrimarySurface::Flip(
 			// the contents of these buffers for the next frame
 			if (g_bDynCockpitEnabled || g_bReshadeEnabled || g_config.Text2DRendererEnabled) 
 			{
-				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
-					0, _deviceResources->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
-				context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
-					0, _deviceResources->_offscreenBufferDynCockpitBG, 0, BACKBUFFER_FORMAT);
-				context->ResolveSubresource(_deviceResources->_DCTextAsInput,
-					0, _deviceResources->_DCTextMSAA, 0, BACKBUFFER_FORMAT);
+				// We don't Resolve() the DC buffer here when rending the map in VR mode. We defer
+				// that operation until the HUD is rendered.
+				if (!g_bUseSteamVR || !g_bMapMode)
+				{
+					context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpit,
+						0, _deviceResources->_offscreenBufferDynCockpit, 0, BACKBUFFER_FORMAT);
+					context->ResolveSubresource(_deviceResources->_offscreenAsInputDynCockpitBG,
+						0, _deviceResources->_offscreenBufferDynCockpitBG, 0, BACKBUFFER_FORMAT);
+					context->ResolveSubresource(_deviceResources->_DCTextAsInput,
+						0, _deviceResources->_DCTextMSAA, 0, BACKBUFFER_FORMAT);
 
-				// Apply the Edge Detector effect to the DC foreground texture
-				if (g_bEdgeDetectorEnabled && g_bDynCockpitEnabled && g_bRendering3D && !g_bEdgeEffectApplied)
-					RenderEdgeDetector();
+					// Apply the Edge Detector effect to the DC foreground texture
+					if (g_bEdgeDetectorEnabled && g_bDynCockpitEnabled && g_bRendering3D && !g_bEdgeEffectApplied)
+						RenderEdgeDetector();
+				}
 
 				/*
 				// Should this block be here? This fixes the HUD not getting cleared when the new 2D Renderer
@@ -12679,6 +12723,7 @@ void PrimarySurface::RenderBracket()
 	static UINT s_top;
 	static float s_scaleX;
 	static float s_scaleY;
+	const bool bForceDC = g_bUseSteamVR && g_bMapMode;
 
 	if (!g_PrimarySurfaceInitialized)
 	{
@@ -12782,7 +12827,7 @@ void PrimarySurface::RenderBracket()
 		bool fill = xwaBracket.width <= 4 || xwaBracket.height <= 4;
 		// Select the DC RTV if this bracket was classified as belonging to
 		// the Dynamic Cockpit display
-		ID2D1RenderTarget *rtv = xwaBracket.DC ? this->_deviceResources->_d2d1DCRenderTarget : this->_deviceResources->_d2d1OffscreenRenderTarget;
+		ID2D1RenderTarget *rtv = (xwaBracket.DC || bForceDC) ? this->_deviceResources->_d2d1DCRenderTarget : this->_deviceResources->_d2d1OffscreenRenderTarget;
 		s_brush = xwaBracket.DC ? s_brushDC : s_brushOffscreen;
 
 		if (fill)

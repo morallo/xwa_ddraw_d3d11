@@ -5754,7 +5754,8 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	UINT left = (this->_backbufferWidth - w) / 2;
 	UINT top = (this->_backbufferHeight - h) / 2;
-	bool bRenderToDC = g_bRendering3D && g_bDynCockpitEnabled && g_bExecuteBufferLock;
+	const bool bRenderToDC = g_bRendering3D && g_bDynCockpitEnabled && g_bExecuteBufferLock;
+	const bool bMapMode = (g_playerIndex != nullptr) && (PlayerDataTable[*g_playerIndex].mapState != 0);
 
 	if (g_bEnableVR && !bRenderToDC) { // SteamVR and DirectSBS modes
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f); // Use 3D projection matrices
@@ -5814,7 +5815,6 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 		float screen_res_x = (float)this->_backbufferWidth;
 		float screen_res_y = (float)this->_backbufferHeight;
 		const bool bDirectSBS = g_bEnableVR && !g_bUseSteamVR;
-		const bool bMapMode = (g_playerIndex != nullptr) && (PlayerDataTable[*g_playerIndex].mapState != 0);
 
 		if (!g_bEnableVR || bRenderToDC)
 		{
@@ -5826,6 +5826,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 			{
 				context->OMSetRenderTargets(1, _renderTargetViewDynCockpit.GetAddressOf(), NULL);
 				this->_d3dDeviceContext->DrawIndexedInstanced(6, 1, 0, 0, 0);
+				goto out;
 			}
 			else
 			{
