@@ -1189,7 +1189,7 @@ void PrimarySurface::barrelEffectSteamVR() {
 void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	/*
 	We need to avoid resolving the offscreen buffer multiple times. It's probably easier to
-	skip method this altogether if we already rendered all this in the first iteration.
+	skip this method altogether if we already rendered all this in the first iteration.
 	*/
 	if (iteration > 0)
 		return;
@@ -1204,6 +1204,9 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	float screen_res_x = (float)g_WindowWidth;
 	float screen_res_y = (float)g_WindowHeight;
 	float bgColor[4]   = { 0.0f, 0.0f, 0.0f, 0.0f };
+	// bIsInConcourseHD sometimes is true during regular flight (!) So that may cause some
+	// bugs when displaying stuff. On the other hand, I don't want to touch this since it
+	// looks like it works (?) anyway...
 	const bool bIsInConcourseHD = resources->IsInConcourseHd();
 	const bool bInHdTechRoom = bIsInConcourseHD && g_bInTechRoom;
 
@@ -1243,13 +1246,13 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		if (g_bSteamVRMirrorWindowLeftEye)
 		{
 			// If the HD Concourse is enabled, then offscreenBufferHd is already non-MSAA and SRV-ready
-			if (!bIsInConcourseHD)
+			if (g_bRendering3D)
 				context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 					0, BACKBUFFER_FORMAT);
 		}
 		else
 		{
-			if (!bIsInConcourseHD)
+			if (g_bRendering3D)
 				context->ResolveSubresource(
 					resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 					resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
