@@ -5728,6 +5728,12 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 		goto out;
 	}
 
+	if (g_bMapMode && g_bUseSteamVR)
+	{
+		RenderToDC();
+		goto out;
+	}
+
 	// Modify the state for both VR and regular game modes...
 
 	// Maintain the k-closest lasers to the camera (but ignore the miniature lasers)
@@ -6015,6 +6021,44 @@ inline ID3D11RenderTargetView *EffectsRenderer::SelectOffscreenBuffer() {
 	if (_overrideRTV == BACKGROUND_LYR) return resources->_backgroundRTV;
 	// Normal output buffer (_offscreenBuffer)
 	return regularRTV;
+}
+
+// Use this to capture 3D content into the DC buffer to be displayed flat.
+// This is useful for displaying the map in VR as a flat surface
+void EffectsRenderer::RenderToDC()
+{
+	auto &resources = _deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+
+	// Apply the brightness settings to the pixel shader
+	g_PSCBuffer.brightness = g_fBrightness;
+	// Restore the non-VR dimensions:
+	_deviceResources->InitViewport(&_viewport);
+	//resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	_deviceResources->InitVertexShader(_vertexShader);
+	_deviceResources->InitPixelShader(_pixelShader);
+	//ID3D11DepthStencilView* ds = g_bUseSteamVR ? NULL : resources->_depthStencilViewL.Get();
+	ID3D11DepthStencilView* ds = g_bUseSteamVR ? resources->_depthStencilViewR.Get() : resources->_depthStencilViewL.Get();
+	// Select the proper RTV
+	context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(), ds);
+
+	//QuickSetZWriteEnabled(TRUE);
+
+	// Render
+	if (g_bUseSteamVR)
+		context->DrawIndexedInstanced(_trianglesCount * 3, 1, 0, 0, 0); // if (g_bUseSteamVR)
+	else
+		context->DrawIndexed(_trianglesCount * 3, 0, 0);
+	g_iHUDOffscreenCommandsRendered++;
+
+	// Restore the regular texture, RTV, shaders, etc:
+	context->PSSetShaderResources(0, 1, _lastTextureSelected->_textureView.GetAddressOf());
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), resources->_depthStencilViewL.Get());
+
+	// Restore the Pixel Shader constant buffers:
+	g_PSCBuffer.brightness = MAX_BRIGHTNESS;
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 }
 
 // This function should only be called when the miniature (targetted craft) is being rendered.

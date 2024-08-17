@@ -159,6 +159,7 @@ protected:
 	void EnableTransparency();
 	void EnableHoloTransparency();
 	inline ID3D11RenderTargetView *SelectOffscreenBuffer();
+	void RenderToDC();
 	Matrix4 GetShadowMapLimits(Matrix4 L, float *OBJrange, float *OBJminZ);
 	Matrix4 GetShadowMapLimits(const AABB &aabb, float *OBJrange, float *OBJminZ);
 

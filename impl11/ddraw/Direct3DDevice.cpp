@@ -2841,7 +2841,7 @@ HRESULT Direct3DDevice::Execute(
 		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 	else
 		// The original code used _vertexShader:
-		this->_deviceResources->InitVertexShader(resources->_vertexShader);	
+		this->_deviceResources->InitVertexShader(resources->_vertexShader);
 	this->_deviceResources->InitPixelShader(resources->_pixelShaderTexture);
 	this->_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	this->_deviceResources->InitRasterizerState(resources->_rasterizerState);
@@ -3415,9 +3415,12 @@ HRESULT Direct3DDevice::Execute(
 					if ((g_bDynCockpitEnabled || g_bReshadeEnabled) && !g_bDCWasClearedOnThisFrame)
 					{
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
-						context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
-						context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+						if (!g_bUseSteamVR || !g_bMapMode)
+						{
+							context->ClearRenderTargetView(resources->_renderTargetViewDynCockpit, bgColor);
+							context->ClearRenderTargetView(resources->_renderTargetViewDynCockpitBG, bgColor);
+							context->ClearRenderTargetView(resources->_DCTextRTV, bgColor);
+						}
 						g_bDCWasClearedOnThisFrame = true;
 						//log_debug("[DBG] DC Clear RTVs");
 
@@ -5227,6 +5230,34 @@ HRESULT Direct3DDevice::Execute(
 				if (bIsMapIcon) {
 					bModifiedShaders = true;
 					g_VSCBuffer.bIsMapIcon = true;
+					if (g_bMapMode && g_bUseSteamVR)
+					{
+						// Restore the non-VR dimensions:
+						g_VSCBuffer.viewportScale[0] =  2.0f / displayWidth;
+						g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
+						// Apply the brightness settings to the pixel shader
+						g_PSCBuffer.brightness = g_fBrightness;
+						resources->InitViewport(&g_nonVRViewport);
+						resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+						// Set the original vertex buffer and dynamic cockpit RTV:
+						resources->InitVertexShader(resources->_vertexShader);
+						//context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(), resources->_depthStencilViewL.Get());
+						context->OMSetRenderTargets(1, resources->_renderTargetViewDynCockpit.GetAddressOf(), NULL);
+						context->DrawIndexedInstanced(3 * instruction->wCount, 1, currentIndexLocation, 0, 0); // if (g_bUseSteamVR)
+
+						// Restore the previous state:
+						resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
+						// Restore the right constants in case we're doing VR rendering
+						g_VSCBuffer.viewportScale[0] = 1.0f / displayWidth;
+						g_VSCBuffer.viewportScale[1] = 1.0f / displayHeight;
+						resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+						// Restore the Pixel Shader constant buffers:
+						g_PSCBuffer.brightness = MAX_BRIGHTNESS;
+						resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+
+						goto out;
+					}
 				}
 
 				// Transparent textures are currently used with DC to render floating text. However, if the erase region
