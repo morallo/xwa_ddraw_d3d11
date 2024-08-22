@@ -44,8 +44,8 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color    : SV_TARGET0;
-	float4 bloom    : SV_TARGET1;
+	float4 color : SV_TARGET0;
+	float4 bloom : SV_TARGET1;
 };
 
 // The HyperZoom effect probably can't be applied in this shader because it works
@@ -56,6 +56,28 @@ static const float3 blue_col = float3(0.50, 0.50, 1.00);
 static const float3 red_col = float3(0.90, 0.15, 0.15);
 //#define bloom_strength 2.0
 
+#ifdef INSTANCED_RENDERING
+PixelShaderOutput BlendBackground(PixelShaderInput input, int mode)
+{
+	PixelShaderOutput output;
+	output.color = 0;
+	output.bloom = 0;
+
+	const float4 skyBoxColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
+	const float4 background  = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
+	const float  skyBoxVal   = skyBoxColor.a;
+	//float  skyBoxVal   = dot(0.3333, skyBoxColor.rgb);
+	if (mode == 0)
+		output.color = float4(lerp(background.rgb, skyBoxColor.rgb, skyBoxVal * (1.0 - background.a)), 1);
+	else if (mode == 1)
+		output.color = float4(background.rgb, 1);
+	else if (mode == 2)
+		output.color = float4(skyBoxColor.rgb, 1);
+
+	return output;
+}
+#endif
+
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -63,6 +85,11 @@ PixelShaderOutput main(PixelShaderInput input)
 	float bloom  = 0;
 
 #ifdef INSTANCED_RENDERING
+	if (VRmode > 3)
+	{
+		return BlendBackground(input, VRmode - 3);
+	}
+
 	float4 fgColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
 	float4 bgColor = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
 	float4 effectColor = effectTex.Sample(effectSampler, float3(input.uv, input.viewId));

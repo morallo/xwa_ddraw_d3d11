@@ -5938,33 +5938,35 @@ void PrimarySurface::RenderDefaultBackground()
 	resources->InitPixelShader(g_bUseSteamVR ? resources->_externalHUDPS_VR : resources->_externalHUDPS);
 	// We need this to ensure backface culling is disabled
 	resources->InitRasterizerState(resources->_rasterizerState);
-	//_deviceResources->InitDepthStencilState(_solidDepthState, nullptr);
 	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the starfield should always be displayed
 	resources->InitDepthStencilState(resources->_mainDepthState, nullptr);
 
-	ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
+	// We're rendering the default starfield *after* the backdrops. That means that the
+	// destination RTV may already have a populated alpha channel. Since we want to preserve
+	// the existing render, we need a custom blending operation.
+	// For the non-VR path, the custom blending is done in the ExternalHUD pixel shader.
+	// For the VR path, we need two (2) renders. The first pass renders the skybox, the
+	// second render does the blending.
+	static ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
 	if (s_transparentBlendState == nullptr)
 	{
 		D3D11_BLEND_DESC transparentBlendDesc{};
 		transparentBlendDesc.AlphaToCoverageEnable       = FALSE;
 		transparentBlendDesc.IndependentBlendEnable      = FALSE;
 		transparentBlendDesc.RenderTarget[0].BlendEnable = TRUE;
-		// We're rendering the default starfield *after* the backdrops. That means that the
-		// destination RTV may already have a populated alpha channel. Since we want to preserve
-		// the existing render, we're using INV_DEST_ALPHA with the source color:
-		transparentBlendDesc.RenderTarget[0].SrcBlend  = D3D11_BLEND_INV_DEST_ALPHA;
-		transparentBlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_DEST_ALPHA;
+		transparentBlendDesc.RenderTarget[0].SrcBlend  = D3D11_BLEND_SRC_ALPHA;
+		transparentBlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 		transparentBlendDesc.RenderTarget[0].BlendOp   = D3D11_BLEND_OP_ADD;
-
 		transparentBlendDesc.RenderTarget[0].SrcBlendAlpha  = D3D11_BLEND_SRC_ALPHA;
-		transparentBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
-		transparentBlendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_MAX;
+		transparentBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		transparentBlendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_ADD;
 		transparentBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 		device->CreateBlendState(&transparentBlendDesc, &s_transparentBlendState);
 	}
 	resources->InitBlendState(s_transparentBlendState, nullptr);
 
-	// Render the default background
+	// Render the default background.
+	// For the non-VR path, the blending is done here too.
 	{
 		// Set the new viewport (a full quad covering the full screen)
 		viewport.Width  = g_fCurScreenWidth;
@@ -6006,8 +6008,6 @@ void PrimarySurface::RenderDefaultBackground()
 		// These are the same settings we used previously when rendering the HUD during a draw() call.
 		// We use these settings to place the HUD at different depths
 		g_VSCBuffer.z_override = 65536.0f;
-		//if (g_bFloatingAimingHUD)
-		//	g_VSCBuffer.bPreventTransform = 1.0f;
 
 		// Set the left projection matrix (the viewMatrix is set at the beginning of the frame)
 		g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
@@ -6025,26 +6025,108 @@ void PrimarySurface::RenderDefaultBackground()
 
 		resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		context->ResolveSubresource(resources->_backgroundBufferAsInput, 0, resources->_backgroundBuffer, 0, BACKBUFFER_FORMAT);
+		if (g_bUseSteamVR)
+		{
+			context->ResolveSubresource(resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		}
+
+		if (g_bDumpSSAOBuffers)
+		{
+			DirectX::SaveDDSTextureToFile(context, resources->_backgroundBuffer, L"C:\\Temp\\_backgroundBufBefore.dds");
+		}
+
 		// Set the RTV:
-		ID3D11RenderTargetView *rtvs[1] = {
-			resources->_backgroundRTV.Get(),
+		ID3D11RenderTargetView* rtvs[] = {
+			// In SteamVR mode the skybox is first rendered on its own to _offscreenBufferPost
+			g_bUseSteamVR ? resources->_renderTargetViewPost.Get() : resources->_backgroundRTV.Get(),
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		// Set the SRVs:
-		ID3D11ShaderResourceView* srvs[] = {
-			resources->_textureCubeSRV /* .Get() */, // 21
+		ID3D11ShaderResourceView *srvs[] = {
+			resources->_textureCubeSRV, // 21
+			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV,
 		};
-		context->PSSetShaderResources(21, 1, srvs);
+
+		context->PSSetShaderResources(21, 2, srvs);
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
 			context->Draw(6, 0);
+	}
 
-		if (g_bDumpSSAOBuffers) {
-			DirectX::SaveWICTextureToFile(context, resources->_backgroundBuffer, GUID_ContainerFormatJpeg,
-				L"C:\\Temp\\_defaultBackground.jpg");
-		}
+	// VR path: Blend the default starfield and the current background:
+	if (g_bUseSteamVR)
+	{
+		// Reset the viewport for non-VR mode:
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width	  = g_fCurScreenWidth;
+		viewport.Height	  = g_fCurScreenHeight;
+		viewport.MaxDepth = D3D11_MAX_DEPTH;
+		viewport.MinDepth = D3D11_MIN_DEPTH;
+		resources->InitViewport(&viewport);
+
+		// Reset the vertex shader to regular 2D post-process
+		// Set the Vertex Shader Constant buffers
+		resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
+			0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
+
+		// Set/Create the VertexBuffer and set the topology, etc
+		UINT stride = sizeof(MainVertex), offset = 0;
+		resources->InitVertexBuffer(resources->_postProcessVertBuffer.GetAddressOf(), &stride, &offset);
+		resources->InitInputLayout(resources->_mainInputLayout);
+		resources->InitVertexShader(resources->_mainVertexShaderVR);
+
+		// Reset the UV limits for this shader
+		GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
+		g_ShadertoyBuffer.x0 = x0;
+		g_ShadertoyBuffer.y0 = y0;
+		g_ShadertoyBuffer.x1 = x1;
+		g_ShadertoyBuffer.y1 = y1;
+		g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
+		g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+		g_ShadertoyBuffer.VRmode = 3;
+		resources->InitPSConstantBufferHyperspace(resources->_hyperspaceConstantBuffer.GetAddressOf(), &g_ShadertoyBuffer);
+
+		resources->InitPixelShader(resources->_hyperComposePS_VR);
+		// Clear all the render target views
+		ID3D11RenderTargetView *rtvs_null[6] = {
+			NULL, // Main RTV
+			NULL, // Bloom
+			NULL, // Depth
+			NULL, // Norm Buf
+			NULL, // SSAO Mask
+			NULL, // SS Mask
+		};
+		context->OMSetRenderTargets(6, rtvs_null, NULL);
+
+		// The output from the previous effect will be in _offscreenBufferPost, so let's resolve it
+		// to _offscreenBufferAsInput to re-use in the next step:
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
+		context->ResolveSubresource(resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
+			resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+
+		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+		ID3D11RenderTargetView *rtvs[6] = {
+			resources->_backgroundRTV.Get(), // Render to offscreenBufferPost
+			NULL, // Bloom
+			NULL, // Depth
+			NULL, // Norm Buf
+			NULL, // SSAO Mask
+			NULL, // SS Mask
+		};
+		context->OMSetRenderTargets(6, rtvs, NULL);
+
+		// Set the SRVs:
+		ID3D11ShaderResourceView *srvs[] = {
+			resources->_offscreenAsInputShaderResourceView.Get(), // DefaultStarfield.dds
+			resources->_backgroundBufferSRV, // Current background
+		};
+		context->PSSetShaderResources(0, 2, srvs);
+		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 	}
 
 	g_bDefaultStarfieldRendered = true;

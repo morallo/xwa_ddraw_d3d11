@@ -13,13 +13,17 @@
 #include "metric_common.h"
 
 #ifdef INSTANCED_RENDERING
- // The background texture
+ // The reticle background texture
 Texture2DArray bgTex : register(t0);
 SamplerState   bgSampler : register(s0);
+
+Texture2DArray stellarBG : register(t22);
 #else
- // The background texture
+ // The reticle background texture
 Texture2D    bgTex : register(t0);
 SamplerState bgSampler : register(s0);
+
+Texture2D    stellarBG : register(t22);
 #endif
 
 // The reticle texture
@@ -70,20 +74,26 @@ PixelShaderOutput RenderSkyBox(PixelShaderInput input)
 	// That way, viewMat below is the same we already figured out for PixelShaderVRGeom:
 	V = mul(viewMat, float4(V, 0)).xyz;
 
+	const float3 skyBoxColor = skybox.Sample(bgSampler, V.xyz).rgb;
+	const float  skyBoxVal   = dot(0.333, skyBoxColor);
+
+#ifndef INSTANCED_RENDERING
+	// Blend the skybox with the previous background:
 	// DefaultStarfield.dds is rendered *after* the backdrops have already been rendered.
 	// Sometimes, the backdrops (nebulae, planets) are semi-transparent. This wasn't a problem
 	// before because the original XWA starfield was almost completely black with just a few
 	// stars, so the semi-transparent backdrops were still visible.
 	// Now, if DefaultStarfield.dds is rendered after the semi-transparent backdrops, it will
-	// end up covering most of them. To solve this, DefaultStarfield.dds must be similar to the
-	// original starfield (all black with a few dots), and we can just discard the pixels that
-	// are black so that the existing backdrops can show through properly:
-	const float3 skyBoxColor = skybox.Sample(bgSampler, V.xyz).rgb;
-	const float  skyBoxVal   = dot(0.333, skyBoxColor);
-	if (skyBoxVal < 0.1)
-		discard;
-
-	output.color = float4(skyBoxColor, 1);
+	// end up covering most of them. To solve this, we're using a custom blending mode here that
+	// combines the lightness of the skybox with the inverse alpha of the existing background.
+	// Opaque areas in the background are retained, and only light areas in the skybox are added.
+	// This custom blending step is performed in HyperspaceCompose for the VR path.
+	float4 background = stellarBG.Sample(bgSampler, input.uv);
+	output.color = float4(lerp(background.rgb, skyBoxColor, skyBoxVal * (1.0 - background.a)), 1);
+#else
+	// SteamVR mode: Return just the skybox, blending will be done later:
+	output.color = float4(skyBoxColor, skyBoxVal);
+#endif
 	return output;
 }
 
