@@ -1328,6 +1328,13 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		aspect_ratio = (1.0f / mirrorWindowAspectRatio) * (g_fConcourseAspectRatio);
 	}
 
+	if (is_2D && !g_config.HDConcourseEnabled)
+	{
+		aspect_ratio = 1.0f / 1.333f;
+		// Compensate for the aspect ratio within the headset.
+		g_pVROverlay->SetOverlayTexelAspect(g_VR2Doverlay, aspect_ratio);
+	}
+
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
@@ -9902,7 +9909,7 @@ HRESULT PrimarySurface::Flip(
 			overlay_texture.handle = resources->_tgSmushTex;
 			// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
 			g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
-			g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
+			g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture); // Display VR movies
 			// Let's make movies larger than the regular 2D overlay:
 			//g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
 			g_pVROverlay->ShowOverlay(g_VR2Doverlay); // Display VR movies
@@ -10219,7 +10226,7 @@ HRESULT PrimarySurface::Flip(
 								overlay_texture.handle = resources->_steamVROverlayBuffer;
 								// Fade compositor to black while the overlay is shown and we are not rendering the 3D scene.
 								g_pVRCompositor->FadeToColor(0.1f, 0.0f, 0.0f, 0.0f, 1.0f, false);
-								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture);
+								g_pVROverlay->SetOverlayTexture(g_VR2Doverlay, &overlay_texture); // Present 2D
 								g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, g_fSteamVROverlayWidthInMeters);
 								g_pVROverlay->ShowOverlay(g_VR2Doverlay); // Present 2D
 							}
