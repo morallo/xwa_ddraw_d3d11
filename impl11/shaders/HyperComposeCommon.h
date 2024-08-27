@@ -6,8 +6,8 @@
 #include "ShaderToyDefs.h"
 #include "ShadertoyCBuffer.h"
 
-// The foreground texture (shadertoyBuf)
 #ifdef INSTANCED_RENDERING
+// The foreground texture (shadertoyBuf)
 Texture2DArray fgTex : register(t0);
 SamplerState   fgSampler : register(s0);
 
@@ -19,6 +19,7 @@ SamplerState   bgSampler : register(s1);
 Texture2DArray effectTex : register(t2);
 SamplerState   effectSampler : register(s2);
 #else
+// The foreground texture (shadertoyBuf)
 Texture2D    fgTex : register(t0);
 SamplerState fgSampler : register(s0);
 
@@ -57,7 +58,7 @@ static const float3 red_col = float3(0.90, 0.15, 0.15);
 //#define bloom_strength 2.0
 
 #ifdef INSTANCED_RENDERING
-PixelShaderOutput BlendBackground(PixelShaderInput input, int mode)
+PixelShaderOutput BlendBackground(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color = 0;
@@ -66,13 +67,8 @@ PixelShaderOutput BlendBackground(PixelShaderInput input, int mode)
 	const float4 skyBoxColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
 	const float4 background  = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
 	const float  skyBoxVal   = skyBoxColor.a;
-	//float  skyBoxVal   = dot(0.3333, skyBoxColor.rgb);
-	if (mode == 0)
-		output.color = float4(lerp(background.rgb, skyBoxColor.rgb, skyBoxVal * (1.0 - background.a)), 1);
-	else if (mode == 1)
-		output.color = float4(background.rgb, 1);
-	else if (mode == 2)
-		output.color = float4(skyBoxColor.rgb, 1);
+	//float skyBoxVal = dot(0.3333, skyBoxColor.rgb);
+	output.color = float4(lerp(background.rgb, skyBoxColor.rgb, skyBoxVal * (1.0 - background.a)), 1);
 
 	return output;
 }
@@ -82,12 +78,12 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.bloom = 0;
-	float bloom  = 0;
+	float  bloom = 0;
 
 #ifdef INSTANCED_RENDERING
-	if (VRmode > 3)
+	if (VRmode >= 3)
 	{
-		return BlendBackground(input, VRmode - 3);
+		return BlendBackground(input);
 	}
 
 	float4 fgColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));

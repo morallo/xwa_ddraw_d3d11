@@ -6118,7 +6118,7 @@ void PrimarySurface::RenderDefaultBackground()
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		ID3D11RenderTargetView *rtvs[6] = {
-			resources->_backgroundRTV.Get(), // Render to offscreenBufferPost
+			resources->_backgroundRTV.Get(),
 			NULL, // Bloom
 			NULL, // Depth
 			NULL, // Norm Buf
@@ -6130,7 +6130,7 @@ void PrimarySurface::RenderDefaultBackground()
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[] = {
 			resources->_offscreenAsInputShaderResourceView.Get(), // DefaultStarfield.dds
-			resources->_backgroundBufferSRV, // Current background
+			resources->_backgroundBufferSRV.Get(), // Current background
 		};
 		context->PSSetShaderResources(0, 2, srvs);
 		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
