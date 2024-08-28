@@ -67,8 +67,8 @@ PixelShaderOutput BlendBackground(PixelShaderInput input)
 	const float4 skyBoxColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
 	const float4 background  = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
 	const float  skyBoxVal   = skyBoxColor.a;
-	//float skyBoxVal = dot(0.3333, skyBoxColor.rgb);
-	output.color = float4(lerp(background.rgb, skyBoxColor.rgb, skyBoxVal * (1.0 - background.a)), 1);
+	const float3 bgBlend     = saturate(background.rgb + skyBoxColor.rgb);
+	output.color = float4(lerp(background.rgb, bgBlend.rgb, skyBoxVal * (1.0 - background.a)), 1);
 
 	return output;
 }

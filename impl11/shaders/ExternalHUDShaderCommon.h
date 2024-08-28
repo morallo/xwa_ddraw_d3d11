@@ -88,8 +88,9 @@ PixelShaderOutput RenderSkyBox(PixelShaderInput input)
 	// combines the lightness of the skybox with the inverse alpha of the existing background.
 	// Opaque areas in the background are retained, and only light areas in the skybox are added.
 	// This custom blending step is performed in HyperspaceCompose for the VR path.
-	float4 background = stellarBG.Sample(bgSampler, input.uv);
-	output.color = float4(lerp(background.rgb, skyBoxColor, skyBoxVal * (1.0 - background.a)), 1);
+	const float4 background = stellarBG.Sample(bgSampler, input.uv);
+	const float3 bgBlend    = saturate(background.rgb + skyBoxColor.rgb);
+	output.color = float4(lerp(background.rgb, bgBlend, skyBoxVal * (1.0 - background.a)), 1);
 #else
 	// SteamVR mode: Return just the skybox, blending will be done later:
 	output.color = float4(skyBoxColor, skyBoxVal);
