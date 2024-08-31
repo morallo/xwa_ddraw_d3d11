@@ -1849,7 +1849,10 @@ int PrimarySurface::ClearHUDRegions() {
 
 /*
  * Renders the HUD foreground and background and applies the move_region 
- * commands if DC is enabled
+ * commands if DC is enabled.
+ * This path is used to display the map in VR mode as a flat screen on the same
+ * plane as the HUD. However, the populating the VR map is done in other spots
+ * (search for [XWA-MAP-RENDER] in this Solution).
  */
 void PrimarySurface::DrawHUDVertices() {
 	this->_deviceResources->BeginAnnotatedEvent(L"DrawHUDVertices");
@@ -1909,12 +1912,12 @@ void PrimarySurface::DrawHUDVertices() {
 
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
-	g_VSCBuffer.z_override		  = g_fFloatingGUIDepth;
-	g_VSCBuffer.scale_override	  = g_fGUIElemsScale;
+	g_VSCBuffer.z_override     = g_fFloatingGUIDepth;
+	g_VSCBuffer.scale_override = g_fGUIElemsScale;
 
-	g_PSCBuffer.brightness		  = 1.0f;
-	g_PSCBuffer.bUseCoverTexture  = 0;
-	
+	g_PSCBuffer.brightness       = 1.0f;
+	g_PSCBuffer.bUseCoverTexture = 0;
+
 	// Add the move_regions commands.
 	int numCoords = 0;
 	if (g_bDynCockpitEnabled) 
@@ -2059,7 +2062,6 @@ out:
 	// Restore the old view matrix
 	g_VSMatrixCB.fullViewMat = curMat;
 	this->_deviceResources->EndAnnotatedEvent();
-
 }
 
 /// <summary>
@@ -12522,6 +12524,25 @@ void PrimarySurface::RenderText()
 	// Clear the text. We'll add extra text now and render it.
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
+
+	// In VR mode, the text from the left and right panels sometimes "overflows" outside the limits
+	// of the VR viewport and can be seen floating on a flat plane near the bottom of the cockpit.
+	// To fix this, we need to erase the text RTV outside the regular viewport:
+	if (g_bUseSteamVR)
+	{
+		static D2D1_RECT_F rect;
+		// All coordinates are in screen coords
+		const float vertMargin = 0.5f * (g_fCurScreenHeight - g_nonVRViewport.Height);
+
+		rect.left = rect.top = 0;
+		rect.right = g_fCurScreenWidth;
+		rect.bottom = vertMargin;
+		_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+
+		rect.top = vertMargin + g_nonVRViewport.Height - 2; // Extra margin because otherwise there's still a single-pixel row visible!
+		rect.bottom = g_fCurScreenHeight;
+		_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+	}
 
 	bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	// It looks like sometimes the craftInstance table/pointer is not valid during the first few
