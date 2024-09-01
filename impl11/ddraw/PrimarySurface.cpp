@@ -6361,13 +6361,14 @@ void PrimarySurface::RenderSpeedEffect()
 	g_ShadertoyBuffer.VRmode = bDirectSBS;
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
+	g_ShadertoyBuffer.iTime = g_fSpeedShaderMaxIntensity;
 	//g_ShadertoyBuffer.craft_speed = craft_speed;
 	// The A-Wing's max speed seems to be 270
 	//log_debug("[DBG] speed: %d", PlayerDataTable[*g_playerIndex].currentSpeed);
 	// g_ShadertoyBuffer.FOVscale must be set! We'll need it for this shader
 
 	// Blend the speed particle with the current offscreenBuffer.
-	ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
+	static ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
 	if (s_transparentBlendState == nullptr)
 	{
 		D3D11_BLEND_DESC transparentBlendDesc{};
@@ -6375,13 +6376,13 @@ void PrimarySurface::RenderSpeedEffect()
 		transparentBlendDesc.IndependentBlendEnable      = FALSE;
 		transparentBlendDesc.RenderTarget[0].BlendEnable = TRUE;
 		// The original blending is a simple addition of the two colors:
-		transparentBlendDesc.RenderTarget[0].SrcBlend    = D3D11_BLEND_ONE;
+		transparentBlendDesc.RenderTarget[0].SrcBlend    = D3D11_BLEND_SRC_ALPHA;
 		transparentBlendDesc.RenderTarget[0].DestBlend   = D3D11_BLEND_ONE;
 		transparentBlendDesc.RenderTarget[0].BlendOp     = D3D11_BLEND_OP_ADD;
 
 		transparentBlendDesc.RenderTarget[0].SrcBlendAlpha  = D3D11_BLEND_SRC_ALPHA;
 		transparentBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
-		transparentBlendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_MAX;
+		transparentBlendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_ADD;
 		transparentBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 		device->CreateBlendState(&transparentBlendDesc, &s_transparentBlendState);
 	}

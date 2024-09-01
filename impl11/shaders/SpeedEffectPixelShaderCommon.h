@@ -57,7 +57,7 @@ PixelShaderOutput main(PixelShaderInput input) {
 	// The blending is controlled by InitBlendState() when this shader is called. It's
 	// equivalent to the direct addition of the speed trail and the existing offscreenBuffer
 	// contents.
-	output.color.a   = 1.0;
+	output.color.a   = iTime;
 
 	return output;
 }
