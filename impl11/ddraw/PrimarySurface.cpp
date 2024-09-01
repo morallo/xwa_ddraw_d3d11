@@ -12135,7 +12135,7 @@ HRESULT PrimarySurface::UpdateOverlayDisplay(
 	auto& resources = this->_deviceResources;
 	auto& context = resources->_d3dDeviceContext;
 
-	/* Display VR movies in SteamVR*/
+	/* Display VR movies in SteamVR */
 	if (g_bUseSteamVR && g_pSharedDataTgSmush != nullptr &&
 		g_pSharedDataTgSmush->videoFrameIndex > 0)
 	{
@@ -12171,6 +12171,9 @@ HRESULT PrimarySurface::UpdateOverlayDisplay(
 			// Let's make movies larger than the regular 2D overlay:
 			//g_pVROverlay->SetOverlayWidthInMeters(g_VR2Doverlay, 10.0f);
 			g_pVROverlay->ShowOverlay(g_VR2Doverlay); // Movies (?)
+
+			// Movies already have the right aspect ratio, here we just make sure it's not modified:
+			g_pVROverlay->SetOverlayTexelAspect(g_VR2Doverlay, 1.0f);
 		}
 		return DD_OK;
 	}		
