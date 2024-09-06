@@ -795,8 +795,29 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			if (g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				Vector4 current = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
-				const float D   = (current.z - anchor.z) / g_ACJoyEmul.thrHalfRange;
-				normThrottle    = clamp(anchorThrottle + D, -1.0f, 1.0f);
+				// Compute the throttle using forwards-backwards motion:
+				const float Dz  = (current.z - anchor.z) / g_ACJoyEmul.thrHalfRange;
+				// Use left-right motion to set the throttle to 1/3 and 2/3:
+				const float Dx  = (current.x - anchor.x) / g_ACJoyEmul.thrHalfRange;
+
+				// If the x-axis motion is greater than the z-axis motion, then set
+				// 1/3 or 2/3 throttle:
+				if (fabs(Dx) > fabs(Dz) && fabs(Dx) > 0.5f)
+				{
+					if (Dx > 0.0f)
+					{
+						// -1: Full throttle, 1: No throttle:
+						normThrottle = -1.0f * ((0.333f * 2.0f) - 1.0f);
+					}
+					else
+					{
+						// -1: Full throttle, 1: No throttle:
+						normThrottle = -1.0f * ((0.666f * 2.0f) - 1.0f);
+					}
+				}
+				else
+					// Forwards-backwards motion sets the throttle:
+					normThrottle = clamp(anchorThrottle + Dz, -1.0f, 1.0f);
 			}
 
 			pji->dwZpos = (DWORD)(65536.0f * ((normThrottle / 2.0f) + 0.5f));
