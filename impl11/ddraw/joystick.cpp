@@ -173,17 +173,15 @@ void EmulMouseWithVRControllers()
 	const int ptrIdx = 0;
 	const int auxIdx = (ptrIdx == 0) ? 1 : 0;
 	const uvfloat4 coords = { -1, -1, -1, -1 };
-	static bool bFirstTime = true;
-	static WORD escScanCodes[2];
-	static WORD periodScanCodes[2];
-	if (bFirstTime)
+	static WORD escScanCodes[2] = { 0 };
+	static WORD periodScanCodes[2] = { 0 };
+	if (escScanCodes[0] == 0)
 	{
 		char action1[] = "ESC";
 		TranslateACAction(-1, escScanCodes, action1, nullptr);
 
 		char action2[] = "PERIOD";
 		TranslateACAction(-1, periodScanCodes, action2, nullptr);
-		bFirstTime = false;
 	}
 
 	const float dx =  g_contStates[ptrIdx].trackPadX * g_ACPointerData.mouseSpeedX;
@@ -786,38 +784,93 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			static Vector4 anchor;
 			static float normThrottle   = 0.0f;
 			static float anchorThrottle = 0.0f;
+			static int   s_fakeKeyPress = 0;
+
+			static WORD s_enterKeyScanCodes[4]    = { 0 };
+			static WORD s_lBracketKeyScanCodes[4] = { 0 };
+			static WORD s_rBracketKeyScanCodes[4] = { 0 };
+			if (s_enterKeyScanCodes[0] == 0)
+			{
+				char action[] = "ENTER";
+				TranslateACAction(-1, s_enterKeyScanCodes, action, nullptr);
+			}
+			if (s_lBracketKeyScanCodes[0] == 0)
+			{
+				char action[] = "[";
+				TranslateACAction(-1, s_lBracketKeyScanCodes, action, nullptr);
+			}
+			if (s_rBracketKeyScanCodes[0] == 0)
+			{
+				char action[] = "]";
+				TranslateACAction(-1, s_rBracketKeyScanCodes, action, nullptr);
+			}
+
 			if (!(g_prevContStates[thrIdx].buttons[VRButtons::GRIP]) && g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
 				anchorThrottle = -1.0f * (GetCurrentPlayerThrottle() * 2.0f - 1.0f);
+				s_fakeKeyPress = 0;
 			}
 
 			if (g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				Vector4 current = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
-				// Compute the throttle using forwards-backwards motion:
-				const float Dz  = (current.z - anchor.z) / g_ACJoyEmul.thrHalfRange;
 				// Use left-right motion to set the throttle to 1/3 and 2/3:
 				const float Dx  = (current.x - anchor.x) / g_ACJoyEmul.thrHalfRange;
+				// Use the up-down motion to match the target's speed:
+				const float Dy  = (current.y - anchor.y) / (2.5f * g_ACJoyEmul.thrHalfRange);
+				// Use forwards-backwards motion to compute the throttle:
+				const float Dz  = (current.z - anchor.z) / g_ACJoyEmul.thrHalfRange;
 
-				// If the x-axis motion is greater than the z-axis motion, then set
-				// 1/3 or 2/3 throttle:
-				if (fabs(Dx) > fabs(Dz) && fabs(Dx) > 0.5f)
+				const float absDx = fabs(Dx), absDy = fabs(Dy), absDz = fabs(Dz);
+				// Find the axis with the largest displacement:
+				int   maxDim    = 0;
+				float maxAbsDim = absDx;
+				if (absDy > maxAbsDim)
 				{
-					if (Dx > 0.0f)
-					{
-						// -1: Full throttle, 1: No throttle:
-						normThrottle = -1.0f * ((0.333f * 2.0f) - 1.0f);
-					}
-					else
-					{
-						// -1: Full throttle, 1: No throttle:
-						normThrottle = -1.0f * ((0.666f * 2.0f) - 1.0f);
-					}
+					maxAbsDim = absDy;
+					maxDim = 1;
 				}
-				else
-					// Forwards-backwards motion sets the throttle:
-					normThrottle = clamp(anchorThrottle + Dz, -1.0f, 1.0f);
+				if (absDz > maxAbsDim)
+				{
+					maxAbsDim = absDz;
+					maxDim = 2;
+				}
+
+				switch (maxDim)
+				{
+					case 0:
+						// If the largest motion is along the x-axis, then set 1/3 or 2/3 throttle:
+						if (absDx > 0.8f && s_fakeKeyPress == 0)
+						{
+							const uvfloat4 coords = { -1, -1, -1, -1 };
+							if (Dx > 0.0f)
+								//normThrottle = -1.0f * ((0.33333f * 2.0f) - 1.0f);
+								ACRunAction(s_lBracketKeyScanCodes, coords, -1, thrIdx, pji);
+							else
+								//normThrottle = -1.0f * ((0.66666f * 2.0f) - 1.0f);
+								ACRunAction(s_rBracketKeyScanCodes, coords, -1, thrIdx, pji);
+							s_fakeKeyPress = 1;
+							break;
+						}
+					case 1:
+						if (absDy > 0.95f && s_fakeKeyPress == 0)
+						{
+							const uvfloat4 coords = { -1, -1, -1, -1 };
+							// If the largest motion is along the y-axis, then match the target's speed:
+							ACRunAction(s_enterKeyScanCodes, coords, -1, thrIdx, pji);
+							s_fakeKeyPress = 1;
+							break;
+						}
+					case 2:
+						// If the largest motion is along the z-axis, then apply the regular throttle:
+						// But only apply throttle if no other keys have been "pressed" already
+						if (s_fakeKeyPress == 0)
+						{
+							normThrottle = clamp(anchorThrottle + Dz, -1.0f, 1.0f);
+						}
+						break;
+				}
 			}
 
 			pji->dwZpos = (DWORD)(65536.0f * ((normThrottle / 2.0f) + 0.5f));
@@ -851,16 +904,14 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				// Trigger the fire button on its own (it can only be triggered when pressing grip at the same time)
 				if (g_config.JoystickEmul == 3 && contIdx == g_ACJoyEmul.joyHandIdx)
 				{
-					static bool bFirstTime = true;
-					static WORD joyButton1ScanCodes[4];
-					if (bFirstTime)
+					static WORD joyButton1ScanCodes[4] = { 0 };
+					if (joyButton1ScanCodes[0] == 0)
 					{
 						//char action[] = "JOYBUTTON1";
 						// Instead of using JOYBUTTON1, let's use Alt+2. JOYBUTTON1 may be mapped to something
 						// other than firing weapons, but Alt+2 is always just "fire"
 						char action[] = "ALT+2";
 						TranslateACAction(-1, joyButton1ScanCodes, action, nullptr);
-						bFirstTime = false;
 					}
 
 					if (g_contStates[contIdx].buttons[VRButtons::TRIGGER] &&
