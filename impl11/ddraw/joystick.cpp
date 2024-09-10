@@ -781,10 +781,15 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 		if (g_ACJoyEmul.throttleEnabled)
 		{
-			static Vector4 anchor;
-			static float normThrottle   = 0.0f;
-			static float anchorThrottle = 0.0f;
-			static int   s_fakeKeyPress = 0;
+			static Vector4 s_anchor;
+			static float s_normThrottle   = 0.0f;
+			static float s_anchorThrottle = 0.0f;
+			// Used to avoid sending multiple actions
+			static int   s_fakeKeyPress   = 0;
+			// s_state is used to select which axis will be enabled. As soon as the throttle moves
+			// away from the anchor beyond the deazone, the axis with the largest motion will be
+			// selected with s_state.
+			static int   s_state          = 0;
 
 			static WORD s_enterKeyScanCodes[4]    = { 0 };
 			static WORD s_lBracketKeyScanCodes[4] = { 0 };
@@ -807,73 +812,82 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 			if (!(g_prevContStates[thrIdx].buttons[VRButtons::GRIP]) && g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
-				anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
-				anchorThrottle = -1.0f * (GetCurrentPlayerThrottle() * 2.0f - 1.0f);
+				s_anchor = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
+				s_anchorThrottle = -1.0f * (GetCurrentPlayerThrottle() * 2.0f - 1.0f);
 				s_fakeKeyPress = 0;
+				s_state = 0;
 			}
 
 			if (g_contStates[thrIdx].buttons[VRButtons::GRIP])
 			{
 				Vector4 current = g_contStates[thrIdx].pose * Vector4(0, 0, 0, 1);
 				// Use left-right motion to set the throttle to 1/3 and 2/3:
-				const float Dx  = (current.x - anchor.x) / g_ACJoyEmul.thrHalfRange;
+				const float Dx  = (current.x - s_anchor.x) / g_ACJoyEmul.thrHalfRange;
 				// Use the up-down motion to match the target's speed:
-				const float Dy  = (current.y - anchor.y) / (2.5f * g_ACJoyEmul.thrHalfRange);
+				const float Dy  = (current.y - s_anchor.y) / (2.5f * g_ACJoyEmul.thrHalfRange);
 				// Use forwards-backwards motion to compute the throttle:
-				const float Dz  = (current.z - anchor.z) / g_ACJoyEmul.thrHalfRange;
+				const float Dz  = (current.z - s_anchor.z) / g_ACJoyEmul.thrHalfRange;
 
 				const float absDx = fabs(Dx), absDy = fabs(Dy), absDz = fabs(Dz);
 				// Find the axis with the largest displacement:
 				int   maxDim    = 0;
 				float maxAbsDim = absDx;
-				if (absDy > maxAbsDim)
+				if (s_state == 0)
 				{
-					maxAbsDim = absDy;
-					maxDim = 1;
+					if (absDy > maxAbsDim)
+					{
+						maxAbsDim = absDy;
+						maxDim = 1;
+					}
+					if (absDz > maxAbsDim)
+					{
+						maxAbsDim = absDz;
+						maxDim = 2;
+					}
 				}
-				if (absDz > maxAbsDim)
+				else
 				{
-					maxAbsDim = absDz;
-					maxDim = 2;
+					maxDim = s_state - 1;
 				}
 
 				switch (maxDim)
 				{
 					case 0:
 						// If the largest motion is along the x-axis, then set 1/3 or 2/3 throttle:
-						if (absDx > 0.8f && s_fakeKeyPress == 0)
+						if (absDx > 0.5f && s_fakeKeyPress == 0)
 						{
 							const uvfloat4 coords = { -1, -1, -1, -1 };
 							if (Dx > 0.0f)
-								//normThrottle = -1.0f * ((0.33333f * 2.0f) - 1.0f);
 								ACRunAction(s_lBracketKeyScanCodes, coords, -1, thrIdx, pji);
 							else
-								//normThrottle = -1.0f * ((0.66666f * 2.0f) - 1.0f);
 								ACRunAction(s_rBracketKeyScanCodes, coords, -1, thrIdx, pji);
 							s_fakeKeyPress = 1;
+							s_state = 1;
 							break;
 						}
 					case 1:
-						if (absDy > 0.95f && s_fakeKeyPress == 0)
+						if (absDy > 0.5f && s_fakeKeyPress == 0)
 						{
 							const uvfloat4 coords = { -1, -1, -1, -1 };
 							// If the largest motion is along the y-axis, then match the target's speed:
 							ACRunAction(s_enterKeyScanCodes, coords, -1, thrIdx, pji);
 							s_fakeKeyPress = 1;
+							s_state = 2;
 							break;
 						}
 					case 2:
 						// If the largest motion is along the z-axis, then apply the regular throttle:
 						// But only apply throttle if no other keys have been "pressed" already
-						if (s_fakeKeyPress == 0)
+						if ((absDz > 0.5f && s_fakeKeyPress == 0) || s_state == 3)
 						{
-							normThrottle = clamp(anchorThrottle + Dz, -1.0f, 1.0f);
+							s_normThrottle = clamp(s_anchorThrottle + Dz, -1.0f, 1.0f);
+							s_state = 3;
 						}
 						break;
 				}
 			}
 
-			pji->dwZpos = (DWORD)(65536.0f * ((normThrottle / 2.0f) + 0.5f));
+			pji->dwZpos = (DWORD)(65536.0f * ((s_normThrottle / 2.0f) + 0.5f));
 		}
 
 		// Synthesize mouse motion
