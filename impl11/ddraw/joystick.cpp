@@ -721,6 +721,9 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 
 		if (g_config.JoystickEmul == 3)
 		{
+			pji->dwButtons = 0;
+			pji->dwButtonNumber = 0;
+
 			static Vector4 rightAnchor;
 			const bool bResetAnchor = !(g_prevContStates[joyIdx].buttons[VRButtons::GRIP]) &&
 										g_contStates[joyIdx].buttons[VRButtons::GRIP];
@@ -791,13 +794,19 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 			// selected with s_state.
 			static int   s_state          = 0;
 
-			static WORD s_enterKeyScanCodes[4]    = { 0 };
-			static WORD s_lBracketKeyScanCodes[4] = { 0 };
-			static WORD s_rBracketKeyScanCodes[4] = { 0 };
+			static WORD s_enterKeyScanCodes[4]     = { 0 };
+			static WORD s_backslashKeyScanCodes[4] = { 0 };
+			static WORD s_lBracketKeyScanCodes[4]  = { 0 };
+			static WORD s_rBracketKeyScanCodes[4]  = { 0 };
 			if (s_enterKeyScanCodes[0] == 0)
 			{
 				char action[] = "ENTER";
 				TranslateACAction(-1, s_enterKeyScanCodes, action, nullptr);
+			}
+			if (s_backslashKeyScanCodes[0] == 0)
+			{
+				char action[] = "\\";
+				TranslateACAction(-1, s_backslashKeyScanCodes, action, nullptr);
 			}
 			if (s_lBracketKeyScanCodes[0] == 0)
 			{
@@ -869,8 +878,12 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 						if (absDy > 0.5f && s_fakeKeyPress == 0)
 						{
 							const uvfloat4 coords = { -1, -1, -1, -1 };
-							// If the largest motion is along the y-axis, then match the target's speed:
-							ACRunAction(s_enterKeyScanCodes, coords, -1, thrIdx, pji);
+							if (Dy > 0.0f)
+								// If the largest motion is along the y-axis, then match the target's speed:
+								ACRunAction(s_enterKeyScanCodes, coords, -1, thrIdx, pji);
+							else
+								// Pushing down stops the ship:
+								ACRunAction(s_backslashKeyScanCodes, coords, -1, thrIdx, pji);
 							s_fakeKeyPress = 1;
 							s_state = 2;
 							break;
@@ -918,19 +931,12 @@ UINT WINAPI emulJoyGetPosEx(UINT joy, struct joyinfoex_tag *pji)
 				// Trigger the fire button on its own (it can only be triggered when pressing grip at the same time)
 				if (g_config.JoystickEmul == 3 && contIdx == g_ACJoyEmul.joyHandIdx)
 				{
-					static WORD joyButton1ScanCodes[4] = { 0 };
-					if (joyButton1ScanCodes[0] == 0)
-					{
-						//char action[] = "JOYBUTTON1";
-						// Instead of using JOYBUTTON1, let's use Alt+2. JOYBUTTON1 may be mapped to something
-						// other than firing weapons, but Alt+2 is always just "fire"
-						char action[] = "ALT+2";
-						TranslateACAction(-1, joyButton1ScanCodes, action, nullptr);
-					}
-
 					if (g_contStates[contIdx].buttons[VRButtons::TRIGGER] &&
 						g_contStates[contIdx].buttons[VRButtons::GRIP])
-						ACRunAction(joyButton1ScanCodes, coords, -1, contIdx, pji);
+					{
+						pji->dwButtons |= 1;
+						pji->dwButtonNumber = std::max(pji->dwButtonNumber, (DWORD)1);
+					}
 				}
 
 				// Actions have been processed, we can update the previous state now
