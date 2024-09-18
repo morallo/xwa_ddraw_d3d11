@@ -4942,7 +4942,7 @@ HRESULT DeviceResources::LoadResources()
 
 	// Create the constant buffer for the main pixel shader
 	constantBufferDesc.ByteWidth = 32;
-	static_assert(sizeof(MainShadersCBStruct) == 32, "sizeof(MainShadersCBStruct) must be 32");
+	static_assert(sizeof(MainShadersCBuffer) == 32, "sizeof(MainShadersCBStruct) must be 32");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_mainShadersConstantBuffer)))
 		return hr;
 
@@ -5273,13 +5273,14 @@ void DeviceResources::InitVRGeometryCBuffer(ID3D11Buffer** buffer, const VRGeome
 }
 
 void DeviceResources::InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax,
-	const float aspect_ratio, const float scale, const float brightness, float inv_scale)
+	const float aspect_ratio, const float scale, const float brightness, float inv_scale, float techRoomRatio)
 {
 	g_MSCBuffer.scale = scale;
 	g_MSCBuffer.aspect_ratio = aspect_ratio;
 	g_MSCBuffer.parallax = parallax;
 	g_MSCBuffer.brightness = brightness;
 	g_MSCBuffer.inv_scale = inv_scale;
+	g_MSCBuffer.techRoomRatio = techRoomRatio;
 	_d3dDeviceContext->UpdateSubresource(buffer[0], 0, nullptr, &g_MSCBuffer, 0, 0);
 	_d3dDeviceContext->PSSetConstantBuffers(0, 1, buffer);
 }
@@ -5759,13 +5760,13 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	if (g_bEnableVR && !bRenderToDC) { // SteamVR and DirectSBS modes
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f); // Use 3D projection matrices
-		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness);
+		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, g_fConcourseScale, g_fBrightness, 1.0f);
 		//InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness, 0.0f); // Use 3D projection matrices
 		//InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0.0f, g_fConcourseAspectRatio, 1, g_fBrightness);
 	} 
 	else {
 		InitVSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness, 0.0f); // Don't use 3D projection matrices when VR is disabled
-		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness);
+		InitPSConstantBuffer2D(this->_mainShadersConstantBuffer.GetAddressOf(), 0, 1, 1, g_fBrightness, 1.0f);
 	}
 
 	D3D11_VIEWPORT viewport;

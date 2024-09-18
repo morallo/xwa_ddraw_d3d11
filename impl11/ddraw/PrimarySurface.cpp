@@ -1334,11 +1334,13 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 		// Compensate for the aspect ratio within the headset.
 		g_pVROverlay->SetOverlayTexelAspect(g_VR2Doverlay, aspect_ratio);
 	}
+	// This fixes the aspect ratio of the hologram when the Tech Room is activated in VR.
+	const float techRoomRatio = aspect_ratio / steamVR_aspect_ratio;
 
 	// We have a problem here: the CB for the VS and PS are the same (_mainShadersConstantBuffer), so
 	// we have to use the same settings on both.
 	resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? g_fSteamVRMirrorWindow3DScale : 1.0f);
+		0.0f, aspect_ratio, scale, 1.0f, g_bRendering3D ? g_fSteamVRMirrorWindow3DScale : 1.0f, techRoomRatio);
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, aspect_ratio, scale, 1.0f, 0.0f); // Don't use 3D projection matrices
 	resources->InitVertexShader(resources->_mainVertexShaderVR);
@@ -1375,7 +1377,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 			aspect_ratio = g_fConcourseAspectRatio * (1.0f / steamVR_aspect_ratio);
 			scale = 1.0f / aspect_ratio;
 			resources->InitPSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
-				0.0f, aspect_ratio, scale, 1.0f, 1.0f);
+				0.0f, aspect_ratio, scale, 1.0f, 1.0f, techRoomRatio);
 			resources->InitPixelShader(resources->_steamVRMirrorPixelShader);
 
 			context->ClearRenderTargetView(resources->_renderTargetViewSteamVROverlayResize, bgColor);
@@ -10282,7 +10284,18 @@ HRESULT PrimarySurface::Flip(
 						DirectX::SaveDDSTextureToFile(context, resources->_depthBufAsInput, L"C:\\Temp\\_depthBuf.dds");
 						DirectX::SaveDDSTextureToFile(context, resources->_depthStencilL, L"C:\\Temp\\_depthStencilL.dds");
 						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBufferAsInputBloomMask, L"C:\\Temp\\_bloomMask1.dds");
-						DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuf.dds");
+
+						if (g_bUseSteamVR)
+						{
+							DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBufL.dds");
+							context->CopySubresourceRegion(resources->_offscreenBuffer,
+								D3D11CalcSubresource(0, 0, 1), 0, 0, 0,
+								resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), NULL);
+							DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBufR.dds");
+						}
+						else
+							DirectX::SaveDDSTextureToFile(context, resources->_offscreenBuffer, L"C:\\Temp\\_offscreenBuf.dds");
+
 						DirectX::SaveDDSTextureToFile(context, resources->_ssaoMask, L"C:\\Temp\\_ssaoMask.dds");
 						DirectX::SaveDDSTextureToFile(context, resources->_ssMask, L"C:\\Temp\\_ssMask.dds");
 						log_debug("[DBG] [AO] Captured debug buffers");

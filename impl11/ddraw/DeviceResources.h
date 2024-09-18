@@ -150,7 +150,8 @@ public:
 	void InitVSConstantOPTMeshTransform(ID3D11Buffer ** buffer, const OPTMeshTransformCBuffer *vsConstants);
 	void InitPSRTConstantsBuffer(ID3D11Buffer ** buffer, const RTConstantsBuffer *psConstants);
 	void InitVRGeometryCBuffer(ID3D11Buffer** buffer, const VRGeometryCBuffer* psConstants);
-	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio, const float scale, const float brightness, float inv_scale = 1.0f);
+	void InitPSConstantBuffer2D(ID3D11Buffer** buffer, const float parallax, const float aspectRatio,
+		const float scale, const float brightness, float inv_scale, float techRoomRatio = 1.0f);
 	void InitPSConstantBufferBarrel(ID3D11Buffer** buffer, const float k1, const float k2, const float k3);
 	void InitPSConstantBufferBloom(ID3D11Buffer ** buffer, const BloomPixelShaderCBuffer * psConstants);
 	void InitPSConstantBufferSSAO(ID3D11Buffer ** buffer, const SSAOPixelShaderCBuffer * psConstants);

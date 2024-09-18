@@ -118,9 +118,17 @@ void SteamVRRenderer::RenderScene(bool bBindTranspLyr1)
 	*/
 
 	//_deviceResources->InitScissorRect(&scissor);
-	
-	// Regular VR path
-	resources->InitVertexShader(_vertexShaderVR);
+	if (!g_bInTechRoom)
+		// Regular VR path
+		resources->InitVertexShader(_vertexShaderVR);
+	else
+		// When the Tech Room is enabled, the 3D content is mixed with the 2D content.
+		// However, the 2D content is displayed as an VROverlay texture. To properly
+		// mix them together we need to render the VR path as if it were the regular
+		// non-VR path (otherwise the left eye is blended with the Tech Room and the
+		// 3D looks smaller and displaced to the right). To solve that, we're using
+		// the non-VR _vertexShader here:
+		resources->InitVertexShader(_vertexShader);
 
 	D3D11_VIEWPORT viewport;
 	viewport.Width = (float)resources->_backbufferWidth;

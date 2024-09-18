@@ -2837,7 +2837,8 @@ HRESULT Direct3DDevice::Execute(
 	const char* step = "";
 
 	this->_deviceResources->InitInputLayout(resources->_inputLayout);
-	if (g_bEnableVR)
+	// In VR, the TechRoom is rendered as a flat surface
+	if (g_bEnableVR && !g_bInTechRoom)
 		this->_deviceResources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 	else
 		// The original code used _vertexShader:
@@ -5316,7 +5317,8 @@ HRESULT Direct3DDevice::Execute(
 
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
 				// processing needed for VR.
-				if (!g_bEnableVR) {
+				// In VR, the TechRoom is rendered as a flat surface
+				if (!g_bEnableVR || g_bInTechRoom) {
 					resources->InitViewport(&g_nonVRViewport);
 
 					// Don't render the very first frame when entering hyperspace if we were not looking forward:
@@ -5675,7 +5677,8 @@ HRESULT Direct3DDevice::Execute(
 					resources->InitPixelShader(lastPixelShader);
 
 				if (bModifiedVertexShader) {
-					if (g_bEnableVR)
+					// In VR, the TechRoom is rendered as a flat surface
+					if (g_bEnableVR && !g_bInTechRoom)
 						resources->InitVertexShader(resources->_sbsVertexShader); // if (g_bEnableVR)
 					else
 						resources->InitVertexShader(resources->_vertexShader);

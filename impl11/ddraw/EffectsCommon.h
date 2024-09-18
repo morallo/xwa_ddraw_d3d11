@@ -505,10 +505,10 @@ typedef struct DCPixelShaderCBStruct {
 } DCPixelShaderCBuffer;
 
 /* 2D Constant Buffers */
-typedef struct MainShadersCBStruct {
+struct MainShadersCBuffer {
 	float scale, aspect_ratio, parallax, brightness;
-	float use_3D, inv_scale, unused1, unused2;
-} MainShadersCBuffer;
+	float use_3D, inv_scale, techRoomRatio, unused0;
+};
 
 typedef struct BarrelPixelShaderCBStruct {
 	float k1, k2, k3;

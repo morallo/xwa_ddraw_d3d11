@@ -12,7 +12,8 @@ Texture2DArray texture1 : register(t1);
 cbuffer ConstantBuffer : register(b0)
 {
 	float scale, aspect_ratio, parallax, brightness;
-	float use_3D, inv_scale, unused1, unused2;
+	float use_3D, inv_scale;
+	float techRoomRatio, unused0;
 };
 
 struct PixelShaderInput
@@ -31,8 +32,9 @@ float4 main(PixelShaderInput input) : SV_TARGET
 	// The third component is the array index. We choose the left eye.
 	uv.z = 0;
 	float4 texelColor0 = texture0.Sample(sampler0, uv, 0);
-	// Sample the 3D hologram in the Tech Room:
-	float4 texelColor1 = texture1.Sample(sampler0, uv, 0);
+	// Sample the 3D hologram in the Tech Room, using the corrected aspect ratio:
+	const float3 correctedUV = saturate(float3((input.tex - 0.5) * inv_scale * float2(techRoomRatio, 1.0f) + 0.5, 0));
+	float4 texelColor1 = texture1.Sample(sampler0, correctedUV, 0);
 	//float2 D = abs(input.tex - 0.5);
 	//if (any(D > crop_amount))
 	//	texelColor.b += 0.7;
