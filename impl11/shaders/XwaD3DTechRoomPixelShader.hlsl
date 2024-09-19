@@ -135,7 +135,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (rand1 > 0.5)
 	{
 		const float  luma = dot(output.color.rgb, float3(0.299, 0.587, 0.114));
-		const float3 holo_col = 3.0 * float3(0.325, 0.541, 0.643);
+		const float3 holo_col = 4.0 * float3(0.325, 0.541, 0.643);
 		const float  scans = 0.7 + 0.3 * sin(rand0 + 0.45 * input.pos.y);
 		const float3 mixed_color = lerp(output.color.rgb, luma * holo_col, 0.5f);
 		output.color.rgb = mixed_color * scans;
@@ -176,8 +176,11 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.bloom.rgb *= fBloomStrength;
 		//if (bInHyperspace && output.bloom.a < 0.5)
 		//	discard;
-		return output;
 	}
+
+	// Let's make black areas a bit transparent to better sell the holographic effect:
+	if (rand1 > 0.5)
+		output.color.a = 0.6 + 0.4 * saturate(dot(0.333, output.color.rgb));
 
 	return output;
 }
