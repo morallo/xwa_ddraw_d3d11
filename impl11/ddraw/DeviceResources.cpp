@@ -4867,9 +4867,9 @@ HRESULT DeviceResources::LoadResources()
 	constantBufferDesc.MiscFlags = 0;
 	constantBufferDesc.StructureByteStride = 0;
 
-	constantBufferDesc.ByteWidth = 80;
+	constantBufferDesc.ByteWidth = 96;
 	// This was the original constant buffer. Now it's called _VSConstantBuffer
-	static_assert(sizeof(VertexShaderCBuffer) == 80, "sizeof(VertexShaderCBuffer) must be 80");
+	static_assert(sizeof(VertexShaderCBuffer) == 96, "sizeof(VertexShaderCBuffer) must be 96");
 	if (FAILED(hr = this->_d3dDevice->CreateBuffer(&constantBufferDesc, nullptr, &this->_VSConstantBuffer)))
 		return hr;
 

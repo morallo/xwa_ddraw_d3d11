@@ -2814,6 +2814,8 @@ HRESULT Direct3DDevice::Execute(
 	g_VSCBuffer.scale_override    =  1.0f;
 	g_VSCBuffer.s_V0x08B94CC      = *(float*)0x08B94CC;
 	g_VSCBuffer.s_V0x05B46B4      = *(float*)0x05B46B4;
+	g_VSCBuffer.techRoomAspectRatio = 1.0f;
+	g_VSCBuffer.useTechRoomAspectRatio = 0;
 
 	g_PSCBuffer = { 0 };
 	g_PSCBuffer.brightness      = MAX_BRIGHTNESS;
@@ -2948,6 +2950,13 @@ HRESULT Direct3DDevice::Execute(
 			g_VSCBuffer.viewportScale[1] = -2.0f / displayHeight;
 			//log_debug("[DBG] [AC] displayWidth,Height: %0.3f,%0.3f", displayWidth, displayHeight);
 			//[15860] [DBG] [AC] displayWidth, Height: 1600.000, 1200.000
+			if (g_bUseSteamVR && g_bInTechRoom)
+			{
+				// This fixes the aspect ratio of the hologram engine glows when the Tech Room is activated in VR.
+				bModifiedShaders = true;
+				g_VSCBuffer.useTechRoomAspectRatio = 1;
+				g_VSCBuffer.techRoomAspectRatio = (displayWidth / displayHeight) * ((float)g_steamVRHeight / (float)g_steamVRWidth);
+			}
 		}
 		g_VSCBuffer.viewportScale[2]  =  scale;
 		//log_debug("[DBG] [AC] scale: %0.3f", scale); The scale seems to be 1 for unstretched nonVR
@@ -5636,6 +5645,8 @@ HRESULT Direct3DDevice::Execute(
 					g_VSCBuffer.bPreventTransform =  0.0f;
 					g_VSCBuffer.bFullTransform    =  FullTransform;
 					g_VSCBuffer.scale_override    =  1.0f;
+					g_VSCBuffer.techRoomAspectRatio = 1.0f;
+					g_VSCBuffer.useTechRoomAspectRatio = 0;
 
 					g_PSCBuffer = { 0 };
 					g_PSCBuffer.brightness		= MAX_BRIGHTNESS;

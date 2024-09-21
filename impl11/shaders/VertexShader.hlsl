@@ -100,7 +100,8 @@ PixelShaderInput main(VertexShaderInput input)
 	// Regular Vertex Shader after the D3DRendererHook.
 	//output.pos.z = (st0 * s_V0x05B46B4 / 32) / (abs(st0) * s_V0x05B46B4 / 32 + s_V0x08B94CC / 3) * 0.5f;
 	output.pos.z = (st0 * s_V0x05B46B4 / projectionParametersVS.x) / (abs(st0) * s_V0x05B46B4 / projectionParametersVS.y + s_V0x08B94CC * projectionParametersVS.z);
-	output.pos.xy = (input.pos.xy * viewportScale.xy + float2(-1.0, 1.0)) * viewportScale.z;	
+	const float2 aspectRatioCorrection = useTechRoomAspectRatio ? float2(1, techRoomAspectRatio) : float2(1, 1);
+	output.pos.xy = (input.pos.xy * viewportScale.xy + float2(-1.0, 1.0)) * viewportScale.z * aspectRatioCorrection;
 	output.pos.w = 1.0f;
 
 	// DirectX divides by output.pos.w internally. We don't see that division; but it happens.

@@ -15,4 +15,7 @@ cbuffer ConstantBuffer : register(b1)
 	float z_override, sz_override;
 
 	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
+
+	bool useTechRoomAspectRatio;
+	float techRoomAspectRatio, vsunused_0, vsunused_1;
 };

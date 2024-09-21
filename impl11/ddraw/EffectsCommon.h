@@ -314,7 +314,7 @@ struct LaserPointerCBuffer {
 };
 
 /* 3D Constant Buffers */
-typedef struct VertexShaderCBStruct {
+struct VertexShaderCBuffer {
 	float viewportScale[4];
 	// 16 bytes
 	float s_V0x08B94CC;
@@ -330,7 +330,10 @@ typedef struct VertexShaderCBStruct {
 	// 64 bytes
 	float mult_z_override, bPreventTransform, bFullTransform, scale_override;
 	// 80 bytes
-} VertexShaderCBuffer;
+	bool useTechRoomAspectRatio;
+	float techRoomAspectRatio, vsunused_0, vsunused_1;
+	// 96 bytes
+};
 
 typedef struct VertexShaderMatrixCBStruct {
 	Matrix4 projEye[2];
