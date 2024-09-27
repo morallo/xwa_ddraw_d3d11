@@ -15,6 +15,7 @@ float g_fDCBrightness = 1.0f;
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 bool g_bDCManualActivate = true, g_bDCApplyEraseRegionCommands = false, g_bReRenderMissilesNCounterMeasures = false;
+bool g_bDCDisableCockpitRenders = false;
 bool g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
 bool g_bHUDVisibleOnStartup = false;
 bool g_bCompensateFOVfor1920x1080 = true;

@@ -1489,6 +1489,10 @@ bool LoadDCParams() {
 				//if (!bCockpitParamsLoaded)
 				LoadDCMoveRegion(buf);
 			}
+			else if (_stricmp(param, "dynamic_cockpit_enabled") == 0)
+			{
+				g_bDCDisableCockpitRenders = (bool)fValue;
+			}
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
 				g_fCoverTextureBrightness = fValue;
 			}
