@@ -111,7 +111,6 @@ const char* BARREL_EFFECT_STATE_VRPARAM = "apply_lens_correction";
 const char* INVERSE_TRANSPOSE_VRPARAM = "alternate_steamvr_eye_inverse";
 const char* FLOATING_AIMING_HUD_VRPARAM = "floating_aiming_HUD";
 const char* NATURAL_CONCOURSE_ANIM_VRPARAM = "concourse_animations_at_25fps";
-const char* DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char* FIXED_GUI_VRPARAM = "fixed_GUI";
 const char* STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
 const char* RETICLE_SCALE_VRPARAM = "reticle_scale";
@@ -1463,8 +1462,8 @@ bool LoadDCParams() {
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
 			fValue = (float)atof(svalue);
 
-			if (_stricmp(param, DYNAMIC_COCKPIT_ENABLED_VRPARAM) == 0) {
-
+			if (_stricmp(param, "dynamic_cockpit_enabled") == 0) {
+				g_bDCEnabled = (bool)fValue;
 			}
 			else if (_stricmp(param, MOVE_REGION_DCPARAM) == 0) {
 				// Individual cockpit move_region commands override the global move_region commands:
@@ -1475,10 +1474,6 @@ bool LoadDCParams() {
 				// with Ctrl+Alt+L
 				//if (!bCockpitParamsLoaded)
 				LoadDCMoveRegion(buf);
-			}
-			else if (_stricmp(param, "disable_cockpit_renders") == 0)
-			{
-				g_bDCDisableCockpitRenders = (bool)fValue;
 			}
 			else if (_stricmp(param, CT_BRIGHTNESS_DCPARAM) == 0) {
 				g_fCoverTextureBrightness = fValue;

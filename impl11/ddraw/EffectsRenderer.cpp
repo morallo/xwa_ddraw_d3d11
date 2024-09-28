@@ -6188,7 +6188,7 @@ bool EffectsRenderer::DCReplaceTextures()
 	auto &context = resources->_d3dDeviceContext;
 
 	// Dynamic Cockpit: Replace textures at run-time:
-	if (!_bLastTextureSelectedNotNULL || !_lastTextureSelected->is_DynCockpitDst || g_bDCDisableCockpitRenders ||
+	if (!g_bDCEnabled || !_bLastTextureSelectedNotNULL || !_lastTextureSelected->is_DynCockpitDst ||
 		// We should never render lightmap textures with the DC pixel shader:
 		_lastTextureSelected->is_DynCockpitAlphaOverlay) {
 		bSkip = false;

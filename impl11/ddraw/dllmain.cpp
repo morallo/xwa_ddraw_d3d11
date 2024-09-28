@@ -1255,7 +1255,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				break;
 
 			case 'D' :
-				g_bDCApplyEraseRegionCommands = !g_bDCApplyEraseRegionCommands;
+				if (g_bDCEnabled)
+					g_bDCApplyEraseRegionCommands = !g_bDCApplyEraseRegionCommands;
 				break;
 			}
 		}

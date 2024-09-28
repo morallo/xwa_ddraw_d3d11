@@ -10471,7 +10471,7 @@ HRESULT PrimarySurface::Flip(
 				this->RenderRadar();
 
 			if (g_config.Text2DRendererEnabled) {
-				if (g_bRenderLaserIonEnergyLevels || g_bRenderThrottle)
+				if (g_bDCEnabled && (g_bRenderLaserIonEnergyLevels || g_bRenderThrottle))
 					this->RenderSynthDCElems();
 			}
 			
@@ -11117,7 +11117,7 @@ HRESULT PrimarySurface::Flip(
 			if (!(*g_playerInHangar && bExternalCamera && g_config.Text2DRendererEnabled)) 
 			{
 				// If we're not in external view, then clear everything we don't want to display from the HUD
-				if (g_bDCApplyEraseRegionCommands && !bExternalCamera)
+				if (g_bDCEnabled && g_bDCApplyEraseRegionCommands && !bExternalCamera)
 					ClearHUDRegions();
 
 				// DTM's Yavin map exposed a weird bug when the next if() is enabled: if the XwingCockpit.dc file
