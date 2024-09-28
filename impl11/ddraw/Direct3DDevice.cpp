@@ -3819,7 +3819,6 @@ HRESULT Direct3DDevice::Execute(
 				{
 					// Compute the limits for the "screen_def" and "erase_screen_def" areas -- these areas are
 					// not related to any single HUD element
-					if (g_bDCManualActivate)
 					{
 						DCHUDRegion *dcSrcBox = NULL;
 						DCElemSrcBox *dcElemSrcBox = NULL;
@@ -3959,7 +3958,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the left sensor:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 					{
 						if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4016,7 +4015,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the right sensor:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
 					{
 						if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4058,7 +4057,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the shields:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
 					{
 						if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4106,7 +4105,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the tractor beam:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
 					{
 						if (!g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4136,7 +4135,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the targeting computer:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
 					{
 						if (!g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4263,7 +4262,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the left/right message boxes:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
 					{
 						//if (lastTextureSelected->is_DC_BorderMsgSrc ||
 						//	)
@@ -4316,7 +4315,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the top-left bracket:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
 					{
 						if (!g_DCHUDRegions.boxes[TOP_LEFT_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4376,7 +4375,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the top-right bracket:
-					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
 					{
 						if (!g_DCHUDRegions.boxes[TOP_RIGHT_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4444,7 +4443,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Dynamic Cockpit: Remove all the alpha overlays (lightmaps), unless there's an active
 				// lightmap animation.
-				if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
+				if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 				{
 					if (!bHasMaterial) goto out;
 					if (lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) < 0) goto out;
@@ -5271,7 +5270,7 @@ HRESULT Direct3DDevice::Execute(
 				// not being applied.
 				// The above behavior is overridden if the DC element is set as "always_visible". In that case, the
 				// transparent layer will remain visible even when the HUD is displayed.
-				if (g_bDCManualActivate && bIsTransparent && !g_bDCApplyEraseRegionCommands && !bDCElemAlwaysVisible)
+				if (bIsTransparent && !g_bDCApplyEraseRegionCommands && !bDCElemAlwaysVisible)
 					goto out;
 
 				// Dynamic Cockpit: Replace textures at run-time:

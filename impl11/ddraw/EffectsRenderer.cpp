@@ -5752,7 +5752,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// not being applied.
 	// The above behavior is overridden if the DC element is set as "always_visible". In that case, the
 	// transparent layer will remain visible even when the HUD is displayed.
-	if (g_bDCManualActivate && _bDCIsTransparent && !g_bDCApplyEraseRegionCommands && !_bDCElemAlwaysVisible)
+	if (_bDCIsTransparent && !g_bDCApplyEraseRegionCommands && !_bDCElemAlwaysVisible)
 		goto out;
 
 	// Dynamic Cockpit: Replace textures at run-time. Returns true if we need to skip the current draw call
@@ -6188,8 +6188,7 @@ bool EffectsRenderer::DCReplaceTextures()
 	auto &context = resources->_d3dDeviceContext;
 
 	// Dynamic Cockpit: Replace textures at run-time:
-	if (!g_bDCManualActivate || !_bLastTextureSelectedNotNULL ||
-		!_lastTextureSelected->is_DynCockpitDst || g_bDCDisableCockpitRenders ||
+	if (!_bLastTextureSelectedNotNULL || !_lastTextureSelected->is_DynCockpitDst || g_bDCDisableCockpitRenders ||
 		// We should never render lightmap textures with the DC pixel shader:
 		_lastTextureSelected->is_DynCockpitAlphaOverlay) {
 		bSkip = false;

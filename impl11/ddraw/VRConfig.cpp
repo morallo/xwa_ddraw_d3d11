@@ -501,10 +501,6 @@ void LoadVRParams() {
 				g_bFixedGUI = (bool)fValue;
 			}
 
-			else if (_stricmp(param, "manual_dc_activate") == 0) {
-				g_bDCManualActivate = (bool)fValue;
-			}
-
 			else if (_stricmp(param, "frame_time_remaining") == 0) {
 				g_fFrameTimeRemaining = fValue;
 			}

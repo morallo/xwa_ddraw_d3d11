@@ -280,7 +280,7 @@ extern float g_fCoverTextureBrightness;
 extern float g_fDCBrightness;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
-extern bool g_bDCManualActivate, g_bDCApplyEraseRegionCommands;
+extern bool g_bDCApplyEraseRegionCommands;
 extern bool g_bReRenderMissilesNCounterMeasures, g_bDCDisableCockpitRenders;
 extern bool g_bGlobalDebugFlag, g_bInhibitCMDBracket;
 extern bool g_bHUDVisibleOnStartup;

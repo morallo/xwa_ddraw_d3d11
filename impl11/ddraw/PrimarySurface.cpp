@@ -11102,7 +11102,7 @@ HRESULT PrimarySurface::Flip(
 
 			// Draw the HUD
 			/*
-			if ((g_bDCManualActivate || bExteriorCamera) && (g_bDynCockpitEnabled || g_bReshadeEnabled) && 
+			if (bExteriorCamera && (g_bDynCockpitEnabled || g_bReshadeEnabled) &&
 				g_iHUDOffscreenCommandsRendered && resources->_bHUDVerticesReady) 
 			*/
 			// For some reason we have to call this or the ESC menu will disappear...
@@ -11316,7 +11316,7 @@ HRESULT PrimarySurface::Flip(
 				g_bIsPlayerObject = false;
 				g_bLastFrameWasExterior = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 				// Disable the Dynamic Cockpit whenever we're in external camera mode:
-				g_bDCManualActivate = !g_bLastFrameWasExterior;
+				//g_bDCManualActivate = !g_bLastFrameWasExterior;
 				g_bDepthBufferResolved = false;
 				g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 				g_bSwitchedToGUI = false;
