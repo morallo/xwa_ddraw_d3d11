@@ -48,8 +48,6 @@ extern float g_fBloomLayerMult[MAX_BLOOM_PASSES + 1];
 extern float g_fBloomSpread[MAX_BLOOM_PASSES + 1];
 extern int g_iBloomPasses[MAX_BLOOM_PASSES + 1];
 
-extern bool g_bDynCockpitEnabled;
-
 extern float g_fHangarAmbient, g_fGlobalAmbient;
 extern float g_fSpecIntensity, g_fSpecBloomIntensity, g_fXWALightsSaturation, g_fXWALightsIntensity;
 extern bool g_bApplyXWALightsIntensity, g_bNormalizeLights;

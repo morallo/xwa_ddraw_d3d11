@@ -3307,7 +3307,7 @@ HRESULT Direct3DDevice::Execute(
 				bool bIsHitEffect = false, bIsTrail = false;
 				bool bDCElemAlwaysVisible = false;
 				if (bLastTextureSelectedNotNULL) {
-					if (g_bDynCockpitEnabled && lastTextureSelected->is_DynCockpitDst) 
+					if (lastTextureSelected->is_DynCockpitDst)
 					{
 						int idx = lastTextureSelected->DCElementIndex;
 						if (idx >= 0 && idx < g_iNumDCElements) {
@@ -3422,7 +3422,7 @@ HRESULT Direct3DDevice::Execute(
 					g_bScaleableHUDStarted = true;
 					g_iDrawCounterAfterHUD = 0;
 					// We're about to render the scaleable HUD, time to clear the dynamic cockpit textures
-					if ((g_bDynCockpitEnabled || g_bReshadeEnabled) && !g_bDCWasClearedOnThisFrame)
+					if (!g_bDCWasClearedOnThisFrame)
 					{
 						float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 						if (!g_bUseSteamVR || !g_bMapMode)
@@ -3458,11 +3458,9 @@ HRESULT Direct3DDevice::Execute(
 					}
 				}
 
-				const bool bRenderToDynCockpitBuffer = g_bDynCockpitEnabled &&
-					bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
+				const bool bRenderToDynCockpitBuffer = bLastTextureSelectedNotNULL && g_bScaleableHUDStarted && g_bIsScaleableGUIElem;
 				// Render HUD backgrounds to their own layer (HUD BG)
-				const bool bRenderToDynCockpitBGBuffer = g_bDynCockpitEnabled &&
-					bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc;
+				const bool bRenderToDynCockpitBGBuffer = bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_HUDRegionSrc;
 
 				/*
 				Justagai shared the following information. Some phases are extremely quick and may not
@@ -3821,7 +3819,7 @@ HRESULT Direct3DDevice::Execute(
 				{
 					// Compute the limits for the "screen_def" and "erase_screen_def" areas -- these areas are
 					// not related to any single HUD element
-					if (g_bDCManualActivate && g_bDynCockpitEnabled) 
+					if (g_bDCManualActivate)
 					{
 						DCHUDRegion *dcSrcBox = NULL;
 						DCElemSrcBox *dcElemSrcBox = NULL;
@@ -3961,7 +3959,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the left sensor:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LeftSensorSrc)
 					{
 						if (!g_DCHUDRegions.boxes[LEFT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4018,7 +4016,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the right sensor:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_RightSensorSrc)
 					{
 						if (!g_DCHUDRegions.boxes[RIGHT_RADAR_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4060,7 +4058,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the shields:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_ShieldsSrc)
 					{
 						if (!g_DCHUDRegions.boxes[SHIELDS_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4108,7 +4106,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the tractor beam:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_BeamBoxSrc)
 					{
 						if (!g_DCHUDRegions.boxes[BEAM_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4138,7 +4136,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the targeting computer:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TargetCompSrc)
 					{
 						if (!g_DCHUDRegions.boxes[TARGET_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4265,7 +4263,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the left/right message boxes:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_SolidMsgSrc)
 					{
 						//if (lastTextureSelected->is_DC_BorderMsgSrc ||
 						//	)
@@ -4318,7 +4316,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the top-left bracket:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopLeftSrc)
 					{
 						if (!g_DCHUDRegions.boxes[TOP_LEFT_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4378,7 +4376,7 @@ HRESULT Direct3DDevice::Execute(
 					}
 
 					// Capture the bounds for the top-right bracket:
-					if (g_bDCManualActivate && g_bDynCockpitEnabled && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
+					if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_TopRightSrc)
 					{
 						if (!g_DCHUDRegions.boxes[TOP_RIGHT_HUD_BOX_IDX].bLimitsComputed)
 						{
@@ -4446,8 +4444,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// Dynamic Cockpit: Remove all the alpha overlays (lightmaps), unless there's an active
 				// lightmap animation.
-				if (g_bDCManualActivate && g_bDynCockpitEnabled &&
-					bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay) 
+				if (g_bDCManualActivate && bLastTextureSelectedNotNULL && lastTextureSelected->is_DynCockpitAlphaOverlay)
 				{
 					if (!bHasMaterial) goto out;
 					if (lastTextureSelected->material.GetCurrentATCIndex(NULL, LIGHTMAP_ATC_IDX) < 0) goto out;
@@ -5033,9 +5030,7 @@ HRESULT Direct3DDevice::Execute(
 
 				// EARLY EXIT 1: Render the HUD/GUI to the Dynamic Cockpit RTVs and continue
 				bool bRenderReticleToBuffer = bIsReticle; // && !bExternalCamera;
-				if (g_bDynCockpitEnabled &&
-					(bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer) || bRenderReticleToBuffer
-				   )
+				if (bRenderToDynCockpitBuffer || bRenderToDynCockpitBGBuffer || bRenderReticleToBuffer)
 				{	
 					ID3D11DepthStencilView *ds = g_bUseSteamVR ? NULL : resources->_depthStencilViewL.Get();
 
@@ -5276,7 +5271,7 @@ HRESULT Direct3DDevice::Execute(
 				// not being applied.
 				// The above behavior is overridden if the DC element is set as "always_visible". In that case, the
 				// transparent layer will remain visible even when the HUD is displayed.
-				if (g_bDCManualActivate && g_bDynCockpitEnabled && bIsTransparent && !g_bDCApplyEraseRegionCommands && !bDCElemAlwaysVisible)
+				if (g_bDCManualActivate && bIsTransparent && !g_bDCApplyEraseRegionCommands && !bDCElemAlwaysVisible)
 					goto out;
 
 				// Dynamic Cockpit: Replace textures at run-time:

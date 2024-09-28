@@ -3499,7 +3499,7 @@ void EffectsRenderer::DoStateManagement(const SceneCompData* scene)
 	bool bHasMaterial = false;
 
 	if (_bLastTextureSelectedNotNULL) {
-		if (g_bDynCockpitEnabled && _lastTextureSelected->is_DynCockpitDst)
+		if (_lastTextureSelected->is_DynCockpitDst)
 		{
 			int idx = _lastTextureSelected->DCElementIndex;
 			if (idx >= 0 && idx < g_iNumDCElements) {
@@ -5723,7 +5723,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	}
 
 	// EARLY EXIT 1: Render the targetted craft to the Dynamic Cockpit RTVs and continue
-	if (g_bDynCockpitEnabled && (g_bIsFloating3DObject || g_isInRenderMiniature)) {
+	if (g_bIsFloating3DObject || g_isInRenderMiniature) {
 		DCCaptureMiniature();
 		goto out;
 	}
@@ -5752,7 +5752,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// not being applied.
 	// The above behavior is overridden if the DC element is set as "always_visible". In that case, the
 	// transparent layer will remain visible even when the HUD is displayed.
-	if (g_bDCManualActivate && g_bDynCockpitEnabled && _bDCIsTransparent && !g_bDCApplyEraseRegionCommands && !_bDCElemAlwaysVisible)
+	if (g_bDCManualActivate && _bDCIsTransparent && !g_bDCApplyEraseRegionCommands && !_bDCElemAlwaysVisible)
 		goto out;
 
 	// Dynamic Cockpit: Replace textures at run-time. Returns true if we need to skip the current draw call
@@ -6188,7 +6188,7 @@ bool EffectsRenderer::DCReplaceTextures()
 	auto &context = resources->_d3dDeviceContext;
 
 	// Dynamic Cockpit: Replace textures at run-time:
-	if (!g_bDCManualActivate || !g_bDynCockpitEnabled || !_bLastTextureSelectedNotNULL ||
+	if (!g_bDCManualActivate || !_bLastTextureSelectedNotNULL ||
 		!_lastTextureSelected->is_DynCockpitDst || g_bDCDisableCockpitRenders ||
 		// We should never render lightmap textures with the DC pixel shader:
 		_lastTextureSelected->is_DynCockpitAlphaOverlay) {

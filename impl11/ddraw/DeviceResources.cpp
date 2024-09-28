@@ -1567,7 +1567,7 @@ void DeviceResources::ResetDynamicCockpit() {
 	g_bYCenterHasBeenFixed = false;
 	g_bRenderLaserIonEnergyLevels = false;
 	g_bRenderThrottle = false;
-	if (g_bDynCockpitEnabled && g_sCurrentCockpit[0] != 0) // Testing the name of the cockpit should prevent multiple resets
+	if (g_sCurrentCockpit[0] != 0) // Testing the name of the cockpit should prevent multiple resets
 	{
 		ResetActiveCockpit();
 		log_debug("[DBG] [DC] Resetting Dynamic Cockpit");
@@ -1828,7 +1828,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	}
 
 	this->_DCTextMSAA.Release();
-	if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+	if (g_bReshadeEnabled) {
 		ResetDynamicCockpit();
 		this->_renderTargetViewDynCockpit.Release();
 		this->_renderTargetViewDynCockpitBG.Release();
@@ -2342,7 +2342,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				}
 			}
 
-			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+			if (g_bReshadeEnabled) {
 				step = "_offscreenBufferDynCockpit";
 				// _offscreenBufferDynCockpit should be just like offscreenBuffer because it will be used as a renderTarget
 				// But it won't need to be an array since it will not be rendered in stereo.
@@ -2761,7 +2761,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// Create the DC Input Buffers
 			// No need for stereo in dynamic cockpit buffers
 			desc.ArraySize = 1;
-			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+			if (g_bReshadeEnabled) {
 				// This guy should be the last one to be created because it modifies the BindFlags
 				// _offscreenBufferAsInputDynCockpit should have the same properties as _offscreenBufferAsInput
 				UINT curFlags = desc.BindFlags;
@@ -3460,7 +3460,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			// They are not rendered in stereo.
 			shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 
-			if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+			if (g_bReshadeEnabled) {
 				step = "_offscreenAsInputDynCockpitSRV";
 
 				hr = this->_d3dDevice->CreateShaderResourceView(this->_offscreenAsInputDynCockpit,
@@ -3634,7 +3634,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		}
 
 		// Dynamic Cockpit RTVs
-		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+		if (g_bReshadeEnabled) {
 			step = "_renderTargetViewDynCockpit";
 			hr = this->_d3dDevice->CreateRenderTargetView(this->_offscreenBufferDynCockpit, &GetRtvDesc(this->_useMultisampling, false), &this->_renderTargetViewDynCockpit);
 			if (FAILED(hr)) {
@@ -4053,10 +4053,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_offscreenBuffer.As(&offscreenSurface);
 
 		// This surface can be used to render directly to the DC foreground buffer
-		if (g_bDynCockpitEnabled)
+		//if (g_bDynCockpitEnabled)
 			hr = this->_offscreenBufferDynCockpit.As(&DCSurface);
-		else
-			hr = this->_offscreenBuffer.As(&DCSurface);
+		//else
+		//	hr = this->_offscreenBuffer.As(&DCSurface);
 
 		if (SUCCEEDED(hr))
 		{
@@ -4541,7 +4541,8 @@ HRESULT DeviceResources::LoadResources()
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LevelsPS, sizeof(g_LevelsPS), nullptr, &_levelsPS)))
 		return hr;
 
-	if (g_bDynCockpitEnabled) {
+	//if (g_bDynCockpitEnabled)
+	{
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderDC, sizeof(g_PixelShaderDC), nullptr, &_pixelShaderDC)))
 			return hr;
 
@@ -5755,7 +5756,7 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 
 	UINT left = (this->_backbufferWidth - w) / 2;
 	UINT top = (this->_backbufferHeight - h) / 2;
-	const bool bRenderToDC = g_bRendering3D && g_bDynCockpitEnabled && g_bExecuteBufferLock;
+	const bool bRenderToDC = g_bRendering3D && g_bExecuteBufferLock;
 	const bool bMapMode = (g_playerIndex != nullptr) && (PlayerDataTable[*g_playerIndex].mapState != 0);
 
 	if (g_bEnableVR && !bRenderToDC) { // SteamVR and DirectSBS modes

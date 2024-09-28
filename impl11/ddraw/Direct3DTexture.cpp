@@ -1082,7 +1082,7 @@ void Direct3DTexture::TagTexture() {
 		}
 
 		/* Special handling for Dynamic Cockpit source HUD textures */
-		if (g_bDynCockpitEnabled || g_bReshadeEnabled) {
+		if (g_bReshadeEnabled) {
 			if (stristr(surface->_cname, DC_TARGET_COMP_SRC_RESNAME) != NULL) {
 				this->is_DC_TargetCompSrc = true;
 				this->is_DC_HUDRegionSrc = true;
@@ -1247,12 +1247,11 @@ void Direct3DTexture::TagTexture() {
 					strncpy_s(g_sCurrentCockpit, 128, CockpitName, 128);
 					log_debug("[DBG] Cockpit Name Changed/Captured: '%s'", g_sCurrentCockpit);
 					// Load the relevant DC file for the current cockpit if necessary
-					if (g_bDynCockpitEnabled) {
-						char sFileName[80];
-						CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
-						if (!LoadIndividualDCParams(sFileName))
-							log_debug("[DBG] [DC] WARNING: Could not load DC params");
-					}
+					char sFileName[80];
+					CockpitNameToDCParamsFile(g_sCurrentCockpit, sFileName, 80);
+					if (!LoadIndividualDCParams(sFileName))
+						log_debug("[DBG] [DC] WARNING: Could not load DC params");
+
 					// Load the relevant AC file for the current cockpit if necessary
 					if (g_bActiveCockpitEnabled) {
 						char sFileName[80];
@@ -1366,7 +1365,7 @@ void Direct3DTexture::TagTexture() {
 			//log_debug("[DBG] 3D Sun is present in this scene: [%s]", surface->_name);
 		}
 		
-		if (g_bDynCockpitEnabled) {
+		{
 			/* Process Dynamic Cockpit destination textures: */
 			int idx = isInVector(surface->_cname, g_DCElements, g_iNumDCElements);
 			if (idx > -1) {
@@ -1418,7 +1417,7 @@ void Direct3DTexture::TagTexture() {
 					this->is_DynCockpitAlphaOverlay = true;
 				}
 			} // if (idx > -1)
-		} // if (g_bDynCockpitEnabled)
+		}
 
 		if (g_bActiveCockpitEnabled) {
 			if (this->is_CockpitTex && !this->is_LightTexture)

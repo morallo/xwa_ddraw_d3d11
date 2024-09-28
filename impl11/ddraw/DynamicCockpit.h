@@ -272,7 +272,7 @@ extern DCPixelShaderCBuffer g_DCPSCBuffer;
 // g_DCElements is used when loading textures to load the cover texture.
 extern dc_element g_DCElements[MAX_DC_SRC_ELEMENTS];
 extern int g_iNumDCElements;
-extern bool g_bDynCockpitEnabled, g_bReshadeEnabled;
+extern bool g_bReshadeEnabled;
 extern DCHUDRegions g_DCHUDRegions;
 extern move_region_coords g_DCMoveRegions;
 extern DCElemSrcBoxes g_DCElemSrcBoxes;

@@ -1922,7 +1922,6 @@ void PrimarySurface::DrawHUDVertices() {
 
 	// Add the move_regions commands.
 	int numCoords = 0;
-	if (g_bDynCockpitEnabled) 
 	{
 		for (int i = 0; i < g_DCMoveRegions.numCoords; i++) {
 			int region_slot = g_DCMoveRegions.region_slot[i];
@@ -11118,7 +11117,7 @@ HRESULT PrimarySurface::Flip(
 			if (!(*g_playerInHangar && bExternalCamera && g_config.Text2DRendererEnabled)) 
 			{
 				// If we're not in external view, then clear everything we don't want to display from the HUD
-				if (g_bDynCockpitEnabled && g_bDCApplyEraseRegionCommands && !bExternalCamera)
+				if (g_bDCApplyEraseRegionCommands && !bExternalCamera)
 					ClearHUDRegions();
 
 				// DTM's Yavin map exposed a weird bug when the next if() is enabled: if the XwingCockpit.dc file
@@ -11517,7 +11516,9 @@ HRESULT PrimarySurface::Flip(
 			// Resolve the Dynamic Cockpit FG, BG and Text buffers.
 			// This step has to be done here, after we clear the HUD regions, or we'll erase
 			// the contents of these buffers for the next frame
-			if (g_bDynCockpitEnabled || g_bReshadeEnabled || g_config.Text2DRendererEnabled) 
+			// g_bDynCockpitEnabled is now always true, so the following conditional
+			// is true all the time:
+			//if (g_bDynCockpitEnabled || g_bReshadeEnabled || g_config.Text2DRendererEnabled)
 			{
 				// We don't Resolve() the DC buffer here when rending the map in VR mode. We defer
 				// that operation until the HUD is rendered.
@@ -11531,7 +11532,7 @@ HRESULT PrimarySurface::Flip(
 						0, _deviceResources->_DCTextMSAA, 0, BACKBUFFER_FORMAT);
 
 					// Apply the Edge Detector effect to the DC foreground texture
-					if (g_bEdgeDetectorEnabled && g_bDynCockpitEnabled && g_bRendering3D && !g_bEdgeEffectApplied)
+					if (g_bEdgeDetectorEnabled && g_bRendering3D && !g_bEdgeEffectApplied)
 						RenderEdgeDetector();
 				}
 
@@ -12567,7 +12568,7 @@ void PrimarySurface::RenderText()
 	// the MIS and then switching to other craft. So adding g_iPresentCounter > 5 seems to prevent
 	// this problem, since we wait for a few frames at the beginning of the mission before we
 	// try to access the CraftInstance table.
-	if (g_bDynCockpitEnabled && g_bReRenderMissilesNCounterMeasures && g_iPresentCounter > 5 &&
+	if (g_bReRenderMissilesNCounterMeasures && g_iPresentCounter > 5 &&
 		g_bDCApplyEraseRegionCommands && !bExternalCamera)
 	{
 		// Gather the data we'll need to replace the missiles and countermeasures
@@ -13453,7 +13454,7 @@ void PrimarySurface::RenderSynthDCElems()
 		}
 	}
 
-	if (g_bDynCockpitEnabled && g_bRenderThrottle && g_bDCApplyEraseRegionCommands &&
+	if (g_bRenderThrottle && g_bDCApplyEraseRegionCommands &&
 		!bExternalCamera && g_GameEvent.CockpitInstruments.Throttle)
 	{
 		dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[THROTTLE_BAR_DC_SRC_IDX];
