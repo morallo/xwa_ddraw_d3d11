@@ -105,7 +105,6 @@ extern bool g_bCapture2DOffscreenBuffer;
 extern bool g_b3DSunPresent, g_b3DSkydomePresent;
 
 // BLOOM
-extern bool /* g_bDumpBloomBuffers, */ g_bDCManualActivate;
 extern BloomConfig g_BloomConfig;
 
 // LASER LIGHTS AND DYNAMIC LIGHTS

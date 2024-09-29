@@ -56,7 +56,6 @@ const bool DEFAULT_BARREL_EFFECT_STATE_STEAMVR = false; // SteamVR provides its 
 const float DEFAULT_BRIGHTNESS = 0.95f;
 const bool DEFAULT_FLOATING_AIMING_HUD = true;
 const int DEFAULT_NATURAL_CONCOURSE_ANIM = 1;
-const bool DEFAULT_DYNAMIC_COCKPIT_ENABLED = false;
 const bool DEFAULT_FIXED_GUI_STATE = true;
 // 6dof
 const int DEFAULT_FREEPIE_SLOT = 0;
@@ -112,7 +111,6 @@ const char* BARREL_EFFECT_STATE_VRPARAM = "apply_lens_correction";
 const char* INVERSE_TRANSPOSE_VRPARAM = "alternate_steamvr_eye_inverse";
 const char* FLOATING_AIMING_HUD_VRPARAM = "floating_aiming_HUD";
 const char* NATURAL_CONCOURSE_ANIM_VRPARAM = "concourse_animations_at_25fps";
-const char* DYNAMIC_COCKPIT_ENABLED_VRPARAM = "dynamic_cockpit_enabled";
 const char* FIXED_GUI_VRPARAM = "fixed_GUI";
 const char* STICKY_ARROW_KEYS_VRPARAM = "sticky_arrow_keys";
 const char* RETICLE_SCALE_VRPARAM = "reticle_scale";
@@ -295,7 +293,6 @@ bool g_bFixedGUI = DEFAULT_FIXED_GUI_STATE;
 
 bool g_bExternalHUDEnabled = false, g_bEdgeDetectorEnabled = true, g_bStarDebugEnabled = false;
 int g_iNaturalConcourseAnimations = DEFAULT_NATURAL_CONCOURSE_ANIM;
-bool g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
 float g_fYawMultiplier = DEFAULT_YAW_MULTIPLIER;
 float g_fPitchMultiplier = DEFAULT_PITCH_MULTIPLIER;
 float g_fRollMultiplier = DEFAULT_ROLL_MULTIPLIER;
@@ -503,10 +500,6 @@ void LoadVRParams() {
 				g_bFixedGUI = (bool)fValue;
 			}
 
-			else if (_stricmp(param, "manual_dc_activate") == 0) {
-				g_bDCManualActivate = (bool)fValue;
-			}
-
 			else if (_stricmp(param, "frame_time_remaining") == 0) {
 				g_fFrameTimeRemaining = fValue;
 			}
@@ -671,7 +664,6 @@ void ResetVRParams() {
 
 	//g_bReshadeEnabled = DEFAULT_RESHADE_ENABLED_STATE;
 	//g_bBloomEnabled = DEFAULT_BLOOM_ENABLED_STATE;
-	//g_bDynCockpitEnabled = DEFAULT_DYNAMIC_COCKPIT_ENABLED;
 
 	/**g_fRawFOVDist = g_fDefaultFOVDist;
 	*g_cachedFOVDist = g_fDefaultFOVDist / 512.0f;
@@ -1470,14 +1462,8 @@ bool LoadDCParams() {
 		if (sscanf_s(buf, "%s = %s", param, 128, svalue, 128) > 0) {
 			fValue = (float)atof(svalue);
 
-			if (_stricmp(param, DYNAMIC_COCKPIT_ENABLED_VRPARAM) == 0) {
-				g_bDynCockpitEnabled = (bool)fValue;
-				log_debug("[DBG] [DC] g_bDynCockpitEnabled: %d", g_bDynCockpitEnabled);
-				if (!g_bDynCockpitEnabled) {
-					// Early abort: stop reading coordinates if the dynamic cockpit is disabled
-					fclose(file);
-					return false;
-				}
+			if (_stricmp(param, "dynamic_cockpit_enabled") == 0) {
+				g_bDCEnabled = (bool)fValue;
 			}
 			else if (_stricmp(param, MOVE_REGION_DCPARAM) == 0) {
 				// Individual cockpit move_region commands override the global move_region commands:
