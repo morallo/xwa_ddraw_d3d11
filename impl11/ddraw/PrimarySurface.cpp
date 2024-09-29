@@ -12543,23 +12543,24 @@ void PrimarySurface::RenderText()
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
 
-	// In VR mode, the text from the left and right panels sometimes "overflows" outside the limits
+	// The text from the left and right panels sometimes "overflows" outside the limits
 	// of the VR viewport and can be seen floating on a flat plane near the bottom of the cockpit.
 	// To fix this, we need to erase the text RTV outside the regular viewport:
-	if (g_bUseSteamVR)
 	{
 		static D2D1_RECT_F rect;
 		// All coordinates are in screen coords
 		const float vertMargin = 0.5f * (g_fCurScreenHeight - g_nonVRViewport.Height);
+		if (vertMargin > 0.0f)
+		{
+			rect.left = rect.top = 0;
+			rect.right = g_fCurScreenWidth;
+			rect.bottom = vertMargin;
+			_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
 
-		rect.left = rect.top = 0;
-		rect.right = g_fCurScreenWidth;
-		rect.bottom = vertMargin;
-		_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
-
-		rect.top = vertMargin + g_nonVRViewport.Height - 2; // Extra margin because otherwise there's still a single-pixel row visible!
-		rect.bottom = g_fCurScreenHeight;
-		_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+			rect.top = vertMargin + g_nonVRViewport.Height - 2; // Extra margin because otherwise there's still a single-pixel row visible!
+			rect.bottom = g_fCurScreenHeight;
+			_deviceResources->_d2d1RenderTarget->FillRectangle(&rect, s_black_brush);
+		}
 	}
 
 	bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;

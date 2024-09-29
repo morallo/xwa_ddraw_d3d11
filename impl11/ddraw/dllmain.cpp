@@ -1257,6 +1257,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case 'D' :
 				if (g_bDCEnabled)
 					g_bDCApplyEraseRegionCommands = !g_bDCApplyEraseRegionCommands;
+				else
+					// Never erase the HUD if DC is off!
+					g_bDCApplyEraseRegionCommands = false;
 				break;
 			}
 		}
