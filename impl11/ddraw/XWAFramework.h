@@ -172,3 +172,5 @@
 	// Unknowns
 	inline const auto dword_7833D4 = (int*)0x7833D4;
 	inline const auto dword_B07C6C = (int*)0xB07C6C;
+
+	inline CraftDefinitionEntry* s_ExeCraftTable = (CraftDefinitionEntry *)0x5BB480;

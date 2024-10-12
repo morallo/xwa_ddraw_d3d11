@@ -5029,7 +5029,53 @@ void EffectsRenderer::ApplyRTShadowsTechRoom(const SceneCompData* scene)
 	context->PSSetShaderResources(14, 2, srvs);
 }
 
-bool GetCurrentTargetStats(int* shields, int* hull, int* system)
+inline uint16_t XwaGetWordPercentFromDword(int num, int denom)
+{
+	return (uint16_t)(65535.0f * (float)num / (float)denom);
+}
+
+int GetShieldStrength(MobileObjectEntry *pMobileObject)
+{
+	DWORD esi = 0;
+	DWORD edx = 0;
+	DWORD eax = 0;
+	DWORD ecx = 0;
+
+	if (pMobileObject == nullptr)
+		return -1;
+
+	//Ptr<XwaCraft> ecx0 = s_XwaObjects[esp18].pMobileObject->pCraft;
+	CraftInstance* pCraft = pMobileObject->craftInstancePtr;
+	if (pCraft == nullptr)
+		return -1;
+
+	if (pCraft->CraftState != 0x03 && pCraft->CraftState != 0x04)
+	{
+		esi = pCraft->ShieldPointsFront + pCraft->ShieldPointsBack;
+		edx = esi / 2;
+		// s_ExeCraftTable is defined in XWAFramework.h
+		// eax is the total shield points for this craft
+		eax = s_ExeCraftTable[pCraft->CraftType].ShieldHitPoints * 2;
+	}
+
+	if (eax != 0)
+	{
+		ecx = XwaGetWordPercentFromDword( edx, eax ) / 0x28F * 2;
+
+		if( esi != 0 )
+		{
+			if( ecx == 0 )
+			{
+				ecx = 0x01;
+			}
+		}
+	}
+
+	//s_V0x068C844 = ecx;
+	return ecx;
+}
+
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, char** cargo)
 {
 	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return false;
 	if (objects == NULL || *objects == NULL) return false;
@@ -5042,9 +5088,12 @@ bool GetCurrentTargetStats(int* shields, int* hull, int* system)
 	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
 	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 
+	*shields = GetShieldStrength(mobileObject);
+
 	*hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
-	*shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
+	//*shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
 	*system = craftInstance->SystemStrength;
+	*cargo = craftInstance->Cargo;
 
 	return true;
 }

@@ -87,6 +87,8 @@ public:
 
 	void BloomPyramidLevelPass(int PyramidLevel, int AdditionalPasses, float fZoomFactor, bool debug);
 
+	void RenderEnhancedHUDText();
+
 	void capture(int time_delay, ComPtr<ID3D11Texture2D> buffer, const wchar_t *filename);
 
 	void ClearBox(uvfloat4 box, D3D11_VIEWPORT * viewport, D3DCOLOR clearColor);

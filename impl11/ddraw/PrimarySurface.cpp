@@ -77,7 +77,7 @@ void EmulMouseWithVRControllers();
 
 int MakeKeyFromGroupIdImageId(int groupId, int imageId);
 
-bool GetCurrentTargetStats(int* shields, int* hull, int* system);
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, char** cargo);
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -343,18 +343,28 @@ void CacheString(char *msg, int x, int y, uint32_t color)
 	g_cachedStrings.push_back({ std::string(msg), x, y, color });
 }
 
-void RenderEnhancedHUDText()
+void PrimarySurface::RenderEnhancedHUDText()
 {
 	if (g_bMapMode)
 		return;
+
+	auto &resources = this->_deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+	auto &device = resources->_d3dDevice;
 
 	for (const auto& xwaBracket : g_xwa_bracket)
 	{
 		if (!xwaBracket.isCurrentTarget)
 			continue;
 
+		// textX and textY are in in-game coordinates (eg. 1920x1080)
 		const int textX = xwaBracket.positionX + xwaBracket.width / 2;
 		const int textY = xwaBracket.positionY + xwaBracket.height / 2;
+
+		// Do not display anything when the text is outside the screen:
+		if (textX < 0 || textX > (int)g_fCurInGameWidth ||
+		    textY < 0 || textY > (int)g_fCurInGameHeight)
+			break;
 
 		unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
 		unsigned int esi;
@@ -376,7 +386,30 @@ void RenderEnhancedHUDText()
 			esi = (eax << 3) | (ecx << 5) | (edx << 8);
 		}
 
-		DisplayText("Target", FONT_LARGE_IDX, textX, textY, esi);
+		char* cargo;
+		int shields, hull, system;
+		GetCurrentTargetStats(&shields, &hull, &system, &cargo);
+
+		char buf[256];
+		//sprintf_s(buf, 256, "Target: %d, %d", textX, textY);
+		//sprintf_s(buf, 256, "Cargo: %s", cargo);
+		sprintf_s(buf, 256, "Shields: %d", shields);
+		DisplayText(buf, FONT_LARGE_IDX, textX, textY, esi);
+
+		/*
+		D3D11_BOX box;
+		box.left = 0;
+		box.top = 0;
+		box.left = 2500;
+		box.right = 1200;
+		box.front = 0;
+		box.back = 1;
+
+		UINT destX = min(max(0, textX), 2500);
+		UINT destY = min(max(0, textY), 1000);
+		context->CopySubresourceRegion(resources->_offscreenBuffer, 0, destX, destY, 0,
+			resources->_DCTextMSAA, 0, &box);
+		*/
 		break;
 	}
 }
@@ -10549,7 +10582,7 @@ HRESULT PrimarySurface::Flip(
 				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
 #if USE_CACHED_HUD_TEXT == 1
 				if (g_bEnableEnhancedHUD)
-					RenderEnhancedHUDText();
+					this->RenderEnhancedHUDText();
 #endif
 				this->RenderText();
 			}
@@ -10931,7 +10964,7 @@ HRESULT PrimarySurface::Flip(
 #if USE_CACHED_HUD_TEXT == 0
 					if (g_bEnableEnhancedHUD && !g_bMapMode)
 					{
-						RenderEnhancedHUDText();
+						this->RenderEnhancedHUDText();
 						this->RenderText(true);
 					}
 #endif

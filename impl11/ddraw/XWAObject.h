@@ -55,13 +55,13 @@ enum CraftState {
 
 struct CraftInstance {
 	//Craft           struc ; (sizeof=0x3F9, mappedto_209)
-	DWORD NumberInFG;
-	WORD CraftType; // enum CraftTypeEnum
-	DWORD LeaderCraftIndex;
-	BYTE VirtualCraftPointerSet;
-	BYTE CraftState; // enum CraftState. See above
-	BYTE RemovedFromPlay;
-	WORD AiSkill;
+	DWORD NumberInFG; // Ofs 0x00
+	WORD CraftType;   // enum CraftTypeEnum, see CraftDefinitionEntry, Ofs 0x04
+	DWORD LeaderCraftIndex; // 0x06
+	BYTE VirtualCraftPointerSet; // 0x0A
+	BYTE CraftState; // enum CraftState. See above, 0x0B
+	BYTE RemovedFromPlay; // 0x0C
+	WORD AiSkill;  // Ofs 0x0D
 	WORD field_F;  // Ofs 0x0F
 	WORD unknown2; // Ofs 0x11
 	DWORD IsUnderBeamEffect[5]; // Ofs 0x13
