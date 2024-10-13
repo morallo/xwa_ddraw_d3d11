@@ -77,7 +77,7 @@ void EmulMouseWithVRControllers();
 
 int MakeKeyFromGroupIdImageId(int groupId, int imageId);
 
-bool GetCurrentTargetStats(int* shields, int* hull, int* system, char** cargo);
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string& cargo);
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -386,15 +386,22 @@ void PrimarySurface::RenderEnhancedHUDText()
 			esi = (eax << 3) | (ecx << 5) | (edx << 8);
 		}
 
-		char* cargo;
+		std::string cargo;
 		int shields, hull, system;
-		GetCurrentTargetStats(&shields, &hull, &system, &cargo);
+		GetCurrentTargetStats(&shields, &hull, &system, cargo);
 
 		char buf[256];
 		//sprintf_s(buf, 256, "Target: %d, %d", textX, textY);
 		//sprintf_s(buf, 256, "Cargo: %s", cargo);
-		sprintf_s(buf, 256, "Shields: %d", shields);
+		sprintf_s(buf, 256, "SHD: %d, HULL: %d, SYS: %d", shields, hull, system);
 		DisplayText(buf, FONT_LARGE_IDX, textX, textY, esi);
+
+		log_debug_vr("SHD: %d", shields);
+		log_debug_vr("HULL: %d", hull);
+		log_debug_vr("SYS: %d", system);
+		if (cargo.size() > 0)
+			log_debug_vr("Carg: %s", cargo.c_str());
+		//log_debug_vr("Cargo: %s");
 
 		/*
 		D3D11_BOX box;

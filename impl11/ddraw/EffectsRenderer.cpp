@@ -5034,6 +5034,11 @@ inline uint16_t XwaGetWordPercentFromDword(int num, int denom)
 	return (uint16_t)(65535.0f * (float)num / (float)denom);
 }
 
+inline uint16_t XwaGetWordPercentFromWord(uint16_t num, uint16_t denom)
+{
+	return (uint16_t)(65535.0f * (float)num / (float)denom);
+}
+
 int GetShieldStrength(MobileObjectEntry *pMobileObject)
 {
 	DWORD esi = 0;
@@ -5075,7 +5080,130 @@ int GetShieldStrength(MobileObjectEntry *pMobileObject)
 	return ecx;
 }
 
-bool GetCurrentTargetStats(int* shields, int* hull, int* system, char** cargo)
+int GetSystemsStrength(MobileObjectEntry *pMobileObject, int currentTargetIndex)
+{
+	uint16_t s_V0x068C848;
+
+	if (objects == nullptr || *objects == nullptr)
+		return -1;
+
+	//if( s_XwaObjects[esp18].pMobileObject == 0 )
+	if ((*objects)[currentTargetIndex].MobileObjectPtr == 0)
+	{
+	    // (*objects) is the same as s_XwaObjects
+		//s_V0x068C848 = s_XwaObjects[esp18].XwaObject_m1B == 0 ? 0 : 0x64;
+		s_V0x068C848 = (*objects)[currentTargetIndex].field_1B == 0 ? 0 : 0x64;
+	}
+	else
+	{
+		CraftInstance* esi = pMobileObject->craftInstancePtr;
+		//Ptr<XwaCraft> esi = s_XwaObjects[esp18].pMobileObject->pCraft;
+
+		if (esi == nullptr)
+		{
+			//s_V0x068C848 = s_XwaObjects[esp18].XwaObject_m1B == 0 ? 0 : 0x64;
+			s_V0x068C848 = (*objects)[currentTargetIndex].field_1B == 0 ? 0 : 0x64;
+		}
+		//else if( esi->XwaCraft_m00B == 0x03 || esi->XwaCraft_m00B == 0x04 )
+		else if (esi->CraftState == Craftstate_Dying || esi->CraftState == Craftstate_DiedInstantly)
+		{
+			//s_V0x068C848 = s_XwaObjects[esp18].XwaObject_m1B == 0 ? 0 : 0x64;
+			s_V0x068C848 = (*objects)[currentTargetIndex].field_1B == 0 ? 0 : 0x64;
+		}
+		else
+		{
+			//if( esi->XwaCraft_m185 == Craft183_None )
+			/*
+			if (esi->SubsystemStatus == 0x183)
+			{
+				s_V0x068C848 = 0;
+			}
+			else
+			*/
+			{
+				unsigned short cx = esi->SystemStrength;
+				//unsigned short ax = s_ExeCraftTable[esi->CraftIndex].SystemStrength;
+				unsigned short ax = s_ExeCraftTable[esi->CraftType].SystemHitpoints;
+
+				if (cx >= ax)
+				{
+					s_V0x068C848 = 0;
+				}
+				else
+				{
+					s_V0x068C848 = XwaGetWordPercentFromWord(ax - cx, ax) / 0x28F;
+				}
+
+				//if (s_V0x068C848 > 0x19 && esi->XwaCraft_m187 != 0)
+				if (s_V0x068C848 > 0x19 && esi->MagTimeRemaining != 0)
+				{
+					s_V0x068C848 = 0x19;
+				}
+			}
+		}
+	}
+
+	return s_V0x068C848;
+}
+
+int GetHullStrength(MobileObjectEntry *pMobileObject)
+{
+	uint16_t s_V0x068C84C = 0;
+
+	if (objects == nullptr || *objects == nullptr)
+		return -1;
+
+	if (pMobileObject == 0)
+	{
+		s_V0x068C84C = 0x64;
+	}
+	else
+	{
+		//Ptr<XwaCraft> eax0 = s_XwaObjects[esp18].pMobileObject->pCraft;
+		CraftInstance* eax0 = pMobileObject->craftInstancePtr;
+
+		/*
+		if (esp18 < s_V0x08BF378 || esp18 >= s_V0x07CA3B8)
+		{
+			s_V0x068C84C = 0x64;
+		}
+		else
+		*/
+		if (eax0 == 0)
+		{
+			s_V0x068C84C = 0x64;
+		}
+		//else if (eax0->XwaCraft_m00B == 0x03 || eax0->XwaCraft_m00B == 0x04)
+		else if (eax0->CraftState == Craftstate_Dying || eax0->CraftState == Craftstate_DiedInstantly)
+		{
+			s_V0x068C84C = 0;
+		}
+		else
+		{
+			//uint32_t ecx = eax0->Damages;
+			uint32_t ecx = eax0->HullDamageReceived;
+			uint32_t eax = eax0->HullStrength;
+
+			if (ecx > eax)
+			{
+				s_V0x068C84C = 0x01;
+			}
+			else
+			{
+				s_V0x068C84C = XwaGetWordPercentFromDword(eax - ecx, eax) / 0x28F;
+
+				if( s_V0x068C84C == 0 )
+				{
+					s_V0x068C84C = 0x01;
+				}
+			}
+		}
+	}
+
+	return s_V0x068C84C;
+}
+
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string &cargo)
 {
 	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return false;
 	if (objects == NULL || *objects == NULL) return false;
@@ -5089,11 +5217,14 @@ bool GetCurrentTargetStats(int* shields, int* hull, int* system, char** cargo)
 	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 
 	*shields = GetShieldStrength(mobileObject);
+	*system  = GetSystemsStrength(mobileObject, currentTargetIndex);
+	*hull    = GetHullStrength(mobileObject);
+	//*hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 
-	*hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
-	//*shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
-	*system = craftInstance->SystemStrength;
-	*cargo = craftInstance->Cargo;
+	if (craftInstance->InspectedByTeam[0] >= 1)
+		cargo = std::string(craftInstance->Cargo);
+	else
+		cargo = std::string("Unknown");
 
 	return true;
 }
@@ -5119,9 +5250,9 @@ int EffectsRenderer::CurrentTargetToObjectId()
 	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
 	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 
-	int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
-	int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
-	int system = craftInstance->SystemStrength;
+	//int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
+	//int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
+	//int system = craftInstance->SystemStrength;
 
 	/*
 	log_debug_vr("SHD: %d, HULL: %d, SYS: %d",
