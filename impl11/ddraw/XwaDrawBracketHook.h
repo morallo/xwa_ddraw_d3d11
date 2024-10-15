@@ -13,6 +13,7 @@ struct XwaBracket
 	bool DC;
 	bool isCurrentTarget;
 	bool isSubComponent;
+	int  subComponentIdx;
 };
 
 extern std::vector<XwaBracket> g_xwa_bracket;

@@ -210,6 +210,7 @@ void ReloadInterdictionMap();
 void ClearGlobalTextureMap();
 void ClearCachedSRVs();
 void ClearGroupIdImageIdToTextureMap();
+void ClearSpeciesCompMap();
 
 bool g_bWndProcReplaced = false;
 bool ReplaceWindowProc(HWND ThisWindow);
@@ -1725,6 +1726,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ResetGameEvent();
 	ResetObjectIndexMap();
 	ReloadInterdictionMap();
+	ClearSpeciesCompMap();
 	//ResetRawMouseInput();
 	if (IsZIPReaderLoaded() && g_bCleanupZIPDirs)
 		DeleteAllTempZIPDirectories();

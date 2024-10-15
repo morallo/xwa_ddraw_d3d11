@@ -329,6 +329,9 @@ struct CachedString
 };
 static std::vector<CachedString> g_cachedStrings;
 
+extern XwaBracket g_curTargetBracket;
+extern XwaBracket g_curSubcomponentBracket;
+
 void RenderCachedText()
 {
 	for (const auto& cachedStr : g_cachedStrings)
@@ -343,6 +346,12 @@ void CacheString(char *msg, int x, int y, uint32_t color)
 	g_cachedStrings.push_back({ std::string(msg), x, y, color });
 }
 
+inline void ResetGlobalBrackets()
+{
+	g_curTargetBracket = { 0 };
+	g_curSubcomponentBracket = { 0 };
+}
+
 void PrimarySurface::RenderEnhancedHUDText()
 {
 	if (g_bMapMode)
@@ -352,73 +361,104 @@ void PrimarySurface::RenderEnhancedHUDText()
 	auto &context = resources->_d3dDeviceContext;
 	auto &device = resources->_d3dDevice;
 
-	for (const auto& xwaBracket : g_xwa_bracket)
+	// Render text on the target bracket
 	{
-		if (!xwaBracket.isCurrentTarget)
-			continue;
-
+		const auto& xwaBracket = g_curTargetBracket;
 		// textX and textY are in in-game coordinates (eg. 1920x1080)
 		const int textX = xwaBracket.positionX + xwaBracket.width / 2;
 		const int textY = xwaBracket.positionY + xwaBracket.height / 2;
 
 		// Do not display anything when the text is outside the screen:
-		if (textX < 0 || textX > (int)g_fCurInGameWidth ||
-		    textY < 0 || textY > (int)g_fCurInGameHeight)
-			break;
-
-		unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
-		unsigned int esi;
-
-		if (((bool(*)())0x0050DC50)() != 0)
+		if (xwaBracket.isCurrentTarget &&
+			textX >= 0 && textX <= (int)g_fCurInGameWidth &&
+			textY >= 0 && textY <= (int)g_fCurInGameHeight)
 		{
-			unsigned short eax = si & 0x001F;
-			unsigned short ecx = si & 0x7C00;
-			unsigned short edx = si & 0x03E0;
+			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
+			unsigned int esi;
 
-			esi = (eax << 3) | (edx << 6) | (ecx << 9);
+			if (((bool(*)())0x0050DC50)() != 0)
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short ecx = si & 0x7C00;
+				unsigned short edx = si & 0x03E0;
+
+				esi = (eax << 3) | (edx << 6) | (ecx << 9);
+			}
+			else
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short edx = si & 0xF800;
+				unsigned short ecx = si & 0x07E0;
+
+				esi = (eax << 3) | (ecx << 5) | (edx << 8);
+			}
+
+			std::string cargo;
+			int shields, hull, system;
+			if (GetCurrentTargetStats(&shields, &hull, &system, cargo))
+			{
+				char buf[256];
+				sprintf_s(buf, 256, "SHD: %d, HULL: %d, SYS: %d", shields, hull, system);
+				DisplayText(buf, FONT_LARGE_IDX, textX, textY, esi);
+
+				//log_debug_vr("SHD: %d", shields);
+				//log_debug_vr("HULL: %d", hull);
+				//log_debug_vr("SYS: %d", system);
+				//if (cargo.size() > 0) log_debug_vr("Carg: %s", cargo.c_str());
+			}
 		}
-		else
-		{
-			unsigned short eax = si & 0x001F;
-			unsigned short edx = si & 0xF800;
-			unsigned short ecx = si & 0x07E0;
-
-			esi = (eax << 3) | (ecx << 5) | (edx << 8);
-		}
-
-		std::string cargo;
-		int shields, hull, system;
-		GetCurrentTargetStats(&shields, &hull, &system, cargo);
-
-		char buf[256];
-		//sprintf_s(buf, 256, "Target: %d, %d", textX, textY);
-		//sprintf_s(buf, 256, "Cargo: %s", cargo);
-		sprintf_s(buf, 256, "SHD: %d, HULL: %d, SYS: %d", shields, hull, system);
-		DisplayText(buf, FONT_LARGE_IDX, textX, textY, esi);
-
-		log_debug_vr("SHD: %d", shields);
-		log_debug_vr("HULL: %d", hull);
-		log_debug_vr("SYS: %d", system);
-		if (cargo.size() > 0)
-			log_debug_vr("Carg: %s", cargo.c_str());
-		//log_debug_vr("Cargo: %s");
-
-		/*
-		D3D11_BOX box;
-		box.left = 0;
-		box.top = 0;
-		box.left = 2500;
-		box.right = 1200;
-		box.front = 0;
-		box.back = 1;
-
-		UINT destX = min(max(0, textX), 2500);
-		UINT destY = min(max(0, textY), 1000);
-		context->CopySubresourceRegion(resources->_offscreenBuffer, 0, destX, destY, 0,
-			resources->_DCTextMSAA, 0, &box);
-		*/
-		break;
 	}
+
+	// Render text on the sub-component bracket
+	{
+		extern std::map<uint16_t, void*> g_speciesCompMap;
+		const auto& xwaBracket = g_curSubcomponentBracket;
+		// textX and textY are in in-game coordinates (eg. 1920x1080)
+		const int textX = xwaBracket.positionX + xwaBracket.width / 2;
+		const int textY = xwaBracket.positionY + xwaBracket.height / 2;
+
+		// Do not display anything when the text is outside the screen:
+		if (xwaBracket.isSubComponent && xwaBracket.subComponentIdx > -1 &&
+			textX >= 0 && textX <= (int)g_fCurInGameWidth &&
+			textY >= 0 && textY <= (int)g_fCurInGameHeight)
+		{
+			char buf[256];
+			char** s_StringsComponentName = (char** )0x0091B160;
+			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
+			unsigned int esi;
+
+			if (((bool(*)())0x0050DC50)() != 0)
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short ecx = si & 0x7C00;
+				unsigned short edx = si & 0x03E0;
+
+				esi = (eax << 3) | (edx << 6) | (ecx << 9);
+			}
+			else
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short edx = si & 0xF800;
+				unsigned short ecx = si & 0x07E0;
+
+				esi = (eax << 3) | (ecx << 5) | (edx << 8);
+			}
+
+			const int curTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+			const int objectSpecies  = (*objects)[curTargetIndex].objectSpecies;
+
+			auto& it = g_speciesCompMap.find(objectSpecies);
+			if (it != g_speciesCompMap.end())
+			{
+				uint16_t* compIndices = (uint16_t*)it->second;
+				const uint16_t compNameIdx = compIndices[xwaBracket.subComponentIdx];
+				sprintf_s(buf, 256, "%d: %s", objectSpecies, s_StringsComponentName[compNameIdx]);
+				DisplayText(buf, FONT_LARGE_IDX, textX, textY, esi);
+			}
+		}
+	}
+
+	ResetGlobalBrackets();
 }
 
 // void capture()

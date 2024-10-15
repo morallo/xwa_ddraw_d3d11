@@ -11,6 +11,10 @@ Vector2 g_SubCMDBracket;
 bool g_bEnableEnhancedHUD = true;
 bool g_bracketIsCurrentTarget = false;
 bool g_bracketIsSubComponent = false;
+int  g_bracketSubComponentIdx = -1;
+
+XwaBracket g_curTargetBracket = { 0 };
+XwaBracket g_curSubcomponentBracket = { 0 };
 
 int GetCurrentTargetIndex();
 
@@ -19,7 +23,8 @@ int TargetBoxHook(int targetIndex, int subComponent, int colorIndex)
 	int currentTargetIndex = GetCurrentTargetIndex();
 
 	g_bracketIsCurrentTarget = false;
-	g_bracketIsSubComponent = false;
+	g_bracketIsSubComponent  = false;
+	g_bracketSubComponentIdx = -1;
 
 	/*log_debug("[DBG] TargetBoxHook: %d, %d, %d, curTarg: %d",
 		targetIndex, subComponent, colorIndex, currentTargetIndex);*/
@@ -30,7 +35,8 @@ int TargetBoxHook(int targetIndex, int subComponent, int colorIndex)
 	{
 		//colorIndex = 0x2F; // MainPal_White;
 		//colorIndex = 0x32; // Blue
-		g_bracketIsSubComponent = true;
+		g_bracketIsSubComponent  = true;
+		g_bracketSubComponentIdx = subComponent;
 	}
 	else
 	{
@@ -53,7 +59,8 @@ int TargetBoxHook(int targetIndex, int subComponent, int colorIndex)
 	TargetBox(targetIndex, subComponent, colorIndex);
 
 	g_bracketIsCurrentTarget = false;
-	g_bracketIsSubComponent = false;
+	g_bracketIsSubComponent  = false;
+	g_bracketSubComponentIdx = -1;
 
 	return 0;
 }
@@ -70,7 +77,17 @@ void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14,
 	bracket.depth = A18;
 	bracket.DC = false;
 	bracket.isCurrentTarget = g_bracketIsCurrentTarget;
-	bracket.isSubComponent = g_bracketIsSubComponent;
+	bracket.isSubComponent  = g_bracketIsSubComponent;
+	bracket.subComponentIdx = g_bracketSubComponentIdx;
+
+	if (g_bracketIsSubComponent)
+	{
+		g_curSubcomponentBracket = bracket;
+	}
+	else if (g_bracketIsCurrentTarget)
+	{
+		g_curTargetBracket = bracket;
+	}
 
 	if (bracket.depth == 1)
 	{
@@ -124,6 +141,9 @@ void DrawBracketMapHook(int A4, int A8, int AC, int A10, unsigned char A14)
 	bracket.colorIndex = A14;
 	bracket.depth = 0;
 	bracket.DC = false;
+	bracket.isCurrentTarget = false;
+	bracket.isSubComponent = false;
+	bracket.subComponentIdx = -1;
 
 	g_xwa_bracket.push_back(bracket);
 }
