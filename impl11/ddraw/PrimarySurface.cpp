@@ -352,6 +352,39 @@ inline void ResetGlobalBrackets()
 	g_curSubcomponentBracket = { 0 };
 }
 
+/// <summary>
+/// Display a number of lines with centered justification.
+/// (x0, y0) is the upper-left corner for the text.
+/// Set alignment to 1.0f to align left.
+/// Set alignment to 0.5f to align center.
+/// Set alignment to 0.0f to align right.
+/// </summary>
+void DisplayCenteredLines(
+	int x0, int y0, uint32_t color,
+	float alignment,
+	int dispX, int dispY,
+	int numLines, char** rows)
+{
+	int widths[5], maxWidth = 0;
+	int maxNumLines = min(5, numLines);
+	// Compute the max width of all the rows
+	for (int i = 0; i < maxNumLines; i++)
+	{
+		widths[i] = ComputeMsgWidth(rows[i], FONT_LARGE_IDX);
+		maxWidth = max(widths[i], maxWidth);
+	}
+
+	int y = y0 + dispY;
+	for (int i = 0; i < maxNumLines; i++)
+	{
+		int x = x0 - (int)(alignment * maxWidth);
+		x += (maxWidth - widths[i]) / 2;
+		x += dispX;
+		DisplayText(rows[i], FONT_LARGE_IDX, x, y, color);
+		y += 20;
+	}
+}
+
 void PrimarySurface::RenderEnhancedHUDText()
 {
 	if (g_bMapMode)
@@ -360,6 +393,8 @@ void PrimarySurface::RenderEnhancedHUDText()
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	auto &device = resources->_d3dDevice;
+	char rows[3][128];
+	char* dRows[3] = { rows[0], rows[1], rows[2] };
 
 	// Render text on the target bracket
 	{
@@ -395,16 +430,25 @@ void PrimarySurface::RenderEnhancedHUDText()
 
 			std::string cargo;
 			int shields, hull, system;
-			if (GetCurrentTargetStats(&shields, &hull, &system, cargo))
+			if (xwaBracket.width > 50 && GetCurrentTargetStats(&shields, &hull, &system, cargo))
 			{
-				char buf[256];
-				sprintf_s(buf, 256, "SHD: %d, HULL: %d, SYS: %d", shields, hull, system);
-				DisplayText(buf, FONT_LARGE_IDX, textX, textY, esi);
+				sprintf_s(rows[0], 128, "SHD");
+				sprintf_s(rows[1], 128, "%d", shields);
+				DisplayCenteredLines(xwaBracket.positionX, xwaBracket.positionY, esi,
+					1.0f, -10,0, 2,dRows);
 
-				//log_debug_vr("SHD: %d", shields);
-				//log_debug_vr("HULL: %d", hull);
-				//log_debug_vr("SYS: %d", system);
-				//if (cargo.size() > 0) log_debug_vr("Carg: %s", cargo.c_str());
+				sprintf_s(rows[0], 128, "SYS");
+				sprintf_s(rows[1], 128, "%d", system);
+				DisplayCenteredLines(xwaBracket.positionX + xwaBracket.width, xwaBracket.positionY, esi,
+					0.0f, 10,0, 2,dRows);
+
+				int numLines = 0;
+				sprintf_s(rows[numLines++], 128, "HULL");
+				sprintf_s(rows[numLines++], 128, "%d", hull);
+				if (cargo.size() > 0)
+					sprintf_s(rows[numLines++], 128, "%s", cargo.c_str());
+				DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
+					0.5f, 0,10, numLines,dRows);
 			}
 		}
 	}
@@ -422,7 +466,6 @@ void PrimarySurface::RenderEnhancedHUDText()
 			textX >= 0 && textX <= (int)g_fCurInGameWidth &&
 			textY >= 0 && textY <= (int)g_fCurInGameHeight)
 		{
-			char buf[256];
 			char** s_StringsComponentName = (char** )0x0091B160;
 			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
 			unsigned int esi;
@@ -452,8 +495,9 @@ void PrimarySurface::RenderEnhancedHUDText()
 			{
 				uint16_t* compIndices = (uint16_t*)it->second;
 				const uint16_t compNameIdx = compIndices[xwaBracket.subComponentIdx];
-				sprintf_s(buf, 256, "%d: %s", objectSpecies, s_StringsComponentName[compNameIdx]);
-				DisplayText(buf, FONT_LARGE_IDX, textX, textY, esi);
+				sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
+				DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
+					0.5f, 0,10, 1,dRows);
 			}
 		}
 	}
