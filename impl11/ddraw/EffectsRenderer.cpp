@@ -5221,10 +5221,18 @@ bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string &ca
 	*hull    = GetHullStrength(mobileObject);
 	//*hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 
-	if (craftInstance->InspectedByTeam[0] >= 1)
-		cargo = std::string(craftInstance->Cargo);
+	// The default value is -1. When the craft is identified the value is 0. When the craft is inspected the value is >= 1.
+	if (craftInstance->Cargo[0] == 0)
+	{
+		cargo = "";
+	}
 	else
-		cargo = std::string("Unknown");
+	{
+		if (craftInstance->InspectedByTeam[0] >= 1)
+			cargo = std::string(craftInstance->Cargo);
+		else
+			cargo = std::string("Unknown");
+	}
 
 	return true;
 }

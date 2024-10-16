@@ -400,13 +400,19 @@ void PrimarySurface::RenderEnhancedHUDText()
 	{
 		const auto& xwaBracket = g_curTargetBracket;
 		// textX and textY are in in-game coordinates (eg. 1920x1080)
-		const int textX = xwaBracket.positionX + xwaBracket.width / 2;
-		const int textY = xwaBracket.positionY + xwaBracket.height / 2;
+		const int centerX = xwaBracket.positionX + xwaBracket.width / 2;
+		const int centerY = xwaBracket.positionY + xwaBracket.height / 2;
+		// Do not let the text be rendered in a square lower than 50 px:
+		constexpr int MIN_SQR_SIZE_PX = 50;
+		const int W = max(MIN_SQR_SIZE_PX, xwaBracket.width);
+		const int H = max(MIN_SQR_SIZE_PX, xwaBracket.height);
+		const int x0 = xwaBracket.width  >= W ? xwaBracket.positionX : centerX - W / 2;
+		const int y0 = xwaBracket.height >= H ? xwaBracket.positionY : centerY - H / 2;
 
 		// Do not display anything when the text is outside the screen:
 		if (xwaBracket.isCurrentTarget &&
-			textX >= 0 && textX <= (int)g_fCurInGameWidth &&
-			textY >= 0 && textY <= (int)g_fCurInGameHeight)
+			centerX >= 0 && centerX <= (int)g_fCurInGameWidth &&
+			centerY >= 0 && centerY <= (int)g_fCurInGameHeight)
 		{
 			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
 			unsigned int esi;
@@ -430,25 +436,25 @@ void PrimarySurface::RenderEnhancedHUDText()
 
 			std::string cargo;
 			int shields, hull, system;
-			if (xwaBracket.width > 50 && GetCurrentTargetStats(&shields, &hull, &system, cargo))
+			if (GetCurrentTargetStats(&shields, &hull, &system, cargo))
 			{
+				// Top-left corner
 				sprintf_s(rows[0], 128, "SHD");
 				sprintf_s(rows[1], 128, "%d", shields);
-				DisplayCenteredLines(xwaBracket.positionX, xwaBracket.positionY, esi,
-					1.0f, -10,0, 2,dRows);
+				DisplayCenteredLines(x0, y0, esi, 1.0f, -10,0, 2,dRows);
 
+				// Top-right corner
 				sprintf_s(rows[0], 128, "SYS");
 				sprintf_s(rows[1], 128, "%d", system);
-				DisplayCenteredLines(xwaBracket.positionX + xwaBracket.width, xwaBracket.positionY, esi,
-					0.0f, 10,0, 2,dRows);
+				DisplayCenteredLines(x0 + W, y0, esi, 0.0f, 10,0, 2,dRows);
 
+				// Bottom-center
 				int numLines = 0;
 				sprintf_s(rows[numLines++], 128, "HULL");
 				sprintf_s(rows[numLines++], 128, "%d", hull);
 				if (cargo.size() > 0)
 					sprintf_s(rows[numLines++], 128, "%s", cargo.c_str());
-				DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
-					0.5f, 0,10, numLines,dRows);
+				DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
 			}
 		}
 	}
