@@ -6246,10 +6246,11 @@ void PrimarySurface::RenderDefaultBackground()
 			g_bUseSteamVR ? resources->_renderTargetViewPost.Get() : resources->_backgroundRTV.Get(),
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
+
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[] = {
 			resources->_textureCubeSRV, // 21
-			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV,
+			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV.Get(),
 		};
 
 		context->PSSetShaderResources(21, 2, srvs);
