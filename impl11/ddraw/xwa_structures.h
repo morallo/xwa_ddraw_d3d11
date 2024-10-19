@@ -86,9 +86,13 @@ struct TieFlightGroup
 
 static_assert(sizeof(TieFlightGroup) == 3646, "size of TieFlightGroup must be 3646");
 
-// V0x0080DC80
-//Array<TieFlightGroupEx, 192> s_XwaTieFlightGroups;
-extern TieFlightGroup* g_XwaTieFlightGroups;
+struct TieFlightGroupEx
+{
+	/* 0x0000 */ TieFlightGroup FlightGroup;
+	/* 0x0E3E */ int PlayerIndex;
+};
+
+extern TieFlightGroupEx* g_XwaTieFlightGroups;
 
 struct XwaPlanet
 {

@@ -182,7 +182,7 @@ struct CraftInstance {
 	//   -1: (Default): Not inspected, unidentified
 	//    0: Identified
 	// >= 1: Identified and inspected
-	/* 0x196 */ BYTE InspectedByTeam[10];
+	/* 0x196 */ int8_t InspectedByTeam[10];
 	/* 0x1A0 */ BYTE CargoIndex;
 	/* 0x1A1 */ BYTE field_1A1;
 	/* 0x1A2 */ DWORD ShieldPointsFront; // // Ofs 0x1A2 dd 2 dup(? )
