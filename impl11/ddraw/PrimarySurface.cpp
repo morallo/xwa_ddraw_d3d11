@@ -11068,7 +11068,7 @@ HRESULT PrimarySurface::Flip(
 				if (!g_bEnableVR || (g_bUseSteamVR && g_bMapMode))
 				{
 #if USE_CACHED_HUD_TEXT == 0
-					if (g_bEnableEnhancedHUD && !g_bMapMode)
+					if (g_bEnableEnhancedHUD && !g_bMapMode && !g_bUseSteamVR)
 					{
 						this->RenderEnhancedHUDText();
 						this->RenderText(true);
