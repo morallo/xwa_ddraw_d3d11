@@ -491,7 +491,7 @@ float s_XwaHudScale = 1.0f;
 //Array<XwaPlanet, 104> s_XwaPlanets
 XwaPlanet* g_XwaPlanets = (XwaPlanet*)0x005B1140;
 //Array<TieFlightGroupEx, 192> s_XwaTieFlightGroups;
-TieFlightGroup* g_XwaTieFlightGroups = (TieFlightGroup*)0x0080DC80;
+TieFlightGroupEx* g_XwaTieFlightGroups = (TieFlightGroupEx*)0x0080DC80;
 //Array<ExeObjectEntry, 557> s_ExeObjectsTable;
 const ExeEnableEntry* g_ExeObjectsTable = (ExeEnableEntry*)0x005FB240; // (Not sure about the type in this one)
 

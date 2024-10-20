@@ -77,7 +77,7 @@ void EmulMouseWithVRControllers();
 
 int MakeKeyFromGroupIdImageId(int groupId, int imageId);
 
-bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string& cargo);
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string& cargo, std::string &name);
 
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
@@ -434,19 +434,19 @@ void PrimarySurface::RenderEnhancedHUDText()
 				esi = (eax << 3) | (ecx << 5) | (edx << 8);
 			}
 
-			std::string cargo;
+			std::string cargo, name;
 			int shields, hull, system;
-			if (GetCurrentTargetStats(&shields, &hull, &system, cargo))
+			if (GetCurrentTargetStats(&shields, &hull, &system, cargo, name))
 			{
-				// Top-left corner
+				// Left
 				sprintf_s(rows[0], 128, "SHD");
 				sprintf_s(rows[1], 128, "%d", shields);
-				DisplayCenteredLines(x0, y0, esi, 1.0f, -10,0, 2,dRows);
+				DisplayCenteredLines(x0, y0 + 5, esi, 1.0f, -10,0, 2,dRows);
 
-				// Top-right corner
+				// Right
 				sprintf_s(rows[0], 128, "SYS");
 				sprintf_s(rows[1], 128, "%d", system);
-				DisplayCenteredLines(x0 + W, y0, esi, 0.0f, 10,0, 2,dRows);
+				DisplayCenteredLines(x0 + W, y0 + 5, esi, 0.0f, 10,0, 2,dRows);
 
 				// Bottom-center
 				int numLines = 0;
@@ -455,6 +455,10 @@ void PrimarySurface::RenderEnhancedHUDText()
 				if (cargo.size() > 0)
 					sprintf_s(rows[numLines++], 128, "%s", cargo.c_str());
 				DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
+
+				// Top-center
+				sprintf_s(rows[0], 128, "%s", name.c_str());
+				DisplayCenteredLines(centerX, y0, esi, 0.5f, 0,-25, 1,dRows);
 			}
 		}
 	}
@@ -501,9 +505,13 @@ void PrimarySurface::RenderEnhancedHUDText()
 			{
 				uint16_t* compIndices = (uint16_t*)it->second;
 				const uint16_t compNameIdx = compIndices[xwaBracket.subComponentIdx];
-				sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
-				DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
-					0.5f, 0,10, 1,dRows);
+				// There's only 34 entries in s_StringsComponentName:
+				if (compNameIdx < 34)
+				{
+					sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
+					DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
+						0.5f, 0, 10, 1, dRows);
+				}
 			}
 		}
 	}

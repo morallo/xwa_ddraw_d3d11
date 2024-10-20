@@ -5203,7 +5203,33 @@ int GetHullStrength(MobileObjectEntry *pMobileObject)
 	return s_V0x068C84C;
 }
 
-bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string &cargo)
+struct SpecdescEntry
+{
+	/* 0x0000 */ char CmdName[64];
+	/* 0x0040 */ char Manufacturer[64];
+	/* 0x0080 */ char InUseBy[64];
+	/* 0x00C0 */ char SpecialCharacteristics[256];
+	/* 0x01C0 */ char Crew[64];
+};
+SpecdescEntry* s_SpecdescEntries = (SpecdescEntry* )0x009F4A14;
+
+struct ShiplistEntry
+{
+	/* 0x0000 */ char Name[256];
+	/* 0x0100 */ uint8_t /* CraftIdEnum */ Id;
+	/* 0x0101 */ byte ShiplistEntry_m101 [3]; // 0x100 is dword
+	/* 0x0104 */ uint32_t /* ShiplistTypeEnum */ Type;
+	/* 0x0108 */ uint32_t ShiplistEntry_m108;
+	/* 0x010C */ uint32_t /* ShiplistFlyableEnum */ Flyable;
+	/* 0x0110 */ uint32_t Known;
+	/* 0x0114 */ uint32_t Skirmish;
+	/* 0x0118 */ RECT MapIconRect;
+}; /* 0x0128 bytes */
+static_assert(sizeof(ShiplistEntry) == 0x128);
+
+ShiplistEntry* s_ShiplistEntries = (ShiplistEntry*)0x00ABD22C;
+
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string &cargo, std::string &name)
 {
 	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return false;
 	if (objects == NULL || *objects == NULL) return false;
@@ -5211,24 +5237,51 @@ bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string &ca
 	if (g_playerInHangar == NULL || *g_playerInHangar) return false;
 	const int currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
 	if (currentTargetIndex < 0) return false;
+	const int playerTeam = PlayerDataTable[*g_playerIndex].team;
 
 	ObjectEntry *object = &((*objects)[currentTargetIndex]);
 	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
 	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	const int8_t inspected = craftInstance->InspectedByTeam[playerTeam];
+
+	// 256 entries
+	//uint32_t *s_ShiplistEntriesIndexFromId = (uint32_t *)0x00ABD280;
+	//uint32_t entry = s_ShiplistEntriesIndexFromId[object->objectID];
+	/*log_debug_vr("FG: %d, NumberInFG: %d, inspected: %d, team: %d",
+		object->FGIndex, craftInstance->NumberInFG, inspected, playerTeam);*/
+
+	bool bIsFlyingGenus = (object->objectGenus == Genus_Starfighter) ||
+		(object->objectGenus == Genus_Starship) ||
+		(object->objectGenus == Genus_Container) ||
+		(object->objectGenus == Genus_Droid) ||
+		(object->objectGenus == Genus_Freighter) ||
+		(object->objectGenus == Genus_Platform) ||
+		(object->objectGenus == Genus_SalvageYard) ||
+		(object->objectGenus == Genus_Transport) ||
+		(object->objectGenus == Genus_Utility);
+
+	// The default value is -1. When the craft is identified the value is 0. When the craft is inspected the value is >= 1.
+	char* FGName = (inspected >= 0) ?
+		g_XwaTieFlightGroups[object->FGIndex].FlightGroup.Name : "Unknown";
+	name = (char*)s_ExeCraftTable[craftInstance->CraftType].pCraftShortName +
+		std::string(": ") + FGName;
+	if (craftInstance->NumberInFG != 0 && bIsFlyingGenus)
+	{
+		name = name + std::string(" ") + std::to_string(craftInstance->NumberInFG);
+	}
 
 	*shields = GetShieldStrength(mobileObject);
 	*system  = GetSystemsStrength(mobileObject, currentTargetIndex);
 	*hull    = GetHullStrength(mobileObject);
-	//*hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
 
-	// The default value is -1. When the craft is identified the value is 0. When the craft is inspected the value is >= 1.
 	if (craftInstance->Cargo[0] == 0)
 	{
 		cargo = "";
 	}
 	else
 	{
-		if (craftInstance->InspectedByTeam[0] >= 1)
+		// The default value is -1. When the craft is identified the value is 0. When the craft is inspected the value is >= 1.
+		if (inspected >= 1)
 			cargo = std::string(craftInstance->Cargo);
 		else
 			cargo = std::string("Unknown");
