@@ -11077,7 +11077,20 @@ HRESULT PrimarySurface::Flip(
 					this->RenderBracket();
 				}
 				else
+				{
 					this->CacheBracketsVR();
+
+					if (g_bEnableEnhancedHUD && !g_bMapMode)
+					{
+						this->RenderEnhancedHUDText();
+						this->RenderText(true);
+					}
+
+					if (g_bDumpSSAOBuffers && g_bEnableEnhancedHUD)
+					{
+						DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
+					}
+				}
 			}
 
 			// Draw the reticle on top of everything else
@@ -12654,8 +12667,16 @@ void PrimarySurface::RenderText(bool earlyExit)
 	// If we render directly to _d2d1OffscreenRenderTarget, that avoids the delay and the
 	// text displays properly everywhere but it only works for non-VR.
 	ID2D1RenderTarget* rtv = earlyExit ? this->_deviceResources->_d2d1OffscreenRenderTarget : this->_deviceResources->_d2d1RenderTarget;
+	// When VR is enabled, we'll render the enhanced text to its own buffer to be displayed
+	// later as a "transparent" overlay in the cockpit:
+	if (earlyExit && g_bUseSteamVR && g_bEnableEnhancedHUD)
+		rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
+
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
+
+	if (earlyExit && g_bUseSteamVR && g_bEnableEnhancedHUD)
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));

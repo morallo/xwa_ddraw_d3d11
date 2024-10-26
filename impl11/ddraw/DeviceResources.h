@@ -237,6 +237,7 @@ public:
 	ComPtr<ID3D11Texture2D> _transpBufferAsInput1;    // Non-MSAA, associated with an SRV
 	ComPtr<ID3D11Texture2D> _transpBuffer2;           // MSAA, keeps the second transparency layer
 	ComPtr<ID3D11Texture2D> _transpBufferAsInput2;    // Non-MSAA, associated with an SRV
+	ComPtr<ID3D11Texture2D> _enhancedHUDBuffer;       // Non-MSAA
 	//ComPtr<ID3D11Texture2D> _textureCube;             // Non-MSAA
 	ID3D11Texture2D* _textureCube;
 
@@ -378,7 +379,8 @@ public:
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitSRV;    // SRV for HUD elements without background
 	ComPtr<ID3D11ShaderResourceView> _offscreenAsInputDynCockpitBG_SRV; // SRV for HUD element backgrounds
 	ComPtr<ID3D11ShaderResourceView> _DCTextSRV;						// SRV for the HUD text
-	ComPtr<ID3D11ShaderResourceView> _ReticleSRV;						// SRV for the HUD text
+	ComPtr<ID3D11ShaderResourceView> _ReticleSRV;						// SRV for the reticle
+	ComPtr<ID3D11ShaderResourceView> _enhancedHUDSRV;
 	// Shadertoy
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV;
 	ComPtr<ID3D11ShaderResourceView> _shadertoySRV_R;
@@ -431,6 +433,7 @@ public:
 	ComPtr<IDWriteFactory> _dwriteFactory;
 	ComPtr<ID2D1RenderTarget> _d2d1RenderTarget;
 	ComPtr<ID2D1RenderTarget> _d2d1OffscreenRenderTarget;
+	ComPtr<ID2D1RenderTarget> _d2d1EnhancedHUDRenderTarget;
 	ComPtr<ID2D1RenderTarget> _d2d1DCRenderTarget;
 	ComPtr<ID2D1DrawingStateBlock> _d2d1DrawingStateBlock;
 
