@@ -441,12 +441,18 @@ void PrimarySurface::RenderEnhancedHUDText()
 				// Left
 				sprintf_s(rows[0], 128, "SHD");
 				sprintf_s(rows[1], 128, "%d", shields);
-				DisplayCenteredLines(x0, y0 + 5, esi, 1.0f, -10,0, 2,dRows);
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(20, 20, esi, 0.5f, 0,0, 2,dRows);
+				else
+					DisplayCenteredLines(x0, y0 + 5, esi, 1.0f, -10,0, 2,dRows);
 
 				// Right
 				sprintf_s(rows[0], 128, "SYS");
 				sprintf_s(rows[1], 128, "%d", system);
-				DisplayCenteredLines(x0 + W, y0 + 5, esi, 0.0f, 10,0, 2,dRows);
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE - 20, 20, esi, 0.5f, 0,0, 2,dRows);
+				else
+					DisplayCenteredLines(x0 + W, y0 + 5, esi, 0.0f, 10,0, 2,dRows);
 
 				// Bottom-center
 				int numLines = 0;
@@ -454,11 +460,17 @@ void PrimarySurface::RenderEnhancedHUDText()
 				sprintf_s(rows[numLines++], 128, "%d", hull);
 				if (cargo.size() > 0)
 					sprintf_s(rows[numLines++], 128, "%s", cargo.c_str());
-				DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, VR_ENHANCED_HUD_BUFFER_SIZE - 40, esi, 0.5f, 0,0, numLines,dRows);
+				else
+					DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
 
 				// Top-center
 				sprintf_s(rows[0], 128, "%s", name.c_str());
-				DisplayCenteredLines(centerX, y0, esi, 0.5f, 0,-25, 1,dRows);
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, 20, esi, 0.5f, 0,0, 1,dRows);
+				else
+					DisplayCenteredLines(centerX, y0, esi, 0.5f, 0,-25, 1,dRows);
 			}
 		}
 	}
@@ -509,8 +521,12 @@ void PrimarySurface::RenderEnhancedHUDText()
 				if (compNameIdx < 34)
 				{
 					sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
-					DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
-						0.5f, 0, 10, 1, dRows);
+					if (g_bUseSteamVR)
+						DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, VR_ENHANCED_HUD_BUFFER_SIZE / 2, esi,
+							0.5f, 0,0, 1, dRows);
+					else
+						DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
+							0.5f, 0,10, 1, dRows);
 				}
 			}
 		}
@@ -11078,18 +11094,17 @@ HRESULT PrimarySurface::Flip(
 				}
 				else
 				{
-					this->CacheBracketsVR();
-
 					if (g_bEnableEnhancedHUD && !g_bMapMode)
 					{
 						this->RenderEnhancedHUDText();
 						this->RenderText(true);
+						if (g_bDumpSSAOBuffers)
+						{
+							DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
+						}
 					}
 
-					if (g_bDumpSSAOBuffers && g_bEnableEnhancedHUD)
-					{
-						DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
-					}
+					this->CacheBracketsVR();
 				}
 			}
 
@@ -12676,7 +12691,11 @@ void PrimarySurface::RenderText(bool earlyExit)
 	rtv->BeginDraw();
 
 	if (earlyExit && g_bUseSteamVR && g_bEnableEnhancedHUD)
+	{
 		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);
+		//rtv->DrawLine({ 512, 0 }, { 512, 1024 }, s_brush);
+		//rtv->DrawLine({ 0, 512 }, { 1024, 512 }, s_brush);
+	}
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
@@ -12773,6 +12792,14 @@ void PrimarySurface::RenderText(bool earlyExit)
 
 		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
 		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
+		// The enhanced HUD VR text is already placed at buffer coordinates. That is, the
+		// buffer is a square of VR_ENHANCED_HUD_BUFFER_SIZE pixels and the text is placed
+		// inside this square.
+		if (g_bUseSteamVR && g_bEnableEnhancedHUD && earlyExit)
+		{
+			x = (float)xwaText.positionX;
+			y = (float)xwaText.positionY;
+		}
 
 		//textLayout->SetFontStretch(DWRITE_FONT_STRETCH_ULTRA_EXPANDED, { 0, 256 });
 		//this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
@@ -13399,7 +13426,30 @@ void PrimarySurface::CacheBracketsVR()
 		bracketVR.color.x = (float)((brushColor >> 16) & 0xFF) / 255.0f;
 		bracketVR.color.y = (float)((brushColor >>  8) & 0xFF) / 255.0f;
 		bracketVR.color.z = (float)((brushColor >>  0) & 0xFF) / 255.0f;
+		bracketVR.isSubComponent = xwaBracket.isSubComponent;
+		bracketVR.renderText     = false;
 		g_bracketsVR.push_back(bracketVR);
+
+		if (g_bEnableEnhancedHUD && xwaBracket.isCurrentTarget)
+		{
+			// For the enhanced HUD, we'll add a special bracket just to render
+			// the text.
+			//float HALF_BRACKET_SIZE_PX = (float)xwaBracket.width / 2.0f;
+			float HALF_BRACKET_SIZE_PX = (float)xwaBracket.width;
+
+			X = screenCenter.x + HALF_BRACKET_SIZE_PX;
+			Y = screenCenter.y + HALF_BRACKET_SIZE_PX;
+			float3 W = InverseTransformProjectionScreen({ X, Y, Z, Z }); // CacheBracketsVR
+			W.y = -W.y;
+			W.z = -W.z;
+
+			bracketVR.halfWidthOPT = fabs(W.x - C.x);
+			bracketVR.renderText  = true;
+			bracketVR.color.x = 1.0f;
+			bracketVR.color.y = 0.1f;
+			bracketVR.color.z = 0.1f;
+			g_bracketsVR.push_back(bracketVR);
+		}
 	}
 	g_xwa_bracket.clear();
 
@@ -13496,10 +13546,10 @@ void RenderSkyBox()
 		ViewMatrix = S * ViewMatrix * S * Heading;
 
 		// DEBUG:
-		Vector4 U = ViewMatrix * Vector4(0, 0, 1, 0);
-		Vector4 F = ViewMatrix * Vector4(0, -1, 0, 0);
-		g_VRGeometryCBuffer.U = float4(U.x, U.y, U.z, 0);
-		g_VRGeometryCBuffer.F = float4(F.x, F.y, F.z, 0);
+		//Vector4 U = ViewMatrix * Vector4(0, 0, 1, 0);
+		//Vector4 F = ViewMatrix * Vector4(0, -1, 0, 0);
+		//g_VRGeometryCBuffer.U = float4(U.x, U.y, U.z, 0);
+		//g_VRGeometryCBuffer.F = float4(F.x, F.y, F.z, 0);
 		//log_debug_vr("Up: %0.3f, %0.3f, %0.3f", U.x, U.y, U.z);
 		//log_debug_vr("Fd: %0.3f, %0.3f, %0.3f", F.x, F.y, F.z);
 

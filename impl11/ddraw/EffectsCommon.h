@@ -405,7 +405,10 @@ struct VRGeometryCBuffer {
 	float    strokeWidth;
 	float3   bracketColor;
 	// 128 bytes
-	float4   U;
+	//float4   U;
+	uint32_t renderText;
+	uint32_t isSubComponent;
+	uint32_t vrg_unused0[2];
 	// 144 bytes
 	Matrix4  viewMat;
 	// 208 bytes
