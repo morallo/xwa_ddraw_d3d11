@@ -209,6 +209,19 @@ std::map<int, bool> g_StarfieldGroupIdImageIdMap;
 std::map<int, void*> g_GroupIdImageIdToTextureMap;
 Direct3DTexture* g_StarfieldSRVs[STARFIELD_TYPE::MAX] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
+// Subcomponent name map
+std::map<uint16_t, void*> g_speciesCompMap;
+
+void ClearSpeciesCompMap()
+{
+	for (auto& item : g_speciesCompMap)
+	{
+		delete[] item.second;
+	}
+
+	g_speciesCompMap.clear();
+}
+
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
 void RTResetBlasIDs();
@@ -1880,12 +1893,45 @@ char* OptNodeTypeToStr(int type)
 	return "Invalid";
 }
 
+void PopulateComponentNames(OptHeader *optHeader, uint16_t species)
+{
+	char** s_stringsComponentName = (char** )0x0091B160;
+	uint16_t* compIndices = new uint16_t[optHeader->NumOfNodes];
+
+#ifdef DEBUG_COMP_NAMES
+	log_debug("[DBG] [OPT] -----------------------------");
+	log_debug("[DBG] [OPT] Species: %d, numNodes: %d", species, optHeader->NumOfNodes);
+#endif
+	for (int nodeIndex = 0; nodeIndex < optHeader->NumOfNodes; nodeIndex++)
+	{
+		OptNode* node = optHeader->Nodes[nodeIndex];
+		if (node->NumOfNodes > 0)
+		{
+			for (int i = 0; i < node->NumOfNodes; i++)
+			{
+				OptNode* subNode = node->Nodes[i];
+				if (subNode->NodeType == OptNode_MeshDescriptor)
+				{
+					uint16_t componentIndex = *(uint16_t*)subNode->Parameter2;
+					compIndices[nodeIndex] = componentIndex;
+#ifdef DEBUG_COMP_NAMES
+					log_debug("[DBG] [OPT]     %d: %d = %s",
+						nodeIndex, componentIndex, s_stringsComponentName[componentIndex]);
+#endif
+				}
+			}
+		}
+	}
+
+	g_speciesCompMap[species] = compIndices;
+}
+
 void ParseOptNode(OptNode* node, std::string prefix)
 {
 	if (node == nullptr)
 		return;
 
-	log_debug("[DBG] %sname: %s, "
+	log_debug("[DBG] [OPT] %sname: %s, "
 		"type: %d:%s, "
 		"p1: %d, p2: %d, "
 		"numNodes: %d",
@@ -1894,13 +1940,22 @@ void ParseOptNode(OptNode* node, std::string prefix)
 		node->Parameter1, node->Parameter2,
 		node->NumOfNodes);
 
+	if (node->NodeType == OptNode_MeshDescriptor)
+	{
+		char** s_stringsComponentName = (char** )0x0091B160;
+		int componentIndex = *(char*)node->Parameter2;
+		log_debug("[DBG] [OPT] %scompIndex:%d = %s",
+			(prefix + "      ").c_str(),
+			componentIndex, s_stringsComponentName[componentIndex]);
+	}
+
 	if (node->NumOfNodes > 0)
 	{
 		if (node->NodeType == OptNode_FaceGrouping)
 		{
 			int LODs = node->NumOfNodes;
 			if (LODs > 1)
-				log_debug("[DBG] %sLODs: %d", prefix.c_str(), LODs);
+				log_debug("[DBG] [OPT] %sLODs: %d", prefix.c_str(), LODs);
 		}
 
 		for (int i = 0; i < node->NumOfNodes; i++)
@@ -2043,13 +2098,16 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 					if (it == g_MeshTagMap.end())
 					{
 						// DEBUG: Dump the node hierarchy when a hotkey is pressed
-#ifdef DISABLED
+#define DEBUG_OPT_NODES 0
+#if DEBUG_OPT_NODES == 1
 						if (g_bDumpOptNodes && nodeIndex == 0)
 						{
-							log_debug("[DBG] [OPT] nodeIndex: %d, numNodes: %d",
-								nodeIndex, optHeader->NumOfNodes);
+							log_debug("[DBG] [OPT] --------------------------------------------------------\n");
+							log_debug("[DBG] [OPT] objectSpecies: %d, numNodes: %d",
+								scene->pObject->ObjectSpecies, optHeader->NumOfNodes);
 							for (int i = 0; i < optHeader->NumOfNodes; i++)
 							{
+								log_debug("[DBG] [OPT] nodeIndex: %d", i);
 								ParseOptNode(optHeader->Nodes[i], "");
 							}
 						}
@@ -2079,6 +2137,17 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 #endif
 					}
 				}
+			}
+		}
+
+		if (nodeIndex == 0)
+		{
+			const uint16_t species = scene->pObject->ObjectSpecies;
+			auto& it = g_speciesCompMap.find(species);
+			if (it == g_speciesCompMap.end())
+			{
+				// We haven't seen this species so far, let's populate it:
+				PopulateComponentNames(optHeader, species);
 			}
 		}
 	}

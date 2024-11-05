@@ -54,17 +54,17 @@ enum CraftState {
 */
 
 struct CraftInstance {
-	//Craft           struc ; (sizeof=0x3F9, mappedto_209)
-	DWORD NumberInFG;
-	WORD CraftType; // enum CraftTypeEnum
-	DWORD LeaderCraftIndex;
-	BYTE VirtualCraftPointerSet;
-	BYTE CraftState; // enum CraftState. See above
-	BYTE RemovedFromPlay;
-	WORD AiSkill;
-	WORD field_F;  // Ofs 0x0F
-	WORD unknown2; // Ofs 0x11
-	DWORD IsUnderBeamEffect[5]; // Ofs 0x13
+	// Craft   struc ; (sizeof=0x3F9, mappedto_209)
+	/* 0x00 */ DWORD NumberInFG;
+	/* 0x04 */ WORD  CraftType;  // enum CraftTypeEnum, see CraftDefinitionEntry
+	/* 0x06 */ DWORD LeaderCraftIndex;
+	/* 0x0A */ BYTE  VirtualCraftPointerSet;
+	/* 0x0B */ BYTE  CraftState; // enum CraftState. See above
+	/* 0x0C */ BYTE  RemovedFromPlay;
+	/* 0x0D */ WORD  AiSkill;
+	/* 0x0F */ WORD  field_F;
+	/* 0x11 */ WORD  unknown2;
+	/* 0x13 */ DWORD IsUnderBeamEffect[5];
 	// Index 1: Tractor Beam (value goes from 0 to 0xFFFF when activated)
 	// Index 2: Jamming Beam (value goes from 0 to 0xFFFF when activated)
 	BYTE SfoilsState; // Ofs 0x27
@@ -165,24 +165,28 @@ struct CraftInstance {
 	DWORD TotalDmgFromCollisions;
 	DWORD TotalDmgFromTurrets;
 	DWORD TotalDmgFromMines;
-	DWORD field_11F[8]; // Ofs 0x11F dd 8 dup(? ) 
-	BYTE field_13F[8];
-	DWORD field_147[8];
-	DWORD field_167[6];
-	WORD InitialCockpitInstruments; // Ofs 0x17F
-	WORD CockpitInstrumentStatus;   // Ofs 0x181
-	WORD InitialSubsystems;
-	WORD SubsystemStatus;
-	WORD MagTimeRemaining;
-	BYTE field_189;
-	BYTE field_18A;
-	BYTE CapturedBy;
-	BYTE AttackedByTeam[10];
-	BYTE InspectedByTeam[10];
-	BYTE CargoIndex;
-	BYTE field_1A1;
-	DWORD ShieldPointsFront; // // Ofs 0x1A2 dd 2 dup(? )
-	DWORD ShieldPointsBack;
+	/* 0x11F */ DWORD field_11F[8]; // Ofs 0x11F dd 8 dup(?)
+	/* 0x13F */ BYTE  field_13F[8];
+	/* 0x147 */ DWORD field_147[8];
+	/* 0x167 */ DWORD field_167[6];
+	/* 0x17F */ WORD InitialCockpitInstruments;
+	/* 0x181 */ WORD CockpitInstrumentStatus;
+	/* 0x183 */ WORD InitialSubsystems;
+	/* 0x185 */ WORD SubsystemStatus;
+	/* 0x187 */ WORD MagTimeRemaining;
+	/* 0x188 */ BYTE field_189;
+	/* 0x18A */ BYTE field_18A;
+	/* 0x18B */ BYTE CapturedBy;
+	/* 0x18C */ BYTE AttackedByTeam[10];
+	// For each team, InspectedByTeam has the following:
+	//   -1: (Default): Not inspected, unidentified
+	//    0: Identified
+	// >= 1: Identified and inspected
+	/* 0x196 */ int8_t InspectedByTeam[10];
+	/* 0x1A0 */ BYTE CargoIndex;
+	/* 0x1A1 */ BYTE field_1A1;
+	/* 0x1A2 */ DWORD ShieldPointsFront; // // Ofs 0x1A2 dd 2 dup(? )
+	/* 0x1A6 */ DWORD ShieldPointsBack;
 	BYTE ElsShields;
 	BYTE ShieldDirection;
 	BYTE NumberOfLaserSets;
@@ -261,22 +265,22 @@ struct RotationMatrix3D
 
 struct ObjectEntry
 {
-	__int16 objectID;
-	__int16 objectSpecies; // Type enum ObjectTypeEnum
-	char objectGenus;
-	char FGIndex;
-	char region;
-	int x; // (x,y,z) is the actual position of this craft. We can use this to move the player or pretty much any ship.
-	int y;
-	int z;
-	__int16 yaw;
-	__int16 pitch;
-	__int16 roll;
-	__int16 rotation;
-	__int16 field_1B;
-	__int16 field_1D;
-	int humanPlayerIndex;
-	MobileObjectEntry *MobileObjectPtr;
+	/* 0x00 */ __int16 objectID;
+	/* 0x02 */ __int16 objectSpecies; // Type enum ObjectTypeEnum
+	/* 0x04 */ char objectGenus;
+	/* 0x05 */ char FGIndex;
+	/* 0x06 */ char region;
+	/* 0x07 */ int x; // (x,y,z) is the actual position of this craft. We can use this to move the player or pretty much any ship.
+	/* 0x0B */ int y;
+	/* 0x0F */ int z;
+	/* 0x13 */ __int16 yaw;
+	/* 0x15 */ __int16 pitch;
+	/* 0x17 */ __int16 roll;
+	/* 0x19 */ __int16 rotation;
+	/* 0x1B */ __int16 field_1B;
+	/* 0x1D */ __int16 field_1D;
+	/* 0x1F */ int humanPlayerIndex;
+	/* 0x23 */ MobileObjectEntry *MobileObjectPtr;
 };
 
 static_assert(sizeof(ObjectEntry) == 39, "size of ObjectEntry must be 39");

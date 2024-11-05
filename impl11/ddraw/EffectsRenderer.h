@@ -222,6 +222,9 @@ public:
 	void UpdateBVHMaps(const SceneCompData* scene, int LOD);
 	bool RTCheckExcludeMesh(const SceneCompData* scene);
 
+	// Returns the ObjectId for the current targeted craft.
+	int CurrentTargetToObjectId();
+
 	// Per-texture, per-instance effects
 	CraftInstance *ObjectIDToCraftInstance(int objectId, MobileObjectEntry** mobileObject_out);
 	InstanceEvent *ObjectIDToInstanceEvent(int objectId, uint32_t materialId);

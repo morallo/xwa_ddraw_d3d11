@@ -8,6 +8,62 @@
 std::vector<XwaBracket> g_xwa_bracket;
 
 Vector2 g_SubCMDBracket;
+bool g_bEnableEnhancedHUD = true;
+bool g_bracketIsCurrentTarget = false;
+bool g_bracketIsSubComponent = false;
+int  g_bracketSubComponentIdx = -1;
+
+XwaBracket g_curTargetBracket = { 0 };
+XwaBracket g_curSubcomponentBracket = { 0 };
+
+int GetCurrentTargetIndex();
+
+int TargetBoxHook(int targetIndex, int subComponent, int colorIndex)
+{
+	int currentTargetIndex = GetCurrentTargetIndex();
+
+	g_bracketIsCurrentTarget = false;
+	g_bracketIsSubComponent  = false;
+	g_bracketSubComponentIdx = -1;
+
+	/*log_debug("[DBG] TargetBoxHook: %d, %d, %d, curTarg: %d",
+		targetIndex, subComponent, colorIndex, currentTargetIndex);*/
+
+	// subComponent is 0xFFFF when the bracket encloses a craft
+	// otherwise this is a sub-component bracket
+	if (subComponent != 0xFFFF)
+	{
+		//colorIndex = 0x2F; // MainPal_White;
+		//colorIndex = 0x32; // Blue
+		g_bracketIsSubComponent  = true;
+		g_bracketSubComponentIdx = subComponent;
+	}
+	else
+	{
+		// Not a sub-component bracket, highlight the current target:
+		if (currentTargetIndex == targetIndex)
+		{
+			//colorIndex = 0x3D; // Green
+			g_bracketIsCurrentTarget = true;
+		}
+	}
+
+	// g_bracketIsCurrentTarget and g_bracketIsSubComponent are set right before we call
+	// the original TargetBox(). Then TargetBox() will call DrawBracketInFlight() which
+	// will call DrawBracketInFlightHook() where we'll use the global vars.
+	void (*TargetBox)(int, int, int) = (void(*)(
+		int targetIndex,
+		int subComponent,
+		int colorIndex)) 0x503A30;
+
+	TargetBox(targetIndex, subComponent, colorIndex);
+
+	g_bracketIsCurrentTarget = false;
+	g_bracketIsSubComponent  = false;
+	g_bracketSubComponentIdx = -1;
+
+	return 0;
+}
 
 void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14, int A18)
 {
@@ -20,6 +76,18 @@ void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14,
 	bracket.colorIndex = A14;
 	bracket.depth = A18;
 	bracket.DC = false;
+	bracket.isCurrentTarget = g_bracketIsCurrentTarget;
+	bracket.isSubComponent  = g_bracketIsSubComponent;
+	bracket.subComponentIdx = g_bracketSubComponentIdx;
+
+	if (g_bracketIsSubComponent)
+	{
+		g_curSubcomponentBracket = bracket;
+	}
+	else if (g_bracketIsCurrentTarget)
+	{
+		g_curTargetBracket = bracket;
+	}
 
 	if (bracket.depth == 1)
 	{
@@ -73,6 +141,9 @@ void DrawBracketMapHook(int A4, int A8, int AC, int A10, unsigned char A14)
 	bracket.colorIndex = A14;
 	bracket.depth = 0;
 	bracket.DC = false;
+	bracket.isCurrentTarget = false;
+	bracket.isSubComponent = false;
+	bracket.subComponentIdx = -1;
 
 	g_xwa_bracket.push_back(bracket);
 }

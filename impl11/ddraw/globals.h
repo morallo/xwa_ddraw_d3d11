@@ -322,8 +322,14 @@ struct BracketVR
 	float strokeWidth;
 	Vector3 color;
 	float rollCompensation;
+	bool isSubComponent;
+	bool renderText;
 };
 extern std::vector<BracketVR> g_bracketsVR;
+
+// Enhanced HUD
+constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 1024;
+extern bool g_bEnableEnhancedHUD;
 
 // *****************************************************
 // Global functions

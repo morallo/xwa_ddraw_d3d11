@@ -86,9 +86,13 @@ struct TieFlightGroup
 
 static_assert(sizeof(TieFlightGroup) == 3646, "size of TieFlightGroup must be 3646");
 
-// V0x0080DC80
-//Array<TieFlightGroupEx, 192> s_XwaTieFlightGroups;
-extern TieFlightGroup* g_XwaTieFlightGroups;
+struct TieFlightGroupEx
+{
+	/* 0x0000 */ TieFlightGroup FlightGroup;
+	/* 0x0E3E */ int PlayerIndex;
+};
+
+extern TieFlightGroupEx* g_XwaTieFlightGroups;
 
 struct XwaPlanet
 {
@@ -470,6 +474,43 @@ struct XwaObject3D
 };
 
 static_assert(sizeof(XwaObject3D) == 24, "size of XwaObject3D must be 24");
+
+// Copied from JeremyAnsel.Xwa.Opt
+enum MeshType
+{
+	Default = 0,
+	MainHull,
+	Wing,
+	Fuselage,
+	GunTurret,
+	SmallGun,
+	Engine,
+	Bridge,
+	ShieldGenerator,
+	EnergyGenerator,
+	Launcher,
+	CommunicationSystem,
+	BeamSystem,
+	CommandSystem,
+	DockingPlatform,
+	LandingPlatform,
+	Hangar,
+	CargoPod,
+	MiscHull,
+	Antenna,
+	RotaryWing,
+	RotaryGunTurret,
+	RotaryLauncher,
+	RotaryCommunicationSystem,
+	RotaryBeamSystem,
+	RotaryCommandSystem,
+	Hatch,
+	Custom,
+	WeaponSystem1,
+	WeaponSystem2,
+	PowerRegenerator,
+	Reactor
+};
 
 // See JeremyAnsel.Xwa.Opt for more details
 struct MeshDescriptor {

@@ -77,6 +77,8 @@ void EmulMouseWithVRControllers();
 
 int MakeKeyFromGroupIdImageId(int groupId, int imageId);
 
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string& cargo, std::string &name);
+
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
 	if (g_pSharedDataCockpitLook != nullptr && g_SharedMemCockpitLook.IsDataReady() && bResetReticle) {
@@ -318,6 +320,198 @@ struct MainVertex
 		tex[0] = tx; tex[1] = ty;
 	}
 };
+
+extern XwaBracket g_curTargetBracket;
+extern XwaBracket g_curSubcomponentBracket;
+
+inline void ResetGlobalBrackets()
+{
+	g_curTargetBracket = { 0 };
+	g_curSubcomponentBracket = { 0 };
+}
+
+/// <summary>
+/// Display a number of lines with centered justification.
+/// (x0, y0) is the upper-left corner for the text.
+/// Set alignment to 1.0f to align left.
+/// Set alignment to 0.5f to align center.
+/// Set alignment to 0.0f to align right.
+/// </summary>
+void DisplayCenteredLines(
+	int x0, int y0, uint32_t color,
+	float alignment,
+	int dispX, int dispY,
+	int numLines, char** rows)
+{
+	int widths[5], maxWidth = 0;
+	int maxNumLines = min(5, numLines);
+	// Compute the max width of all the rows
+	for (int i = 0; i < maxNumLines; i++)
+	{
+		widths[i] = ComputeMsgWidth(rows[i], FONT_LARGE_IDX);
+		maxWidth = max(widths[i], maxWidth);
+	}
+
+	int y = y0 + dispY;
+	for (int i = 0; i < maxNumLines; i++)
+	{
+		int x = x0 - (int)(alignment * maxWidth);
+		x += (maxWidth - widths[i]) / 2;
+		x += dispX;
+		DisplayText(rows[i], FONT_LARGE_IDX, x, y, color);
+		y += 20;
+	}
+}
+
+void PrimarySurface::RenderEnhancedHUDText()
+{
+	if (g_bMapMode)
+		return;
+
+	auto &resources = this->_deviceResources;
+	auto &context = resources->_d3dDeviceContext;
+	auto &device = resources->_d3dDevice;
+	char rows[3][128];
+	char* dRows[3] = { rows[0], rows[1], rows[2] };
+
+	// Render text on the target bracket
+	{
+		const auto& xwaBracket = g_curTargetBracket;
+		// textX and textY are in in-game coordinates (eg. 1920x1080)
+		const int centerX = xwaBracket.positionX + xwaBracket.width / 2;
+		const int centerY = xwaBracket.positionY + xwaBracket.height / 2;
+		// Do not let the text be rendered in a square lower than 50 px:
+		constexpr int MIN_SQR_SIZE_PX = 50;
+		const int W = max(MIN_SQR_SIZE_PX, xwaBracket.width);
+		const int H = max(MIN_SQR_SIZE_PX, xwaBracket.height);
+		const int x0 = xwaBracket.width  >= W ? xwaBracket.positionX : centerX - W / 2;
+		const int y0 = xwaBracket.height >= H ? xwaBracket.positionY : centerY - H / 2;
+
+		// Do not display anything when the text is outside the screen:
+		if (xwaBracket.isCurrentTarget &&
+			centerX >= 0 && centerX <= (int)g_fCurInGameWidth &&
+			centerY >= 0 && centerY <= (int)g_fCurInGameHeight)
+		{
+			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
+			unsigned int esi;
+
+			if (((bool(*)())0x0050DC50)() != 0)
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short ecx = si & 0x7C00;
+				unsigned short edx = si & 0x03E0;
+
+				esi = (eax << 3) | (edx << 6) | (ecx << 9);
+			}
+			else
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short edx = si & 0xF800;
+				unsigned short ecx = si & 0x07E0;
+
+				esi = (eax << 3) | (ecx << 5) | (edx << 8);
+			}
+
+			std::string cargo, name;
+			int shields, hull, system;
+			if (GetCurrentTargetStats(&shields, &hull, &system, cargo, name))
+			{
+				// Left
+				sprintf_s(rows[0], 128, "SHD");
+				sprintf_s(rows[1], 128, "%d", shields);
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(20, 20, esi, 0.5f, 0,0, 2,dRows);
+				else
+					DisplayCenteredLines(x0, y0 + 5, esi, 1.0f, -10,0, 2,dRows);
+
+				// Right
+				sprintf_s(rows[0], 128, "SYS");
+				sprintf_s(rows[1], 128, "%d", system);
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE - 20, 20, esi, 0.5f, 0,0, 2,dRows);
+				else
+					DisplayCenteredLines(x0 + W, y0 + 5, esi, 0.0f, 10,0, 2,dRows);
+
+				// Bottom-center
+				int numLines = 0;
+				sprintf_s(rows[numLines++], 128, "HULL");
+				sprintf_s(rows[numLines++], 128, "%d", hull);
+				if (cargo.size() > 0)
+					sprintf_s(rows[numLines++], 128, "%s", cargo.c_str());
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, VR_ENHANCED_HUD_BUFFER_SIZE - 40, esi, 0.5f, 0,0, numLines,dRows);
+				else
+					DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
+
+				// Top-center
+				sprintf_s(rows[0], 128, "%s", name.c_str());
+				if (g_bUseSteamVR)
+					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, 20, esi, 0.5f, 0,0, 1,dRows);
+				else
+					DisplayCenteredLines(centerX, y0, esi, 0.5f, 0,-25, 1,dRows);
+			}
+		}
+	}
+
+	// Render text on the sub-component bracket
+	{
+		extern std::map<uint16_t, void*> g_speciesCompMap;
+		const auto& xwaBracket = g_curSubcomponentBracket;
+		// textX and textY are in in-game coordinates (eg. 1920x1080)
+		const int textX = xwaBracket.positionX + xwaBracket.width / 2;
+		const int textY = xwaBracket.positionY + xwaBracket.height / 2;
+
+		// Do not display anything when the text is outside the screen:
+		if (xwaBracket.isSubComponent && xwaBracket.subComponentIdx > -1 &&
+			textX >= 0 && textX <= (int)g_fCurInGameWidth &&
+			textY >= 0 && textY <= (int)g_fCurInGameHeight)
+		{
+			char** s_StringsComponentName = (char** )0x0091B160;
+			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
+			unsigned int esi;
+
+			if (((bool(*)())0x0050DC50)() != 0)
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short ecx = si & 0x7C00;
+				unsigned short edx = si & 0x03E0;
+
+				esi = (eax << 3) | (edx << 6) | (ecx << 9);
+			}
+			else
+			{
+				unsigned short eax = si & 0x001F;
+				unsigned short edx = si & 0xF800;
+				unsigned short ecx = si & 0x07E0;
+
+				esi = (eax << 3) | (ecx << 5) | (edx << 8);
+			}
+
+			const int curTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+			const int objectSpecies  = (*objects)[curTargetIndex].objectSpecies;
+
+			auto& it = g_speciesCompMap.find(objectSpecies);
+			if (it != g_speciesCompMap.end())
+			{
+				uint16_t* compIndices = (uint16_t*)it->second;
+				const uint16_t compNameIdx = compIndices[xwaBracket.subComponentIdx];
+				// There's only 34 entries in s_StringsComponentName:
+				if (compNameIdx < 34)
+				{
+					sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
+					if (g_bUseSteamVR)
+						DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, VR_ENHANCED_HUD_BUFFER_SIZE / 2, esi,
+							0.5f, 0,0, 1, dRows);
+					else
+						DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
+							0.5f, 0,10, 1, dRows);
+				}
+			}
+		}
+	}
+
+	ResetGlobalBrackets();
+}
 
 // void capture()
 //#ifdef DBR_VR
@@ -6054,10 +6248,11 @@ void PrimarySurface::RenderDefaultBackground()
 			g_bUseSteamVR ? resources->_renderTargetViewPost.Get() : resources->_backgroundRTV.Get(),
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
+
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[] = {
 			resources->_textureCubeSRV, // 21
-			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV,
+			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV.Get(),
 		};
 
 		context->PSSetShaderResources(21, 2, srvs);
@@ -10861,9 +11056,31 @@ HRESULT PrimarySurface::Flip(
 			if (g_config.Radar2DRendererEnabled)
 			{
 				if (!g_bEnableVR || (g_bUseSteamVR && g_bMapMode))
+				{
+					if (g_bEnableEnhancedHUD && !g_bMapMode && !g_bUseSteamVR)
+					{
+						this->RenderEnhancedHUDText();
+						this->RenderText(true);
+					}
 					this->RenderBracket();
+				}
 				else
+				{
+					if (g_bEnableEnhancedHUD && !g_bMapMode)
+					{
+						// Temporarily disable the enhanced HUD in VR (needs more work)
+						/*
+						this->RenderEnhancedHUDText();
+						this->RenderText(true);
+						if (g_bDumpSSAOBuffers)
+						{
+							DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
+						}
+						*/
+					}
+
 					this->CacheBracketsVR();
+				}
 			}
 
 			// Draw the reticle on top of everything else
@@ -12320,7 +12537,7 @@ void DisplayTimedMessage(uint32_t seconds, int row, char* msg) {
 	g_TimedMessages[row].SetMsg(msg, seconds, y_pos, FONT_LARGE_IDX, FONT_BLUE_COLOR);
 }
 
-void PrimarySurface::RenderText()
+void PrimarySurface::RenderText(bool earlyExit)
 {
 	static ID2D1RenderTarget* s_d2d1RenderTarget = nullptr;
 	static DWORD s_displayWidth = 0;
@@ -12434,8 +12651,26 @@ void PrimarySurface::RenderText()
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_black_brush);
 	}
 
-	this->_deviceResources->_d2d1RenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
-	this->_deviceResources->_d2d1RenderTarget->BeginDraw();
+	// When rendering the enhanced HUD text, we can use _d2d1RenderTarget, but
+	// that introduces a 1-frame delay because this buffer is used for DC and the text
+	// will get captured and displayed in the DC elements. We don't want that.
+	// If we render directly to _d2d1OffscreenRenderTarget, that avoids the delay and the
+	// text displays properly everywhere but it only works for non-VR.
+	ID2D1RenderTarget* rtv = earlyExit ? this->_deviceResources->_d2d1OffscreenRenderTarget : this->_deviceResources->_d2d1RenderTarget;
+	// When VR is enabled, we'll render the enhanced text to its own buffer to be displayed
+	// later as a "transparent" overlay in the cockpit:
+	if (earlyExit && g_bUseSteamVR && g_bEnableEnhancedHUD)
+		rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
+
+	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	rtv->BeginDraw();
+
+	if (earlyExit && g_bUseSteamVR && g_bEnableEnhancedHUD)
+	{
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);
+		//rtv->DrawLine({ 512, 0 }, { 512, 1024 }, s_brush);
+		//rtv->DrawLine({ 0, 512 }, { 1024, 512 }, s_brush);
+	}
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
@@ -12532,12 +12767,24 @@ void PrimarySurface::RenderText()
 
 		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
 		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
+		// The enhanced HUD VR text is already placed at buffer coordinates. That is, the
+		// buffer is a square of VR_ENHANCED_HUD_BUFFER_SIZE pixels and the text is placed
+		// inside this square.
+		if (g_bUseSteamVR && g_bEnableEnhancedHUD && earlyExit)
+		{
+			x = (float)xwaText.positionX;
+			y = (float)xwaText.positionY;
+		}
 
-		this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
+		//textLayout->SetFontStretch(DWRITE_FONT_STRETCH_ULTRA_EXPANDED, { 0, 256 });
+		//this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
+		rtv->DrawTextLayout(
 			D2D1_POINT_2F{ x, y },
 			textLayout,
 			s_brush);
 	}
+
+	if (earlyExit) goto early_out;
 
 	// Clear the text. We'll add extra text now and render it.
 	g_xwa_text.clear();
@@ -12702,14 +12949,16 @@ out:
 		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
 		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
 
+		//textLayout->SetFontStretch(DWRITE_FONT_STRETCH_ULTRA_EXPANDED, { 0, 256 });
 		this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
 			D2D1_POINT_2F{ x, y },
 			textLayout,
 			s_brush);
 	}
 
-	this->_deviceResources->_d2d1RenderTarget->EndDraw();
-	this->_deviceResources->_d2d1RenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+early_out:
+	rtv->EndDraw();
+	rtv->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
 	g_xwa_text.clear();
 	g_xwa_text.reserve(4096);
@@ -12948,13 +13197,46 @@ void PrimarySurface::RenderBracket()
 			s_brushDC->SetColor(D2D1::ColorF(brushColor));
 		}
 
+		static float variableScale = 0.0f;
+
 		float posX = s_left + (float)xwaBracket.positionX * s_scaleX;
 		float posY = s_top + (float)xwaBracket.positionY * s_scaleY;
 		float posW = (float)xwaBracket.width * s_scaleX;
 		float posH = (float)xwaBracket.height * s_scaleY;
 		float posSide = 0.125;
 
-		float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
+		if (xwaBracket.isSubComponent)
+		{
+			const float centerX = posX + 0.5f * posW;
+			const float centerY = posY + 0.5f * posH;
+			// variableScale goes from 0 to 5. Here we normalize it to a different range:
+			const float bracketScale = 0.7f + 0.3f * (variableScale / 5.0f);
+			posH *= bracketScale;
+			posW *= bracketScale;
+
+			posX = centerX - 0.5f * posW;
+			posY = centerY - 0.5f * posH;
+		}
+
+		float centerX = posX + posW * 0.5f;
+		float centerY = posY + posH * 0.5f;
+
+		// Original version:
+		//float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
+		float extraScale = 2.0f;
+		if (g_bEnableEnhancedHUD && xwaBracket.isSubComponent)
+		{
+			extraScale += variableScale;
+			posSide += 0.03f * variableScale;
+		}
+		float strokeWidth = extraScale * min(s_scaleX, s_scaleY);
+
+		// Update variableScale:
+		if (g_bEnableEnhancedHUD && xwaBracket.isSubComponent)
+		{
+			variableScale += 5.0f * g_HiResTimer.elapsed_s;
+			if (variableScale > 5.0f) variableScale = 0.0f;
+		}
 
 		bool fill = xwaBracket.width <= 4 || xwaBracket.height <= 4;
 		// Select the DC RTV if this bracket was classified as belonging to
@@ -13100,7 +13382,33 @@ void PrimarySurface::CacheBracketsVR()
 		bracketVR.color.x = (float)((brushColor >> 16) & 0xFF) / 255.0f;
 		bracketVR.color.y = (float)((brushColor >>  8) & 0xFF) / 255.0f;
 		bracketVR.color.z = (float)((brushColor >>  0) & 0xFF) / 255.0f;
+		bracketVR.isSubComponent = xwaBracket.isSubComponent;
+		bracketVR.renderText     = false;
 		g_bracketsVR.push_back(bracketVR);
+
+		// Temporarily disable the enhanced HUD in VR
+		/*
+		if (g_bEnableEnhancedHUD && xwaBracket.isCurrentTarget)
+		{
+			// For the enhanced HUD, we'll add a special bracket just to render
+			// the text.
+			//float HALF_BRACKET_SIZE_PX = (float)xwaBracket.width / 2.0f;
+			float HALF_BRACKET_SIZE_PX = (float)xwaBracket.width;
+
+			X = screenCenter.x + HALF_BRACKET_SIZE_PX;
+			Y = screenCenter.y + HALF_BRACKET_SIZE_PX;
+			float3 W = InverseTransformProjectionScreen({ X, Y, Z, Z }); // CacheBracketsVR
+			W.y = -W.y;
+			W.z = -W.z;
+
+			bracketVR.halfWidthOPT = fabs(W.x - C.x);
+			bracketVR.renderText  = true;
+			bracketVR.color.x = 1.0f;
+			bracketVR.color.y = 0.1f;
+			bracketVR.color.z = 0.1f;
+			g_bracketsVR.push_back(bracketVR);
+		}
+		*/
 	}
 	g_xwa_bracket.clear();
 
@@ -13197,10 +13505,10 @@ void RenderSkyBox()
 		ViewMatrix = S * ViewMatrix * S * Heading;
 
 		// DEBUG:
-		Vector4 U = ViewMatrix * Vector4(0, 0, 1, 0);
-		Vector4 F = ViewMatrix * Vector4(0, -1, 0, 0);
-		g_VRGeometryCBuffer.U = float4(U.x, U.y, U.z, 0);
-		g_VRGeometryCBuffer.F = float4(F.x, F.y, F.z, 0);
+		//Vector4 U = ViewMatrix * Vector4(0, 0, 1, 0);
+		//Vector4 F = ViewMatrix * Vector4(0, -1, 0, 0);
+		//g_VRGeometryCBuffer.U = float4(U.x, U.y, U.z, 0);
+		//g_VRGeometryCBuffer.F = float4(F.x, F.y, F.z, 0);
 		//log_debug_vr("Up: %0.3f, %0.3f, %0.3f", U.x, U.y, U.z);
 		//log_debug_vr("Fd: %0.3f, %0.3f, %0.3f", F.x, F.y, F.z);
 

@@ -122,6 +122,13 @@ float g_fTurnRateScale = 1.0f;
 // do a smooth interpolation between the desired ypr rate and the current ypr rate.
 float CurPlayerYawRateDeg = 0, CurPlayerPitchRateDeg = 0, CurPlayerRollRateDeg = 0;
 
+/// <summary>
+/// Holds the ObjectId for the craft that is currently targeted.
+/// It's -1 if there's no targeted craft of if the player is in the hangar.
+/// Refreshed at the beginning of each frame.
+/// </summary>
+int g_currentTargetObjectId = -1;
+
 //float g_HMDYaw = 0, g_HMDPitch = 0, g_HMDRoll = 0;
 constexpr float HOLO_DISP_X = METERS_TO_OPT * 0.01f;
 constexpr float HOLO_DISP_Y = METERS_TO_OPT * 0.01f;
@@ -2342,6 +2349,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 		bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
 		int hyperspacePhase = PlayerDataTable[*g_playerIndex].hyperspacePhase;
 		CraftInstance* craftInstance = GetPlayerCraftInstanceSafe();
+		g_currentTargetObjectId = CurrentTargetToObjectId();
 
 		// Set either the Cockpit or Gunner Turret POV Offsets into the proper shared memory slots
 		// THIS SHOULD BE THE ONLY SPOT WHERE WE WRITE TO g_pSharedDataCockpitLook->POVOffsetX/Y/Z
@@ -5021,6 +5029,305 @@ void EffectsRenderer::ApplyRTShadowsTechRoom(const SceneCompData* scene)
 	context->PSSetShaderResources(14, 2, srvs);
 }
 
+inline uint16_t XwaGetWordPercentFromDword(int num, int denom)
+{
+	return (uint16_t)(65535.0f * (float)num / (float)denom);
+}
+
+inline uint16_t XwaGetWordPercentFromWord(uint16_t num, uint16_t denom)
+{
+	return (uint16_t)(65535.0f * (float)num / (float)denom);
+}
+
+int GetShieldStrength(MobileObjectEntry *pMobileObject)
+{
+	DWORD esi = 0;
+	DWORD edx = 0;
+	DWORD eax = 0;
+	DWORD ecx = 0;
+
+	if (pMobileObject == nullptr)
+		return -1;
+
+	//Ptr<XwaCraft> ecx0 = s_XwaObjects[esp18].pMobileObject->pCraft;
+	CraftInstance* pCraft = pMobileObject->craftInstancePtr;
+	if (pCraft == nullptr)
+		return -1;
+
+	if (pCraft->CraftState != 0x03 && pCraft->CraftState != 0x04)
+	{
+		esi = pCraft->ShieldPointsFront + pCraft->ShieldPointsBack;
+		edx = esi / 2;
+		// s_ExeCraftTable is defined in XWAFramework.h
+		// eax is the total shield points for this craft
+		eax = s_ExeCraftTable[pCraft->CraftType].ShieldHitPoints * 2;
+	}
+
+	if (eax != 0)
+	{
+		ecx = XwaGetWordPercentFromDword( edx, eax ) / 0x28F * 2;
+
+		if( esi != 0 )
+		{
+			if( ecx == 0 )
+			{
+				ecx = 0x01;
+			}
+		}
+	}
+
+	//s_V0x068C844 = ecx;
+	return ecx;
+}
+
+int GetSystemsStrength(MobileObjectEntry *pMobileObject, int currentTargetIndex)
+{
+	uint16_t s_V0x068C848;
+
+	if (objects == nullptr || *objects == nullptr)
+		return -1;
+
+	//if( s_XwaObjects[esp18].pMobileObject == 0 )
+	if ((*objects)[currentTargetIndex].MobileObjectPtr == 0)
+	{
+	    // (*objects) is the same as s_XwaObjects
+		//s_V0x068C848 = s_XwaObjects[esp18].XwaObject_m1B == 0 ? 0 : 0x64;
+		s_V0x068C848 = (*objects)[currentTargetIndex].field_1B == 0 ? 0 : 0x64;
+	}
+	else
+	{
+		CraftInstance* esi = pMobileObject->craftInstancePtr;
+		//Ptr<XwaCraft> esi = s_XwaObjects[esp18].pMobileObject->pCraft;
+
+		if (esi == nullptr)
+		{
+			//s_V0x068C848 = s_XwaObjects[esp18].XwaObject_m1B == 0 ? 0 : 0x64;
+			s_V0x068C848 = (*objects)[currentTargetIndex].field_1B == 0 ? 0 : 0x64;
+		}
+		//else if( esi->XwaCraft_m00B == 0x03 || esi->XwaCraft_m00B == 0x04 )
+		else if (esi->CraftState == Craftstate_Dying || esi->CraftState == Craftstate_DiedInstantly)
+		{
+			//s_V0x068C848 = s_XwaObjects[esp18].XwaObject_m1B == 0 ? 0 : 0x64;
+			s_V0x068C848 = (*objects)[currentTargetIndex].field_1B == 0 ? 0 : 0x64;
+		}
+		else
+		{
+			//if( esi->XwaCraft_m185 == Craft183_None )
+			/*
+			if (esi->SubsystemStatus == 0x183)
+			{
+				s_V0x068C848 = 0;
+			}
+			else
+			*/
+			{
+				unsigned short cx = esi->SystemStrength;
+				//unsigned short ax = s_ExeCraftTable[esi->CraftIndex].SystemStrength;
+				unsigned short ax = s_ExeCraftTable[esi->CraftType].SystemHitpoints;
+
+				if (cx >= ax)
+				{
+					s_V0x068C848 = 0;
+				}
+				else
+				{
+					s_V0x068C848 = XwaGetWordPercentFromWord(ax - cx, ax) / 0x28F;
+				}
+
+				//if (s_V0x068C848 > 0x19 && esi->XwaCraft_m187 != 0)
+				if (s_V0x068C848 > 0x19 && esi->MagTimeRemaining != 0)
+				{
+					s_V0x068C848 = 0x19;
+				}
+			}
+		}
+	}
+
+	return s_V0x068C848;
+}
+
+int GetHullStrength(MobileObjectEntry *pMobileObject)
+{
+	uint16_t s_V0x068C84C = 0;
+
+	if (objects == nullptr || *objects == nullptr)
+		return -1;
+
+	if (pMobileObject == 0)
+	{
+		s_V0x068C84C = 0x64;
+	}
+	else
+	{
+		//Ptr<XwaCraft> eax0 = s_XwaObjects[esp18].pMobileObject->pCraft;
+		CraftInstance* eax0 = pMobileObject->craftInstancePtr;
+
+		/*
+		if (esp18 < s_V0x08BF378 || esp18 >= s_V0x07CA3B8)
+		{
+			s_V0x068C84C = 0x64;
+		}
+		else
+		*/
+		if (eax0 == 0)
+		{
+			s_V0x068C84C = 0x64;
+		}
+		//else if (eax0->XwaCraft_m00B == 0x03 || eax0->XwaCraft_m00B == 0x04)
+		else if (eax0->CraftState == Craftstate_Dying || eax0->CraftState == Craftstate_DiedInstantly)
+		{
+			s_V0x068C84C = 0;
+		}
+		else
+		{
+			//uint32_t ecx = eax0->Damages;
+			uint32_t ecx = eax0->HullDamageReceived;
+			uint32_t eax = eax0->HullStrength;
+
+			if (ecx > eax)
+			{
+				s_V0x068C84C = 0x01;
+			}
+			else
+			{
+				s_V0x068C84C = XwaGetWordPercentFromDword(eax - ecx, eax) / 0x28F;
+
+				if( s_V0x068C84C == 0 )
+				{
+					s_V0x068C84C = 0x01;
+				}
+			}
+		}
+	}
+
+	return s_V0x068C84C;
+}
+
+struct SpecdescEntry
+{
+	/* 0x0000 */ char CmdName[64];
+	/* 0x0040 */ char Manufacturer[64];
+	/* 0x0080 */ char InUseBy[64];
+	/* 0x00C0 */ char SpecialCharacteristics[256];
+	/* 0x01C0 */ char Crew[64];
+};
+SpecdescEntry* s_SpecdescEntries = (SpecdescEntry* )0x009F4A14;
+
+struct ShiplistEntry
+{
+	/* 0x0000 */ char Name[256];
+	/* 0x0100 */ uint8_t /* CraftIdEnum */ Id;
+	/* 0x0101 */ byte ShiplistEntry_m101 [3]; // 0x100 is dword
+	/* 0x0104 */ uint32_t /* ShiplistTypeEnum */ Type;
+	/* 0x0108 */ uint32_t ShiplistEntry_m108;
+	/* 0x010C */ uint32_t /* ShiplistFlyableEnum */ Flyable;
+	/* 0x0110 */ uint32_t Known;
+	/* 0x0114 */ uint32_t Skirmish;
+	/* 0x0118 */ RECT MapIconRect;
+}; /* 0x0128 bytes */
+static_assert(sizeof(ShiplistEntry) == 0x128);
+
+ShiplistEntry* s_ShiplistEntries = (ShiplistEntry*)0x00ABD22C;
+
+bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string &cargo, std::string &name)
+{
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return false;
+	if (objects == NULL || *objects == NULL) return false;
+	if (g_playerIndex == NULL) return false;
+	if (g_playerInHangar == NULL || *g_playerInHangar) return false;
+	const int currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	if (currentTargetIndex < 0) return false;
+	const int playerTeam = PlayerDataTable[*g_playerIndex].team;
+
+	ObjectEntry *object = &((*objects)[currentTargetIndex]);
+	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	const int8_t inspected = craftInstance->InspectedByTeam[playerTeam];
+
+	// 256 entries
+	//uint32_t *s_ShiplistEntriesIndexFromId = (uint32_t *)0x00ABD280;
+	//uint32_t entry = s_ShiplistEntriesIndexFromId[object->objectID];
+	/*log_debug_vr("FG: %d, NumberInFG: %d, inspected: %d, team: %d",
+		object->FGIndex, craftInstance->NumberInFG, inspected, playerTeam);*/
+
+	bool bIsFlyingGenus = (object->objectGenus == Genus_Starfighter) ||
+		(object->objectGenus == Genus_Starship) ||
+		(object->objectGenus == Genus_Container) ||
+		(object->objectGenus == Genus_Droid) ||
+		(object->objectGenus == Genus_Freighter) ||
+		(object->objectGenus == Genus_Platform) ||
+		(object->objectGenus == Genus_SalvageYard) ||
+		(object->objectGenus == Genus_Transport) ||
+		(object->objectGenus == Genus_Utility);
+
+	// The default value is -1. When the craft is identified the value is 0. When the craft is inspected the value is >= 1.
+	char* FGName = (inspected >= 0) ?
+		g_XwaTieFlightGroups[object->FGIndex].FlightGroup.Name : "Unknown";
+	name = (char*)s_ExeCraftTable[craftInstance->CraftType].pCraftShortName +
+		std::string(": ") + FGName;
+	if (craftInstance->NumberInFG != 0 && bIsFlyingGenus)
+	{
+		name = name + std::string(" ") + std::to_string(craftInstance->NumberInFG);
+	}
+
+	*shields = GetShieldStrength(mobileObject);
+	*system  = GetSystemsStrength(mobileObject, currentTargetIndex);
+	*hull    = GetHullStrength(mobileObject);
+
+	if (craftInstance->Cargo[0] == 0)
+	{
+		cargo = "";
+	}
+	else
+	{
+		// The default value is -1. When the craft is identified the value is 0. When the craft is inspected the value is >= 1.
+		if (inspected >= 1)
+			cargo = std::string(craftInstance->Cargo);
+		else
+			cargo = std::string("Unknown");
+	}
+
+	return true;
+}
+
+int GetCurrentTargetIndex()
+{
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return -1;
+	if (g_playerIndex == NULL) return -1;
+	if (g_playerInHangar == NULL || *g_playerInHangar) return -1;
+	return PlayerDataTable[*g_playerIndex].currentTargetIndex;
+}
+
+int EffectsRenderer::CurrentTargetToObjectId()
+{
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return -1;
+	if (objects == NULL || *objects == NULL) return -1;
+	if (g_playerIndex == NULL) return -1;
+	if (g_playerInHangar == NULL || *g_playerInHangar) return -1;
+	const int currentTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	if (currentTargetIndex < 0) return -1;
+
+	ObjectEntry *object = &((*objects)[currentTargetIndex]);
+	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+
+	//int hull = max(0, (int)(100.0f * (1.0f - (float)craftInstance->HullDamageReceived / (float)craftInstance->HullStrength)));
+	//int shields = craftInstance->ShieldPointsBack + craftInstance->ShieldPointsFront;
+	//int system = craftInstance->SystemStrength;
+
+	/*
+	log_debug_vr("SHD: %d, HULL: %d, SYS: %d",
+		shields, hull, system);
+	log_debug_vr("InitSubs: %d, Subs: %d",
+		craftInstance->InitialSubsystems, craftInstance->SubsystemStatus);
+	log_debug_vr("field_106: %d, field_10A: %d",
+		craftInstance->field_106, craftInstance->field_10A);
+	*/
+
+	//return (*objects)[currentTargetIndex].objectID;
+	return object->objectID;
+}
+
 /*
  * Returns the CraftInstance associated to an objectId. Uses g_objectIdToIndex
  * to check if objectId has been cached. If it isn't, then *objects is searched
@@ -5673,6 +5980,25 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	_bModifiedPixelShader = false;
 	_bModifiedBlendState = false;
 	_bModifiedSamplerState = false;
+
+	/*
+	if (g_bRenderEnhancedHUD)
+	{
+		if (g_currentTargetObjectId == objectId)
+		{
+			_bModifiedPixelShader = true;
+			if (scene->pMeshDescriptor->MeshType == MeshType::RotaryWing)
+			{
+				g_PSCBuffer.rand2 = 100.0f;
+			}
+		}
+		else
+		{
+			_bModifiedPixelShader = true;
+			g_PSCBuffer.rand2 = 0.0f;
+		}
+	}
+	*/
 
 	// Apply specific material properties for the current texture
 	ApplyMaterialProperties();
@@ -6861,6 +7187,10 @@ void EffectsRenderer::RenderVRBrackets()
 	// Set the textures
 	// Use this to render each bracket individually:
 	_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
+	if (g_bEnableEnhancedHUD)
+		// Set the text SRV. This SRV has the enhanced HUD text
+		context->PSSetShaderResources(1, 1, _deviceResources->_enhancedHUDSRV.GetAddressOf());
+
 	// Use this to render 2D brackets on a big canvas:
 	//_deviceResources->InitPSShaderResourceView(resources->_BracketsSRV.Get(), nullptr);
 
@@ -6931,6 +7261,12 @@ void EffectsRenderer::RenderVRBrackets()
 		const float meshScale = (bracketVR.halfWidthOPT * 2.0f) / meshWidth;
 		g_VRGeometryCBuffer.strokeWidth = bracketVR.strokeWidth;
 		g_VRGeometryCBuffer.bracketColor = bracketVR.color;
+
+		if (g_bEnableEnhancedHUD)
+		{
+			g_VRGeometryCBuffer.renderText     = bracketVR.renderText;
+			g_VRGeometryCBuffer.isSubComponent = bracketVR.isSubComponent;
+		}
 
 		{
 			Vector4 P = dotPosSteamVR;
