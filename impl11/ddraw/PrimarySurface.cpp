@@ -321,30 +321,8 @@ struct MainVertex
 	}
 };
 
-struct CachedString
-{
-	std::string msg;
-	int x, y;
-	uint32_t color;
-};
-static std::vector<CachedString> g_cachedStrings;
-
 extern XwaBracket g_curTargetBracket;
 extern XwaBracket g_curSubcomponentBracket;
-
-void RenderCachedText()
-{
-	for (const auto& cachedStr : g_cachedStrings)
-	{
-		DisplayText((char*)cachedStr.msg.c_str(), FONT_LARGE_IDX, cachedStr.x, cachedStr.y, cachedStr.color);
-	}
-	g_cachedStrings.clear();
-}
-
-void CacheString(char *msg, int x, int y, uint32_t color)
-{
-	g_cachedStrings.push_back({ std::string(msg), x, y, color });
-}
 
 inline void ResetGlobalBrackets()
 {
@@ -10702,10 +10680,6 @@ HRESULT PrimarySurface::Flip(
 				//AddCenteredText("Hello World", FONT_LARGE_IDX, 260, 0x5555FF);
 				// The following text gets captured as part of the missile count DC element:
 				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
-#if USE_CACHED_HUD_TEXT == 1
-				if (g_bEnableEnhancedHUD)
-					this->RenderEnhancedHUDText();
-#endif
 				this->RenderText();
 			}
 
@@ -11083,13 +11057,11 @@ HRESULT PrimarySurface::Flip(
 			{
 				if (!g_bEnableVR || (g_bUseSteamVR && g_bMapMode))
 				{
-#if USE_CACHED_HUD_TEXT == 0
 					if (g_bEnableEnhancedHUD && !g_bMapMode && !g_bUseSteamVR)
 					{
 						this->RenderEnhancedHUDText();
 						this->RenderText(true);
 					}
-#endif
 					this->RenderBracket();
 				}
 				else
@@ -13258,12 +13230,6 @@ void PrimarySurface::RenderBracket()
 			posSide += 0.03f * variableScale;
 		}
 		float strokeWidth = extraScale * min(s_scaleX, s_scaleY);
-		// There's more we can do with brackets around the current target, for now
-		// let's just enhance it slightly:
-		/*
-		if (xwaBracket.isCurrentTarget)
-			strokeWidth += 4;
-		*/
 
 		// Update variableScale:
 		if (g_bEnableEnhancedHUD && xwaBracket.isSubComponent)
@@ -13299,19 +13265,6 @@ void PrimarySurface::RenderBracket()
 			// bottom right
 			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
 			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
-
-			/*
-			if (xwaBracket.isCurrentTarget && !g_bMapMode)
-			{
-				//rtv->DrawLine(D2D1::Point2F(posX, posY), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
-				//rtv->DrawLine(D2D1::Point2F(posX + posW, posY), D2D1::Point2F(posX, posY + posH), s_brush, strokeWidth);
-				//rtv->DrawTextLayout(D2D1_POINT_2F{ centerX, centerY }, textLayout, s_brush);
-				const int textX = xwaBracket.positionX + xwaBracket.width / 2;
-				const int textY = xwaBracket.positionY + xwaBracket.height / 2;
-				//DisplayText("Target", FONT_LARGE_IDX, centerX, centerY, xwaBracket.colorIndex);
-				CacheString("Target", textX, textY, brushColor);
-			}
-			*/
 		}
 	}
 
