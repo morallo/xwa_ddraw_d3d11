@@ -11096,12 +11096,15 @@ HRESULT PrimarySurface::Flip(
 				{
 					if (g_bEnableEnhancedHUD && !g_bMapMode)
 					{
+						// Temporarily disable the enhanced HUD in VR (needs more work)
+						/*
 						this->RenderEnhancedHUDText();
 						this->RenderText(true);
 						if (g_bDumpSSAOBuffers)
 						{
 							DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
 						}
+						*/
 					}
 
 					this->CacheBracketsVR();
@@ -13430,6 +13433,8 @@ void PrimarySurface::CacheBracketsVR()
 		bracketVR.renderText     = false;
 		g_bracketsVR.push_back(bracketVR);
 
+		// Temporarily disable the enhanced HUD in VR
+		/*
 		if (g_bEnableEnhancedHUD && xwaBracket.isCurrentTarget)
 		{
 			// For the enhanced HUD, we'll add a special bracket just to render
@@ -13450,6 +13455,7 @@ void PrimarySurface::CacheBracketsVR()
 			bracketVR.color.z = 0.1f;
 			g_bracketsVR.push_back(bracketVR);
 		}
+		*/
 	}
 	g_xwa_bracket.clear();
 
