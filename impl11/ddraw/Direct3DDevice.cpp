@@ -650,6 +650,9 @@ bool g_b3DSkydomePresent = false;
 
 // Force Cockpit Damage
 bool g_bApplyCockpitDamage = false, g_bResetCockpitDamage = false, g_bResetCockpitDamageInHangar = false;
+// This flag is used to enable cockpit damage -- prevents users from accidentally
+// pressing Ctrl+C and applying cockpit damage.
+bool g_bCockpitDamageEnabled = false;
 
 // Custom HUD colors
 uint32_t g_iHUDInnerColor = 0, g_iHUDBorderColor = 0;
@@ -6083,8 +6086,8 @@ HRESULT Direct3DDevice::BeginScene()
 			prevDamage.FromXWADamage(craftInstance->InitialCockpitInstruments);
 		}
 
-		// Apply the cockpit damage if requested
-		if (g_bApplyCockpitDamage) {
+		// Apply the cockpit damage if requested (and enabled)
+		if (g_bCockpitDamageEnabled && g_bApplyCockpitDamage) {
 			FILE *MaskFile = NULL;
 			fopen_s(&MaskFile, "CockpitDamage.txt", "rt");
 			if (MaskFile != NULL) {

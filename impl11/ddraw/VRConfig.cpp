@@ -2993,6 +2993,12 @@ bool LoadSSAOParams() {
 			{
 				g_bDebugDefaultStarfield = (bool)fValue;
 			}
+
+			if (_stricmp(param, "enable_cockpit_damage") == 0)
+			{
+				g_bCockpitDamageEnabled = (bool)fValue;
+			}
+
 		}
 	}
 	fclose(file);
