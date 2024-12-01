@@ -330,7 +330,13 @@ extern std::vector<BracketVR> g_bracketsVR;
 
 // Enhanced HUD
 constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 1024;
-extern bool g_bEnableEnhancedHUD;
+struct EnhancedHUDData
+{
+	bool Enabled;
+	int  MinBracketSize;
+	int  MaxBracketSize;
+};
+extern EnhancedHUDData g_EnhancedHUDData;
 
 // *****************************************************
 // Global functions

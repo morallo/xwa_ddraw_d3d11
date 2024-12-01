@@ -1737,7 +1737,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_depthStencilR.Release();
 	this->_d2d1RenderTarget.Release();
 	this->_d2d1OffscreenRenderTarget.Release();
-	if (g_bUseSteamVR && g_bEnableEnhancedHUD)
+	if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 		_d2d1EnhancedHUDRenderTarget.Release();
 	this->_d2d1DCRenderTarget.Release();
 	this->_renderTargetView.Release();
@@ -1817,7 +1817,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadertoyBufR.Release();
 		this->_shadertoyRTV_R.Release();
 		this->_shadertoySRV_R.Release();
-		if (g_bEnableEnhancedHUD)
+		if (g_EnhancedHUDData.Enabled)
 		{
 			this->_enhancedHUDBuffer.Release();
 			this->_enhancedHUDSRV.Release();
@@ -2817,7 +2817,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _DCTextAsInput with combined flags\n");
 				}
 
-				if (g_bUseSteamVR && g_bEnableEnhancedHUD)
+				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 				{
 					CD3D11_TEXTURE2D_DESC tmp = desc;
 					desc.Width  = VR_ENHANCED_HUD_BUFFER_SIZE;
@@ -3517,7 +3517,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR && g_bEnableEnhancedHUD)
+				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 				{
 					step = "_enhancedHUDBuffer";
 					hr = this->_d3dDevice->CreateShaderResourceView(this->_enhancedHUDBuffer,
@@ -4092,7 +4092,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		else
 			hr = this->_offscreenBuffer.As(&offscreenSurface);
 
-		if (g_bUseSteamVR && g_bEnableEnhancedHUD)
+		if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 			this->_enhancedHUDBuffer.As(&enhancedHUDSurface);
 
 		// This surface can be used to render directly to the DC foreground buffer
@@ -4108,7 +4108,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(DCSurface, properties, &this->_d2d1DCRenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
-			if (g_bUseSteamVR && g_bEnableEnhancedHUD)
+			if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 				hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(enhancedHUDSurface, properties, &this->_d2d1EnhancedHUDRenderTarget);
 
 			if (SUCCEEDED(hr))
@@ -4118,7 +4118,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
-				if (g_bUseSteamVR && g_bEnableEnhancedHUD)
+				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 				{
 					this->_d2d1EnhancedHUDRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 					this->_d2d1EnhancedHUDRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);

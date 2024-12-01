@@ -11057,7 +11057,7 @@ HRESULT PrimarySurface::Flip(
 			{
 				if (!g_bEnableVR || (g_bUseSteamVR && g_bMapMode))
 				{
-					if (g_bEnableEnhancedHUD && !g_bMapMode && !g_bUseSteamVR)
+					if (g_EnhancedHUDData.Enabled && !g_bMapMode && !g_bUseSteamVR)
 					{
 						this->RenderEnhancedHUDText();
 						this->RenderText(true);
@@ -11066,7 +11066,7 @@ HRESULT PrimarySurface::Flip(
 				}
 				else
 				{
-					if (g_bEnableEnhancedHUD && !g_bMapMode)
+					if (g_EnhancedHUDData.Enabled && !g_bMapMode)
 					{
 						// Temporarily disable the enhanced HUD in VR (needs more work)
 						/*
@@ -12659,13 +12659,13 @@ void PrimarySurface::RenderText(bool earlyExit)
 	ID2D1RenderTarget* rtv = earlyExit ? this->_deviceResources->_d2d1OffscreenRenderTarget : this->_deviceResources->_d2d1RenderTarget;
 	// When VR is enabled, we'll render the enhanced text to its own buffer to be displayed
 	// later as a "transparent" overlay in the cockpit:
-	if (earlyExit && g_bUseSteamVR && g_bEnableEnhancedHUD)
+	if (earlyExit && g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 		rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
 
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
 
-	if (earlyExit && g_bUseSteamVR && g_bEnableEnhancedHUD)
+	if (earlyExit && g_bUseSteamVR && g_EnhancedHUDData.Enabled)
 	{
 		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);
 		//rtv->DrawLine({ 512, 0 }, { 512, 1024 }, s_brush);
@@ -12770,7 +12770,7 @@ void PrimarySurface::RenderText(bool earlyExit)
 		// The enhanced HUD VR text is already placed at buffer coordinates. That is, the
 		// buffer is a square of VR_ENHANCED_HUD_BUFFER_SIZE pixels and the text is placed
 		// inside this square.
-		if (g_bUseSteamVR && g_bEnableEnhancedHUD && earlyExit)
+		if (g_bUseSteamVR && g_EnhancedHUDData.Enabled && earlyExit)
 		{
 			x = (float)xwaText.positionX;
 			y = (float)xwaText.positionY;
@@ -13224,7 +13224,7 @@ void PrimarySurface::RenderBracket()
 		// Original version:
 		//float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
 		float extraScale = 2.0f;
-		if (g_bEnableEnhancedHUD && xwaBracket.isSubComponent)
+		if (g_EnhancedHUDData.Enabled && xwaBracket.isSubComponent)
 		{
 			extraScale += variableScale;
 			posSide += 0.03f * variableScale;
@@ -13232,7 +13232,7 @@ void PrimarySurface::RenderBracket()
 		float strokeWidth = extraScale * min(s_scaleX, s_scaleY);
 
 		// Update variableScale:
-		if (g_bEnableEnhancedHUD && xwaBracket.isSubComponent)
+		if (g_EnhancedHUDData.Enabled && xwaBracket.isSubComponent)
 		{
 			variableScale += 5.0f * g_HiResTimer.elapsed_s;
 			if (variableScale > 5.0f) variableScale = 0.0f;

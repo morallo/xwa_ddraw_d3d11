@@ -2392,7 +2392,13 @@ bool LoadSSAOParams() {
 			}
 
 			if (_stricmp(param, "enable_enhanced_hud") == 0) {
-				g_bEnableEnhancedHUD = (bool)fValue;
+				g_EnhancedHUDData.Enabled = (bool)fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_min_bracket_size") == 0) {
+				g_EnhancedHUDData.MinBracketSize = (int)fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_max_bracket_size") == 0) {
+				g_EnhancedHUDData.MaxBracketSize = (int)fValue;
 			}
 
 			if (_stricmp(param, "bias") == 0) {

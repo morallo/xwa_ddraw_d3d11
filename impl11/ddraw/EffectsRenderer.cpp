@@ -7187,7 +7187,7 @@ void EffectsRenderer::RenderVRBrackets()
 	// Set the textures
 	// Use this to render each bracket individually:
 	_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
-	if (g_bEnableEnhancedHUD)
+	if (g_EnhancedHUDData.Enabled)
 		// Set the text SRV. This SRV has the enhanced HUD text
 		context->PSSetShaderResources(1, 1, _deviceResources->_enhancedHUDSRV.GetAddressOf());
 
@@ -7262,7 +7262,7 @@ void EffectsRenderer::RenderVRBrackets()
 		g_VRGeometryCBuffer.strokeWidth = bracketVR.strokeWidth;
 		g_VRGeometryCBuffer.bracketColor = bracketVR.color;
 
-		if (g_bEnableEnhancedHUD)
+		if (g_EnhancedHUDData.Enabled)
 		{
 			g_VRGeometryCBuffer.renderText     = bracketVR.renderText;
 			g_VRGeometryCBuffer.isSubComponent = bracketVR.isSubComponent;

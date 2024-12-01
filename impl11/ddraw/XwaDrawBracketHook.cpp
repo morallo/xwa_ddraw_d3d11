@@ -2,13 +2,14 @@
 #include "XwaDrawBracketHook.h"
 #include "utils.h"
 #include "Matrices.h"
+#include "globals.h"
 
 //extern bool g_bGlobalDebugFlag; // g_bInhibitCMDBracket, g_bTargetCompDrawn;
 
 std::vector<XwaBracket> g_xwa_bracket;
 
 Vector2 g_SubCMDBracket;
-bool g_bEnableEnhancedHUD = false;
+EnhancedHUDData g_EnhancedHUDData = { false, -1, -1 };
 bool g_bracketIsCurrentTarget = false;
 bool g_bracketIsSubComponent = false;
 int  g_bracketSubComponentIdx = -1;
@@ -82,6 +83,31 @@ void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14,
 
 	if (g_bracketIsSubComponent)
 	{
+		if (g_EnhancedHUDData.MinBracketSize != -1)
+		{
+			if (bracket.width  < g_EnhancedHUDData.MinBracketSize ||
+				bracket.height < g_EnhancedHUDData.MinBracketSize)
+			{
+				int cx = bracket.positionX + bracket.width / 2;
+				int cy = bracket.positionY + bracket.height / 2;
+				bracket.positionX = cx - g_EnhancedHUDData.MinBracketSize / 2;
+				bracket.positionY = cy - g_EnhancedHUDData.MinBracketSize / 2;
+				bracket.width = bracket.height = g_EnhancedHUDData.MinBracketSize;
+			}
+		}
+
+		if (g_EnhancedHUDData.MaxBracketSize != -1)
+		{
+			if (bracket.width  > g_EnhancedHUDData.MaxBracketSize ||
+				bracket.height > g_EnhancedHUDData.MaxBracketSize)
+			{
+				int cx = bracket.positionX + bracket.width / 2;
+				int cy = bracket.positionY + bracket.height / 2;
+				bracket.positionX = cx - g_EnhancedHUDData.MaxBracketSize / 2;
+				bracket.positionY = cy - g_EnhancedHUDData.MaxBracketSize / 2;
+				bracket.width = bracket.height = g_EnhancedHUDData.MaxBracketSize;
+			}
+		}
 		g_curSubcomponentBracket = bracket;
 	}
 	else if (g_bracketIsCurrentTarget)
