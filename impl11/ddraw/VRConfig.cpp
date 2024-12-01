@@ -2996,7 +2996,12 @@ bool LoadSSAOParams() {
 
 			if (_stricmp(param, "enable_cockpit_damage") == 0)
 			{
-				g_bCockpitDamageEnabled = (bool)fValue;
+				g_bEnableCockpitDamage = (bool)fValue;
+			}
+
+			if (_stricmp(param, "enable_grayscale") == 0)
+			{
+				g_bEnableGrayscale = (bool)fValue;
 			}
 
 		}

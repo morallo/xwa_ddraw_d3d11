@@ -5965,7 +5965,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	g_PSCBuffer.AspectRatio = 1.0f;
 	g_PSCBuffer.Offset      = float2(0, 0);
 	g_PSCBuffer.uvSrc1.x = g_PSCBuffer.uvSrc1.y = 1.0f;
-	if (g_config.OnlyGrayscaleInTechRoom)
+	if (g_config.OnlyGrayscale)
 		g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_GRAYSCALE;
 
 	// Initialize the mesh transform for each mesh. During MainSceneHook,

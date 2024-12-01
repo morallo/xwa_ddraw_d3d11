@@ -75,7 +75,7 @@ Config::Config()
 	this->D3dRendererHookEnabled = true;
 	this->HangarShadowsEnabled = true;
 	this->EnableSoftHangarShadows = true;
-	this->OnlyGrayscaleInTechRoom = false;
+	this->OnlyGrayscale = false;
 	this->TechRoomHolograms = false;
 	this->CullBackFaces = false;
 	this->FlipDATImages = false;
@@ -263,7 +263,7 @@ Config::Config()
 			}
 			else if (name == "OnlyGrayscaleInTechRoom")
 			{
-				this->OnlyGrayscaleInTechRoom = stoi(value) != 0;
+				this->OnlyGrayscale = stoi(value) != 0;
 			}
 			else if (name == "TechRoomHolograms")
 			{

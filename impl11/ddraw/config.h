@@ -53,7 +53,7 @@ public:
 	bool MusicSyncFix;
 	bool HangarShadowsEnabled;
 	bool EnableSoftHangarShadows;
-	bool OnlyGrayscaleInTechRoom;
+	bool OnlyGrayscale;
 	bool TechRoomHolograms;
 	bool CullBackFaces;
 	bool FlipDATImages;
