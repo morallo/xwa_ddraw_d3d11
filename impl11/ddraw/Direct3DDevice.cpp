@@ -641,7 +641,7 @@ int g_iDumpGUICounter = 0, g_iHUDCounter = 0;
 bool g_bAutoGreeblesEnabled = true;
 bool g_bShowBlastMarks = true;
 float g_fBlastMarkOfsX = 0.0f, g_fBlastMarkOfsY = 0.0f;
-bool g_bEnableGrayscale = false;
+bool g_bEnableDeveloperMode = false;
 
 SmallestK g_LaserList;
 bool g_bEnableLaserLights = false;
@@ -651,9 +651,6 @@ bool g_b3DSkydomePresent = false;
 
 // Force Cockpit Damage
 bool g_bApplyCockpitDamage = false, g_bResetCockpitDamage = false, g_bResetCockpitDamageInHangar = false;
-// This flag is used to enable cockpit damage -- prevents users from accidentally
-// pressing Ctrl+C and applying cockpit damage.
-bool g_bEnableCockpitDamage = false;
 
 // Custom HUD colors
 uint32_t g_iHUDInnerColor = 0, g_iHUDBorderColor = 0;
@@ -6088,7 +6085,7 @@ HRESULT Direct3DDevice::BeginScene()
 		}
 
 		// Apply the cockpit damage if requested (and enabled)
-		if (g_bEnableCockpitDamage && g_bApplyCockpitDamage) {
+		if (g_bEnableDeveloperMode && g_bApplyCockpitDamage) {
 			FILE *MaskFile = NULL;
 			fopen_s(&MaskFile, "CockpitDamage.txt", "rt");
 			if (MaskFile != NULL) {

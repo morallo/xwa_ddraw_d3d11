@@ -3000,14 +3000,9 @@ bool LoadSSAOParams() {
 				g_bDebugDefaultStarfield = (bool)fValue;
 			}
 
-			if (_stricmp(param, "enable_cockpit_damage") == 0)
+			if (_stricmp(param, "enable_developer_mode") == 0)
 			{
-				g_bEnableCockpitDamage = (bool)fValue;
-			}
-
-			if (_stricmp(param, "enable_grayscale") == 0)
-			{
-				g_bEnableGrayscale = (bool)fValue;
+				g_bEnableDeveloperMode = (bool)fValue;
 			}
 
 		}

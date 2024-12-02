@@ -972,7 +972,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			}
 			// Ctrl+W
 			case 'W': {
-				if (g_bEnableGrayscale)
+				if (g_bEnableDeveloperMode)
 					g_config.OnlyGrayscale = !g_config.OnlyGrayscale;
 				return 0;
 			}
