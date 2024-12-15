@@ -16,6 +16,13 @@
 // https://github.com/Prof-Butts/xwa_ddraw_d3d11/commit/673da14a4b717ded5296dc6e17b1d95c43c20147
 
 /*
+ * Yup, you-know-who again says:
+ * The engine glows are rendered in this function:
+	// L0044B590
+	void Xwa3dRenderEngineGlow( Ptr<S0x042DB60> A4, int A8, Ptr<XwaTextureSurface> AC, unsigned int A10, unsigned int A14 )
+*/
+
+/*
 From you-know-who:
 
 The function to create lights for backdrops look like that:
@@ -563,6 +570,9 @@ bool g_bIsTrianglePointer = false, g_bLastTrianglePointer = false;
 bool g_bIsPlayerObject = false, g_bPrevIsPlayerObject = false, g_bHyperspaceEffectRenderedOnCurrentFrame = false;
 bool g_bIsTargetHighlighted = false; // True if the target can  be fired upon, gets reset every frame
 bool g_bPrevIsTargetHighlighted = false; // The value of g_bIsTargetHighlighted for the previous frame
+// Set to true by RenderEngineGlowHook() to signal that the next draw() call
+// will be rendering an engine glow. Set to false after everey draw() call.
+static bool s_bRenderingEngineGlow = false;
 
 //bool g_bLaserBoxLimitsUpdated = false; // Set to true whenever the laser/ion charge limit boxes are updated
 unsigned int g_iFloatingGUIDrawnCounter = 0;
@@ -771,6 +781,21 @@ static bool IsInTechLibrary()
 	bool isInTechLibrary = updateCallback == XwaTechLibraryGameStateUpdate;
 
 	return isInTechLibrary;
+}
+
+void RenderEngineGlowHook(void *A4, int A8, void* textureSurface, uint32_t outerColor, uint32_t coreColor)
+{
+	void (*Xwa3dRenderEngineGlow)(void*, int, void*, uint32_t, uint32_t) = (void(*)(
+		void *A4,
+		int A8,
+		void* textureSurface,
+		uint32_t A10,
+		uint32_t A14)) 0x044B590;
+
+	// Signal that the next draw() call will be rendering an engine glow
+	s_bRenderingEngineGlow = true;
+	// Call the original XWA code:
+	Xwa3dRenderEngineGlow(A4, A8, textureSurface, outerColor, coreColor);
 }
 
 int g_ExecuteCount;
@@ -5146,8 +5171,8 @@ HRESULT Direct3DDevice::Execute(
 					// Set the flag for EngineGlow and Explosions (enhance them in 32-bit mode, apply bloom)
 					else if (lastTextureSelected->is_EngineGlow) {
 						bModifiedShaders = true;
-						g_PSCBuffer.fBloomStrength = g_BloomConfig.fEngineGlowStrength;
-						g_PSCBuffer.bIsEngineGlow = g_config.EnhanceEngineGlow ? 2 : 1;
+						g_PSCBuffer.fBloomStrength = s_bRenderingEngineGlow ? g_BloomConfig.fEngineGlowStrength : 0;
+						g_PSCBuffer.bIsEngineGlow = (g_config.EnhanceEngineGlow && s_bRenderingEngineGlow) ? 2 : 1;
 						if (!bStateD3dAnnotationOpen) {
 							_deviceResources->BeginAnnotatedEvent(L"EngineGlow");
 							bStateD3dAnnotationOpen = true;
@@ -5689,6 +5714,9 @@ HRESULT Direct3DDevice::Execute(
 					else
 						resources->InitVertexShader(resources->_vertexShader);
 				}
+
+				// Reset the engine glow flag
+				s_bRenderingEngineGlow = false;
 
 				currentIndexLocation += 3 * instruction->wCount;
 				break;

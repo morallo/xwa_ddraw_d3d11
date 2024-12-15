@@ -53,6 +53,8 @@ extern bool g_bFadeLights;
 extern bool g_bEnableQBVHwSAH;
 extern bool g_bUseCentroids;
 
+void RenderEngineGlowHook(void* A4, int A8, void* textureSurface, uint32_t A10, uint32_t A14);
+
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
 	float y = Vector->y;
@@ -1533,6 +1535,21 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 		if (IsXwaExe())
 		{
+			{
+				// Hook the Xwa3dRenderEngineGlow() function. This function is located
+				// at 0x044B590 and it's called from two places 0x0042D91A and 0x0042DB0E
+				// (we know this from looking at IDA and pressing X to see the cross-references).
+				// I think only 0x0042D91A needs to be hooked, but here we're hooking both:
+				uint32_t addr;
+				addr = 0x0042D91A;
+				*(unsigned char*)(addr + 0x00) = 0xE8;
+				*(int*)(addr + 0x01) = (int)RenderEngineGlowHook - (addr + 0x05);
+
+				addr = 0x0042DB0E;
+				*(unsigned char*)(addr + 0x00) = 0xE8;
+				*(int*)(addr + 0x01) = (int)RenderEngineGlowHook - (addr + 0x05);
+			}
+
 			if (g_EnhancedHUDData.Enabled)
 			{
 				uint32_t addr;
