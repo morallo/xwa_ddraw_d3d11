@@ -102,7 +102,18 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.normal = 0;
 	}
 
-	if (ExclusiveMask == SPECIAL_CONTROL_SMOKE)
+	if (ExclusiveMask == SPECIAL_CONTROL_FIRE)
+	{
+		const float a   = 0.2 * alpha;
+		output.color    = float4(texelColor.rgb, a);
+		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, a);
+		output.ssMask   = float4(0, fSpecVal, 0.0, a);
+		output.normal   = 0;
+		output.bloom    = float4(0.5 * texelColor.rgb, a);
+		return output;
+	}
+
+	if (ExclusiveMask == SPECIAL_CONTROL_ENGINE_GLOW_SMOKE)
 	{
 		//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
 		//const float a   = 0.1 * alpha;
@@ -111,6 +122,7 @@ PixelShaderOutput main(PixelShaderInput input)
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, a);
 		output.ssMask   = float4(0, fSpecVal, 0.0, a);
 		output.normal   = 0;
+		output.bloom    = 0;
 		return output;
 	}
 

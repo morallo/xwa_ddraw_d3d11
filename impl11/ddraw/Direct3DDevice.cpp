@@ -4618,11 +4618,13 @@ HRESULT Direct3DDevice::Execute(
 
 				// Set bits in the constant buffers for Smoke and Blast Marks
 				if (bLastTextureSelectedNotNULL) {
-					if (lastTextureSelected->is_Smoke) {
+					if (lastTextureSelected->is_Fire) {
 						//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
 						bModifiedShaders = true;
 						//EnableTransparency();
-						g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_SMOKE; // is_Smoke
+						g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_FIRE; // is_Fire
+						resources->_overrideRTV = TRANSP_LYR_1;
+						//log_debug("[DBG] is_Smoke");
 					}
 					else if (bIsBlastMark) {
 						// Blast Marks are rendered on top of the original texture, after greebles have been added. Greebles are
@@ -4932,7 +4934,7 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bIsScaleableGUIElem || bIsReticle || bIsText || g_bIsTrianglePointer || 
 						lastTextureSelected->is_Debris || lastTextureSelected->is_GenericSSAOMasked ||
 						lastTextureSelected->is_Electricity || bIsExplosion || bIsMapIcon ||
-						lastTextureSelected->is_Smoke)
+						lastTextureSelected->is_Fire)
 					{
 						bModifiedShaders = true;
 						g_PSCBuffer.fSSAOMaskVal = 0;
@@ -5175,7 +5177,7 @@ HRESULT Direct3DDevice::Execute(
 						g_PSCBuffer.bIsEngineGlow = (g_config.EnhanceEngineGlow && s_bRenderingEngineGlow) ? 2 : 1;
 						if (!s_bRenderingEngineGlow)
 						{
-							g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_SMOKE; // "Engine Glow" smoke
+							g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_ENGINE_GLOW_SMOKE; // "Engine Glow" smoke
 							resources->_overrideRTV = TRANSP_LYR_1;
 						}
 						if (!bStateD3dAnnotationOpen) {

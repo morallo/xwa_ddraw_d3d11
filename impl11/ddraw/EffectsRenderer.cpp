@@ -3632,7 +3632,7 @@ void EffectsRenderer::ApplySpecialMaterials()
 
 	if (g_bIsScaleableGUIElem || g_bIsTrianglePointer || _bIsExplosion ||
 		_lastTextureSelected->is_Debris || _lastTextureSelected->is_GenericSSAOMasked ||
-		_lastTextureSelected->is_Electricity || _lastTextureSelected->is_Smoke)
+		_lastTextureSelected->is_Electricity)
 	{
 		_bModifiedShaders = true;
 		g_PSCBuffer.fSSAOMaskVal = 0;

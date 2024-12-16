@@ -105,7 +105,7 @@ std::vector<char*> Explosion_ResNames = {
 };
 
 // Smoke from explosions:
-std::vector<char*> Smoke_ResNames = {
+std::vector<char*> Fire_ResNames = {
 	"dat,3003,", // Sparks.dat <-- Smoke when hitting a target
 	"dat,3004,", // Sparks.dat <-- Smoke when hitting a target
 };

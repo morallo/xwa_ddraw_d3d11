@@ -63,7 +63,7 @@ OPTMeshTransformCBuffer       : register(b8)
 #define SPECIAL_CONTROL_XWA_SHADOW          1
 #define SPECIAL_CONTROL_GLASS               2
 #define SPECIAL_CONTROL_BACKGROUND          3
-#define SPECIAL_CONTROL_SMOKE               4
+#define SPECIAL_CONTROL_FIRE                4
 #define SPECIAL_CONTROL_HIGHLIGHT           5 // Used for debugging purposes (to highlight specific elements)
 #define SPECIAL_CONTROL_NO_COLOR_ALPHA      6 // When this is set, the alpha value for the color output is forced to 0. Used in AlphaToBloom.hlsl
 #define SPECIAL_CONTROL_EXPLOSION           7
@@ -72,6 +72,7 @@ OPTMeshTransformCBuffer       : register(b8)
 #define SPECIAL_CONTROL_GRAYSCALE           10 // Used in the Tech Room to display grayscale models. Only for modelling/debugging purposes
 #define SPECIAL_CONTROL_DEBUG               11 // Generic debug flag. Only used when developing or testing features.
 #define SPECIAL_CONTROL_MISSILE             12
+#define SPECIAL_CONTROL_ENGINE_GLOW_SMOKE   13 // Engine glow used to display smoke
 // These are the bits used for exclusive special control flags
 #define SPECIAL_CONTROL_EXCLUSIVE_MASK      0x0FF
 // The following are bits in the special_control field. They need to be blended with the rest of the exclusive

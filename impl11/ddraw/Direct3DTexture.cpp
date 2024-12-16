@@ -246,7 +246,7 @@ Direct3DTexture::Direct3DTexture(DeviceResources* deviceResources, TextureSurfac
 	this->is_EngineGlow = false;
 	this->is_Electricity = false;
 	this->is_Explosion = false;
-	this->is_Smoke = false;
+	this->is_Fire = false;
 	this->is_CockpitTex = false;
 	this->is_GunnerTex = false;
 	this->is_Exterior = false;
@@ -939,8 +939,8 @@ void Direct3DTexture::TagTexture() {
 		// Catch the explosion textures and mark them
 		if (isInVector(surface->_cname, Explosion_ResNames))
 			this->is_Explosion = true;
-		if (isInVector(surface->_cname, Smoke_ResNames))
-			this->is_Smoke = true;
+		if (isInVector(surface->_cname, Fire_ResNames))
+			this->is_Fire = true;
 		// Catch the lens flare and mark it
 		if (isInVector(surface->_cname, LensFlare_ResNames))
 			this->is_LensFlare = true;
@@ -1661,7 +1661,7 @@ HRESULT Direct3DTexture::Load(
 	this->is_Explosion = d3dTexture->is_Explosion;
 	this->DATImageId = d3dTexture->DATImageId;
 	this->DATGroupId = d3dTexture->DATGroupId;
-	this->is_Smoke = d3dTexture->is_Smoke;
+	this->is_Fire = d3dTexture->is_Fire;
 	this->is_CockpitTex = d3dTexture->is_CockpitTex;
 	this->is_GunnerTex = d3dTexture->is_GunnerTex;
 	this->is_Exterior = d3dTexture->is_Exterior;
