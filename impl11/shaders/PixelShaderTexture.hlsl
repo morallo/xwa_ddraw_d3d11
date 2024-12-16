@@ -105,10 +105,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (ExclusiveMask == SPECIAL_CONTROL_SMOKE)
 	{
 		//output.color = float4(brightness * diffuse * texelColor.xyz, texelColor.w);
-		const float a   = 0.1 * alpha;
-		output.color    = float4(texelColor.rgb, a);
+		//const float a   = 0.1 * alpha;
+		const float a   = 0.3 * alpha;
+		output.color    = float4(input.color.xyz * texelColor.rgb, a);
 		output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, a);
 		output.ssMask   = float4(0, fSpecVal, 0.0, a);
+		output.normal   = 0;
 		return output;
 	}
 

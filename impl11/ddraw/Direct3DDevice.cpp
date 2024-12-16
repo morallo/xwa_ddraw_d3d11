@@ -4622,7 +4622,7 @@ HRESULT Direct3DDevice::Execute(
 						//log_debug("[DBG] Smoke: %s", lastTextureSelected->_surface->_name);
 						bModifiedShaders = true;
 						//EnableTransparency();
-						g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_SMOKE;
+						g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_SMOKE; // is_Smoke
 					}
 					else if (bIsBlastMark) {
 						// Blast Marks are rendered on top of the original texture, after greebles have been added. Greebles are
@@ -5173,6 +5173,11 @@ HRESULT Direct3DDevice::Execute(
 						bModifiedShaders = true;
 						g_PSCBuffer.fBloomStrength = s_bRenderingEngineGlow ? g_BloomConfig.fEngineGlowStrength : 0;
 						g_PSCBuffer.bIsEngineGlow = (g_config.EnhanceEngineGlow && s_bRenderingEngineGlow) ? 2 : 1;
+						if (!s_bRenderingEngineGlow)
+						{
+							g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_SMOKE; // "Engine Glow" smoke
+							resources->_overrideRTV = TRANSP_LYR_1;
+						}
 						if (!bStateD3dAnnotationOpen) {
 							_deviceResources->BeginAnnotatedEvent(L"EngineGlow");
 							bStateD3dAnnotationOpen = true;
