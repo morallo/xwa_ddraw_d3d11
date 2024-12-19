@@ -181,7 +181,8 @@ PixelShaderOutput main(PixelShaderInput input)
 		// coverColor is the cover_texture now
 		float brightness = ct_brightness;
 		// The cover texture is bright enough, go shadeless and make it brighter
-		if (HSV.z * coverAlpha >= 0.8) {
+		if (HSV.z * coverAlpha >= 0.8)
+		{
 			// Increase the brightness:
 			HSV.z *= 1.2;
 			coverColor.xyz = HSVtoRGB(HSV);
@@ -192,30 +193,34 @@ PixelShaderOutput main(PixelShaderInput input)
 			output.ssaoMask.b  = 0.15; // Low spec intensity
 			output.ssMask.b    = 1.0;  // Shadeless material
 		}
-		// Display the dynamic cockpit element only where the texture cover is transparent:
-		// In 32-bit mode, the cover textures appear brighter, we should probably dim them, 
-		// that's what the brightness setting below is for:
-		coverColor = lerp(hud_texelColor, brightness * coverColor, coverAlpha);
-		output.bloom = lerp(0.0, output.bloom, coverAlpha);
-		// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
-		//diffuse = lerp(1.0, diffuse, coverAlpha);
-		// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
-		// ssMask: NMIntensity, SpecValue, Shadeless
-		// DC areas are shadeless, have high glossiness and low spec intensity
-		// if coverAlpha is 1, this is the cover texture
-		// if coverAlpha is 0, this is the hole in the cover texture
-		//output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
-		output.ssaoMask.rgb = lerp(float3(0, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
-		output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, coverAlpha); // Normal Mapping intensity, Specular Value
-		output.ssaoMask.a   = max(output.ssaoMask.a, (1.0 - coverAlpha));
-		output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
-		output.ssMask.b     = 1.0 - coverAlpha; // Make this area shadeless
-		// After all the blending with the cover texture is finished, the final color should
-		// be opaque. Otherwise transparent areas will look black when shading is off.
-		coverColor.a		= 1.0f;
-		coverAlpha			= coverColor.a;
+		else
+		{
+			// Display the dynamic cockpit element only where the texture cover is transparent:
+			// In 32-bit mode, the cover textures appear brighter, we should probably dim them,
+			// that's what the brightness setting below is for:
+			coverColor = lerp(hud_texelColor, brightness * coverColor, coverAlpha);
+			output.bloom = lerp(0.0, output.bloom, coverAlpha);
+			// The diffuse value will be 1 (shadeless) wherever the cover texture is transparent:
+			//diffuse = lerp(1.0, diffuse, coverAlpha);
+			// ssaoMask: SSAOMask/Material, Glossiness x 128, SpecInt, alpha
+			// ssMask: NMIntensity, SpecValue, Shadeless
+			// DC areas are shadeless, have high glossiness and low spec intensity
+			// if coverAlpha is 1, this is the cover texture
+			// if coverAlpha is 0, this is the hole in the cover texture
+			//output.ssaoMask.rgb = lerp(float3(SHADELESS_MAT, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
+			output.ssaoMask.rgb = lerp(float3(0, 1.0, 0.15), output.ssaoMask.rgb, coverAlpha);
+			output.ssMask.rg    = lerp(float2(0.0, 1.0), output.ssMask.rg, coverAlpha); // Normal Mapping intensity, Specular Value
+			output.ssaoMask.a   = max(output.ssaoMask.a, (1.0 - coverAlpha));
+			output.ssMask.a     = output.ssaoMask.a; // Already clamped in the previous line
+			output.ssMask.b     = 1.0 - coverAlpha; // Make this area shadeless
+			// After all the blending with the cover texture is finished, the final color should
+			// be opaque. Otherwise transparent areas will look black when shading is off.
+			coverColor.a        = 1.0f;
+			coverAlpha          = coverColor.a;
+		}
 	}
-	else {
+	else
+	{
 		// If use_damage_texture is set, then the cover texture will have the damage texture, so
 		// we must continue to use it. Otherwise, display the HUD contents:
 		if (!use_damage_texture) {
