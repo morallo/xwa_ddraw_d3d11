@@ -8,7 +8,7 @@
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 
-Texture2D texture1 : register(t1);
+//Texture2D texture1 : register(t1);
 
 TextureCube skybox : register(t21);
 
@@ -17,7 +17,7 @@ cbuffer ConstantBuffer : register(b11)
 {
 	uint   numStickyRegions;
 	uint2  clicked;
-	uint   bRenderBracket;
+	uint   renderBracket;
 	// 16 bytes
 	float4 stickyRegions[4];
 	// 80 bytes
@@ -27,9 +27,8 @@ cbuffer ConstantBuffer : register(b11)
 	float3 bracketColor;
 	// 128 bytes
 	//float4 U;
-	uint   renderText;
-	uint   isSubComponent;
-	uint2  vrg_unused0;
+	float2 src0;
+	float2 src1;
 	// 144 bytes
 	matrix viewMat;
 	// 208 bytes
@@ -80,6 +79,34 @@ float noise(in float3 x)
 				hash(i + float3(1, 1, 1)), f.x), f.y), f.z);
 }
 
+PixelShaderOutput RenderEnhancedBracket(PixelShaderInput input)
+{
+	PixelShaderOutput output;
+
+	const float3 luma  = float3(0.299, 0.587, 0.114);
+	const float2 delta = src1 - src0;
+	const float  ratio = delta.x / delta.y;
+	// This code assumes the text to display is larger in the x axis:
+	const float2 uv    = lerp(src0, src1, float2(1, ratio) * input.tex.xy);
+
+	float4 textCol  = float4(texture0.Sample(sampler0, uv));
+	// We're using approx luma to compute the alpha channel here and then scale
+	// alpha to make it brighter
+	textCol.a       = saturate(5.0 * dot(luma, textCol.rgb));
+	if (textCol.a < 0.1)
+		discard;
+
+	textCol.rgb    *= 1.5; // Make the text a bit brighter
+	output.color    = textCol;
+	output.bloom    = 1.5 * textCol;
+	output.pos3D    = 0;
+	output.normal   = 0;
+	output.ssMask   = 0;
+	output.ssaoMask = 0;
+
+	return output;
+}
+
 PixelShaderOutput RenderBracket(PixelShaderInput input)
 {
 	PixelShaderOutput output;
@@ -88,22 +115,6 @@ PixelShaderOutput RenderBracket(PixelShaderInput input)
 		(input.tex.x <= strokeWidth) || (input.tex.x >= 1.0 - strokeWidth) || // Left and right bars
 		(input.tex.y <= strokeWidth) || (input.tex.y >= 1.0 - strokeWidth) ?  // Top and bottom bars
 		1 : 0;
-
-	if (renderText)
-	{
-		//float2 uv = 0.5 * (float2(1, -1) * (input.tex - 0.5)) + 0.5;
-		float2 uv = 1.0 * (float2(1, -1) * (input.tex - 0.5)) + 0.5;
-
-		float4 textCol  = float4(texture1.Sample(sampler0, uv));
-		textCol.a      += 0.5;
-		output.color    = textCol;
-		output.bloom    = float4(0.5 * output.color.rgb, textCol.a);
-		output.pos3D    = 0;
-		output.normal   = 0;
-		output.ssMask   = 0;
-		output.ssaoMask = float4(fSSAOMaskVal, 0.1, 0, textCol.a);
-		return output;
-	}
 
 	if (alpha < 0.7)
 		discard;
@@ -187,8 +198,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		return RenderSkyCylinder(input);
 	}
 
-	if (bRenderBracket)
+	if (renderBracket == 1)
+	{
 		return RenderBracket(input);
+	}
+
+	if (renderBracket == 2)
+	{
+		return RenderEnhancedBracket(input);
+	}
 
 	PixelShaderOutput output;
 	const float4 texelColor = texture0.Sample(sampler0, input.tex);

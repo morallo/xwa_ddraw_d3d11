@@ -6994,7 +6994,7 @@ void EffectsRenderer::RenderVRDots()
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -7177,7 +7177,7 @@ void EffectsRenderer::RenderVRBrackets()
 	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
-	g_VRGeometryCBuffer.bRenderBracket = 1;
+	g_VRGeometryCBuffer.renderBracket = 1;
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
@@ -7265,11 +7265,11 @@ void EffectsRenderer::RenderVRBrackets()
 		g_VRGeometryCBuffer.strokeWidth = bracketVR.strokeWidth;
 		g_VRGeometryCBuffer.bracketColor = bracketVR.color;
 
-		if (g_EnhancedHUDData.Enabled)
+		/*if (g_EnhancedHUDData.Enabled)
 		{
-			g_VRGeometryCBuffer.renderText     = bracketVR.renderText;
+			g_VRGeometryCBuffer.bRenderText    = bracketVR.renderText;
 			g_VRGeometryCBuffer.isSubComponent = bracketVR.isSubComponent;
-		}
+		}*/
 
 		{
 			Vector4 P = dotPosSteamVR;
@@ -7379,7 +7379,7 @@ void EffectsRenderer::RenderVRHUD()
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -7563,17 +7563,30 @@ void EffectsRenderer::RenderVREnhancedHUD()
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	// Disable region highlighting
-	g_VRGeometryCBuffer.clicked[0] = false;
-	g_VRGeometryCBuffer.clicked[1] = false;
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.clicked[0]     = false;
+	g_VRGeometryCBuffer.clicked[1]     = false;
+	// If we're in this path, then g_EnhancedHUDData.Enabled should already be true
+	g_VRGeometryCBuffer.renderBracket = 2;
+	g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
+	g_VRGeometryCBuffer.u1 = g_VRGeometryCBuffer.v1 = 0;
+	DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_NAME_SRC_IDX];
+	if (src_box->bComputed)
+	{
+		g_VRGeometryCBuffer.u0 = src_box->coords.x0;
+		g_VRGeometryCBuffer.v0 = src_box->coords.y0;
+
+		g_VRGeometryCBuffer.u1 = src_box->coords.x1;
+		g_VRGeometryCBuffer.v1 = src_box->coords.y1;
+	}
 
 	// Flags used in RenderScene():
-	_bIsCockpit = !bGunnerTurret;
-	_bIsGunner = bGunnerTurret;
+	_bIsCockpit   = !bGunnerTurret;
+	_bIsGunner    = bGunnerTurret;
 	_bIsBlastMark = false;
 
 	// Set the textures
-	_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
+	//_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
+	_deviceResources->InitPSShaderResourceView(resources->_DCTextSRV.Get(), nullptr);
 
 	// Set the mesh buffers
 	ID3D11ShaderResourceView* vsSSRV[4] = { _vrDotMeshVerticesSRV.Get(), nullptr, _vrDotMeshTexCoordsSRV.Get(), nullptr };
@@ -7611,11 +7624,10 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
 	Matrix4 toSteamVR = swap * S;
 
-	// X is 200m in front of us. This is the location of the reticle and the place where lasers
-	// converge. Turns out it wasn't that hard to figure out after all...
+	// X is 200m (200 * 40.96 = 8192) in front of us.
 	Vector3 X(0, -8192, 0);
 	Vector3 Xt = g_curTargetBracketVR.posOPT;
-	log_debug_vr("X: %0.3f, %0.3f, %0.3f", Xt.x, Xt.y, Xt.z);
+	//log_debug_vr("X: %0.3f, %0.3f, %0.3f", Xt.x, Xt.y, Xt.z);
 
 	// Compute a new matrix for the dot by using the origin -> intersection point view vector.
 	// First we'll align this vector with Z+ and then we'll use the inverse of this matrix to
@@ -7647,7 +7659,6 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		Vector4 O = g_VSMatrixCB.fullViewMat * Vector4(0, 0, 0, 1);
 		// N goes from the headset's origin to the intersection point (P): it's the view vector now
 		Vector4 N = P - O;
-		//log_debug_vr(50 + contIdx * 25, FONT_WHITE_COLOR, "P[%d]: %0.3f, %0.3f, %0.3f", contIdx, P.x, P.y, P.z);
 
 		N.normalize();
 		// Rotate N into the Y-Z plane --> make x == 0
@@ -7687,13 +7698,14 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		// a little off-center from the bracket
 		// +Z --> displace right
 		// +X --> displace down
-		Matrix4 DispZ = Matrix4().rotateZ(3.5f);
-		Matrix4 DispX = Matrix4().rotateX(3.5f);
+		//Matrix4 DispZ = Matrix4().rotateZ(3.5f);
+		Matrix4 DispZ = Matrix4().identity();
+		Matrix4 DispX = Matrix4().rotateX(7.0f);
 		Matrix4 Disp = DispX * DispZ;
 
 		// The FrontCenter matrix is enough to put the square on top of the reticle.
 		// We just scale the quad and push it 200m away:
-		Matrix4 FrontCenter = Matrix4().translate(0, -8192, 0) * Matrix4().scale(812);
+		Matrix4 FrontCenter = Matrix4().translate(0, -8192, 0) * Matrix4().scale(2.25f * 812.0f);
 		// Once the quad is ahead of us, we rotate it about the origin so that it follows
 		// the current bracket. Ryt is only used to invert the headset rotation and keep
 		// the quad aligned with the cockpit:
@@ -8266,7 +8278,7 @@ void EffectsRenderer::RenderVRKeyboard()
 		g_VRGeometryCBuffer.clicked[i] = g_LaserPointerBuffer.TriggerState[i];
 		g_VRGeometryCBuffer.clickRegions[i] = g_vrKeybState.clickRegions[i];
 	}
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -8357,7 +8369,7 @@ void EffectsRenderer::RenderVRGloves()
 	// Disable region highlighting on the gloves for now...
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
