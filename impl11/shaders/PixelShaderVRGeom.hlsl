@@ -86,8 +86,18 @@ PixelShaderOutput RenderEnhancedBracket(PixelShaderInput input)
 	const float3 luma  = float3(0.299, 0.587, 0.114);
 	const float2 delta = src1 - src0;
 	const float  ratio = delta.x / delta.y;
+
 	// This code assumes the text to display is larger in the x axis:
-	const float2 uv    = lerp(src0, src1, float2(1, ratio) * input.tex.xy);
+	// If deltaX is always 1.0 (covering the whole quad horizontally),
+	// then deltaY is the inverse of the ratio:
+	const float deltaY = 1.0 / ratio;
+	// To center the text, there's a vertical offset that should be blank:
+	const float yOfs = (1.0 - deltaY) / 2.0;
+	// And now v should go from [0..1] within the deltaY band:
+	const float v = (input.tex.y - yOfs) / deltaY;
+	if (v < 0.0 || v > 1.0)
+		discard;
+	const float2 uv = lerp(src0, src1, float2(input.tex.x, v));
 
 	float4 textCol  = float4(texture0.Sample(sampler0, uv));
 	// We're using approx luma to compute the alpha channel here and then scale

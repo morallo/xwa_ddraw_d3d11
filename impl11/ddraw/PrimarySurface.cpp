@@ -13396,8 +13396,6 @@ void PrimarySurface::CacheBracketsVR()
 		{
 			// For the enhanced HUD, we'll add a special bracket just to render
 			// the text.
-			//float HALF_BRACKET_SIZE_PX = (float)xwaBracket.width / 2.0f;
-			const float HALF_BRACKET_SIZE_PX = (float)xwaBracket.width;
 			const float Z200 = Zfar / (200.0f * METERS_TO_OPT + Zfar);
 
 			X = (float)(xwaBracket.positionX + xwaBracket.width  / 2.0f);
@@ -13406,16 +13404,9 @@ void PrimarySurface::CacheBracketsVR()
 			V.y = -V.y;
 			V.z = -V.z;
 
-			X = screenCenter.x + HALF_BRACKET_SIZE_PX;
-			Y = screenCenter.y + HALF_BRACKET_SIZE_PX;
-			float3 W = InverseTransformProjectionScreen({ X, Y, Z200, Z200 }); // CacheBracketsVR
-			W.y = -W.y;
-			W.z = -W.z;
-
 			bracketVR.posOPT.x = V.x;
 			bracketVR.posOPT.y = V.z;
 			bracketVR.posOPT.z = V.y;
-			bracketVR.halfWidthOPT = fabs(W.x - C.x);
 			bracketVR.renderText  = true;
 			bracketVR.color.x = 1.0f;
 			bracketVR.color.y = 0.1f;

@@ -7527,7 +7527,7 @@ void EffectsRenderer::RenderVRHUD()
 void EffectsRenderer::RenderVREnhancedHUD()
 {
 	if (!g_bUseSteamVR || !g_bRendering3D || _bHUDRendered || !_bCockpitConstantsCaptured ||
-		!g_curTargetBracketVRCaptured)
+		*g_playerInHangar || !g_curTargetBracketVRCaptured)
 		return;
 
 	_deviceResources->BeginAnnotatedEvent(L"RenderVREnhancedHUD");
@@ -7536,7 +7536,6 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	auto& context = resources->_d3dDeviceContext;
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
-	const bool bInHangar = *g_playerInHangar;
 
 	SaveContext();
 
@@ -7561,10 +7560,15 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	g_PSCBuffer.bIsShadeless = 1;
 	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
+	// Flags used in RenderScene():
+	_bIsCockpit   = !bGunnerTurret;
+	_bIsGunner    = bGunnerTurret;
+	_bIsBlastMark = false;
+
 	g_VRGeometryCBuffer.numStickyRegions = 0;
 	// Disable region highlighting
-	g_VRGeometryCBuffer.clicked[0]     = false;
-	g_VRGeometryCBuffer.clicked[1]     = false;
+	g_VRGeometryCBuffer.clicked[0] = false;
+	g_VRGeometryCBuffer.clicked[1] = false;
 	// If we're in this path, then g_EnhancedHUDData.Enabled should already be true
 	g_VRGeometryCBuffer.renderBracket = 2;
 	g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
@@ -7579,13 +7583,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		g_VRGeometryCBuffer.v1 = src_box->coords.y1;
 	}
 
-	// Flags used in RenderScene():
-	_bIsCockpit   = !bGunnerTurret;
-	_bIsGunner    = bGunnerTurret;
-	_bIsBlastMark = false;
-
 	// Set the textures
-	//_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
 	_deviceResources->InitPSShaderResourceView(resources->_DCTextSRV.Get(), nullptr);
 
 	// Set the mesh buffers
@@ -7605,7 +7603,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 
 	// Set the constants buffer
 	Matrix4 Vinv;
-	if (bGunnerTurret || bInHangar)
+	if (bGunnerTurret)
 	{
 		// For the Gunner Turret, we're going to remove the world-view transform and replace it
 		// with an identity matrix. That way, the gloves, which are already in viewspace coords,
@@ -7635,7 +7633,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	Matrix4 Rxt, Rzt;
 	{
 		Vector4 P;
-		if (!bGunnerTurret && !bInHangar)
+		if (!bGunnerTurret)
 		{
 			// g_LaserPointerIntersSteamVR is not populated in this case, so we need to transform
 			// g_LaserPointer3DIntersection, which is in OPT scale, into the SteamVR coord sys.
@@ -7692,7 +7690,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	}
 
 	Matrix4 DotTransform;
-	if (!bGunnerTurret && !bInHangar)
+	if (!bGunnerTurret)
 	{
 		// Small angular displacement so that we can display quads
 		// a little off-center from the bracket
@@ -7700,7 +7698,14 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		// +X --> displace down
 		//Matrix4 DispZ = Matrix4().rotateZ(3.5f);
 		Matrix4 DispZ = Matrix4().identity();
-		Matrix4 DispX = Matrix4().rotateX(7.0f);
+
+		// halfWidthOPT contains the size of the bracket as measured from the center of
+		// the screen and back-projected to 65536m away. This makes a rectangle triangle with
+		// one side being halfWidthOPT and the other being 40.96 * 65536. To compute the angle
+		// we just use atan2(). This angle can be used to rotate anything from the center of
+		// the bracket to the edge of the bracket:
+		const float angle = RAD_TO_DEG * atan2(g_curTargetBracketVR.halfWidthOPT, METERS_TO_OPT * 65536.0f);
+		Matrix4 DispX = Matrix4().rotateX(-angle);
 		Matrix4 Disp = DispX * DispZ;
 
 		// The FrontCenter matrix is enough to put the square on top of the reticle.
