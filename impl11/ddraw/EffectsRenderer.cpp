@@ -2494,6 +2494,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_bDotsbRendered = false;
 	_bHUDRendered = false;
 	_bBracketsRendered = false;
+	_bEnhancedBracketsRendered = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -7425,7 +7426,8 @@ void EffectsRenderer::RenderVRHUD()
 
 	// X is 200m in front of us. This is the location of the reticle and the place where lasers
 	// converge. Turns out it wasn't that hard to figure out after all...
-	Vector3 X(0, -8192, 0);
+	constexpr float RETICLE_DEPTH_OPT = 65536.0f * METERS_TO_OPT;
+	Vector3 X(0, -RETICLE_DEPTH_OPT, 0);
 
 	// Compute a new matrix for the dot by using the origin -> intersection point view vector.
 	// First we'll align this vector with Z+ and then we'll use the inverse of this matrix to
@@ -7482,7 +7484,7 @@ void EffectsRenderer::RenderVRHUD()
 		V = Rx * Ry; // <-- Up direction is reticle-aligned
 		// The transpose is the inverse, so it will align Z+ with the view vector:
 		V.transpose();
-		V = Matrix4().scale(812.0f) * swap * V * swap;
+		V = Matrix4().scale(RETICLE_DEPTH_OPT * 0.1f) * swap * V * swap;
 	}
 
 	Matrix4 DotTransform;
@@ -7526,7 +7528,7 @@ void EffectsRenderer::RenderVRHUD()
  */
 void EffectsRenderer::RenderVREnhancedHUD()
 {
-	if (!g_bUseSteamVR || !g_bRendering3D || _bHUDRendered || !_bCockpitConstantsCaptured ||
+	if (!g_bUseSteamVR || !g_bRendering3D || _bEnhancedBracketsRendered || !_bCockpitConstantsCaptured ||
 		*g_playerInHangar || !g_curTargetBracketVRCaptured)
 		return;
 
@@ -7743,7 +7745,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 	RenderScene(false);
 
-	_bHUDRendered = true;
+	_bEnhancedBracketsRendered = true;
 	RestoreContext();
 	_deviceResources->EndAnnotatedEvent();
 }

@@ -140,6 +140,7 @@ protected:
 	bool _bDotsbRendered;
 	bool _bHUDRendered;
 	bool _bBracketsRendered;
+	bool _bEnhancedBracketsRendered;
 
 	D3D11_PRIMITIVE_TOPOLOGY _oldTopology;
 	UINT _oldStencilRef, _oldSampleMask;
