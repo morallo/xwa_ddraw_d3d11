@@ -7627,7 +7627,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
 	Matrix4 toSteamVR = swap * S;
 
-	const float BRACKET_DEPTH_METERS = 200.0f;
+	const float BRACKET_DEPTH_METERS = 65536.0f;
 	const float BRACKET_DEPTH_OPT    = METERS_TO_OPT * BRACKET_DEPTH_METERS;
 	Vector3 X = g_curTargetBracketVR.posOPT;
 	Matrix4 TOpt = Matrix4().translate(X.x, X.y, X.z);
@@ -7684,8 +7684,9 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	Matrix4 DotTransform;
 	//if (!bGunnerTurret)
 	{
-		// This is the *fixed* scale of the text bracket:
-		const float scale = 2.25f * 819.2f;
+		// This is the *fixed* scale of the text bracket. Here we're using a scale that is
+		// proportional to the fixed depth we'll be using.
+		const float scale = 2.25f * (BRACKET_DEPTH_METERS / 10.0f) * METERS_TO_OPT;
 		// This is the variable scale of the target bracket (this is the same scale we use
 		// in RenderVRBrackets).
 		const float meshScale = (g_curTargetBracketVR.halfWidthOPT * 2.0f) / meshWidth;

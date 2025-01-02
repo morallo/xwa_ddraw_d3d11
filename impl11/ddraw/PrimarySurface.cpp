@@ -13379,9 +13379,7 @@ void PrimarySurface::CacheBracketsVR()
 		W.z = -W.z;
 
 		BracketVR bracketVR;
-		bracketVR.posOPT.x = V.x;
-		bracketVR.posOPT.y = V.z;
-		bracketVR.posOPT.z = V.y;
+		bracketVR.posOPT       = { V.x, V.z, V.y };
 		bracketVR.halfWidthOPT = fabs(W.x - C.x);
 		bracketVR.widthPix     = xwaBracket.width;
 		bracketVR.strokeWidth  = strokeWidthOPT / (2.0f * bracketVR.halfWidthOPT);
@@ -13396,27 +13394,7 @@ void PrimarySurface::CacheBracketsVR()
 		{
 			// For the enhanced HUD, we'll add a special bracket just to render
 			// the text.
-			const float Z200 = Zfar / (200.0f * METERS_TO_OPT + Zfar);
-
-			X = (float)(xwaBracket.positionX + xwaBracket.width  / 2.0f);
-			Y = (float)(xwaBracket.positionY + xwaBracket.height / 2.0f);
-			float3 V = InverseTransformProjectionScreen({ X, Y, Z200, Z200 }); // CacheBracketsVR
-			V.y = -V.y;
-			V.z = -V.z;
-
-			C = InverseTransformProjectionScreen({ screenCenter.x, screenCenter.y, Z200, Z200 }); // CacheBracketsVR
-			C.y = -C.y;
-			C.z = -C.z;
-
-			X = screenCenter.x + xwaBracket.width  / 2.0f;
-			Y = screenCenter.y + xwaBracket.height / 2.0f;
-			float3 W = InverseTransformProjectionScreen({ X, Y, Z200, Z200 }); // CacheBracketsVR
-			W.y = -W.y;
-			W.z = -W.z;
-
-			bracketVR.posOPT       = { V.x, V.z, V.y };
-			bracketVR.halfWidthOPT = fabs(W.x - C.x);
-			g_curTargetBracketVR   = bracketVR;
+			g_curTargetBracketVR = bracketVR;
 			g_curTargetBracketVRCaptured = true;
 			//g_bracketsVR.push_back(bracketVR);
 		}
