@@ -13383,12 +13383,12 @@ void PrimarySurface::CacheBracketsVR()
 		bracketVR.posOPT.y = V.z;
 		bracketVR.posOPT.z = V.y;
 		bracketVR.halfWidthOPT = fabs(W.x - C.x);
+		bracketVR.widthPix     = xwaBracket.width;
 		bracketVR.strokeWidth  = strokeWidthOPT / (2.0f * bracketVR.halfWidthOPT);
 		bracketVR.color.x = (float)((brushColor >> 16) & 0xFF) / 255.0f;
 		bracketVR.color.y = (float)((brushColor >>  8) & 0xFF) / 255.0f;
 		bracketVR.color.z = (float)((brushColor >>  0) & 0xFF) / 255.0f;
 		bracketVR.isSubComponent = xwaBracket.isSubComponent;
-		bracketVR.renderText     = false;
 		g_bracketsVR.push_back(bracketVR);
 
 		// Temporarily disable the enhanced HUD in VR
@@ -13404,14 +13404,19 @@ void PrimarySurface::CacheBracketsVR()
 			V.y = -V.y;
 			V.z = -V.z;
 
-			bracketVR.posOPT.x = V.x;
-			bracketVR.posOPT.y = V.z;
-			bracketVR.posOPT.z = V.y;
-			bracketVR.renderText  = true;
-			bracketVR.color.x = 1.0f;
-			bracketVR.color.y = 0.1f;
-			bracketVR.color.z = 0.1f;
-			g_curTargetBracketVR = bracketVR;
+			C = InverseTransformProjectionScreen({ screenCenter.x, screenCenter.y, Z200, Z200 }); // CacheBracketsVR
+			C.y = -C.y;
+			C.z = -C.z;
+
+			X = screenCenter.x + xwaBracket.width  / 2.0f;
+			Y = screenCenter.y + xwaBracket.height / 2.0f;
+			float3 W = InverseTransformProjectionScreen({ X, Y, Z200, Z200 }); // CacheBracketsVR
+			W.y = -W.y;
+			W.z = -W.z;
+
+			bracketVR.posOPT       = { V.x, V.z, V.y };
+			bracketVR.halfWidthOPT = fabs(W.x - C.x);
+			g_curTargetBracketVR   = bracketVR;
 			g_curTargetBracketVRCaptured = true;
 			//g_bracketsVR.push_back(bracketVR);
 		}

@@ -97,7 +97,9 @@ PixelShaderOutput RenderEnhancedBracket(PixelShaderInput input)
 	const float v = (input.tex.y - yOfs) / deltaY;
 	if (v < 0.0 || v > 1.0)
 		discard;
-	const float2 uv = lerp(src0, src1, float2(input.tex.x, v));
+	// v is inverted here because the transform chain for the bracket ends up doing
+	// a vertical mirror image, and it's just easier to flip the texture here:
+	const float2 uv = lerp(src0, src1, float2(input.tex.x, 1.0 - v));
 
 	float4 textCol  = float4(texture0.Sample(sampler0, uv));
 	// We're using approx luma to compute the alpha channel here and then scale

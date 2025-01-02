@@ -1978,7 +1978,7 @@ void EffectsRenderer::CreateVRMeshes()
 	// Rects used to display VR dots and other things
 	// *************************************************
 	log_debug("[DBG] [AC] Creating VR Dot buffers");
-	CreateRectangleMesh(0.017f, 0.017f, { 0, 0, 0 },
+	CreateRectangleMesh(DOT_BUFFER_SIZE_METERS, DOT_BUFFER_SIZE_METERS, { 0, 0, 0 },
 		g_vrDotTriangles, g_vrDotMeshVertices, g_vrDotTextureCoords,
 		_vrDotVertexBuffer, _vrDotIndexBuffer,
 		_vrDotMeshVerticesBuffer, _vrDotMeshVerticesSRV,
@@ -7601,124 +7601,122 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
-	// Set the constants buffer
-	Matrix4 Vinv;
-	if (bGunnerTurret)
+	Vector4 cUp, cBk, cDn, cFd;
 	{
-		// For the Gunner Turret, we're going to remove the world-view transform and replace it
-		// with an identity matrix. That way, the gloves, which are already in viewspace coords,
-		// will follow the headset no matter how the turret is oriented.
-		Matrix4 Id;
-		const float* m = Id.get();
-		for (int i = 0; i < 16; i++) _CockpitConstants.transformWorldView[i] = m[i];
+		Matrix4 ViewMatrix = g_VSMatrixCB.fullViewMat;
+		ViewMatrix.invert();
 
-		Vinv = g_VSMatrixCB.fullViewMat;
-		Vinv.invert();
+		// Up vector, SteamVR coords. Compensated for HMD rotation
+		cUp = ViewMatrix * Vector4(0, 1, 0, 0);
+		cDn = -1.0f * cUp;
+		// This produces a backwards vector in SteamVR coords:
+		cBk = ViewMatrix * Vector4(0, 0, 1, 0);
+		cFd = -1.0f * cBk;
 	}
+
+	// Set the constants buffer
 	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
 	_trianglesCount = g_vrDotNumTriangles;
+	// Get the width in OPT-scale of the mesh that will be rendered:
+	// 0 -> 1
+	// |    |
+	// 3 -> 2
+	const float meshWidth = g_vrDotMeshVertices[1].x - g_vrDotMeshVertices[0].x;
 
 	Matrix4 V, swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
 	Matrix4 toSteamVR = swap * S;
 
-	// X is 200m (200 * 40.96 = 8192) in front of us.
-	Vector3 X(0, -8192, 0);
-	Vector3 Xt = g_curTargetBracketVR.posOPT;
-	//log_debug_vr("X: %0.3f, %0.3f, %0.3f", Xt.x, Xt.y, Xt.z);
+	const float BRACKET_DEPTH_METERS = 200.0f;
+	const float BRACKET_DEPTH_OPT    = METERS_TO_OPT * BRACKET_DEPTH_METERS;
+	Vector3 X = g_curTargetBracketVR.posOPT;
+	Matrix4 TOpt = Matrix4().translate(X.x, X.y, X.z);
+	// If we translate the current bracket to X, it will appear exactly on top of the
+	// targeted craft, but the size of the bracket will change depending on the distance
+	// to the ship (will look smaller when it's near the edges of the screen). To prevent
+	// this, we normalize X so that we only get the direction of the bracket, and then
+	// we fix the distance to 200m (8192) so that the bracket always appears to have the
+	// same size. This way, text displayed in this bracket will have the same size regardless
+	// of the distance to the targeted craft. This is the main difference between this transform
+	// chain and the one applied in RenderVRBrackets (the other being how we handle the
+	// _CockpitConstants).
+	X = BRACKET_DEPTH_OPT * X.normalize();
+	Matrix4 T = Matrix4().translate(X.x, X.y, X.z);
 
-	// Compute a new matrix for the dot by using the origin -> intersection point view vector.
-	// First we'll align this vector with Z+ and then we'll use the inverse of this matrix to
-	// rotate the dot so that it always faces the origin.
-	Matrix4 Rxt, Rzt;
 	{
 		Vector4 P;
-		if (!bGunnerTurret)
+		//if (!bGunnerTurret)
 		{
-			// g_LaserPointerIntersSteamVR is not populated in this case, so we need to transform
-			// g_LaserPointer3DIntersection, which is in OPT scale, into the SteamVR coord sys.
-			const float cockpitOriginX = *g_POV_X;
-			const float cockpitOriginY = *g_POV_Y;
-			const float cockpitOriginZ = *g_POV_Z;
-			Matrix4 T;
-
-			T.translate(
-				-cockpitOriginX - (g_pSharedDataCockpitLook->POVOffsetX * g_pSharedDataCockpitLook->povFactor),
-				-cockpitOriginY + (g_pSharedDataCockpitLook->POVOffsetZ * g_pSharedDataCockpitLook->povFactor),
-				-cockpitOriginZ - (g_pSharedDataCockpitLook->POVOffsetY * g_pSharedDataCockpitLook->povFactor));
-
-			P = toSteamVR * T * Vector3ToVector4(X, 1.0f);
+			P.x = g_curTargetBracketVR.posOPT.x * OPT_TO_METERS;
+			P.y = g_curTargetBracketVR.posOPT.z * OPT_TO_METERS;
+			P.z = g_curTargetBracketVR.posOPT.y * OPT_TO_METERS;
+			P.w = 1.0f;
 		}
-		//else
-		//	// Gunner turret... TODO
-		//	P = Vector3ToVector4(g_LaserPointerIntersSteamVR[contIdx], 1);
 
-		// O is the headset's center, in SteamVR coords:
-		Vector4 O = g_VSMatrixCB.fullViewMat * Vector4(0, 0, 0, 1);
-		// N goes from the headset's origin to the intersection point (P): it's the view vector now
-		Vector4 N = P - O;
+		// U points to the local Up direction, as defined by the current Cockpit transform
+		// F points towards the bracket
+		Vector3 F = { P.x, P.y, P.z }; F.normalize();
+		// F . cFd can be 0 when the bracket is on the sides too. In that case, we want
+		// to use kUp (i.e. have it become 1)
+		float kUp; // = max(0.0f, F.dot(Vector4ToVector3(cFd)));
+		float kBk = max(0.0f, F.dot(Vector4ToVector3(cUp)));
+		float kFd = max(0.0f, F.dot(Vector4ToVector3(cDn)));
 
-		N.normalize();
-		// Rotate N into the Y-Z plane --> make x == 0
-		const float Yang = atan2(N.x, N.z) * RAD_TO_DEG;
-		Matrix4 Ry = Matrix4().rotateY(-Yang);
-		N = Ry * N;
+		// This fixes kUp when looking at brackets on the sides of the ship.
+		kUp = 1.0f - (kBk + kFd);
 
-		const float Zangt = atan2(Xt.x, -Xt.y) * RAD_TO_DEG;
-		Rzt = Matrix4().rotateZ(Zangt);
+		Vector3 U = kUp * Vector4ToVector3(cUp) + kBk * Vector4ToVector3(cBk) + kFd * Vector4ToVector3(cFd);
+		U.normalize();
 
-		const float Xangt = atan2(Xt.z, -Xt.y) * RAD_TO_DEG;
-		Rxt = Matrix4().rotateX(-Xangt);
-
-		// Rotate N into the X-Z plane --> make y == 0. N should now be equal to Z+
-		const float Xang = atan2(N.y, N.z) * RAD_TO_DEG;
-		Matrix4 Rx = Matrix4().rotateX(Xang);
-		//N = Rx * N;
-		//log_debug_vr(50 + contIdx * 25, FONT_WHITE_COLOR, "[%d]: %0.3f, %0.3f, %0.3f", contIdx, N.x, N.y, N.z);
-		// The transform chain is now Rx * Ry: this will align the view vector going from the
-		// origin to the intersection with Z+
-		// Adding Rz to the chain makes the dot keep the up direction aligned with the camera.
-		// This is what the brackets do right now.
-		// Removing Rz keeps the up direction aligned with the reticle: this is probably
-		// what we want to do if we want to replace the brackets/reticle/pips
-		//Matrix4 Rz = Matrix4().rotateZ(-g_pSharedDataCockpitLook->Roll);
-		//V = Rz * Rx * Ry; // <-- Up direction is always view-aligned
-		V = Rx * Ry; // <-- Up direction is reticle-aligned
-		// The transpose is the inverse, so it will align Z+ with the view vector:
+		Vector3 R = F.cross(U); R.normalize();
+		// Re-compute the Up vector
+		U = F.cross(R); U.normalize();
+		float m[16] = { R.x, U.x, F.x, 0,
+						R.y, U.y, F.y, 0,
+						R.z, U.z, F.z, 0,
+						0, 0, 0, 1 };
+		V.set(m);
+		// This transpose inverts the rotation:
 		V.transpose();
-		V = Matrix4().scale(812.0f) * swap * V * swap;
+		V = swap * V * swap;
 	}
 
 	Matrix4 DotTransform;
-	if (!bGunnerTurret)
+	//if (!bGunnerTurret)
 	{
-		// Small angular displacement so that we can display quads
-		// a little off-center from the bracket
-		// +Z --> displace right
-		// +X --> displace down
-		//Matrix4 DispZ = Matrix4().rotateZ(3.5f);
-		Matrix4 DispZ = Matrix4().identity();
+		// This is the *fixed* scale of the text bracket:
+		const float scale = 2.25f * 819.2f;
+		// This is the variable scale of the target bracket (this is the same scale we use
+		// in RenderVRBrackets).
+		const float meshScale = (g_curTargetBracketVR.halfWidthOPT * 2.0f) / meshWidth;
+		Matrix4 ScaleOpt = Matrix4().scale(meshScale);
+		Matrix4 Scale    = Matrix4().scale(scale);
 
-		// halfWidthOPT contains the size of the bracket as measured from the center of
-		// the screen and back-projected to 65536m away. This makes a rectangle triangle with
-		// one side being halfWidthOPT and the other being 40.96 * 65536. To compute the angle
-		// we just use atan2(). This angle can be used to rotate anything from the center of
-		// the bracket to the edge of the bracket:
-		const float angle = RAD_TO_DEG * atan2(g_curTargetBracketVR.halfWidthOPT, METERS_TO_OPT * 65536.0f);
-		Matrix4 DispX = Matrix4().rotateX(-angle);
-		Matrix4 Disp = DispX * DispZ;
-
-		// The FrontCenter matrix is enough to put the square on top of the reticle.
-		// We just scale the quad and push it 200m away:
-		Matrix4 FrontCenter = Matrix4().translate(0, -8192, 0) * Matrix4().scale(2.25f * 812.0f);
-		// Once the quad is ahead of us, we rotate it about the origin so that it follows
-		// the current bracket. Ryt is only used to invert the headset rotation and keep
-		// the quad aligned with the cockpit:
-		Matrix4 Ryt = Matrix4().rotateY(g_pSharedDataCockpitLook->Roll);
-		DotTransform = Rxt * Rzt * Ryt * Disp * FrontCenter;
+		// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
+		// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_METERS by side and it's centered
+		// at the origin. Displacing points by half that amount makes the points like on one of the edges
+		// of the quad. We want to add an extra displacement so that the text is just outside the quad:
+		const float MARGIN_METERS = DOT_BUFFER_SIZE_METERS * 0.1f;
+		const float HALF_DOT_BUFFER_SIZE_METERS = DOT_BUFFER_SIZE_METERS * 0.5f;
+		Matrix4 Disp = Matrix4().translate(0, 0, -(HALF_DOT_BUFFER_SIZE_METERS + MARGIN_METERS) * METERS_TO_OPT);
+		// This works *just* like RenderVRBrackets and the scale has to be adjusted near the
+		// edges of the screen too:
+		//DotTransform = TOpt * ScaleOpt * V;
+		// This puts the bracket on the top edge of the targeted craft:
+		//DotTransform = TOpt * ScaleOpt * V * Disp;
+		// Here we displace the origin of the Dot Buffer near the edge. Then we apply the same transformation
+		// we do in RenderVRBrackets. That will give us the 3D position of a vertex on the edge of the bracket.
+		Vector4 midTop = TOpt * ScaleOpt * V * Disp * Vector4(0, 0, 0, 1);
+		// Here we take the direction of that vertex, normalize it, and put it at a fixed distance. That way,
+		// we know where to put the text and it's size won't change because it's always the same distance.
+		Vector3 midTopDir = BRACKET_DEPTH_OPT * Vector4ToVector3(midTop).normalize();
+		Matrix4 TmidTop = Matrix4().translate(midTopDir.x, midTopDir.y, midTopDir.z);
+		// Here we switch to a fixed scale so that the label does not change size:
+		DotTransform = TmidTop * Scale * V;
 
 		// The following inverts the view matrix. We need to do this because the bracket is
-		// in camera coords and these coords change if the headset rotates.
+		// in camera coords and these coords change if the headset rotates. This part is achieved
+		// by clearing the CockpitConstants in RenderVRBrackets, but it has the same effect.
 		Matrix4 inv = g_VSMatrixCB.fullViewMat;
 		// We do swap * V * swap here because DotTransform is in OPT coords, but V is
 		// in SteamVR coords
