@@ -1978,7 +1978,7 @@ void EffectsRenderer::CreateVRMeshes()
 	// Rects used to display VR dots and other things
 	// *************************************************
 	log_debug("[DBG] [AC] Creating VR Dot buffers");
-	CreateRectangleMesh(DOT_BUFFER_SIZE_METERS, DOT_BUFFER_SIZE_METERS, { 0, 0, 0 },
+	CreateRectangleMesh(DOT_MESH_SIZE_M, DOT_MESH_SIZE_M, { 0, 0, 0 },
 		g_vrDotTriangles, g_vrDotMeshVertices, g_vrDotTextureCoords,
 		_vrDotVertexBuffer, _vrDotIndexBuffer,
 		_vrDotMeshVerticesBuffer, _vrDotMeshVerticesSRV,
@@ -7573,17 +7573,6 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	g_VRGeometryCBuffer.clicked[1] = false;
 	// If we're in this path, then g_EnhancedHUDData.Enabled should already be true
 	g_VRGeometryCBuffer.renderBracket = 2;
-	g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
-	g_VRGeometryCBuffer.u1 = g_VRGeometryCBuffer.v1 = 0;
-	DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_NAME_SRC_IDX];
-	if (src_box->bComputed)
-	{
-		g_VRGeometryCBuffer.u0 = src_box->coords.x0;
-		g_VRGeometryCBuffer.v0 = src_box->coords.y0;
-
-		g_VRGeometryCBuffer.u1 = src_box->coords.x1;
-		g_VRGeometryCBuffer.v1 = src_box->coords.y1;
-	}
 
 	// Set the textures
 	_deviceResources->InitPSShaderResourceView(resources->_DCTextSRV.Get(), nullptr);
@@ -7598,9 +7587,8 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	_deviceResources->InitIndexBuffer(nullptr, true);
 	_deviceResources->InitIndexBuffer(_vrDotIndexBuffer.Get(), true);
 
-	// Apply the VS and PS constants
+	// Apply the PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
-	resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
 
 	Vector4 cUp, cBk, cDn, cFd;
@@ -7637,14 +7625,15 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	// targeted craft, but the size of the bracket will change depending on the distance
 	// to the ship (will look smaller when it's near the edges of the screen). To prevent
 	// this, we normalize X so that we only get the direction of the bracket, and then
-	// we fix the distance to 200m (8192) so that the bracket always appears to have the
-	// same size. This way, text displayed in this bracket will have the same size regardless
-	// of the distance to the targeted craft. This is the main difference between this transform
+	// we fix the distance to 65km so that the bracket always appears to have the same size.
+	// This way, text displayed in this bracket will have the same size regardless of the
+	// distance to the targeted craft. This is the main difference between this transform
 	// chain and the one applied in RenderVRBrackets (the other being how we handle the
 	// _CockpitConstants).
 	X = BRACKET_DEPTH_OPT * X.normalize();
 	Matrix4 T = Matrix4().translate(X.x, X.y, X.z);
 
+	// Compute the bracket orientation matrix (this keeps brackets pointing up)
 	{
 		Vector4 P;
 		//if (!bGunnerTurret)
@@ -7684,66 +7673,117 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	}
 
 	Matrix4 DotTransform;
-	//if (!bGunnerTurret)
+	// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
+	// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_METERS by side and it's centered
+	// at the origin. Displacing points by half that amount makes the points like on one of the edges
+	// of the quad. We want to add an extra displacement so that the text is just outside the quad too.
+	constexpr float HALF_DOT_MESH_SIZE_M = DOT_MESH_SIZE_M * 0.5f;
+	const int dcSrcRegions[] = {
+		TARGETED_OBJ_NAME_SRC_IDX,
+
+		TARGETED_OBJ_SHD_SRC_IDX,
+		TARGETED_OBJ_SYS_SRC_IDX,
+
+		TARGETED_OBJ_HULL_SRC_IDX,
+		TARGETED_OBJ_DIST_SRC_IDX,
+
+		TARGETED_OBJ_CARGO_SRC_IDX,
+		TARGETED_OBJ_SUBCMP_SRC_IDX,
+		-1
+	};
+
+	// x: X-Displacement
+	// y: Z-Displacement (vertical disp)
+	// z: Scale
+	float3 dcDispScale[] = {
+		{ 0, -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.1f), 2.25f },
+
+		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+
+		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+
+		{ -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.15f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
+		{  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.20f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
+	};
+
+	for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
 	{
 		// This is the *fixed* scale of the text bracket. Here we're using a scale that is
 		// proportional to the fixed depth we'll be using.
-		const float scale = 2.25f * (BRACKET_DEPTH_METERS / 10.0f) * METERS_TO_OPT;
+		const float scale = dcDispScale[dcCurRegion].z * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
+		// If the bracket is too small, then the text will get clobbered. To prevent this, we're adding
+		// a lower limit (determined empirically).
+		const float bracketSizeOPT = max(95000.0f, g_curTargetBracketVR.halfWidthOPT);
 		// This is the variable scale of the target bracket (this is the same scale we use
 		// in RenderVRBrackets).
-		const float meshScale = (g_curTargetBracketVR.halfWidthOPT * 2.0f) / meshWidth;
+		const float meshScale = (bracketSizeOPT * 2.0f) / meshWidth;
 		Matrix4 ScaleOpt = Matrix4().scale(meshScale);
 		Matrix4 Scale    = Matrix4().scale(scale);
 
-		// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
-		// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_METERS by side and it's centered
-		// at the origin. Displacing points by half that amount makes the points like on one of the edges
-		// of the quad. We want to add an extra displacement so that the text is just outside the quad:
-		const float MARGIN_METERS = DOT_BUFFER_SIZE_METERS * 0.1f;
-		const float HALF_DOT_BUFFER_SIZE_METERS = DOT_BUFFER_SIZE_METERS * 0.5f;
-		Matrix4 Disp = Matrix4().translate(0, 0, -(HALF_DOT_BUFFER_SIZE_METERS + MARGIN_METERS) * METERS_TO_OPT);
-		// This works *just* like RenderVRBrackets and the scale has to be adjusted near the
-		// edges of the screen too:
-		//DotTransform = TOpt * ScaleOpt * V;
-		// This puts the bracket on the top edge of the targeted craft:
-		//DotTransform = TOpt * ScaleOpt * V * Disp;
-		// Here we displace the origin of the Dot Buffer near the edge. Then we apply the same transformation
-		// we do in RenderVRBrackets. That will give us the 3D position of a vertex on the edge of the bracket.
-		Vector4 midTop = TOpt * ScaleOpt * V * Disp * Vector4(0, 0, 0, 1);
-		// Here we take the direction of that vertex, normalize it, and put it at a fixed distance. That way,
-		// we know where to put the text and it's size won't change because it's always the same distance.
-		Vector3 midTopDir = BRACKET_DEPTH_OPT * Vector4ToVector3(midTop).normalize();
-		Matrix4 TmidTop = Matrix4().translate(midTopDir.x, midTopDir.y, midTopDir.z);
-		// Here we switch to a fixed scale so that the label does not change size:
-		DotTransform = TmidTop * Scale * V;
+		DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]];
+		g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
+		g_VRGeometryCBuffer.u1 = g_VRGeometryCBuffer.v1 = 0;
+		if (src_box->bComputed)
+		{
+			g_VRGeometryCBuffer.u0 = src_box->coords.x0;
+			g_VRGeometryCBuffer.v0 = src_box->coords.y0;
 
-		// The following inverts the view matrix. We need to do this because the bracket is
-		// in camera coords and these coords change if the headset rotates. This part is achieved
-		// by clearing the CockpitConstants in RenderVRBrackets, but it has the same effect.
-		Matrix4 inv = g_VSMatrixCB.fullViewMat;
-		// We do swap * V * swap here because DotTransform is in OPT coords, but V is
-		// in SteamVR coords
-		DotTransform = swap * inv * swap * DotTransform;
+			g_VRGeometryCBuffer.u1 = src_box->coords.x1;
+			g_VRGeometryCBuffer.v1 = src_box->coords.y1;
+		}
+		// Apply the VS constants
+		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
+
+		//if (!bGunnerTurret)
+		{
+			// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer, see
+			// dcDisp[] above.
+			Matrix4 Disp = Matrix4().translate(dcDispScale[dcCurRegion].x * METERS_TO_OPT, 0, dcDispScale[dcCurRegion].y * METERS_TO_OPT);
+			// This works *just* like RenderVRBrackets and the scale has to be adjusted near the
+			// edges of the screen too:
+			//DotTransform = TOpt * ScaleOpt * V;
+			// This puts the bracket on the top edge of the targeted craft:
+			//DotTransform = TOpt * ScaleOpt * V * Disp;
+			// Here we displace the origin of the Dot Buffer near the edge. Then we apply the same transformation
+			// we do in RenderVRBrackets. That will give us the 3D position of a vertex on the edge of the bracket.
+			Vector4 midTop = TOpt * ScaleOpt * V * Disp * Vector4(0, 0, 0, 1);
+			// Here we take the direction of that vertex, normalize it, and put it at a fixed distance. That way,
+			// we know where to put the text and it's size won't change because it's always the same distance.
+			Vector3 midTopDir = BRACKET_DEPTH_OPT * Vector4ToVector3(midTop).normalize();
+			Matrix4 TmidTop = Matrix4().translate(midTopDir.x, midTopDir.y, midTopDir.z);
+			// Here we switch to a fixed scale so that the label does not change size:
+			DotTransform = TmidTop * Scale * V;
+
+			// The following inverts the view matrix. We need to do this because the bracket is
+			// in camera coords and these coords change if the headset rotates. This part is achieved
+			// by clearing the CockpitConstants in RenderVRBrackets, but it has the same effect.
+			Matrix4 inv = g_VSMatrixCB.fullViewMat;
+			// We do swap * V * swap here because DotTransform is in OPT coords, but V is
+			// in SteamVR coords
+			DotTransform = swap * inv * swap * DotTransform;
+		}
+		//else
+		//{
+		//	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+		//	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
+		//	Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
+		//	Matrix4 T = Matrix4().translate(g_LaserPointerIntersSteamVR[contIdx]);
+		//	Matrix4 toOPT = Sinv * swap;
+		//	Matrix4 toSteamVR = swap * S;
+		//	// This transform chain is the same as the one used in RenderVRGloves minus gloveDisp and
+		//	// pose is replaced with T. Also, V is used to convert the mesh into a billboard first
+		//	DotTransform = swapScale * toOPT * Vinv * T * toSteamVR * V;
+		//}
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+		RenderScene(false);
 	}
-	//else
-	//{
-	//	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
-	//	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
-	//	Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
-	//	Matrix4 T = Matrix4().translate(g_LaserPointerIntersSteamVR[contIdx]);
-	//	Matrix4 toOPT = Sinv * swap;
-	//	Matrix4 toSteamVR = swap * S;
-	//	// This transform chain is the same as the one used in RenderVRGloves minus gloveDisp and
-	//	// pose is replaced with T. Also, V is used to convert the mesh into a billboard first
-	//	DotTransform = swapScale * toOPT * Vinv * T * toSteamVR * V;
-	//}
-	// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
-	DotTransform.transpose();
-	g_OPTMeshTransformCB.MeshTransform = DotTransform;
-
-	// Apply the VS and PS constants
-	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
-	RenderScene(false);
 
 	_bEnhancedBracketsRendered = true;
 	RestoreContext();

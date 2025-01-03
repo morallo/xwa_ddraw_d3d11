@@ -328,7 +328,7 @@ struct BracketVR
 extern std::vector<BracketVR> g_bracketsVR;
 extern BracketVR g_curTargetBracketVR;
 extern bool g_curTargetBracketVRCaptured;
-constexpr float DOT_BUFFER_SIZE_METERS = 0.017f;
+constexpr float DOT_MESH_SIZE_M = 0.017f;
 
 // Enhanced HUD
 constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 1024;
