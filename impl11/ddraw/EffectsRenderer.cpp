@@ -7521,7 +7521,7 @@ void EffectsRenderer::RenderVRHUD()
  */
 void EffectsRenderer::RenderVREnhancedHUD()
 {
-	if (!g_bUseSteamVR || !g_bRendering3D || _bEnhancedBracketsRendered || !_bCockpitConstantsCaptured ||
+	if (!g_bUseSteamVR || !g_bRendering3D || _bEnhancedBracketsRendered ||
 		*g_playerInHangar || !g_curTargetBracketVRCaptured)
 		return;
 
