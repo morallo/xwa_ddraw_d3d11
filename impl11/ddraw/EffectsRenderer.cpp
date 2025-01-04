@@ -7191,9 +7191,6 @@ void EffectsRenderer::RenderVRBrackets()
 	// Set the textures
 	// Use this to render each bracket individually:
 	_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
-	if (g_EnhancedHUDData.Enabled)
-		// Set the text SRV. This SRV has the enhanced HUD text
-		context->PSSetShaderResources(1, 1, _deviceResources->_enhancedHUDSRV.GetAddressOf());
 
 	// Use this to render 2D brackets on a big canvas:
 	//_deviceResources->InitPSShaderResourceView(resources->_BracketsSRV.Get(), nullptr);
@@ -7265,12 +7262,6 @@ void EffectsRenderer::RenderVRBrackets()
 		const float meshScale = (bracketVR.halfWidthOPT * 2.0f) / meshWidth;
 		g_VRGeometryCBuffer.strokeWidth = bracketVR.strokeWidth;
 		g_VRGeometryCBuffer.bracketColor = bracketVR.color;
-
-		/*if (g_EnhancedHUDData.Enabled)
-		{
-			g_VRGeometryCBuffer.bRenderText    = bracketVR.renderText;
-			g_VRGeometryCBuffer.isSubComponent = bracketVR.isSubComponent;
-		}*/
 
 		{
 			Vector4 P = dotPosSteamVR;
@@ -7521,10 +7512,12 @@ void EffectsRenderer::RenderVRHUD()
 
 /*
  * Renders quads around the current target bracket where information can be displayed.
- * Based on RenderVRHUD(). The fake HUD quad that is normally rendered right on top of the
- * reticle is rotated around the origin so that it keeps its apparent size. Additional rotations
- * are applied to keep the up direction and to apply a displacement so that the quad appears around
- * the current target bracket.
+ * Based on RenderVRHUD(). Each bit of text is rendered on its own quad. All quads
+ * keep the same distance from the origin so that the size of the text remains unchanged.
+ * However, in order to place the text quads properly, we're using the same transform chain
+ * used in RenderVRBrackets plus a small displacement to move the text to the edges of the
+ * current target bracket. We also copy the orientation of the target bracket so that the
+ * text remains aligned with the bracket.
  */
 void EffectsRenderer::RenderVREnhancedHUD()
 {
@@ -7604,8 +7597,21 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		cFd = -1.0f * cBk;
 	}
 
-	// Set the constants buffer
-	context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	// Let's replace transformWorldView with the identity matrix:
+	const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	Matrix4 Id;
+	const float* m = Id.get();
+	if (!bExternalCamera)
+	{
+		for (int i = 0; i < 16; i++) _CockpitConstants.transformWorldView[i] = m[i];
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	}
+	else
+	{
+		for (int i = 0; i < 16; i++) _ExteriorConstants.transformWorldView[i] = m[i];
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_ExteriorConstants, 0, 0);
+	}
+
 	_trianglesCount = g_vrDotNumTriangles;
 	// Get the width in OPT-scale of the mesh that will be rendered:
 	// 0 -> 1
@@ -7614,6 +7620,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	const float meshWidth = g_vrDotMeshVertices[1].x - g_vrDotMeshVertices[0].x;
 
 	Matrix4 V, swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
 	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
 	Matrix4 toSteamVR = swap * S;
 
@@ -7714,7 +7721,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		// proportional to the fixed depth we'll be using.
 		const float scale = dcDispScale[dcCurRegion].z * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
 		// If the bracket is too small, then the text will get clobbered. To prevent this, we're adding
-		// a lower limit (determined empirically).
+		// a lower limit (determined empirically) for the bracket size:
 		const float bracketSizeOPT = max(95000.0f, g_curTargetBracketVR.halfWidthOPT);
 		// This is the variable scale of the target bracket (this is the same scale we use
 		// in RenderVRBrackets).
@@ -7736,46 +7743,24 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		// Apply the VS constants
 		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 
-		//if (!bGunnerTurret)
-		{
-			// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer, see
-			// dcDisp[] above.
-			Matrix4 Disp = Matrix4().translate(dcDispScale[dcCurRegion].x * METERS_TO_OPT, 0, dcDispScale[dcCurRegion].y * METERS_TO_OPT);
-			// This works *just* like RenderVRBrackets and the scale has to be adjusted near the
-			// edges of the screen too:
-			//DotTransform = TOpt * ScaleOpt * V;
-			// This puts the bracket on the top edge of the targeted craft:
-			//DotTransform = TOpt * ScaleOpt * V * Disp;
-			// Here we displace the origin of the Dot Buffer near the edge. Then we apply the same transformation
-			// we do in RenderVRBrackets. That will give us the 3D position of a vertex on the edge of the bracket.
-			Vector4 midTop = TOpt * ScaleOpt * V * Disp * Vector4(0, 0, 0, 1);
-			// Here we take the direction of that vertex, normalize it, and put it at a fixed distance. That way,
-			// we know where to put the text and it's size won't change because it's always the same distance.
-			Vector3 midTopDir = BRACKET_DEPTH_OPT * Vector4ToVector3(midTop).normalize();
-			Matrix4 TmidTop = Matrix4().translate(midTopDir.x, midTopDir.y, midTopDir.z);
-			// Here we switch to a fixed scale so that the label does not change size:
-			DotTransform = TmidTop * Scale * V;
+		// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer, see
+		// dcDisp[] above.
+		Matrix4 Disp = Matrix4().translate(dcDispScale[dcCurRegion].x * METERS_TO_OPT, 0, dcDispScale[dcCurRegion].y * METERS_TO_OPT);
+		// This works *just* like RenderVRBrackets and the scale has to be adjusted near the
+		// edges of the screen too:
+		//DotTransform = swapScale * TOpt * ScaleOpt * V;
+		// This puts the text on the top edge of the targeted craft:
+		//DotTransform = swapScale * TOpt * ScaleOpt * V * Disp;
+		// Here we displace the origin of the Dot Buffer near the edge. Then we apply the same transformation
+		// we do in RenderVRBrackets. That will give us the 3D position of a vertex on the edge of the bracket.
+		Vector4 midTop = TOpt * ScaleOpt * V * Disp * Vector4(0, 0, 0, 1);
+		// Now we take the direction of that vertex, normalize it, and put it at a fixed distance. That way,
+		// we know where to put the text and its size won't change because it's always the same distance.
+		Vector3 midTopDir = BRACKET_DEPTH_OPT * Vector4ToVector3(midTop).normalize();
+		Matrix4 TmidTop = Matrix4().translate(midTopDir.x, midTopDir.y, midTopDir.z);
+		// Finally, we switch to a fixed scale so that the label does not change size:
+		DotTransform = swapScale * TmidTop * Scale * V;
 
-			// The following inverts the view matrix. We need to do this because the bracket is
-			// in camera coords and these coords change if the headset rotates. This part is achieved
-			// by clearing the CockpitConstants in RenderVRBrackets, but it has the same effect.
-			Matrix4 inv = g_VSMatrixCB.fullViewMat;
-			// We do swap * V * swap here because DotTransform is in OPT coords, but V is
-			// in SteamVR coords
-			DotTransform = swap * inv * swap * DotTransform;
-		}
-		//else
-		//{
-		//	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
-		//	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
-		//	Matrix4 Sinv = Matrix4().scale(METERS_TO_OPT);
-		//	Matrix4 T = Matrix4().translate(g_LaserPointerIntersSteamVR[contIdx]);
-		//	Matrix4 toOPT = Sinv * swap;
-		//	Matrix4 toSteamVR = swap * S;
-		//	// This transform chain is the same as the one used in RenderVRGloves minus gloveDisp and
-		//	// pose is replaced with T. Also, V is used to convert the mesh into a billboard first
-		//	DotTransform = swapScale * toOPT * Vinv * T * toSteamVR * V;
-		//}
 		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
 		DotTransform.transpose();
 		g_OPTMeshTransformCB.MeshTransform = DotTransform;
