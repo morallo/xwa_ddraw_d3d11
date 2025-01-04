@@ -12661,20 +12661,9 @@ void PrimarySurface::RenderText(bool earlyExit)
 	// If we render directly to _d2d1OffscreenRenderTarget, that avoids the delay and the
 	// text displays properly everywhere but it only works for non-VR.
 	ID2D1RenderTarget* rtv = earlyExit ? this->_deviceResources->_d2d1OffscreenRenderTarget : this->_deviceResources->_d2d1RenderTarget;
-	// When VR is enabled, we'll render the enhanced text to its own buffer to be displayed
-	// later as a "transparent" overlay in the cockpit:
-	if (earlyExit && g_bUseSteamVR && g_EnhancedHUDData.Enabled)
-		rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
 
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
-
-	if (earlyExit && g_bUseSteamVR && g_EnhancedHUDData.Enabled)
-	{
-		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);
-		//rtv->DrawLine({ 512, 0 }, { 512, 1024 }, s_brush);
-		//rtv->DrawLine({ 0, 512 }, { 1024, 512 }, s_brush);
-	}
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
@@ -12771,14 +12760,6 @@ void PrimarySurface::RenderText(bool earlyExit)
 
 		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
 		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
-		// The enhanced HUD VR text is already placed at buffer coordinates. That is, the
-		// buffer is a square of VR_ENHANCED_HUD_BUFFER_SIZE pixels and the text is placed
-		// inside this square.
-		if (g_bUseSteamVR && g_EnhancedHUDData.Enabled && earlyExit)
-		{
-			x = (float)xwaText.positionX;
-			y = (float)xwaText.positionY;
-		}
 
 		//textLayout->SetFontStretch(DWRITE_FONT_STRETCH_ULTRA_EXPANDED, { 0, 256 });
 		//this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
@@ -13396,7 +13377,6 @@ void PrimarySurface::CacheBracketsVR()
 			// the text.
 			g_curTargetBracketVR = bracketVR;
 			g_curTargetBracketVRCaptured = true;
-			//g_bracketsVR.push_back(bracketVR);
 		}
 	}
 	g_xwa_bracket.clear();
