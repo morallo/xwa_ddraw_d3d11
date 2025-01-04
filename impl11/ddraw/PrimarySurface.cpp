@@ -11066,21 +11066,8 @@ HRESULT PrimarySurface::Flip(
 				}
 				else
 				{
-					if (g_EnhancedHUDData.Enabled && !g_bMapMode)
-					{
-						// Temporarily disable the enhanced HUD in VR (needs more work)
-						/*
-						this->RenderEnhancedHUDText();
-						this->RenderText(true);
-						if (g_bDumpSSAOBuffers)
-						{
-							DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
-						}
-						*/
-					}
-
 					this->CacheBracketsVR();
-					// The VR bracket needs to be rendered right here or there will be a one-frame delay
+					// The enhanced VR HUD needs to be rendered right here or there will be a one-frame delay
 					// that is noticeable as a shaky bracket
 					if (g_EnhancedHUDData.Enabled)
 						((EffectsRenderer*)g_current_renderer)->RenderVREnhancedHUD();
@@ -13370,11 +13357,9 @@ void PrimarySurface::CacheBracketsVR()
 		bracketVR.isSubComponent = xwaBracket.isSubComponent;
 		g_bracketsVR.push_back(bracketVR);
 
-		// Temporarily disable the enhanced HUD in VR
 		if (g_EnhancedHUDData.Enabled && xwaBracket.isCurrentTarget)
 		{
-			// For the enhanced HUD, we'll add a special bracket just to render
-			// the text.
+			// For the enhanced HUD, we'll add a special bracket just to render the text.
 			g_curTargetBracketVR = bracketVR;
 			g_curTargetBracketVRCaptured = true;
 		}

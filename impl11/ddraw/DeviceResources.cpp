@@ -1815,11 +1815,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadertoyBufR.Release();
 		this->_shadertoyRTV_R.Release();
 		this->_shadertoySRV_R.Release();
-		if (g_EnhancedHUDData.Enabled)
-		{
-			this->_enhancedHUDBuffer.Release();
-			this->_enhancedHUDSRV.Release();
-		}
 	}
 	if (g_b3DVisionEnabled) {
 		log_debug("[DBG] [3DV] Releasing 3D vision buffers");
@@ -2815,25 +2810,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _DCTextAsInput with combined flags\n");
 				}
 
-				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
-				{
-					CD3D11_TEXTURE2D_DESC tmp = desc;
-					desc.Width  = VR_ENHANCED_HUD_BUFFER_SIZE;
-					desc.Height = VR_ENHANCED_HUD_BUFFER_SIZE;
-					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_enhancedHUDBuffer);
-					if (FAILED(hr)) {
-						log_err("Failed to create _enhancedHUDBuffer, error: 0x%x\n", hr);
-						log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
-						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
-						log_err_desc(step, hWnd, hr, desc);
-						goto out;
-					}
-					else {
-						log_err("Successfully created _enhancedHUDBuffer\n");
-					}
-					desc = tmp;
-				}
-
 				// Restore the previous bind flags, just in case there is a dependency on these later on
 				desc.BindFlags = curFlags;
 			}
@@ -3513,17 +3489,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
-				}
-
-				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
-				{
-					step = "_enhancedHUDBuffer";
-					hr = this->_d3dDevice->CreateShaderResourceView(this->_enhancedHUDBuffer,
-						&shaderResourceViewDesc, &this->_enhancedHUDSRV);
-					if (FAILED(hr)) {
-						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
-						goto out;
-					}
 				}
 			}
 
