@@ -161,6 +161,14 @@ inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
 
+inline bool IsOverlapping(
+	float xmin1, float ymin1, float xmax1, float ymax1, // First box
+	float xmin2, float ymin2, float xmax2, float ymax2) // Second box
+{
+	return (xmax1 >= xmin2 && xmax2 >= xmin1) &&
+	       (ymax1 >= ymin2 && ymax2 >= ymin1);
+}
+
 /*
 void ShowXWAMatrix(const XwaTransform &m) {
 	log_debug("[DBG] -----------------------------");
@@ -419,18 +427,12 @@ void PrimarySurface::RenderEnhancedHUDText()
 				// Left
 				sprintf_s(rows[0], 128, "SHD");
 				sprintf_s(rows[1], 128, "%d", shields);
-				if (g_bUseSteamVR)
-					DisplayCenteredLines(20, 20, esi, 0.5f, 0,0, 2,dRows);
-				else
-					DisplayCenteredLines(x0, y0 + 5, esi, 1.0f, -10,0, 2,dRows);
+				DisplayCenteredLines(x0, y0 + 5, esi, 1.0f, -10,0, 2,dRows);
 
 				// Right
 				sprintf_s(rows[0], 128, "SYS");
 				sprintf_s(rows[1], 128, "%d", system);
-				if (g_bUseSteamVR)
-					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE - 20, 20, esi, 0.5f, 0,0, 2,dRows);
-				else
-					DisplayCenteredLines(x0 + W, y0 + 5, esi, 0.0f, 10,0, 2,dRows);
+				DisplayCenteredLines(x0 + W, y0 + 5, esi, 0.0f, 10,0, 2,dRows);
 
 				// Bottom-center
 				int numLines = 0;
@@ -438,17 +440,11 @@ void PrimarySurface::RenderEnhancedHUDText()
 				sprintf_s(rows[numLines++], 128, "%d", hull);
 				if (cargo.size() > 0)
 					sprintf_s(rows[numLines++], 128, "%s", cargo.c_str());
-				if (g_bUseSteamVR)
-					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, VR_ENHANCED_HUD_BUFFER_SIZE - 40, esi, 0.5f, 0,0, numLines,dRows);
-				else
-					DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
+				DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
 
 				// Top-center
 				sprintf_s(rows[0], 128, "%s", name.c_str());
-				if (g_bUseSteamVR)
-					DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, 20, esi, 0.5f, 0,0, 1,dRows);
-				else
-					DisplayCenteredLines(centerX, y0, esi, 0.5f, 0,-25, 1,dRows);
+				DisplayCenteredLines(centerX, y0, esi, 0.5f, 0,-25, 1,dRows);
 			}
 		}
 	}
@@ -499,12 +495,8 @@ void PrimarySurface::RenderEnhancedHUDText()
 				if (compNameIdx < 34)
 				{
 					sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
-					if (g_bUseSteamVR)
-						DisplayCenteredLines(VR_ENHANCED_HUD_BUFFER_SIZE / 2, VR_ENHANCED_HUD_BUFFER_SIZE / 2, esi,
-							0.5f, 0,0, 1, dRows);
-					else
-						DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
-							0.5f, 0,10, 1, dRows);
+					DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
+						0.5f, 0,10, 1, dRows);
 				}
 			}
 		}
@@ -10680,6 +10672,15 @@ HRESULT PrimarySurface::Flip(
 				//AddCenteredText("Hello World", FONT_LARGE_IDX, 260, 0x5555FF);
 				// The following text gets captured as part of the missile count DC element:
 				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
+				if (g_EnhancedHUDData.Enabled)
+				{
+					std::string name, shields, hull, sys, dist, cargo, subCmp;
+					this->ExtractDCText(&name, &shields, &hull, &sys, &dist, &cargo, &subCmp);
+					/*log_debug("[DBG] name: [%s], shd: [%s], hull: [%s], sys: [%s]",
+						name.c_str(), shields.c_str(), hull.c_str(), sys.c_str());
+					log_debug("[DBG] dist: [%s], cargo: [%s], subCmp: [%s]",
+						dist.c_str(), cargo.c_str(), subCmp.c_str());*/
+				}
 				this->RenderText();
 			}
 
@@ -12526,6 +12527,104 @@ short DisplayCenteredText(char* str, int font_size_index, short y, uint32_t colo
 void DisplayTimedMessage(uint32_t seconds, int row, char* msg) {
 	short y_pos = (short)(g_fCurInGameHeight * (0.189f + 0.05f * row));
 	g_TimedMessages[row].SetMsg(msg, seconds, y_pos, FONT_LARGE_IDX, FONT_BLUE_COLOR);
+}
+
+/// <summary>
+/// Extract DC strings from the contents of g_xwa_text by comparing the coords of each char
+/// against the DC source regions.
+/// </summary>
+void PrimarySurface::ExtractDCText(std::string *name,
+	std::string *shields, std::string *hull,
+	std::string *sys, std::string *dist,
+	std::string *cargo, std::string *subCmp)
+{
+	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
+	static   short s_rowSize    = (short)(0.0185f * g_fCurInGameHeight);
+	//static   int   s_fontSizes[3] = { 12, 16, 10 };
+
+	*name    = "";
+	*shields = "";
+	*hull    = "";
+	*sys     = "";
+	*dist    = "";
+	*cargo   = "";
+	*subCmp  = "";
+
+	static Box  s_boxes[7] = {};
+	static bool s_boxesComputed[7] = { false, false, false, false, false, false, false };
+	static int  s_numComputedBoxes = 0;
+	const  int  dcSrcRegions[] = {
+		TARGETED_OBJ_NAME_SRC_IDX, TARGETED_OBJ_SHD_SRC_IDX, TARGETED_OBJ_HULL_SRC_IDX,
+		TARGETED_OBJ_SYS_SRC_IDX, TARGETED_OBJ_DIST_SRC_IDX, TARGETED_OBJ_CARGO_SRC_IDX,
+		TARGETED_OBJ_SUBCMP_SRC_IDX, -1,
+	};
+	std::string *strings[] = { name, shields, hull, sys, dist, cargo, subCmp };
+
+	// Precompute the box sizes
+	if (s_numComputedBoxes < 7)
+	{
+		for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
+		{
+			if (s_boxesComputed[dcCurRegion])
+				continue;
+
+			DCElemSrcBox* src_box = &g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]];
+			if (!src_box->bComputed)
+				continue;
+
+			float box_x0, box_y0, box_x1, box_y1;
+			float x0 = g_fCurScreenWidth  * src_box->coords.x0;
+			float y0 = g_fCurScreenHeight * src_box->coords.y0;
+			float x1 = g_fCurScreenWidth  * src_box->coords.x1;
+			float y1 = g_fCurScreenHeight * src_box->coords.y1;
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				x0, y0, &box_x0, &box_y0);
+			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+				g_nonVRViewport.Width, g_nonVRViewport.Height,
+				x1, y1, &box_x1, &box_y1);
+			s_boxes[dcCurRegion].x0 = box_x0;
+			s_boxes[dcCurRegion].y0 = box_y0;
+			s_boxes[dcCurRegion].x1 = box_x1;
+			s_boxes[dcCurRegion].y1 = box_y1;
+			s_boxesComputed[dcCurRegion] = true;
+			s_numComputedBoxes++;
+		}
+	}
+
+	if (s_numComputedBoxes < 7)
+		return;
+
+	for (const auto& xwaText : g_xwa_text)
+	{
+		int fontIndex = 0;
+		if (xwaText.fontSize == 12) fontIndex = 0;
+		else if (xwaText.fontSize == 16) fontIndex = 1;
+		else if (xwaText.fontSize == 10) fontIndex = 2;
+
+		const float x0 = (float)xwaText.positionX;
+		const float y0 = (float)xwaText.positionY;
+		const float x1 = (float)xwaText.positionX + (float)fontWidths[fontIndex][(int)xwaText.textChar];
+		const float y1 = (float)xwaText.positionY + (float)s_rowSize;
+
+		for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
+		{
+			if (!s_boxesComputed[dcCurRegion])
+				continue;
+
+			const Box& box = s_boxes[dcCurRegion];
+			/*if (box.x0 <= xwaText.positionX && xwaText.positionX <= box.x1 &&
+				box.y0 <= xwaText.positionY && xwaText.positionY <= box.y1)*/
+			if (IsOverlapping(box.x0, box.y0, box.x1, box.y1,
+				x0, y0, x1, y1))
+			{
+				*strings[dcCurRegion] += xwaText.textChar;
+			}
+		}
+	}
+
+	/*log_debug("[DBG] %d. name: [%s], shields: [%s], hull: [%s]",
+		s_numComputedBoxes, name.c_str(), shields.c_str(), hull.c_str());*/
 }
 
 void PrimarySurface::RenderText(bool earlyExit)

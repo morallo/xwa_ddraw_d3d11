@@ -221,6 +221,11 @@ public:
 
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
 
+	void ExtractDCText(std::string *name,
+		std::string *shields, std::string *hull,
+		std::string *sys, std::string *dist,
+		std::string *cargo, std::string *subCmp);
+
 	void RenderText(bool earlyExit=false);
 
 	void RenderRadar();
