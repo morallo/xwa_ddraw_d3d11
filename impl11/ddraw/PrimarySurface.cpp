@@ -10674,12 +10674,13 @@ HRESULT PrimarySurface::Flip(
 				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
 				if (g_EnhancedHUDData.Enabled)
 				{
-					std::string name, shields, hull, sys, dist, cargo, subCmp;
-					this->ExtractDCText(&name, &shields, &hull, &sys, &dist, &cargo, &subCmp);
-					/*log_debug("[DBG] name: [%s], shd: [%s], hull: [%s], sys: [%s]",
-						name.c_str(), shields.c_str(), hull.c_str(), sys.c_str());
-					log_debug("[DBG] dist: [%s], cargo: [%s], subCmp: [%s]",
-						dist.c_str(), cargo.c_str(), subCmp.c_str());*/
+					this->ExtractDCText();
+					/*log_debug("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
+						g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.shields,
+						g_EnhancedHUDData.hull, g_EnhancedHUDData.sys);
+					log_debug("[DBG] dist: [%0.1f], cargo: [%s], subCmp: [%s]",
+						g_EnhancedHUDData.dist, g_EnhancedHUDData.sCargo.c_str(),
+						g_EnhancedHUDData.sSubCmp.c_str());*/
 				}
 				this->RenderText();
 			}
@@ -12531,24 +12532,35 @@ void DisplayTimedMessage(uint32_t seconds, int row, char* msg) {
 
 /// <summary>
 /// Extract DC strings from the contents of g_xwa_text by comparing the coords of each char
-/// against the DC source regions.
+/// against the DC source regions. The output is stored in g_EnhancedHUDData.
 /// </summary>
-void PrimarySurface::ExtractDCText(std::string *name,
-	std::string *shields, std::string *hull,
-	std::string *sys, std::string *dist,
-	std::string *cargo, std::string *subCmp)
+void PrimarySurface::ExtractDCText()
 {
 	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
 	static   short s_rowSize    = (short)(0.0185f * g_fCurInGameHeight);
 	//static   int   s_fontSizes[3] = { 12, 16, 10 };
 
-	*name    = "";
-	*shields = "";
-	*hull    = "";
-	*sys     = "";
-	*dist    = "";
-	*cargo   = "";
-	*subCmp  = "";
+	g_EnhancedHUDData.sName    = "";
+	g_EnhancedHUDData.sTmp     = ""; // This is used to temporaily store the name of the craft (it's two rows)
+	g_EnhancedHUDData.sShields = "";
+	g_EnhancedHUDData.sHull    = "";
+	g_EnhancedHUDData.sSys     = "";
+	g_EnhancedHUDData.sDist    = "";
+	g_EnhancedHUDData.sCargo   = "";
+	g_EnhancedHUDData.sSubCmp  = "";
+
+	g_EnhancedHUDData.shields = -1;
+	g_EnhancedHUDData.hull    = -1;
+	g_EnhancedHUDData.sys     = -1;
+	g_EnhancedHUDData.dist    = -1.0f;
+
+	// These are indices of dcSrcRegions:
+	constexpr int NAME_IDX   = 0;
+	constexpr int SHD_IDX    = 1;
+	constexpr int HULL_IDX   = 2;
+	constexpr int SYS_IDX    = 3;
+	constexpr int DIST_IDX   = 4;
+	constexpr int SUBCMP_IDX = 6;
 
 	static Box  s_boxes[7] = {};
 	static bool s_boxesComputed[7] = { false, false, false, false, false, false, false };
@@ -12558,7 +12570,11 @@ void PrimarySurface::ExtractDCText(std::string *name,
 		TARGETED_OBJ_SYS_SRC_IDX, TARGETED_OBJ_DIST_SRC_IDX, TARGETED_OBJ_CARGO_SRC_IDX,
 		TARGETED_OBJ_SUBCMP_SRC_IDX, -1,
 	};
-	std::string *strings[] = { name, shields, hull, sys, dist, cargo, subCmp };
+	std::string *strings[] = {
+		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sShields, &g_EnhancedHUDData.sHull,
+		&g_EnhancedHUDData.sSys, &g_EnhancedHUDData.sDist, &g_EnhancedHUDData.sCargo,
+		&g_EnhancedHUDData.sSubCmp };
+	int rows[7] = { -1, -1, -1, -1, -1, -1, -1 };
 
 	// Precompute the box sizes
 	if (s_numComputedBoxes < 7)
@@ -12618,13 +12634,59 @@ void PrimarySurface::ExtractDCText(std::string *name,
 			if (IsOverlapping(box.x0, box.y0, box.x1, box.y1,
 				x0, y0, x1, y1))
 			{
+				if (rows[dcCurRegion] == -1 || rows[dcCurRegion] != xwaText.positionY)
+				{
+					// Parse the beginning of the first row for certain key areas:
+					if (rows[dcCurRegion] == -1)
+					{
+						// Store the colors of key areas for later use.
+						// Colors are apparently in the format AARRGGBB.
+						switch (dcCurRegion)
+						{
+						case NAME_IDX:
+							g_EnhancedHUDData.nameColor   = xwaText.color;
+							break;
+						case SHD_IDX:
+							g_EnhancedHUDData.statsColor  = xwaText.color;
+							break;
+						case SUBCMP_IDX:
+							g_EnhancedHUDData.subCmpColor = xwaText.color;
+							break;
+						}
+					}
+					else
+					{
+						// Parse the existing string at the beginning of the second row
+						switch (dcCurRegion)
+						{
+						case NAME_IDX:
+							g_EnhancedHUDData.sName = *strings[dcCurRegion];
+							break;
+						case SHD_IDX:
+						case HULL_IDX:
+						case SYS_IDX:
+						case DIST_IDX:
+							*strings[dcCurRegion] = ""; // Clear the first row, only the second row is important
+							break;
+						}
+					}
+
+					//*strings[dcCurRegion] += "<" + std::to_string(xwaText.positionY) + ">";
+					rows[dcCurRegion] = xwaText.positionY;
+				}
 				*strings[dcCurRegion] += xwaText.textChar;
 			}
 		}
 	}
 
-	/*log_debug("[DBG] %d. name: [%s], shields: [%s], hull: [%s]",
-		s_numComputedBoxes, name.c_str(), shields.c_str(), hull.c_str());*/
+	if (g_EnhancedHUDData.sShields.size() > 0)
+		g_EnhancedHUDData.shields = atoi(g_EnhancedHUDData.sShields.c_str());
+	if (g_EnhancedHUDData.sHull.size() > 0)
+		g_EnhancedHUDData.hull = atoi(g_EnhancedHUDData.sHull.c_str());
+	if (g_EnhancedHUDData.sSys.size() > 0)
+		g_EnhancedHUDData.sys = atoi(g_EnhancedHUDData.sSys.c_str());
+	if (g_EnhancedHUDData.sDist.size() > 0)
+		g_EnhancedHUDData.dist = (float)atof(g_EnhancedHUDData.sDist.c_str());
 }
 
 void PrimarySurface::RenderText(bool earlyExit)
