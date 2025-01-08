@@ -379,7 +379,8 @@ void PrimarySurface::RenderEnhancedHUDText()
 	auto &resources = this->_deviceResources;
 	auto &context = resources->_d3dDeviceContext;
 	auto &device = resources->_d3dDevice;
-	char rows[3][128];
+	constexpr int SIZE = 128;
+	char rows[3][SIZE];
 	char* dRows[3] = { rows[0], rows[1], rows[2] };
 
 	// Render text on the target bracket
@@ -400,51 +401,43 @@ void PrimarySurface::RenderEnhancedHUDText()
 			centerX >= 0 && centerX <= (int)g_fCurInGameWidth &&
 			centerY >= 0 && centerY <= (int)g_fCurInGameHeight)
 		{
-			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
-			unsigned int esi;
-
-			if (((bool(*)())0x0050DC50)() != 0)
+			// Left
+			if (g_EnhancedHUDData.shields != -1)
 			{
-				unsigned short eax = si & 0x001F;
-				unsigned short ecx = si & 0x7C00;
-				unsigned short edx = si & 0x03E0;
+				sprintf_s(rows[0], SIZE, "SHD");
+				sprintf_s(rows[1], SIZE, "%d", g_EnhancedHUDData.shields);
+				DisplayCenteredLines(x0, y0 + 5, g_EnhancedHUDData.statsColor, 1.0f, -10, 0, 2, dRows);
+			}
 
-				esi = (eax << 3) | (edx << 6) | (ecx << 9);
+			// Right
+			if (g_EnhancedHUDData.shields != -1)
+			{
+				sprintf_s(rows[0], SIZE, "SYS");
+				sprintf_s(rows[1], SIZE, "%d", g_EnhancedHUDData.sys);
+				DisplayCenteredLines(x0 + W, y0 + 5, g_EnhancedHUDData.statsColor, 0.0f, 10, 0, 2, dRows);
+			}
+
+			// Bottom-center
+			if (g_EnhancedHUDData.hull != -1)
+			{
+				int numLines = 0;
+				if (g_EnhancedHUDData.sCargo.size() > 0)
+					sprintf_s(rows[numLines++], SIZE, "HULL: %d, %s", g_EnhancedHUDData.hull, g_EnhancedHUDData.sCargo.c_str());
+				else
+					sprintf_s(rows[numLines++], SIZE, "HULL: %d", g_EnhancedHUDData.hull);
+				DisplayCenteredLines(centerX, y0 + H, g_EnhancedHUDData.statsColor, 0.5f, 0, 10, numLines, dRows);
+			}
+
+			// Top-center
+			if (g_EnhancedHUDData.sName.size() > 0)
+			{
+				sprintf_s(rows[0], SIZE, "%s, %0.2f", g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.dist);
+				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -25, 1, dRows);
 			}
 			else
 			{
-				unsigned short eax = si & 0x001F;
-				unsigned short edx = si & 0xF800;
-				unsigned short ecx = si & 0x07E0;
-
-				esi = (eax << 3) | (ecx << 5) | (edx << 8);
-			}
-
-			std::string cargo, name;
-			int shields, hull, system;
-			if (GetCurrentTargetStats(&shields, &hull, &system, cargo, name))
-			{
-				// Left
-				sprintf_s(rows[0], 128, "SHD");
-				sprintf_s(rows[1], 128, "%d", shields);
-				DisplayCenteredLines(x0, y0 + 5, esi, 1.0f, -10,0, 2,dRows);
-
-				// Right
-				sprintf_s(rows[0], 128, "SYS");
-				sprintf_s(rows[1], 128, "%d", system);
-				DisplayCenteredLines(x0 + W, y0 + 5, esi, 0.0f, 10,0, 2,dRows);
-
-				// Bottom-center
-				int numLines = 0;
-				sprintf_s(rows[numLines++], 128, "HULL");
-				sprintf_s(rows[numLines++], 128, "%d", hull);
-				if (cargo.size() > 0)
-					sprintf_s(rows[numLines++], 128, "%s", cargo.c_str());
-				DisplayCenteredLines(centerX, y0 + H, esi, 0.5f, 0,10, numLines,dRows);
-
-				// Top-center
-				sprintf_s(rows[0], 128, "%s", name.c_str());
-				DisplayCenteredLines(centerX, y0, esi, 0.5f, 0,-25, 1,dRows);
+				sprintf_s(rows[0], SIZE, "%0.2f", g_EnhancedHUDData.dist);
+				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.statsColor, 0.5f, 0, -25, 1, dRows);
 			}
 		}
 	}
@@ -10675,7 +10668,8 @@ HRESULT PrimarySurface::Flip(
 				if (g_EnhancedHUDData.Enabled)
 				{
 					this->ExtractDCText();
-					/*log_debug("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
+					/*log_debug("[DBG] tmp: [%s]", g_EnhancedHUDData.sTmp);
+					log_debug("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
 						g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.shields,
 						g_EnhancedHUDData.hull, g_EnhancedHUDData.sys);
 					log_debug("[DBG] dist: [%0.1f], cargo: [%s], subCmp: [%s]",
@@ -12554,6 +12548,10 @@ void PrimarySurface::ExtractDCText()
 	g_EnhancedHUDData.sys     = -1;
 	g_EnhancedHUDData.dist    = -1.0f;
 
+	uint32_t nameColors[4] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
+	int      nameColorIdx  = -1;
+	bool     bNameCaptured = false;
+
 	// These are indices of dcSrcRegions:
 	constexpr int NAME_IDX   = 0;
 	constexpr int SHD_IDX    = 1;
@@ -12634,18 +12632,24 @@ void PrimarySurface::ExtractDCText()
 			if (IsOverlapping(box.x0, box.y0, box.x1, box.y1,
 				x0, y0, x1, y1))
 			{
+				// The name field sometimes has two colors on the first row. We want to capture the second color:
+				if (dcCurRegion == NAME_IDX)
+				{
+					if (nameColorIdx < 0 || (nameColors[nameColorIdx] != xwaText.color && nameColorIdx < 3))
+					{
+						nameColors[++nameColorIdx] = xwaText.color;
+					}
+				}
+
 				if (rows[dcCurRegion] == -1 || rows[dcCurRegion] != xwaText.positionY)
 				{
 					// Parse the beginning of the first row for certain key areas:
 					if (rows[dcCurRegion] == -1)
 					{
 						// Store the colors of key areas for later use.
-						// Colors are apparently in the format AARRGGBB.
+						// Colors are in the format AARRGGBB
 						switch (dcCurRegion)
 						{
-						case NAME_IDX:
-							g_EnhancedHUDData.nameColor   = xwaText.color;
-							break;
 						case SHD_IDX:
 							g_EnhancedHUDData.statsColor  = xwaText.color;
 							break;
@@ -12661,6 +12665,7 @@ void PrimarySurface::ExtractDCText()
 						{
 						case NAME_IDX:
 							g_EnhancedHUDData.sName = *strings[dcCurRegion];
+							bNameCaptured = true;
 							break;
 						case SHD_IDX:
 						case HULL_IDX:
@@ -12671,13 +12676,26 @@ void PrimarySurface::ExtractDCText()
 						}
 					}
 
-					//*strings[dcCurRegion] += "<" + std::to_string(xwaText.positionY) + ">";
 					rows[dcCurRegion] = xwaText.positionY;
 				}
 				*strings[dcCurRegion] += xwaText.textChar;
 			}
 		}
 	}
+
+	if (!bNameCaptured)
+	{
+		// Sometimes the name field is only one row. In that case, we need to capture
+		// whatever we have in sTmp:
+		g_EnhancedHUDData.sName = *strings[NAME_IDX];
+	}
+
+	// Names have two colors. The craft type is darker than the craft's name proper.
+	// We want to capture the second color:
+	if (nameColorIdx >= 1)
+		g_EnhancedHUDData.nameColor = nameColors[1];
+	else
+		g_EnhancedHUDData.nameColor = nameColors[0];
 
 	if (g_EnhancedHUDData.sShields.size() > 0)
 		g_EnhancedHUDData.shields = atoi(g_EnhancedHUDData.sShields.c_str());
