@@ -337,6 +337,7 @@ struct EnhancedHUDData
 	bool Enabled;
 	int  MinBracketSize;
 	int  MaxBracketSize;
+	int  fontIdx;
 	std::string sName, sShields, sHull, sSys;
 	std::string sDist, sCargo, sSubCmp, sTmp;
 	uint32_t nameColor, statsColor, subCmpColor;

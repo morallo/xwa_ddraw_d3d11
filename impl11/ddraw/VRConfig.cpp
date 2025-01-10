@@ -2393,12 +2393,31 @@ bool LoadSSAOParams() {
 
 			if (_stricmp(param, "enable_enhanced_hud") == 0) {
 				g_EnhancedHUDData.Enabled = (bool)fValue;
+				g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
 			}
 			else if (_stricmp(param, "enhanced_hud_min_bracket_size") == 0) {
 				g_EnhancedHUDData.MinBracketSize = (int)fValue;
 			}
 			else if (_stricmp(param, "enhanced_hud_max_bracket_size") == 0) {
 				g_EnhancedHUDData.MaxBracketSize = (int)fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_font_size") == 0) {
+				const int size = (int)fValue;
+				switch (size)
+				{
+				case 0:
+				case 1:
+					g_EnhancedHUDData.fontIdx = FONT_SMALL_IDX;
+					break;
+				case 2:
+					g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
+					break;
+				case 3:
+					g_EnhancedHUDData.fontIdx = FONT_LARGE_IDX;
+					break;
+				default:
+					g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
+				}
 			}
 
 			if (_stricmp(param, "bias") == 0) {

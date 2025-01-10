@@ -349,14 +349,15 @@ void DisplayCenteredLines(
 	int x0, int y0, uint32_t color,
 	float alignment,
 	int dispX, int dispY,
-	int numLines, char** rows)
+	int numLines, char** rows, int FontIdx)
 {
+	const int ySize = (FontIdx == FONT_LARGE_IDX) ? 20 : 18;
 	int widths[5], maxWidth = 0;
 	int maxNumLines = min(5, numLines);
 	// Compute the max width of all the rows
 	for (int i = 0; i < maxNumLines; i++)
 	{
-		widths[i] = ComputeMsgWidth(rows[i], FONT_LARGE_IDX);
+		widths[i] = ComputeMsgWidth(rows[i], FontIdx);
 		maxWidth = max(widths[i], maxWidth);
 	}
 
@@ -366,8 +367,8 @@ void DisplayCenteredLines(
 		int x = x0 - (int)(alignment * maxWidth);
 		x += (maxWidth - widths[i]) / 2;
 		x += dispX;
-		DisplayText(rows[i], FONT_LARGE_IDX, x, y, color);
-		y += 20;
+		DisplayText(rows[i], FontIdx, x, y, color);
+		y += ySize;
 	}
 }
 
@@ -382,6 +383,7 @@ void PrimarySurface::RenderEnhancedHUDText()
 	constexpr int SIZE = 128;
 	char rows[3][SIZE];
 	char* dRows[3] = { rows[0], rows[1], rows[2] };
+	const int fontIdx = g_EnhancedHUDData.fontIdx;
 
 	// Render text on the target bracket
 	{
@@ -401,6 +403,7 @@ void PrimarySurface::RenderEnhancedHUDText()
 			centerX >= 0 && centerX <= (int)g_fCurInGameWidth &&
 			centerY >= 0 && centerY <= (int)g_fCurInGameHeight)
 		{
+			/*
 			// Left
 			if (g_EnhancedHUDData.shields != -1)
 			{
@@ -427,17 +430,26 @@ void PrimarySurface::RenderEnhancedHUDText()
 					sprintf_s(rows[numLines++], SIZE, "HULL: %d", g_EnhancedHUDData.hull);
 				DisplayCenteredLines(centerX, y0 + H, g_EnhancedHUDData.statsColor, 0.5f, 0, 10, numLines, dRows);
 			}
+			*/
+
+			// Bottom-center:
+			if (g_EnhancedHUDData.sCargo.size() > 0)
+			{
+				int numLines = 0;
+				sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sCargo.c_str());
+				DisplayCenteredLines(centerX, y0 + H, g_EnhancedHUDData.statsColor, 0.5f, 0, 10, numLines, dRows, fontIdx);
+			}
 
 			// Top-center
 			if (g_EnhancedHUDData.sName.size() > 0)
 			{
-				sprintf_s(rows[0], SIZE, "%s, %0.2f", g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.dist);
-				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -25, 1, dRows);
+				sprintf_s(rows[0], SIZE, "[%s] %0.2f", g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.dist);
+				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -53, 1, dRows, fontIdx);
 			}
 			else
 			{
-				sprintf_s(rows[0], SIZE, "%0.2f", g_EnhancedHUDData.dist);
-				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.statsColor, 0.5f, 0, -25, 1, dRows);
+				sprintf_s(rows[0], SIZE, "DIST %0.2f", g_EnhancedHUDData.dist);
+				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.statsColor, 0.5f, 0, -53, 1, dRows, fontIdx);
 			}
 		}
 	}
@@ -489,7 +501,7 @@ void PrimarySurface::RenderEnhancedHUDText()
 				{
 					sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
 					DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
-						0.5f, 0,10, 1, dRows);
+						0.5f, 0,10, 1, dRows, fontIdx);
 				}
 			}
 		}
@@ -13251,6 +13263,7 @@ void PrimarySurface::RenderBracket()
 	// It's probably not necessary to have two brushes, but I don't think it hurts either and
 	// I'm doing this just in case brushes can't be shared between different RTVs
 	static ComPtr<ID2D1SolidColorBrush> s_brushOffscreen, s_brushDC, s_brush;
+	static ComPtr<ID2D1SolidColorBrush> s_greenBrush, s_redBrush, s_blueBrush;
 	static UINT s_left;
 	static UINT s_top;
 	static float s_scaleX;
@@ -13266,6 +13279,9 @@ void PrimarySurface::RenderBracket()
 		s_brush.Release();
 		s_brushDC.Release();
 		s_brushOffscreen.Release();
+		s_greenBrush.Release();
+		s_redBrush.Release();
+		s_blueBrush.Release();
 		return;
 	}
 
@@ -13307,6 +13323,9 @@ void PrimarySurface::RenderBracket()
 
 		this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushOffscreen);
 		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushDC);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x00FF00, 1.0f), &s_greenBrush);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 1.0f), &s_redBrush);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x2080FF, 1.0f), &s_blueBrush);
 	}
 
 	this->_deviceResources->_d2d1OffscreenRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
@@ -13416,6 +13435,37 @@ void PrimarySurface::RenderBracket()
 			// bottom right
 			rtv->DrawLine(D2D1::Point2F(posX + posW - posW * posSide, posY + posH), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
 			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
+
+			// Render bars for shields, hull and sys:
+			if (xwaBracket.isCurrentTarget)
+			{
+				const float shd  = g_EnhancedHUDData.shields / 100.0f;
+				const float hull = g_EnhancedHUDData.hull / 100.0f;
+				const float sys  = g_EnhancedHUDData.sys / 100.0f;
+				constexpr float barH = 10.0f, gapH = 1.0f;
+				constexpr float barW = 140.0f;
+				const float centerX = posX + posW * 0.5f;
+				const float startX  = centerX - barW * 0.5f;
+
+				{
+					float y = posY - 45;
+					if (g_EnhancedHUDData.shields > 0)
+					{
+						rtv->FillRectangle(D2D1::RectF(startX, y, startX + min(1.0f, shd) * barW,  y + barH), s_greenBrush);
+						// Shields can go up to 200%, in that case, we draw another bar on top of the first one:
+						if (shd > 1.0f)
+							rtv->FillRectangle(D2D1::RectF(startX, y - barH, startX + (shd - 1.0f) * barW,  y), s_greenBrush);
+					}
+					y += barH + gapH;
+
+					if (g_EnhancedHUDData.hull > 0)
+						rtv->FillRectangle(D2D1::RectF(startX, y, startX + hull * barW, y + barH), s_redBrush);
+					y += barH + gapH;
+
+					if (g_EnhancedHUDData.sys > 0)
+						rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW,  y + barH), s_blueBrush);
+				}
+			}
 		}
 	}
 
