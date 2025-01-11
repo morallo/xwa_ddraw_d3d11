@@ -2419,6 +2419,37 @@ bool LoadSSAOParams() {
 					g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
 				}
 			}
+			else if (_stricmp(param, "enhanced_hud_shields_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.shieldsCol = 0xFF000000 |
+					((uint32_t)(x * 255.0f) << 16) |
+					((uint32_t)(y * 255.0f) << 8) |
+					 (uint32_t)(z * 255.0f);
+			}
+			else if (_stricmp(param, "enhanced_hud_hull_col_full") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.hullCol1 = { x, y, z };
+			}
+			else if (_stricmp(param, "enhanced_hud_hull_col_mid") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.hullCol2 = { x, y, z };
+			}
+			else if (_stricmp(param, "enhanced_hud_hull_col_low") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.hullCol3 = { x, y, z };
+			}
+			else if (_stricmp(param, "enhanced_hud_sys_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.sysCol = 0xFF000000 |
+					((uint32_t)(x * 255.0f) << 16) |
+					((uint32_t)(y * 255.0f) << 8) |
+					(uint32_t)(z * 255.0f);
+			}
 
 			if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;

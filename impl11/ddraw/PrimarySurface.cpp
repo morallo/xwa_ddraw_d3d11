@@ -161,6 +161,14 @@ inline float lerp(float x, float y, float s) {
 	return x + s * (y - x);
 }
 
+inline float3 lerp(float3 A, float3 B, float s) {
+	float3 R;
+	R.x = A.x + s * (B.x - A.x);
+	R.y = A.y + s * (B.y - A.y);
+	R.z = A.z + s * (B.z - A.z);
+	return R;
+}
+
 inline bool IsOverlapping(
 	float xmin1, float ymin1, float xmax1, float ymax1, // First box
 	float xmin2, float ymin2, float xmax2, float ymax2) // Second box
@@ -432,24 +440,21 @@ void PrimarySurface::RenderEnhancedHUDText()
 			}
 			*/
 
+			// Top-center
+			{
+				int numLines = 0;
+				if (g_EnhancedHUDData.sName.size() > 0)
+					sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sName.c_str());
+				sprintf_s(rows[numLines++], SIZE, "%0.2f km", g_EnhancedHUDData.dist);
+				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -45, numLines, dRows, fontIdx);
+			}
+
 			// Bottom-center:
 			if (g_EnhancedHUDData.sCargo.size() > 0)
 			{
 				int numLines = 0;
 				sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sCargo.c_str());
 				DisplayCenteredLines(centerX, y0 + H, g_EnhancedHUDData.statsColor, 0.5f, 0, 10, numLines, dRows, fontIdx);
-			}
-
-			// Top-center
-			if (g_EnhancedHUDData.sName.size() > 0)
-			{
-				sprintf_s(rows[0], SIZE, "[%s] %0.2f", g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.dist);
-				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -53, 1, dRows, fontIdx);
-			}
-			else
-			{
-				sprintf_s(rows[0], SIZE, "DIST %0.2f", g_EnhancedHUDData.dist);
-				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.statsColor, 0.5f, 0, -53, 1, dRows, fontIdx);
 			}
 		}
 	}
@@ -13263,7 +13268,7 @@ void PrimarySurface::RenderBracket()
 	// It's probably not necessary to have two brushes, but I don't think it hurts either and
 	// I'm doing this just in case brushes can't be shared between different RTVs
 	static ComPtr<ID2D1SolidColorBrush> s_brushOffscreen, s_brushDC, s_brush;
-	static ComPtr<ID2D1SolidColorBrush> s_greenBrush, s_redBrush, s_blueBrush;
+	static ComPtr<ID2D1SolidColorBrush> s_shieldsBrush, s_hullBrush, s_sysBrush;
 	static UINT s_left;
 	static UINT s_top;
 	static float s_scaleX;
@@ -13279,9 +13284,9 @@ void PrimarySurface::RenderBracket()
 		s_brush.Release();
 		s_brushDC.Release();
 		s_brushOffscreen.Release();
-		s_greenBrush.Release();
-		s_redBrush.Release();
-		s_blueBrush.Release();
+		s_shieldsBrush.Release();
+		s_hullBrush.Release();
+		s_sysBrush.Release();
 		return;
 	}
 
@@ -13323,9 +13328,9 @@ void PrimarySurface::RenderBracket()
 
 		this->_deviceResources->_d2d1OffscreenRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushOffscreen);
 		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brushDC);
-		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x00FF00, 1.0f), &s_greenBrush);
-		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0xFF0000, 1.0f), &s_redBrush);
-		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x2080FF, 1.0f), &s_blueBrush);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.shieldsCol, 1.0f), &s_shieldsBrush);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0000FF00, 1.0f), &s_hullBrush);
+		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.sysCol, 1.0f), &s_sysBrush);
 	}
 
 	this->_deviceResources->_d2d1OffscreenRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
@@ -13448,22 +13453,46 @@ void PrimarySurface::RenderBracket()
 				const float startX  = centerX - barW * 0.5f;
 
 				{
-					float y = posY - 45;
-					if (g_EnhancedHUDData.shields > 0)
+					const int sCargoSize = g_EnhancedHUDData.sCargo.size();
+					//float y = posY - 45;
+					float y = posY + posH + (sCargoSize > 0 ? 58 : 15);
+					if (shd > 1.0f)
+						y += barH + gapH;
+
+					if (g_EnhancedHUDData.shields >= 0)
 					{
-						rtv->FillRectangle(D2D1::RectF(startX, y, startX + min(1.0f, shd) * barW,  y + barH), s_greenBrush);
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_shieldsBrush, 2.0f);
+						rtv->FillRectangle(D2D1::RectF(startX, y, startX + min(1.0f, shd) * barW, y + barH), s_shieldsBrush);
 						// Shields can go up to 200%, in that case, we draw another bar on top of the first one:
 						if (shd > 1.0f)
-							rtv->FillRectangle(D2D1::RectF(startX, y - barH, startX + (shd - 1.0f) * barW,  y), s_greenBrush);
+						{
+							rtv->DrawRectangle(D2D1::RectF(startX, y - barH, startX + barW,  y), s_shieldsBrush, 2.0f);
+							rtv->FillRectangle(D2D1::RectF(startX, y - barH, startX + (shd - 1.0f) * barW,  y), s_shieldsBrush);
+						}
 					}
 					y += barH + gapH;
 
-					if (g_EnhancedHUDData.hull > 0)
-						rtv->FillRectangle(D2D1::RectF(startX, y, startX + hull * barW, y + barH), s_redBrush);
+					// Let's make the hull change color depending on its value
+					float3 hullCol;
+					if (hull > 0.5f)
+						hullCol = lerp(g_EnhancedHUDData.hullCol2, g_EnhancedHUDData.hullCol1, (hull - 0.5f) / 0.5f);
+					else
+						hullCol = lerp(g_EnhancedHUDData.hullCol3, g_EnhancedHUDData.hullCol2, hull / 0.5f);
+					s_hullBrush->SetColor(D2D1::ColorF(hullCol.x, hullCol.y, hullCol.z));
+
+					if (g_EnhancedHUDData.hull >= 0)
+					{
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, 2.0f);
+						rtv->FillRectangle(D2D1::RectF(startX, y, startX + hull * barW, y + barH), s_hullBrush);
+					}
 					y += barH + gapH;
 
-					if (g_EnhancedHUDData.sys > 0)
-						rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW,  y + barH), s_blueBrush);
+					// Only display sys bar when there's damage
+					if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
+					{
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, 2.0f);
+						rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW, y + barH), s_sysBrush);
+					}
 				}
 			}
 		}
