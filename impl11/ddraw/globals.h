@@ -351,6 +351,8 @@ struct EnhancedHUDData
 	float3 hullCol2 = { 1.0f, 1.0f, 0.0f };
 	float3 hullCol3 = { 1.0f, 0.0f, 0.0f };
 	bool   enhanceNameColor = true;
+	float  minBarW = 16.0f, maxBarW = 140.0f, barStrokeSize = 3.0f;
+	float  barH = 12.0f, gapH = 7.0f;
 };
 extern EnhancedHUDData g_EnhancedHUDData;
 

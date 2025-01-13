@@ -13401,6 +13401,7 @@ void PrimarySurface::RenderBracket()
 			extraScale += variableScale;
 			posSide += 0.03f * variableScale;
 		}
+		// This version makes the stroke change its width
 		//float strokeWidth = extraScale * min(s_scaleX, s_scaleY);
 
 		// Update variableScale:
@@ -13439,12 +13440,19 @@ void PrimarySurface::RenderBracket()
 			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
 
 			// Render bars for shields, hull and sys:
-			if (xwaBracket.isCurrentTarget)
+			if (g_EnhancedHUDData.Enabled && xwaBracket.isCurrentTarget)
 			{
-				constexpr float barW = 140.0f, barH = 12.0f, gapH = 7.0f;
-				const float shd  = g_EnhancedHUDData.shields / 100.0f;
-				const float hull = g_EnhancedHUDData.hull / 100.0f;
-				const float sys  = g_EnhancedHUDData.sys / 100.0f;
+				const float strokeSize = g_EnhancedHUDData.barStrokeSize;
+
+				const float minBarW = g_EnhancedHUDData.minBarW;
+				const float maxBarW = g_EnhancedHUDData.maxBarW;
+				const float barH    = g_EnhancedHUDData.barH;
+				const float gapH    = g_EnhancedHUDData.gapH;
+				const float shd     = g_EnhancedHUDData.shields / 100.0f;
+				const float hull    = g_EnhancedHUDData.hull / 100.0f;
+				const float sys     = g_EnhancedHUDData.sys / 100.0f;
+
+				float barW = max(minBarW, min(maxBarW, posW * 0.7f));
 				const float centerX = posX + posW * 0.5f;
 				const float startX  = centerX - barW * 0.5f;
 
@@ -13454,7 +13462,7 @@ void PrimarySurface::RenderBracket()
 					if (g_EnhancedHUDData.shields >= 0)
 					{
 						s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.shieldsCol));
-						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_shieldsBrush, 3.0f);
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_shieldsBrush, strokeSize);
 						rtv->FillRectangle(D2D1::RectF(startX, y, startX + min(1.0f, shd) * barW, y + barH), s_shieldsBrush);
 						// Shields can go up to 200%, in that case, we draw another bar on top of the first one:
 						if (shd > 1.0f)
@@ -13475,7 +13483,7 @@ void PrimarySurface::RenderBracket()
 
 					if (g_EnhancedHUDData.hull >= 0)
 					{
-						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, 3.0f);
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, strokeSize);
 						rtv->FillRectangle(D2D1::RectF(startX, y, startX + hull * barW, y + barH), s_hullBrush);
 					}
 					y += barH + gapH;
@@ -13483,7 +13491,7 @@ void PrimarySurface::RenderBracket()
 					// Only display the sys bar when there's damage
 					if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
 					{
-						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, 3.0f);
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, strokeSize);
 						rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW, y + barH), s_sysBrush);
 					}
 				}

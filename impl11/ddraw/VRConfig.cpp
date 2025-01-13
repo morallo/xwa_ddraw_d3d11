@@ -2404,6 +2404,21 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "enhanced_hud_max_bracket_size") == 0) {
 				g_EnhancedHUDData.MaxBracketSize = (int)fValue;
 			}
+			else if (_stricmp(param, "enhanced_hud_min_bar_width") == 0) {
+				g_EnhancedHUDData.minBarW = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_max_bar_width") == 0) {
+				g_EnhancedHUDData.maxBarW = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_bar_height") == 0) {
+				g_EnhancedHUDData.barH = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_bar_gap") == 0) {
+				g_EnhancedHUDData.gapH = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_bar_frame_width") == 0) {
+				g_EnhancedHUDData.barStrokeSize = fValue;
+			}
 			else if (_stricmp(param, "enhanced_hud_font_size") == 0) {
 				const int size = (int)fValue;
 				switch (size)
