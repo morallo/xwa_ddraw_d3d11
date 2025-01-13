@@ -2395,6 +2395,9 @@ bool LoadSSAOParams() {
 				g_EnhancedHUDData.Enabled = (bool)fValue;
 				g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
 			}
+			if (_stricmp(param, "enhanced_hud_enhance_name_col") == 0) {
+				g_EnhancedHUDData.enhanceNameColor = (bool)fValue;
+			}
 			else if (_stricmp(param, "enhanced_hud_min_bracket_size") == 0) {
 				g_EnhancedHUDData.MinBracketSize = (int)fValue;
 			}
@@ -2426,6 +2429,14 @@ bool LoadSSAOParams() {
 					((uint32_t)(x * 255.0f) << 16) |
 					((uint32_t)(y * 255.0f) << 8) |
 					 (uint32_t)(z * 255.0f);
+			}
+			else if (_stricmp(param, "enhanced_hud_overshds_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.overShdCol = 0xFF000000 |
+					((uint32_t)(x * 255.0f) << 16) |
+					((uint32_t)(y * 255.0f) << 8) |
+					(uint32_t)(z * 255.0f);
 			}
 			else if (_stricmp(param, "enhanced_hud_hull_col_full") == 0) {
 				float x, y, z;

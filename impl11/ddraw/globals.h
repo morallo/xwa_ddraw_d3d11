@@ -344,10 +344,13 @@ struct EnhancedHUDData
 	int   shields, hull, sys;
 	float dist;
 	uint32_t shieldsCol = 0xFF2080FF;
+	uint32_t overShdCol = 0xFF7DF9FF; // Electric blue
+	//uint32_t overShdCol = 0xFFFFD700; // Gold color
 	uint32_t sysCol     = 0xFFCCC0FF; // Periwinkle!
 	float3 hullCol1 = { 0.0f, 1.0f, 0.0f };
 	float3 hullCol2 = { 1.0f, 1.0f, 0.0f };
 	float3 hullCol3 = { 1.0f, 0.0f, 0.0f };
+	bool   enhanceNameColor = true;
 };
 extern EnhancedHUDData g_EnhancedHUDData;
 

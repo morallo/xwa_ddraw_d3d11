@@ -411,51 +411,16 @@ void PrimarySurface::RenderEnhancedHUDText()
 			centerX >= 0 && centerX <= (int)g_fCurInGameWidth &&
 			centerY >= 0 && centerY <= (int)g_fCurInGameHeight)
 		{
-			/*
-			// Left
-			if (g_EnhancedHUDData.shields != -1)
-			{
-				sprintf_s(rows[0], SIZE, "SHD");
-				sprintf_s(rows[1], SIZE, "%d", g_EnhancedHUDData.shields);
-				DisplayCenteredLines(x0, y0 + 5, g_EnhancedHUDData.statsColor, 1.0f, -10, 0, 2, dRows);
-			}
-
-			// Right
-			if (g_EnhancedHUDData.shields != -1)
-			{
-				sprintf_s(rows[0], SIZE, "SYS");
-				sprintf_s(rows[1], SIZE, "%d", g_EnhancedHUDData.sys);
-				DisplayCenteredLines(x0 + W, y0 + 5, g_EnhancedHUDData.statsColor, 0.0f, 10, 0, 2, dRows);
-			}
-
-			// Bottom-center
-			if (g_EnhancedHUDData.hull != -1)
-			{
-				int numLines = 0;
-				if (g_EnhancedHUDData.sCargo.size() > 0)
-					sprintf_s(rows[numLines++], SIZE, "HULL: %d, %s", g_EnhancedHUDData.hull, g_EnhancedHUDData.sCargo.c_str());
-				else
-					sprintf_s(rows[numLines++], SIZE, "HULL: %d", g_EnhancedHUDData.hull);
-				DisplayCenteredLines(centerX, y0 + H, g_EnhancedHUDData.statsColor, 0.5f, 0, 10, numLines, dRows);
-			}
-			*/
-
 			// Top-center
-			{
-				int numLines = 0;
-				if (g_EnhancedHUDData.sName.size() > 0)
-					sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sName.c_str());
-				sprintf_s(rows[numLines++], SIZE, "%0.2f km", g_EnhancedHUDData.dist);
-				DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -45, numLines, dRows, fontIdx);
-			}
-
-			// Bottom-center:
+			int numLines = 0;
+			if (g_EnhancedHUDData.sName.size() > 0)
+				sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sName.c_str());
 			if (g_EnhancedHUDData.sCargo.size() > 0)
-			{
-				int numLines = 0;
 				sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sCargo.c_str());
-				DisplayCenteredLines(centerX, y0 + H, g_EnhancedHUDData.statsColor, 0.5f, 0, 10, numLines, dRows, fontIdx);
-			}
+			if (g_EnhancedHUDData.dist > -1.0f)
+				sprintf_s(rows[numLines++], SIZE, "%0.2f km", g_EnhancedHUDData.dist);
+			int yPos = 18 + numLines * 15;
+			DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -yPos, numLines, dRows, fontIdx);
 		}
 	}
 
@@ -12566,7 +12531,7 @@ void PrimarySurface::ExtractDCText()
 	g_EnhancedHUDData.dist    = -1.0f;
 
 	uint32_t nameColors[4] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
-	int      nameColorIdx  = -1;
+	int      nameColorIdx  = -1, nameColorPosY = -1;
 	bool     bNameCaptured = false;
 
 	// These are indices of dcSrcRegions:
@@ -12652,7 +12617,13 @@ void PrimarySurface::ExtractDCText()
 				// The name field sometimes has two colors on the first row. We want to capture the second color:
 				if (dcCurRegion == NAME_IDX)
 				{
-					if (nameColorIdx < 0 || (nameColors[nameColorIdx] != xwaText.color && nameColorIdx < 3))
+					if (nameColorPosY == -1)
+						nameColorPosY = xwaText.positionY;
+
+					if (nameColorIdx < 0 ||
+						(nameColors[nameColorIdx] != xwaText.color &&
+						 nameColorPosY == xwaText.positionY &&
+						 nameColorIdx < 3))
 					{
 						nameColors[++nameColorIdx] = xwaText.color;
 					}
@@ -12707,12 +12678,38 @@ void PrimarySurface::ExtractDCText()
 		g_EnhancedHUDData.sName = *strings[NAME_IDX];
 	}
 
-	// Names have two colors. The craft type is darker than the craft's name proper.
-	// We want to capture the second color:
+	// Names sometimes have two colors. The craft type is darker than the craft's name proper.
+	// We want to capture the second color if it's there:
 	if (nameColorIdx >= 1)
 		g_EnhancedHUDData.nameColor = nameColors[1];
 	else
-		g_EnhancedHUDData.nameColor = nameColors[0];
+	{
+		// The first color is usually darker, we can make it brighter here for readability
+		uint32_t col = nameColors[0];
+		if (g_EnhancedHUDData.enhanceNameColor)
+		{
+			Vector3 C = {
+				(float)((col >> 16) & 0xFF),
+				(float)((col >>  8) & 0xFF),
+				(float)((col >>  0) & 0xFF)
+			};
+			// Compute lightness (value):
+			float val = C.dot(Vector3(0.333f, 0.333f, 0.333f));
+			Vector3 V = { val, val, val };
+			// Approx and increase saturation (the difference between gray and this color)
+			Vector3 Diff = 1.30f * (C - V);
+			// Increase the brightness:
+			C = 1.30f * (V + Diff);
+			C.x = max(0, min(255.0f, C.x));
+			C.y = max(0, min(255.0f, C.y));
+			C.z = max(0, min(255.0f, C.z));
+			col = 0xFF000000 |
+				(uint32_t)(C.x) << 16 |
+				(uint32_t)(C.y) <<  8 |
+				(uint32_t)(C.z);
+		}
+		g_EnhancedHUDData.nameColor = col;
+	}
 
 	if (g_EnhancedHUDData.sShields.size() > 0)
 		g_EnhancedHUDData.shields = atoi(g_EnhancedHUDData.sShields.c_str());
@@ -13397,14 +13394,14 @@ void PrimarySurface::RenderBracket()
 		float centerY = posY + posH * 0.5f;
 
 		// Original version:
-		//float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
+		float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
 		float extraScale = 2.0f;
 		if (g_EnhancedHUDData.Enabled && xwaBracket.isSubComponent)
 		{
 			extraScale += variableScale;
 			posSide += 0.03f * variableScale;
 		}
-		float strokeWidth = extraScale * min(s_scaleX, s_scaleY);
+		//float strokeWidth = extraScale * min(s_scaleX, s_scaleY);
 
 		// Update variableScale:
 		if (g_EnhancedHUDData.Enabled && xwaBracket.isSubComponent)
@@ -13444,30 +13441,26 @@ void PrimarySurface::RenderBracket()
 			// Render bars for shields, hull and sys:
 			if (xwaBracket.isCurrentTarget)
 			{
+				constexpr float barW = 140.0f, barH = 12.0f, gapH = 7.0f;
 				const float shd  = g_EnhancedHUDData.shields / 100.0f;
 				const float hull = g_EnhancedHUDData.hull / 100.0f;
 				const float sys  = g_EnhancedHUDData.sys / 100.0f;
-				constexpr float barH = 10.0f, gapH = 1.0f;
-				constexpr float barW = 140.0f;
 				const float centerX = posX + posW * 0.5f;
 				const float startX  = centerX - barW * 0.5f;
 
 				{
-					const int sCargoSize = g_EnhancedHUDData.sCargo.size();
-					//float y = posY - 45;
-					float y = posY + posH + (sCargoSize > 0 ? 58 : 15);
-					if (shd > 1.0f)
-						y += barH + gapH;
+					float y = posY + posH + gapH;
 
 					if (g_EnhancedHUDData.shields >= 0)
 					{
-						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_shieldsBrush, 2.0f);
+						s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.shieldsCol));
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_shieldsBrush, 3.0f);
 						rtv->FillRectangle(D2D1::RectF(startX, y, startX + min(1.0f, shd) * barW, y + barH), s_shieldsBrush);
 						// Shields can go up to 200%, in that case, we draw another bar on top of the first one:
 						if (shd > 1.0f)
 						{
-							rtv->DrawRectangle(D2D1::RectF(startX, y - barH, startX + barW,  y), s_shieldsBrush, 2.0f);
-							rtv->FillRectangle(D2D1::RectF(startX, y - barH, startX + (shd - 1.0f) * barW,  y), s_shieldsBrush);
+							s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.overShdCol));
+							rtv->FillRectangle(D2D1::RectF(startX, y, startX + (shd - 1.0f) * barW,  y + barH), s_shieldsBrush);
 						}
 					}
 					y += barH + gapH;
@@ -13482,15 +13475,15 @@ void PrimarySurface::RenderBracket()
 
 					if (g_EnhancedHUDData.hull >= 0)
 					{
-						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, 2.0f);
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, 3.0f);
 						rtv->FillRectangle(D2D1::RectF(startX, y, startX + hull * barW, y + barH), s_hullBrush);
 					}
 					y += barH + gapH;
 
-					// Only display sys bar when there's damage
+					// Only display the sys bar when there's damage
 					if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
 					{
-						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, 2.0f);
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, 3.0f);
 						rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW, y + barH), s_sysBrush);
 					}
 				}
