@@ -2398,6 +2398,9 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "enhanced_hud_enhance_name_col") == 0) {
 				g_EnhancedHUDData.enhanceNameColor = (bool)fValue;
 			}
+			if (_stricmp(param, "enhanced_hud_display_bars") == 0) {
+				g_EnhancedHUDData.displayBars = (bool)fValue;
+			}
 			else if (_stricmp(param, "enhanced_hud_min_bracket_size") == 0) {
 				g_EnhancedHUDData.MinBracketSize = (int)fValue;
 			}

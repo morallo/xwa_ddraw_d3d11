@@ -13440,7 +13440,9 @@ void PrimarySurface::RenderBracket()
 			rtv->DrawLine(D2D1::Point2F(posX + posW, posY + posH - posH * posSide), D2D1::Point2F(posX + posW, posY + posH), s_brush, strokeWidth);
 
 			// Render bars for shields, hull and sys:
-			if (g_EnhancedHUDData.Enabled && xwaBracket.isCurrentTarget)
+			if (g_EnhancedHUDData.Enabled &&
+				g_EnhancedHUDData.displayBars &&
+				xwaBracket.isCurrentTarget)
 			{
 				const float strokeSize = g_EnhancedHUDData.barStrokeSize;
 
