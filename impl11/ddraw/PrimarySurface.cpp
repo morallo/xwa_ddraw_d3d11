@@ -13453,12 +13453,20 @@ void PrimarySurface::RenderBracket()
 				const float shd     = g_EnhancedHUDData.shields / 100.0f;
 				const float hull    = g_EnhancedHUDData.hull / 100.0f;
 				const float sys     = g_EnhancedHUDData.sys / 100.0f;
-
 				float barW = max(minBarW, min(maxBarW, posW * 0.7f));
-				const float centerX = posX + posW * 0.5f;
-				const float startX  = centerX - barW * 0.5f;
 
+				// Let's make the hull change color depending on its value
+				float3 hullCol;
+				if (hull > 0.5f)
+					hullCol = lerp(g_EnhancedHUDData.hullCol2, g_EnhancedHUDData.hullCol1, (hull - 0.5f) / 0.5f);
+				else
+					hullCol = lerp(g_EnhancedHUDData.hullCol3, g_EnhancedHUDData.hullCol2, hull / 0.5f);
+				s_hullBrush->SetColor(D2D1::ColorF(hullCol.x, hullCol.y, hullCol.z));
+
+				if (!g_EnhancedHUDData.verticalBarLayout)
 				{
+					const float centerX = posX + posW * 0.5f;
+					const float startX  = centerX - barW * 0.5f;
 					float y = posY + posH + gapH;
 
 					if (g_EnhancedHUDData.shields >= 0)
@@ -13475,14 +13483,6 @@ void PrimarySurface::RenderBracket()
 					}
 					y += barH + gapH;
 
-					// Let's make the hull change color depending on its value
-					float3 hullCol;
-					if (hull > 0.5f)
-						hullCol = lerp(g_EnhancedHUDData.hullCol2, g_EnhancedHUDData.hullCol1, (hull - 0.5f) / 0.5f);
-					else
-						hullCol = lerp(g_EnhancedHUDData.hullCol3, g_EnhancedHUDData.hullCol2, hull / 0.5f);
-					s_hullBrush->SetColor(D2D1::ColorF(hullCol.x, hullCol.y, hullCol.z));
-
 					if (g_EnhancedHUDData.hull >= 0)
 					{
 						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, strokeSize);
@@ -13493,6 +13493,42 @@ void PrimarySurface::RenderBracket()
 					// Only display the sys bar when there's damage
 					if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
 					{
+						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, strokeSize);
+						rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW, y + barH), s_sysBrush);
+					}
+				}
+				else
+				{
+					const float centerY = posY + posH * 0.5f;
+					const float startY  = centerY + barW * 0.5f;
+					if (g_EnhancedHUDData.shields >= 0)
+					{
+						const float x = posX - gapH - barH;
+						s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.shieldsCol));
+						rtv->DrawRectangle(D2D1::RectF(x, startY, posX - gapH, startY - barW), s_shieldsBrush, strokeSize);
+						rtv->FillRectangle(D2D1::RectF(x, startY, posX - gapH, startY - min(1.0f, shd) * barW), s_shieldsBrush);
+						// Shields can go up to 200%, in that case, we draw another bar on top of the first one:
+						if (shd > 1.0f)
+						{
+							s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.overShdCol));
+							rtv->FillRectangle(D2D1::RectF(posX - gapH - barH, startY, posX - gapH, startY - (shd - 1.0f) * barW), s_shieldsBrush);
+						}
+					}
+
+					if (g_EnhancedHUDData.hull >= 0)
+					{
+						const float x = posX + posW + gapH;
+						rtv->DrawRectangle(D2D1::RectF(x, startY, x + barH, startY - barW), s_hullBrush, strokeSize);
+						rtv->FillRectangle(D2D1::RectF(x, startY, x + barH, startY - hull * barW), s_hullBrush);
+					}
+
+					// Only display the sys bar when there's damage
+					if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
+					{
+						const float centerX = posX + posW * 0.5f;
+						const float startX  = centerX - barW * 0.5f;
+						float y = posY + posH + gapH;
+
 						rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, strokeSize);
 						rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW, y + barH), s_sysBrush);
 					}

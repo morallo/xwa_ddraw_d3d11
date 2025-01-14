@@ -2401,19 +2401,22 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "enhanced_hud_display_bars") == 0) {
 				g_EnhancedHUDData.displayBars = (bool)fValue;
 			}
+			else if (_stricmp(param, "enhanced_hud_vertical_bars") == 0) {
+				g_EnhancedHUDData.verticalBarLayout = (bool)fValue;
+			}
 			else if (_stricmp(param, "enhanced_hud_min_bracket_size") == 0) {
 				g_EnhancedHUDData.MinBracketSize = (int)fValue;
 			}
 			else if (_stricmp(param, "enhanced_hud_max_bracket_size") == 0) {
 				g_EnhancedHUDData.MaxBracketSize = (int)fValue;
 			}
-			else if (_stricmp(param, "enhanced_hud_min_bar_width") == 0) {
+			else if (_stricmp(param, "enhanced_hud_min_bar_length") == 0) {
 				g_EnhancedHUDData.minBarW = fValue;
 			}
-			else if (_stricmp(param, "enhanced_hud_max_bar_width") == 0) {
+			else if (_stricmp(param, "enhanced_hud_max_bar_length") == 0) {
 				g_EnhancedHUDData.maxBarW = fValue;
 			}
-			else if (_stricmp(param, "enhanced_hud_bar_height") == 0) {
+			else if (_stricmp(param, "enhanced_hud_bar_thickness") == 0) {
 				g_EnhancedHUDData.barH = fValue;
 			}
 			else if (_stricmp(param, "enhanced_hud_bar_gap") == 0) {
