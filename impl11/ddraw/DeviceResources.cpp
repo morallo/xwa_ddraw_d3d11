@@ -1737,6 +1737,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_depthStencilR.Release();
 	this->_d2d1RenderTarget.Release();
 	this->_d2d1OffscreenRenderTarget.Release();
+	if (g_EnhancedHUDData.Enabled)
+		_d2d1EnhancedHUDRenderTarget.Release();
 	this->_d2d1DCRenderTarget.Release();
 	this->_renderTargetView.Release();
 	if (g_bUseSteamVR)
@@ -1767,6 +1769,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_shadertoyRTV.Release();
 	this->_shadertoySRV.Release();
 	this->_shadertoyAuxSRV.Release();
+	if (g_EnhancedHUDData.Enabled)
+	{
+		this->_enhancedHUDBuffer.Release();
+		this->_enhancedHUDSRV.Release();
+	}
 
 	/*
 	if (this->_HUDVertexBuffer)
@@ -2810,6 +2817,22 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _DCTextAsInput with combined flags\n");
 				}
 
+				if (g_EnhancedHUDData.Enabled)
+				{
+					// desc.Width, Height is the current screen resolution.
+					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_enhancedHUDBuffer);
+					if (FAILED(hr)) {
+						log_err("Failed to create _enhancedHUDBuffer, error: 0x%x\n", hr);
+						log_err("GetDeviceRemovedReason: 0x%x\n", this->_d3dDevice->GetDeviceRemovedReason());
+						log_err("dwWidth, Height: %u, %u\n", dwWidth, dwHeight);
+						log_err_desc(step, hWnd, hr, desc);
+						goto out;
+					}
+					else {
+						log_err("Successfully created _enhancedHUDBuffer\n");
+					}
+				}
+
 				// Restore the previous bind flags, just in case there is a dependency on these later on
 				desc.BindFlags = curFlags;
 			}
@@ -3490,6 +3513,17 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
 					goto out;
 				}
+
+				if (g_EnhancedHUDData.Enabled)
+				{
+					step = "_enhancedHUDBuffer";
+					hr = this->_d3dDevice->CreateShaderResourceView(this->_enhancedHUDBuffer,
+						&shaderResourceViewDesc, &this->_enhancedHUDSRV);
+					if (FAILED(hr)) {
+						log_shaderres_view(step, hWnd, hr, shaderResourceViewDesc);
+						goto out;
+					}
+				}
 			}
 
 			shaderResourceViewDesc.ViewDimension = curDimension;
@@ -4040,6 +4074,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		ComPtr<IDXGISurface> surface;
 		ComPtr<IDXGISurface> offscreenSurface;
 		ComPtr<IDXGISurface> DCSurface;
+		ComPtr<IDXGISurface> enhancedHUDSurface;
 		// The logic for the Dynamic Cockpit expects the text to be in its own
 		// buffer so that the alpha can be fixed and the text can be blended
 		// properly. So, instead of using _offscreenBuffer, we always write to
@@ -4054,6 +4089,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		else
 			hr = this->_offscreenBuffer.As(&offscreenSurface);
 
+		if (g_EnhancedHUDData.Enabled)
+			this->_enhancedHUDBuffer.As(&enhancedHUDSurface);
+
 		// This surface can be used to render directly to the DC foreground buffer
 		//if (g_bDynCockpitEnabled)
 			hr = this->_offscreenBufferDynCockpit.As(&DCSurface);
@@ -4067,6 +4105,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(DCSurface, properties, &this->_d2d1DCRenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
+			if (g_EnhancedHUDData.Enabled)
+				hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(enhancedHUDSurface, properties, &this->_d2d1EnhancedHUDRenderTarget);
 
 			if (SUCCEEDED(hr))
 			{
@@ -4075,6 +4115,12 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+
+				if (g_EnhancedHUDData.Enabled)
+				{
+					this->_d2d1EnhancedHUDRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
+					this->_d2d1EnhancedHUDRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+				}
 
 				this->_d2d1DCRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1DCRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);

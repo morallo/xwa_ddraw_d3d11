@@ -11039,6 +11039,11 @@ HRESULT PrimarySurface::Flip(
 					{
 						this->RenderEnhancedHUDText();
 						this->RenderText(true);
+
+						if (g_bDumpSSAOBuffers && g_EnhancedHUDData.Enabled)
+						{
+							DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
+						}
 					}
 					this->RenderBracket();
 				}
@@ -12841,9 +12846,16 @@ void PrimarySurface::RenderText(bool earlyExit)
 	// If we render directly to _d2d1OffscreenRenderTarget, that avoids the delay and the
 	// text displays properly everywhere but it only works for non-VR.
 	ID2D1RenderTarget* rtv = earlyExit ? this->_deviceResources->_d2d1OffscreenRenderTarget : this->_deviceResources->_d2d1RenderTarget;
+	// When the Enhanced HUD is enabled, we'll render the information to its own buffer to be displayed
+	// later as a "transparent" overlay in the cockpit:
+	if (earlyExit && g_EnhancedHUDData.Enabled)
+		rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
 
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
+
+	if (earlyExit && g_EnhancedHUDData.Enabled)
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
