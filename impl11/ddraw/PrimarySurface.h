@@ -231,6 +231,8 @@ public:
 
 	void RenderBracket();
 
+	void RenderEnhancedHUDBars();
+
 	void CacheBracketsVR();
 
 	bool RenderSkyCylinder();
