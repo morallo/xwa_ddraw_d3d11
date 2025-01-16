@@ -33,6 +33,7 @@
 #include "../Debug/PixelShaderDCHolo.h"
 #include "../Debug/PixelShaderEmptyDC.h"
 #include "../Debug/PixelShaderHUD.h"
+#include "../Debug/EnhancedHudPS.h"
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
 #include "../Debug/BloomHGaussPS.h"
@@ -122,6 +123,7 @@
 #include "../Release/PixelShaderDCHolo.h"
 #include "../Release/PixelShaderEmptyDC.h"
 #include "../Release/PixelShaderHUD.h"
+#include "../Release/EnhancedHudPS.h"
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
 #include "../Release/BloomHGaussPS.h"
@@ -4602,6 +4604,9 @@ HRESULT DeviceResources::LoadResources()
 	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderHUD, sizeof(g_PixelShaderHUD), nullptr, &_pixelShaderHUD)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EnhancedHudPS, sizeof(g_EnhancedHudPS), nullptr, &_enhancedHudPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderSolid, sizeof(g_PixelShaderSolid), nullptr, &_pixelShaderSolid)))

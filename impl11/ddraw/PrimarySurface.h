@@ -97,6 +97,8 @@ public:
 
 	void DrawHUDVertices();
 
+	void DrawEnhancedHUDVertices();
+
 	//void SetLights(float fSSDOEnabled);
 	
 	void SSAOPass(float fZoomFactor);

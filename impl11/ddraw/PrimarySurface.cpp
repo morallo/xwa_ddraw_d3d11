@@ -2226,6 +2226,103 @@ out:
 	this->_deviceResources->EndAnnotatedEvent();
 }
 
+void PrimarySurface::DrawEnhancedHUDVertices() {
+	this->_deviceResources->BeginAnnotatedEvent(L"DrawEnhancedHUDVertices");
+
+	auto& resources = this->_deviceResources;
+	auto& device    = resources->_d3dDevice;
+	auto& context   = resources->_d3dDeviceContext;
+	D3D11_VIEWPORT viewport;
+	HRESULT hr;
+
+	D3D11_BLEND_DESC blendDesc{};
+	blendDesc.AlphaToCoverageEnable = FALSE;
+	blendDesc.IndependentBlendEnable = FALSE;
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	hr = resources->InitBlendState(nullptr, &blendDesc);
+
+	// We don't need to clear the current vertex and pixel constant buffers.
+	// Since we've just finished rendering 3D, they should contain values that
+	// can be reused. So let's just overwrite the values that we need.
+	g_VSCBuffer.aspect_ratio     =  g_fAspectRatio;
+	g_VSCBuffer.z_override       = -1.0f;
+	g_VSCBuffer.sz_override      = -1.0f;
+	g_VSCBuffer.mult_z_override  = -1.0f;
+	g_VSCBuffer.apply_uv_comp    =  0; //g_bEnableVR;
+	g_VSCBuffer.viewportScale[0] =  2.0f / resources->_displayWidth;
+	g_VSCBuffer.viewportScale[1] = -2.0f / resources->_displayHeight;
+
+	// Reduce the scale for GUI elements, except for the HUD
+	g_VSCBuffer.viewportScale[3]  = g_fGUIElemsScale;
+	// bPreventTransform: false
+	g_VSCBuffer.bPreventTransform = 0.0f;
+	// Enable/Disable the fixed GUI (default: true)
+	g_VSCBuffer.bFullTransform	  = g_bFixedGUI ? 1.0f : 0.0f; // g_bFixedGUI is true by default
+	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
+	// and text float
+	g_VSCBuffer.z_override     = g_fFloatingGUIDepth;
+	g_VSCBuffer.scale_override = g_fGUIElemsScale;
+
+	g_PSCBuffer.brightness       = 1.0f;
+	g_PSCBuffer.bUseCoverTexture = 0;
+	g_PSCBuffer.DynCockpitSlots  = 0;
+
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+	resources->InitPSConstantBufferDC(resources->_PSConstantBufferDC.GetAddressOf(), &g_DCPSCBuffer);
+
+	UINT stride = sizeof(D3DTLVERTEX);
+	UINT offset = 0;
+	resources->InitVertexBuffer(resources->_HUDVertexBuffer.GetAddressOf(), &stride, &offset);
+	resources->InitInputLayout(resources->_inputLayout);
+	resources->InitVertexShader(resources->_vertexShader);
+	resources->InitPixelShader(resources->_enhancedHudPS);
+	resources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	resources->InitRasterizerState(resources->_rasterizerState);
+
+	// Temporarily disable ZWrite: we won't need it to display the HUD
+	D3D11_DEPTH_STENCIL_DESC desc;
+	ComPtr<ID3D11DepthStencilState> depthState;
+	desc.DepthEnable = FALSE;
+	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+	desc.StencilEnable = FALSE;
+	resources->InitDepthStencilState(depthState, &desc);
+
+	// Don't clear the render target, the offscreenBuffer already has the 3D render in it
+	// Render the left image
+	context->OMSetRenderTargets(1, resources->_renderTargetView.GetAddressOf(), NULL);
+	viewport.Width    = (float)resources->_backbufferWidth;
+	viewport.Height   = (float)resources->_backbufferHeight;
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.MinDepth = D3D11_MIN_DEPTH;
+	viewport.MaxDepth = D3D11_MAX_DEPTH;
+	resources->InitViewport(&viewport);
+	// Set the left projection matrix
+	g_VSMatrixCB.projEye[0] = g_FullProjMatrixLeft;
+	g_VSMatrixCB.projEye[1] = g_FullProjMatrixRight;
+	// The viewMatrix is set at the beginning of the frame
+	resources->InitVSConstantBufferMatrix(resources->_VSMatrixBuffer.GetAddressOf(), &g_VSMatrixCB);
+
+	// Set the HUD foreground, background and Text textures:
+	ID3D11ShaderResourceView *srvs[2] = {
+		resources->_depthBufSRV.Get(),
+		resources->_enhancedHUDSRV.Get()
+	};
+	context->PSSetShaderResources(0, 2, srvs);
+	context->Draw(6, 0);
+
+	this->_deviceResources->EndAnnotatedEvent();
+}
+
 /// <summary>
 /// Uses mobileObject->transformMatrix to get the player's craft orientation.
 /// When invert=false, the matrix returned maps world OPT coords to viewspace OPT coords
@@ -11045,7 +11142,8 @@ HRESULT PrimarySurface::Flip(
 							DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
 						}
 					}
-					this->RenderBracket();
+					RenderBracket();
+					DrawEnhancedHUDVertices();
 				}
 				else
 				{
