@@ -97,6 +97,8 @@ public:
 
 	void DrawHUDVertices();
 
+	void DrawEnhancedHUDVertices();
+
 	//void SetLights(float fSSDOEnabled);
 	
 	void SSAOPass(float fZoomFactor);
@@ -228,6 +230,8 @@ public:
 	void RenderRadar();
 
 	void RenderBracket();
+
+	void RenderEnhancedHUDBars();
 
 	void CacheBracketsVR();
 
