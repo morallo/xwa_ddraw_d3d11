@@ -916,7 +916,23 @@ bool LoadDCInternalCoordinates() {
 				}
 				Box box = { 0 };
 				if (LoadDCGlobalUVCoords(buf, &box))
+				{
+					// HACK ALERT: The coords for the following areas don't actually cover the strings
+					//             very well. I could either distribute a new .cfg file to fix this, but
+					//             honestly, who is even using these? (I would've received complaints by now).
+					//             So, I'm just going to override the areas with coords that actually work.
+					if (source_slot == TARGETED_OBJ_NAME_SRC_IDX)
+					{
+						box.x0 =  72.0f / 256.0f; box.y0 = 15.0f / 128.0f;
+						box.x1 = 184.0f / 256.0f; box.y1 = 28.0f / 128.0f;
+					}
+					else if (source_slot == TARGETED_OBJ_CARGO_SRC_IDX)
+					{
+						box.x0 =  14.0f / 256.0f; box.y0 = 110.0f / 128.0f;
+						box.x1 = 100.0f / 256.0f; box.y1 = 128.0f / 128.0f;
+					}
 					g_DCElemSrcBoxes.src_boxes[source_slot].uv_coords = box;
+				}
 				else
 					log_debug("[DBG] [DC] WARNING: '%s' could not be loaded", buf);
 				source_slot++;
