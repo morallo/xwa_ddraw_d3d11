@@ -1215,6 +1215,23 @@ CraftInstance* GetCraftInstanceSafe(int16_t objectIndex, ObjectEntry** object, M
 	return craftInstance;
 }
 
+CraftInstance* GetCraftInstanceForCurrentTargetSafe()
+{
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return nullptr;
+
+	short currentTargetIndex = *g_playerInHangar ?
+		PlayerDataTable[*g_playerIndex].objectIndex : PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	if (currentTargetIndex < 0)
+		return nullptr;
+
+	ObjectEntry *object = &((*objects)[currentTargetIndex]);
+	if (object == NULL) return nullptr;
+	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+	if (mobileObject == NULL) return nullptr;
+	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
+	return craftInstance;
+}
+
 // This code is courtesy of Jeremy.
 bool InTechGlobe()
 {

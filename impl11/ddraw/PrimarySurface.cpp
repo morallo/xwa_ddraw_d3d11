@@ -382,7 +382,7 @@ void DisplayCenteredLines(
 
 void PrimarySurface::RenderEnhancedHUDText()
 {
-	if (g_bMapMode)
+	if (g_bMapMode || *g_playerInHangar)
 		return;
 
 	auto &resources = this->_deviceResources;
@@ -11134,9 +11134,14 @@ HRESULT PrimarySurface::Flip(
 				{
 					if (g_EnhancedHUDData.Enabled && !g_bMapMode && !g_bUseSteamVR)
 					{
+						CraftInstance *craftInstance = GetCraftInstanceForCurrentTargetSafe();
+						const bool bDestroyed = (craftInstance == nullptr) ||
+							(craftInstance->CraftState == Craftstate_Dying) ||
+							(craftInstance->CraftState == Craftstate_DiedInstantly);
 						this->RenderEnhancedHUDText();
 						this->RenderText(true);
-						this->RenderEnhancedHUDBars();
+						if (!bDestroyed)
+							this->RenderEnhancedHUDBars();
 
 						if (g_bDumpSSAOBuffers && g_EnhancedHUDData.Enabled)
 						{

@@ -33,10 +33,10 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (pos3D.z < 25.0f)
 		discard;
 
-	const float4 texelText = enhancedHudBuf.Sample(sampler0, input.tex);
+	const float4 hudTexel = enhancedHudBuf.Sample(sampler0, input.tex);
 	// Compute the text alpha from approx Luma
-	const float textAlpha = saturate(10.0 * dot(float3(0.33, 0.5, 0.16), texelText.rgb));
+	const float hudAlpha = saturate(10.0 * dot(float3(0.33, 0.5, 0.16), hudTexel.rgb));
 	
-	output.color = float4(texelText.rgb, textAlpha);
+	output.color = float4(hudTexel.rgb, hudAlpha);
 	return output;
 }

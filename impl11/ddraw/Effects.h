@@ -292,6 +292,7 @@ CraftInstance *GetPlayerCraftInstanceSafe();
 CraftInstance *GetPlayerCraftInstanceSafe(ObjectEntry** object);
 CraftInstance* GetPlayerCraftInstanceSafe(ObjectEntry** object, MobileObjectEntry** mobileObject);
 CraftInstance* GetCraftInstanceSafe(int16_t objectIndex, ObjectEntry** object, MobileObjectEntry** mobileObject);
+CraftInstance* GetCraftInstanceForCurrentTargetSafe();
 // Also updates g_bInTechGlobe when called.
 bool InTechGlobe();
 bool InBriefingRoom();
