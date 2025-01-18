@@ -12630,6 +12630,7 @@ void PrimarySurface::ExtractDCText()
 {
 	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
 	static   short s_rowSize    = (short)(0.0185f * g_fCurInGameHeight);
+	static   float s_lastInGameWidth = 0, s_lastInGameHeight = 0;
 	//static   int   s_fontSizes[3] = { 12, 16, 10 };
 
 	g_EnhancedHUDData.sName    = "";
@@ -12671,6 +12672,17 @@ void PrimarySurface::ExtractDCText()
 		&g_EnhancedHUDData.sSys, &g_EnhancedHUDData.sDist, &g_EnhancedHUDData.sCargo,
 		&g_EnhancedHUDData.sSubCmp };
 	int rows[7] = { -1, -1, -1, -1, -1, -1, -1 };
+
+	// Detect when the in-game screen resolution has changed so that we can recompute the
+	// DC boxes.
+	if (s_lastInGameWidth != g_fCurInGameWidth || s_lastInGameHeight != g_fCurInGameHeight)
+	{
+		s_numComputedBoxes = 0;
+		for (int i = 0; i < 7; i++) s_boxesComputed[i] = false;
+
+		s_lastInGameWidth  = g_fCurInGameWidth;
+		s_lastInGameHeight = g_fCurInGameHeight;
+	}
 
 	// Precompute the box sizes
 	if (s_numComputedBoxes < 7)
