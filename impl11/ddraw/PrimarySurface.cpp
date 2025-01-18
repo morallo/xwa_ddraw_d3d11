@@ -433,7 +433,7 @@ void PrimarySurface::RenderEnhancedHUDText()
 		const int textY = xwaBracket.positionY + xwaBracket.height / 2;
 
 		// Do not display anything when the text is outside the screen:
-		if (xwaBracket.isSubComponent && xwaBracket.subComponentIdx > -1 &&
+		if (xwaBracket.subComponentIdx > -1 &&
 			textX >= 0 && textX <= (int)g_fCurInGameWidth &&
 			textY >= 0 && textY <= (int)g_fCurInGameHeight)
 		{
@@ -476,8 +476,6 @@ void PrimarySurface::RenderEnhancedHUDText()
 			}
 		}
 	}
-
-	ResetGlobalBrackets();
 }
 
 // void capture()
@@ -537,6 +535,11 @@ PrimarySurface::~PrimarySurface()
 	this->RenderRadar();
 	this->RenderBracket();
 	this->RenderSynthDCElems();
+	if (g_EnhancedHUDData.Enabled)
+	{
+		//this->RenderEnhancedHUDText(); // Not necessary, no graphics objects are touched here
+		this->RenderEnhancedHUDBars();
+	}
 }
 
 HRESULT PrimarySurface::QueryInterface(
@@ -2227,6 +2230,9 @@ out:
 }
 
 void PrimarySurface::DrawEnhancedHUDVertices() {
+	if (g_bMapMode)
+		return;
+
 	this->_deviceResources->BeginAnnotatedEvent(L"DrawEnhancedHUDVertices");
 
 	auto& resources = this->_deviceResources;
@@ -11132,7 +11138,7 @@ HRESULT PrimarySurface::Flip(
 			{
 				if (!g_bEnableVR || (g_bUseSteamVR && g_bMapMode))
 				{
-					if (g_EnhancedHUDData.Enabled && !g_bMapMode && !g_bUseSteamVR)
+					if (g_bRendering3D && g_EnhancedHUDData.Enabled && !g_bMapMode && !g_bUseSteamVR)
 					{
 						CraftInstance *craftInstance = GetCraftInstanceForCurrentTargetSafe();
 						const bool bDestroyed = (craftInstance == nullptr) ||
@@ -11150,8 +11156,9 @@ HRESULT PrimarySurface::Flip(
 					}
 					RenderBracket();
 					DrawEnhancedHUDVertices();
+					ResetGlobalBrackets();
 				}
-				else
+				else if (g_bRendering3D)
 				{
 					this->CacheBracketsVR();
 					// The enhanced VR HUD needs to be rendered right here or there will be a one-frame delay
@@ -12940,7 +12947,7 @@ void PrimarySurface::RenderText(bool earlyExit)
 			}
 		}
 
-		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
+		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_brush);
 		this->_deviceResources->_d2d1RenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 1.0f), &s_black_brush);
 	}
 
@@ -13566,7 +13573,7 @@ void PrimarySurface::RenderBracket()
 
 void PrimarySurface::RenderEnhancedHUDBars()
 {
-	if (!g_EnhancedHUDData.displayBars)
+	if (!g_EnhancedHUDData.displayBars || *g_playerInHangar)
 		return;
 
 	static ID2D1RenderTarget* s_d2d1RenderTarget = nullptr;
@@ -13626,20 +13633,16 @@ void PrimarySurface::RenderEnhancedHUDBars()
 		s_scaleX = (float)w / (float)this->_deviceResources->_displayWidth;
 		s_scaleY = (float)h / (float)this->_deviceResources->_displayHeight;
 
-		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.shieldsCol, 1.0f), &s_shieldsBrush);
-		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0000FF00, 1.0f), &s_hullBrush);
-		this->_deviceResources->_d2d1DCRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.sysCol, 1.0f), &s_sysBrush);
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.shieldsCol, 1.0f), &s_shieldsBrush);
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0000FF00, 1.0f), &s_hullBrush);
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.sysCol, 1.0f), &s_sysBrush);
 	}
 
 	this->_deviceResources->_d2d1EnhancedHUDRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	this->_deviceResources->_d2d1EnhancedHUDRenderTarget->BeginDraw();
 
-	unsigned int brushColor = 0;
-	for (const auto& xwaBracket : g_xwa_bracket)
 	{
-		if (!xwaBracket.isCurrentTarget)
-			continue;
-
+		const auto& xwaBracket = g_curTargetBracket;
 		float posX = s_left + (float)xwaBracket.positionX * s_scaleX;
 		float posY = s_top  + (float)xwaBracket.positionY * s_scaleY;
 		float posW = (float)xwaBracket.width  * s_scaleX;
