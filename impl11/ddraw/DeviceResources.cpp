@@ -1728,7 +1728,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ResetGameEvent();
 	ResetObjectIndexMap();
 	ReloadInterdictionMap();
-	ClearSpeciesCompMap();
 	//ResetRawMouseInput();
 	if (IsZIPReaderLoaded() && g_bCleanupZIPDirs)
 		DeleteAllTempZIPDirectories();

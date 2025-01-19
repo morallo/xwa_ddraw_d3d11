@@ -434,8 +434,8 @@ void PrimarySurface::RenderEnhancedHUDText()
 	}
 
 	// Render text on the sub-component bracket
+	if (g_EnhancedHUDData.sSubCmp.size() > 0)
 	{
-		extern std::map<uint16_t, void*> g_speciesCompMap;
 		const auto& xwaBracket = g_curSubcomponentBracket;
 		// textX and textY are in in-game coordinates (eg. 1920x1080)
 		const int textX = xwaBracket.positionX + xwaBracket.width / 2;
@@ -446,43 +446,9 @@ void PrimarySurface::RenderEnhancedHUDText()
 			textX >= 0 && textX <= (int)g_fCurInGameWidth &&
 			textY >= 0 && textY <= (int)g_fCurInGameHeight)
 		{
-			char** s_StringsComponentName = (char** )0x0091B160;
-			unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
-			unsigned int esi;
-
-			if (((bool(*)())0x0050DC50)() != 0)
-			{
-				unsigned short eax = si & 0x001F;
-				unsigned short ecx = si & 0x7C00;
-				unsigned short edx = si & 0x03E0;
-
-				esi = (eax << 3) | (edx << 6) | (ecx << 9);
-			}
-			else
-			{
-				unsigned short eax = si & 0x001F;
-				unsigned short edx = si & 0xF800;
-				unsigned short ecx = si & 0x07E0;
-
-				esi = (eax << 3) | (ecx << 5) | (edx << 8);
-			}
-
-			const int curTargetIndex = PlayerDataTable[*g_playerIndex].currentTargetIndex;
-			const int objectSpecies  = (*objects)[curTargetIndex].objectSpecies;
-
-			auto& it = g_speciesCompMap.find(objectSpecies);
-			if (it != g_speciesCompMap.end())
-			{
-				uint16_t* compIndices = (uint16_t*)it->second;
-				const uint16_t compNameIdx = compIndices[xwaBracket.subComponentIdx];
-				// There's only 34 entries in s_StringsComponentName:
-				if (compNameIdx < 34)
-				{
-					sprintf_s(rows[0], 128, "%s", s_StringsComponentName[compNameIdx]);
-					DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, esi,
-						0.5f, 0,10, 1, dRows, fontIdx);
-				}
-			}
+			sprintf_s(rows[0], 128, "%s", g_EnhancedHUDData.sSubCmp.c_str());
+			DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, g_EnhancedHUDData.subCmpColor,
+				0.5f, 0,10, 1, dRows, fontIdx);
 		}
 	}
 }
@@ -12631,6 +12597,30 @@ void DisplayTimedMessage(uint32_t seconds, int row, char* msg) {
 	g_TimedMessages[row].SetMsg(msg, seconds, y_pos, FONT_LARGE_IDX, FONT_BLUE_COLOR);
 }
 
+uint32_t EnhanceTextColor(uint32_t col)
+{
+	Vector3 C = {
+		(float)((col >> 16) & 0xFF),
+		(float)((col >>  8) & 0xFF),
+		(float)((col >>  0) & 0xFF)
+	};
+	// Compute lightness (value):
+	float val = C.dot(Vector3(0.333f, 0.333f, 0.333f));
+	Vector3 V = { val, val, val };
+	// Approx and increase saturation (the difference between gray and this color)
+	Vector3 Diff = 1.30f * (C - V);
+	// Increase the brightness:
+	C = 1.30f * (V + Diff);
+	C.x = max(0, min(255.0f, C.x));
+	C.y = max(0, min(255.0f, C.y));
+	C.z = max(0, min(255.0f, C.z));
+	col = 0xFF000000 |
+		(uint32_t)(C.x) << 16 |
+		(uint32_t)(C.y) <<  8 |
+		(uint32_t)(C.z);
+	return col;
+}
+
 /// <summary>
 /// Extract DC strings from the contents of g_xwa_text by comparing the coords of each char
 /// against the DC source regions. The output is stored in g_EnhancedHUDData.
@@ -12815,30 +12805,11 @@ void PrimarySurface::ExtractDCText()
 	// We want to capture the second color if it's there:
 	g_EnhancedHUDData.nameColor = (nameColorIdx >= 1) ? nameColors[1] : nameColors[0];
 
-	// We can make the name brighter for readability
+	// We can make the text brighter for readability
 	if (g_EnhancedHUDData.enhanceNameColor)
 	{
-		uint32_t col = g_EnhancedHUDData.nameColor;
-		Vector3 C = {
-			(float)((col >> 16) & 0xFF),
-			(float)((col >>  8) & 0xFF),
-			(float)((col >>  0) & 0xFF)
-		};
-		// Compute lightness (value):
-		float val = C.dot(Vector3(0.333f, 0.333f, 0.333f));
-		Vector3 V = { val, val, val };
-		// Approx and increase saturation (the difference between gray and this color)
-		Vector3 Diff = 1.30f * (C - V);
-		// Increase the brightness:
-		C = 1.30f * (V + Diff);
-		C.x = max(0, min(255.0f, C.x));
-		C.y = max(0, min(255.0f, C.y));
-		C.z = max(0, min(255.0f, C.z));
-		col = 0xFF000000 |
-			(uint32_t)(C.x) << 16 |
-			(uint32_t)(C.y) <<  8 |
-			(uint32_t)(C.z);
-		g_EnhancedHUDData.nameColor = col;
+		g_EnhancedHUDData.nameColor   = EnhanceTextColor(g_EnhancedHUDData.nameColor);
+		g_EnhancedHUDData.subCmpColor = EnhanceTextColor(g_EnhancedHUDData.subCmpColor);
 	}
 
 	if (g_EnhancedHUDData.sShields.size() > 0)
