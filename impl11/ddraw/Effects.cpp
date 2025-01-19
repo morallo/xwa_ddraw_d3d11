@@ -408,12 +408,23 @@ void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x,
 	*y_out = top + y / g_fCurInGameHeight * height;
 }
 
+void InGameToScreenCoords(float x, float y, float* x_out, float* y_out)
+{
+	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, x_out, y_out);
+}
+
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float* x_out, float* y_out)
 {
 	*x_out = g_fCurInGameWidth * (x - left) / width;
 	*y_out = g_fCurInGameHeight * (y - top) / height;
 }
 
+void ScreenCoordsToInGame(float x, float y, float* x_out, float* y_out)
+{
+	ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+		g_nonVRViewport.Width, g_nonVRViewport.Height, x, y, x_out, y_out);
+}
 
 void CycleFOVSetting()
 {

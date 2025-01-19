@@ -132,7 +132,9 @@ bool isInVector(char* name, std::vector<char*>& vector);
 bool isInVector(char* OPTname, std::vector<OPTNameType>& vector);
 void DisplayCoords(LPD3DINSTRUCTION instruction, UINT curIndex);
 void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x, float y, float* x_out, float* y_out);
+void InGameToScreenCoords(float x, float y, float* x_out, float* y_out);
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float* x_out, float* y_out);
+void ScreenCoordsToInGame(float x, float y, float* x_out, float* y_out);
 void GetScreenLimitsInUVCoords(float* x0, float* y0, float* x1, float* y1, bool UseNonVR = false);
 
 bool UpdateXWAHackerFOV();

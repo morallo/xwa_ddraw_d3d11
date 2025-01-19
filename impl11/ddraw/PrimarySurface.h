@@ -231,7 +231,7 @@ public:
 
 	void RenderBracket();
 
-	void RenderEnhancedHUDBars();
+	void RenderEnhancedHUDBars(bool bDestroyed);
 
 	void CacheBracketsVR();
 

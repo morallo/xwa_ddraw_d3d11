@@ -2404,6 +2404,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "enhanced_hud_vertical_bars") == 0) {
 				g_EnhancedHUDData.verticalBarLayout = (bool)fValue;
 			}
+			else if (_stricmp(param, "enhanced_hud_enable_bg_text_box") == 0) {
+				g_EnhancedHUDData.bgTextBoxEnabled = (bool)fValue;
+			}
 			else if (_stricmp(param, "enhanced_hud_min_bracket_size") == 0) {
 				g_EnhancedHUDData.MinBracketSize = (int)fValue;
 			}

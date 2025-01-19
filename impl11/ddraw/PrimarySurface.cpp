@@ -348,17 +348,19 @@ inline void ResetGlobalBrackets()
 
 /// <summary>
 /// Display a number of lines with centered justification.
-/// (x0, y0) is the upper-left corner for the text.
+/// (x0, y0) is the upper-left corner for the text in in-game coords.
 /// Set alignment to 1.0f to align left.
 /// Set alignment to 0.5f to align center.
 /// Set alignment to 0.0f to align right.
+/// Returns the smallest box that contains the text in in-game coords.
 /// </summary>
-void DisplayCenteredLines(
+Box DisplayCenteredLines(
 	int x0, int y0, uint32_t color,
 	float alignment,
 	int dispX, int dispY,
 	int numLines, char** rows, int FontIdx)
 {
+	Box box = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 	const int ySize = (FontIdx == FONT_LARGE_IDX) ? 20 : 18;
 	int widths[5], maxWidth = 0;
 	int maxNumLines = min(5, numLines);
@@ -370,6 +372,10 @@ void DisplayCenteredLines(
 	}
 
 	int y = y0 + dispY;
+	box.x0 = (float)(x0 - (int)(alignment * maxWidth));
+	box.x1 = (float)(x0 + (int)(alignment * maxWidth));
+	box.y0 = (float)y;
+	box.y1 = (float)(y + maxNumLines * ySize);
 	for (int i = 0; i < maxNumLines; i++)
 	{
 		int x = x0 - (int)(alignment * maxWidth);
@@ -378,6 +384,8 @@ void DisplayCenteredLines(
 		DisplayText(rows[i], FontIdx, x, y, color);
 		y += ySize;
 	}
+
+	return box;
 }
 
 void PrimarySurface::RenderEnhancedHUDText()
@@ -420,7 +428,8 @@ void PrimarySurface::RenderEnhancedHUDText()
 			if (g_EnhancedHUDData.dist > -1.0f)
 				sprintf_s(rows[numLines++], SIZE, "%0.2f km", g_EnhancedHUDData.dist);
 			int yPos = 18 + numLines * 15;
-			DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -yPos, numLines, dRows, fontIdx);
+			g_EnhancedHUDData.bgTextBox = DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -yPos, numLines, dRows, fontIdx);
+			g_EnhancedHUDData.bgTextBoxComputed = true;
 		}
 	}
 
@@ -538,7 +547,7 @@ PrimarySurface::~PrimarySurface()
 	if (g_EnhancedHUDData.Enabled)
 	{
 		//this->RenderEnhancedHUDText(); // Not necessary, no graphics objects are touched here
-		this->RenderEnhancedHUDBars();
+		this->RenderEnhancedHUDBars(true);
 	}
 }
 
@@ -11144,10 +11153,10 @@ HRESULT PrimarySurface::Flip(
 						const bool bDestroyed = (craftInstance == nullptr) ||
 							(craftInstance->CraftState == Craftstate_Dying) ||
 							(craftInstance->CraftState == Craftstate_DiedInstantly);
+						g_EnhancedHUDData.bgTextBoxComputed = false;
 						this->RenderEnhancedHUDText();
+						this->RenderEnhancedHUDBars(bDestroyed);
 						this->RenderText(true);
-						if (!bDestroyed)
-							this->RenderEnhancedHUDBars();
 
 						if (g_bDumpSSAOBuffers && g_EnhancedHUDData.Enabled)
 						{
@@ -12701,12 +12710,8 @@ void PrimarySurface::ExtractDCText()
 			float y0 = g_fCurScreenHeight * src_box->coords.y0;
 			float x1 = g_fCurScreenWidth  * src_box->coords.x1;
 			float y1 = g_fCurScreenHeight * src_box->coords.y1;
-			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
-				g_nonVRViewport.Width, g_nonVRViewport.Height,
-				x0, y0, &box_x0, &box_y0);
-			ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
-				g_nonVRViewport.Width, g_nonVRViewport.Height,
-				x1, y1, &box_x1, &box_y1);
+			ScreenCoordsToInGame(x0, y0, &box_x0, &box_y0);
+			ScreenCoordsToInGame(x1, y1, &box_x1, &box_y1);
 			s_boxes[dcCurRegion].x0 = box_x0;
 			s_boxes[dcCurRegion].y0 = box_y0;
 			s_boxes[dcCurRegion].x1 = box_x1;
@@ -12808,34 +12813,31 @@ void PrimarySurface::ExtractDCText()
 
 	// Names sometimes have two colors. The craft type is darker than the craft's name proper.
 	// We want to capture the second color if it's there:
-	if (nameColorIdx >= 1)
-		g_EnhancedHUDData.nameColor = nameColors[1];
-	else
+	g_EnhancedHUDData.nameColor = (nameColorIdx >= 1) ? nameColors[1] : nameColors[0];
+
+	// We can make the name brighter for readability
+	if (g_EnhancedHUDData.enhanceNameColor)
 	{
-		// The first color is usually darker, we can make it brighter here for readability
-		uint32_t col = nameColors[0];
-		if (g_EnhancedHUDData.enhanceNameColor)
-		{
-			Vector3 C = {
-				(float)((col >> 16) & 0xFF),
-				(float)((col >>  8) & 0xFF),
-				(float)((col >>  0) & 0xFF)
-			};
-			// Compute lightness (value):
-			float val = C.dot(Vector3(0.333f, 0.333f, 0.333f));
-			Vector3 V = { val, val, val };
-			// Approx and increase saturation (the difference between gray and this color)
-			Vector3 Diff = 1.30f * (C - V);
-			// Increase the brightness:
-			C = 1.30f * (V + Diff);
-			C.x = max(0, min(255.0f, C.x));
-			C.y = max(0, min(255.0f, C.y));
-			C.z = max(0, min(255.0f, C.z));
-			col = 0xFF000000 |
-				(uint32_t)(C.x) << 16 |
-				(uint32_t)(C.y) <<  8 |
-				(uint32_t)(C.z);
-		}
+		uint32_t col = g_EnhancedHUDData.nameColor;
+		Vector3 C = {
+			(float)((col >> 16) & 0xFF),
+			(float)((col >>  8) & 0xFF),
+			(float)((col >>  0) & 0xFF)
+		};
+		// Compute lightness (value):
+		float val = C.dot(Vector3(0.333f, 0.333f, 0.333f));
+		Vector3 V = { val, val, val };
+		// Approx and increase saturation (the difference between gray and this color)
+		Vector3 Diff = 1.30f * (C - V);
+		// Increase the brightness:
+		C = 1.30f * (V + Diff);
+		C.x = max(0, min(255.0f, C.x));
+		C.y = max(0, min(255.0f, C.y));
+		C.z = max(0, min(255.0f, C.z));
+		col = 0xFF000000 |
+			(uint32_t)(C.x) << 16 |
+			(uint32_t)(C.y) <<  8 |
+			(uint32_t)(C.z);
 		g_EnhancedHUDData.nameColor = col;
 	}
 
@@ -12977,8 +12979,8 @@ void PrimarySurface::RenderText(bool earlyExit)
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
 
-	if (earlyExit && g_EnhancedHUDData.Enabled)
-		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);
+	/*if (earlyExit && g_EnhancedHUDData.Enabled)
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);*/
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
@@ -13583,7 +13585,7 @@ void PrimarySurface::RenderBracket()
 	this->_deviceResources->EndAnnotatedEvent();
 }
 
-void PrimarySurface::RenderEnhancedHUDBars()
+void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 {
 	if (!g_EnhancedHUDData.displayBars || *g_playerInHangar)
 		return;
@@ -13591,7 +13593,7 @@ void PrimarySurface::RenderEnhancedHUDBars()
 	static ID2D1RenderTarget* s_d2d1RenderTarget = nullptr;
 	static DWORD s_displayWidth  = 0;
 	static DWORD s_displayHeight = 0;
-	static ComPtr<ID2D1SolidColorBrush> s_shieldsBrush, s_hullBrush, s_sysBrush;
+	static ComPtr<ID2D1SolidColorBrush> s_shieldsBrush, s_hullBrush, s_sysBrush, s_boxBrush;
 	static UINT s_left;
 	static UINT s_top;
 	static float s_scaleX;
@@ -13606,6 +13608,7 @@ void PrimarySurface::RenderEnhancedHUDBars()
 		s_shieldsBrush.Release();
 		s_hullBrush.Release();
 		s_sysBrush.Release();
+		s_boxBrush.Release();
 		return;
 	}
 
@@ -13648,11 +13651,27 @@ void PrimarySurface::RenderEnhancedHUDBars()
 		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.shieldsCol, 1.0f), &s_shieldsBrush);
 		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0000FF00, 1.0f), &s_hullBrush);
 		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->CreateSolidColorBrush(D2D1::ColorF(g_EnhancedHUDData.sysCol, 1.0f), &s_sysBrush);
+		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0x0, 0.4f), &s_boxBrush);
 	}
 
-	this->_deviceResources->_d2d1EnhancedHUDRenderTarget->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
-	this->_deviceResources->_d2d1EnhancedHUDRenderTarget->BeginDraw();
+	ID2D1RenderTarget *rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
+	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	rtv->BeginDraw();
+	rtv->Clear(NULL);
 
+	// Draw a semi-transparent dark box behind the text to make it more readable
+	if (g_EnhancedHUDData.bgTextBoxEnabled && g_EnhancedHUDData.bgTextBoxComputed)
+	{
+		const Box& srcBox = g_EnhancedHUDData.bgTextBox;
+		Box box;
+		InGameToScreenCoords(srcBox.x0, srcBox.y0, &box.x0, &box.y0);
+		InGameToScreenCoords(srcBox.x1, srcBox.y1, &box.x1, &box.y1);
+		box.x0 -= 8.0f; box.y0 -= 8.0f;
+		box.x1 += 8.0f; box.y1 += 8.0f;
+		rtv->FillRectangle(D2D1::RectF(box.x0, box.y0, box.x1, box.y1), s_boxBrush);
+	}
+
+	if (!bDestroyed)
 	{
 		const auto& xwaBracket = g_curTargetBracket;
 		float posX = s_left + (float)xwaBracket.positionX * s_scaleX;
@@ -13665,8 +13684,6 @@ void PrimarySurface::RenderEnhancedHUDBars()
 
 		// Original version:
 		float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
-
-		ID2D1RenderTarget *rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
 
 		// Render bars for shields, hull and sys:
 		const float strokeSize = g_EnhancedHUDData.barStrokeSize;

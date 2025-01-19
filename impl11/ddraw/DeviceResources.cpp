@@ -4121,7 +4121,10 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				if (g_EnhancedHUDData.Enabled)
 				{
 					this->_d2d1EnhancedHUDRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
-					this->_d2d1EnhancedHUDRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+					// The Cleartype mode destroys the alpha component (the alpha is _always_ 0 after rendering the text).
+					// For the Enhanced HUD, we might want to add transparency or even render a dark rect below the text
+					// to make it easier to read. So, let's use a different antialias mode that writes the alpha channel:
+					this->_d2d1EnhancedHUDRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 				}
 
 				this->_d2d1DCRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
