@@ -543,6 +543,7 @@ public:
 	ComPtr<ID3D11PixelShader> _pixelShaderDCHolo;
 	ComPtr<ID3D11PixelShader> _pixelShaderEmptyDC;
 	ComPtr<ID3D11PixelShader> _pixelShaderHUD;
+	ComPtr<ID3D11PixelShader> _enhancedHudPS;
 	ComPtr<ID3D11PixelShader> _pixelShaderSolid;
 	ComPtr<ID3D11PixelShader> _pixelShaderClearBox;
 	ComPtr<ID3D11PixelShader> _pixelShaderAnim;

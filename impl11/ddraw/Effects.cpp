@@ -408,12 +408,23 @@ void InGameToScreenCoords(UINT left, UINT top, UINT width, UINT height, float x,
 	*y_out = top + y / g_fCurInGameHeight * height;
 }
 
+void InGameToScreenCoords(float x, float y, float* x_out, float* y_out)
+{
+	InGameToScreenCoords((UINT)g_nonVRViewport.TopLeftX, (UINT)g_nonVRViewport.TopLeftY,
+		(UINT)g_nonVRViewport.Width, (UINT)g_nonVRViewport.Height, x, y, x_out, y_out);
+}
+
 void ScreenCoordsToInGame(float left, float top, float width, float height, float x, float y, float* x_out, float* y_out)
 {
 	*x_out = g_fCurInGameWidth * (x - left) / width;
 	*y_out = g_fCurInGameHeight * (y - top) / height;
 }
 
+void ScreenCoordsToInGame(float x, float y, float* x_out, float* y_out)
+{
+	ScreenCoordsToInGame(g_nonVRViewport.TopLeftX, g_nonVRViewport.TopLeftY,
+		g_nonVRViewport.Width, g_nonVRViewport.Height, x, y, x_out, y_out);
+}
 
 void CycleFOVSetting()
 {
@@ -1212,6 +1223,23 @@ CraftInstance* GetCraftInstanceSafe(int16_t objectIndex, ObjectEntry** object, M
 	if (*mobileObject == NULL) return NULL;
 	CraftInstance* craftInstance = (*mobileObject)->craftInstancePtr;
 	if (craftInstance == NULL) return NULL;
+	return craftInstance;
+}
+
+CraftInstance* GetCraftInstanceForCurrentTargetSafe()
+{
+	if (g_iPresentCounter <= PLAYERDATATABLE_MIN_SAFE_FRAME) return nullptr;
+
+	short currentTargetIndex = *g_playerInHangar ?
+		PlayerDataTable[*g_playerIndex].objectIndex : PlayerDataTable[*g_playerIndex].currentTargetIndex;
+	if (currentTargetIndex < 0)
+		return nullptr;
+
+	ObjectEntry *object = &((*objects)[currentTargetIndex]);
+	if (object == NULL) return nullptr;
+	MobileObjectEntry *mobileObject = object->MobileObjectPtr;
+	if (mobileObject == NULL) return nullptr;
+	CraftInstance *craftInstance = mobileObject->craftInstancePtr;
 	return craftInstance;
 }
 

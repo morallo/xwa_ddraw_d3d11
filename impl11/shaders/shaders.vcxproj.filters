@@ -110,6 +110,7 @@
     <FxCompile Include="PixelShaderVRGeom.hlsl" />
     <FxCompile Include="SpeedEffectPixelShader.hlsl" />
     <FxCompile Include="SpeedEffectPixelShaderVR.hlsl" />
+    <FxCompile Include="EnhancedHudPS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloom\BloomCommon.fxh">

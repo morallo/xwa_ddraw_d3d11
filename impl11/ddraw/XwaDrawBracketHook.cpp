@@ -110,10 +110,6 @@ void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14,
 		}
 		g_curSubcomponentBracket = bracket;
 	}
-	else if (g_bracketIsCurrentTarget)
-	{
-		g_curTargetBracket = bracket;
-	}
 
 	if (bracket.depth == 1)
 	{
@@ -152,6 +148,9 @@ void DrawBracketInFlightHook(int A4, int A8, int AC, int A10, unsigned char A14,
 		The only way I can tell which brackets should belong to the DC CMD is by looking
 		at their size; but there's some danger that they will be misclassified.
 	*/
+
+	if (g_bracketIsCurrentTarget)
+		g_curTargetBracket = bracket;
 
 	g_xwa_bracket.push_back(bracket);
 }

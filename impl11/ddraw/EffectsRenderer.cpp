@@ -1,5 +1,6 @@
 #include "common.h"
 #include "EffectsRenderer.h"
+#include "XwaDrawBracketHook.h"
 #include <algorithm>
 
 void ProcessKeyboard();
@@ -113,6 +114,8 @@ VRGlovesMesh g_vrGlovesMeshes[2];
 EffectsRenderer *g_effects_renderer = nullptr;
 
 std::vector<BracketVR> g_bracketsVR;
+BracketVR g_curTargetBracketVR;
+bool g_curTargetBracketVRCaptured = false;
 
 // Current turn rate. This will make the ship turn faster at 1/3 throttle.
 // This variable makes a smooth transition when the throttle changes.
@@ -1975,7 +1978,7 @@ void EffectsRenderer::CreateVRMeshes()
 	// Rects used to display VR dots and other things
 	// *************************************************
 	log_debug("[DBG] [AC] Creating VR Dot buffers");
-	CreateRectangleMesh(0.017f, 0.017f, { 0, 0, 0 },
+	CreateRectangleMesh(DOT_MESH_SIZE_M, DOT_MESH_SIZE_M, { 0, 0, 0 },
 		g_vrDotTriangles, g_vrDotMeshVertices, g_vrDotTextureCoords,
 		_vrDotVertexBuffer, _vrDotIndexBuffer,
 		_vrDotMeshVerticesBuffer, _vrDotMeshVerticesSRV,
@@ -2491,6 +2494,7 @@ void EffectsRenderer::SceneBegin(DeviceResources* deviceResources)
 	_bDotsbRendered = false;
 	_bHUDRendered = false;
 	_bBracketsRendered = false;
+	_bEnhancedBracketsRendered = false;
 
 	// Initialize the OBJ dump file for the current frame
 	if ((bD3DDumpOBJEnabled || bHangarDumpOBJEnabled) && g_bDumpSSAOBuffers) {
@@ -6991,7 +6995,7 @@ void EffectsRenderer::RenderVRDots()
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -7174,7 +7178,7 @@ void EffectsRenderer::RenderVRBrackets()
 	g_PSCBuffer.fPosNormalAlpha = 0.0f;
 
 	g_VRGeometryCBuffer.numStickyRegions = 0;
-	g_VRGeometryCBuffer.bRenderBracket = 1;
+	g_VRGeometryCBuffer.renderBracket = 1;
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
@@ -7187,9 +7191,6 @@ void EffectsRenderer::RenderVRBrackets()
 	// Set the textures
 	// Use this to render each bracket individually:
 	_deviceResources->InitPSShaderResourceView(_vrGreenCirclesSRV.Get(), nullptr);
-	if (g_EnhancedHUDData.Enabled)
-		// Set the text SRV. This SRV has the enhanced HUD text
-		context->PSSetShaderResources(1, 1, _deviceResources->_enhancedHUDSRV.GetAddressOf());
 
 	// Use this to render 2D brackets on a big canvas:
 	//_deviceResources->InitPSShaderResourceView(resources->_BracketsSRV.Get(), nullptr);
@@ -7261,12 +7262,6 @@ void EffectsRenderer::RenderVRBrackets()
 		const float meshScale = (bracketVR.halfWidthOPT * 2.0f) / meshWidth;
 		g_VRGeometryCBuffer.strokeWidth = bracketVR.strokeWidth;
 		g_VRGeometryCBuffer.bracketColor = bracketVR.color;
-
-		if (g_EnhancedHUDData.Enabled)
-		{
-			g_VRGeometryCBuffer.renderText     = bracketVR.renderText;
-			g_VRGeometryCBuffer.isSubComponent = bracketVR.isSubComponent;
-		}
 
 		{
 			Vector4 P = dotPosSteamVR;
@@ -7376,7 +7371,7 @@ void EffectsRenderer::RenderVRHUD()
 	// Disable region highlighting
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -7422,7 +7417,8 @@ void EffectsRenderer::RenderVRHUD()
 
 	// X is 200m in front of us. This is the location of the reticle and the place where lasers
 	// converge. Turns out it wasn't that hard to figure out after all...
-	Vector3 X(0, -8192, 0);
+	constexpr float RETICLE_DEPTH_OPT = 65536.0f * METERS_TO_OPT;
+	Vector3 X(0, -RETICLE_DEPTH_OPT, 0);
 
 	// Compute a new matrix for the dot by using the origin -> intersection point view vector.
 	// First we'll align this vector with Z+ and then we'll use the inverse of this matrix to
@@ -7479,7 +7475,7 @@ void EffectsRenderer::RenderVRHUD()
 		V = Rx * Ry; // <-- Up direction is reticle-aligned
 		// The transpose is the inverse, so it will align Z+ with the view vector:
 		V.transpose();
-		V = Matrix4().scale(812.0f) * swap * V * swap;
+		V = Matrix4().scale(RETICLE_DEPTH_OPT * 0.1f) * swap * V * swap;
 	}
 
 	Matrix4 DotTransform;
@@ -7510,6 +7506,271 @@ void EffectsRenderer::RenderVRHUD()
 	RenderScene(false);
 
 	_bHUDRendered = true;
+	RestoreContext();
+	_deviceResources->EndAnnotatedEvent();
+}
+
+/*
+ * Renders quads around the current target bracket where information can be displayed.
+ * Based on RenderVRHUD(). Each bit of text is rendered on its own quad. All quads
+ * keep the same distance from the origin so that the size of the text remains unchanged.
+ * However, in order to place the text quads properly, we're using the same transform chain
+ * used in RenderVRBrackets plus a small displacement to move the text to the edges of the
+ * current target bracket. We also copy the orientation of the target bracket so that the
+ * text remains aligned with the bracket.
+ */
+void EffectsRenderer::RenderVREnhancedHUD()
+{
+	if (!g_bUseSteamVR || !g_bRendering3D || _bEnhancedBracketsRendered ||
+		*g_playerInHangar || !g_curTargetBracketVRCaptured)
+		return;
+
+	_deviceResources->BeginAnnotatedEvent(L"RenderVREnhancedHUD");
+
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
+		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;
+
+	SaveContext();
+
+	context->VSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	context->PSSetConstantBuffers(0, 1, _constantBuffer.GetAddressOf());
+	// Set the proper rasterizer and depth stencil states for transparency
+	_deviceResources->InitBlendState(_transparentBlendState, nullptr);
+	//_deviceResources->InitDepthStencilState(_transparentDepthState, nullptr);
+	// _mainDepthState is D3D11_COMPARISON_ALWAYS, so the VR dots are always displayed
+	_deviceResources->InitDepthStencilState(_deviceResources->_mainDepthState, nullptr);
+
+	_deviceResources->InitViewport(&_viewport);
+	_deviceResources->InitTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceResources->InitInputLayout(_inputLayout);
+	_deviceResources->InitVertexShader(_vertexShader);
+
+	// Other stuff that is common in the loop below
+	UINT vertexBufferStride = sizeof(D3dVertex);
+	UINT vertexBufferOffset = 0;
+
+	ZeroMemory(&g_PSCBuffer, sizeof(g_PSCBuffer));
+	g_PSCBuffer.bIsShadeless = 1;
+	g_PSCBuffer.fPosNormalAlpha = 0.0f;
+
+	// Flags used in RenderScene():
+	_bIsCockpit   = !bGunnerTurret;
+	_bIsGunner    = bGunnerTurret;
+	_bIsBlastMark = false;
+
+	g_VRGeometryCBuffer.numStickyRegions = 0;
+	// Disable region highlighting
+	g_VRGeometryCBuffer.clicked[0] = false;
+	g_VRGeometryCBuffer.clicked[1] = false;
+	// If we're in this path, then g_EnhancedHUDData.Enabled should already be true
+	g_VRGeometryCBuffer.renderBracket = 2;
+
+	// Set the textures
+	_deviceResources->InitPSShaderResourceView(resources->_DCTextSRV.Get(), nullptr);
+
+	// Set the mesh buffers
+	ID3D11ShaderResourceView* vsSSRV[4] = { _vrDotMeshVerticesSRV.Get(), nullptr, _vrDotMeshTexCoordsSRV.Get(), nullptr };
+	context->VSSetShaderResources(0, 4, vsSSRV);
+
+	// Set the index and vertex buffers
+	_deviceResources->InitVertexBuffer(nullptr, nullptr, nullptr);
+	_deviceResources->InitVertexBuffer(_vrDotVertexBuffer.GetAddressOf(), &vertexBufferStride, &vertexBufferOffset);
+	_deviceResources->InitIndexBuffer(nullptr, true);
+	_deviceResources->InitIndexBuffer(_vrDotIndexBuffer.Get(), true);
+
+	// Apply the PS constants
+	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
+	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
+
+	Vector4 cUp, cBk, cDn, cFd;
+	{
+		Matrix4 ViewMatrix = g_VSMatrixCB.fullViewMat;
+		ViewMatrix.invert();
+
+		// Up vector, SteamVR coords. Compensated for HMD rotation
+		cUp = ViewMatrix * Vector4(0, 1, 0, 0);
+		cDn = -1.0f * cUp;
+		// This produces a backwards vector in SteamVR coords:
+		cBk = ViewMatrix * Vector4(0, 0, 1, 0);
+		cFd = -1.0f * cBk;
+	}
+
+	// Let's replace transformWorldView with the identity matrix:
+	const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	Matrix4 Id;
+	const float* m = Id.get();
+	if (!bExternalCamera)
+	{
+		for (int i = 0; i < 16; i++) _CockpitConstants.transformWorldView[i] = m[i];
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_CockpitConstants, 0, 0);
+	}
+	else
+	{
+		for (int i = 0; i < 16; i++) _ExteriorConstants.transformWorldView[i] = m[i];
+		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_ExteriorConstants, 0, 0);
+	}
+
+	_trianglesCount = g_vrDotNumTriangles;
+	// Get the width in OPT-scale of the mesh that will be rendered:
+	// 0 -> 1
+	// |    |
+	// 3 -> 2
+	const float meshWidth = g_vrDotMeshVertices[1].x - g_vrDotMeshVertices[0].x;
+
+	Matrix4 V, swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
+	Matrix4 swapScale({ 1,0,0,0,  0,0,-1,0,  0,-1,0,0,  0,0,0,1 });
+	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
+	Matrix4 toSteamVR = swap * S;
+
+	const float BRACKET_DEPTH_METERS = 65536.0f;
+	const float BRACKET_DEPTH_OPT    = METERS_TO_OPT * BRACKET_DEPTH_METERS;
+	Vector3 X = g_curTargetBracketVR.posOPT;
+	Matrix4 TOpt = Matrix4().translate(X.x, X.y, X.z);
+	// If we translate the current bracket to X, it will appear exactly on top of the
+	// targeted craft, but the size of the bracket will change depending on the distance
+	// to the ship (will look smaller when it's near the edges of the screen). To prevent
+	// this, we normalize X so that we only get the direction of the bracket, and then
+	// we fix the distance to 65km so that the bracket always appears to have the same size.
+	// This way, text displayed in this bracket will have the same size regardless of the
+	// distance to the targeted craft. This is the main difference between this transform
+	// chain and the one applied in RenderVRBrackets (the other being how we handle the
+	// _CockpitConstants).
+	X = BRACKET_DEPTH_OPT * X.normalize();
+	Matrix4 T = Matrix4().translate(X.x, X.y, X.z);
+
+	// Compute the bracket orientation matrix (this keeps brackets pointing up)
+	{
+		Vector4 P;
+		//if (!bGunnerTurret)
+		{
+			P.x = g_curTargetBracketVR.posOPT.x * OPT_TO_METERS;
+			P.y = g_curTargetBracketVR.posOPT.z * OPT_TO_METERS;
+			P.z = g_curTargetBracketVR.posOPT.y * OPT_TO_METERS;
+			P.w = 1.0f;
+		}
+
+		// U points to the local Up direction, as defined by the current Cockpit transform
+		// F points towards the bracket
+		Vector3 F = { P.x, P.y, P.z }; F.normalize();
+		// F . cFd can be 0 when the bracket is on the sides too. In that case, we want
+		// to use kUp (i.e. have it become 1)
+		float kUp; // = max(0.0f, F.dot(Vector4ToVector3(cFd)));
+		float kBk = max(0.0f, F.dot(Vector4ToVector3(cUp)));
+		float kFd = max(0.0f, F.dot(Vector4ToVector3(cDn)));
+
+		// This fixes kUp when looking at brackets on the sides of the ship.
+		kUp = 1.0f - (kBk + kFd);
+
+		Vector3 U = kUp * Vector4ToVector3(cUp) + kBk * Vector4ToVector3(cBk) + kFd * Vector4ToVector3(cFd);
+		U.normalize();
+
+		Vector3 R = F.cross(U); R.normalize();
+		// Re-compute the Up vector
+		U = F.cross(R); U.normalize();
+		float m[16] = { R.x, U.x, F.x, 0,
+						R.y, U.y, F.y, 0,
+						R.z, U.z, F.z, 0,
+						0, 0, 0, 1 };
+		V.set(m);
+		// This transpose inverts the rotation:
+		V.transpose();
+		V = swap * V * swap;
+	}
+
+	Matrix4 DotTransform;
+	// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
+	// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_METERS by side and it's centered
+	// at the origin. Displacing points by half that amount makes the points like on one of the edges
+	// of the quad. We want to add an extra displacement so that the text is just outside the quad too.
+	constexpr float HALF_DOT_MESH_SIZE_M = DOT_MESH_SIZE_M * 0.5f;
+	const int dcSrcRegions[] = {
+		TARGETED_OBJ_NAME_SRC_IDX,
+
+		TARGETED_OBJ_SHD_SRC_IDX,
+		TARGETED_OBJ_SYS_SRC_IDX,
+
+		TARGETED_OBJ_HULL_SRC_IDX,
+		TARGETED_OBJ_DIST_SRC_IDX,
+
+		TARGETED_OBJ_CARGO_SRC_IDX,
+		TARGETED_OBJ_SUBCMP_SRC_IDX,
+		-1
+	};
+
+	// x: X-Displacement
+	// y: Z-Displacement (vertical disp)
+	// z: Scale
+	float3 dcDispScale[] = {
+		{ 0, -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.1f), 2.25f },
+
+		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+
+		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
+
+		{ -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.15f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
+		{  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.20f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
+	};
+
+	for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
+	{
+		// This is the *fixed* scale of the text bracket. Here we're using a scale that is
+		// proportional to the fixed depth we'll be using.
+		const float scale = dcDispScale[dcCurRegion].z * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
+		// If the bracket is too small, then the text will get clobbered. To prevent this, we're adding
+		// a lower limit (determined empirically) for the bracket size:
+		const float bracketSizeOPT = max(95000.0f, g_curTargetBracketVR.halfWidthOPT);
+		// This is the variable scale of the target bracket (this is the same scale we use
+		// in RenderVRBrackets).
+		const float meshScale = (bracketSizeOPT * 2.0f) / meshWidth;
+		Matrix4 ScaleOpt = Matrix4().scale(meshScale);
+		Matrix4 Scale    = Matrix4().scale(scale);
+
+		DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]];
+		g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
+		g_VRGeometryCBuffer.u1 = g_VRGeometryCBuffer.v1 = 0;
+		if (src_box->bComputed)
+		{
+			g_VRGeometryCBuffer.u0 = src_box->coords.x0;
+			g_VRGeometryCBuffer.v0 = src_box->coords.y0;
+
+			g_VRGeometryCBuffer.u1 = src_box->coords.x1;
+			g_VRGeometryCBuffer.v1 = src_box->coords.y1;
+		}
+		// Apply the VS constants
+		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
+
+		// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer, see
+		// dcDisp[] above.
+		Matrix4 Disp = Matrix4().translate(dcDispScale[dcCurRegion].x * METERS_TO_OPT, 0, dcDispScale[dcCurRegion].y * METERS_TO_OPT);
+		// This works *just* like RenderVRBrackets and the scale has to be adjusted near the
+		// edges of the screen too:
+		//DotTransform = swapScale * TOpt * ScaleOpt * V;
+		// This puts the text on the top edge of the targeted craft:
+		//DotTransform = swapScale * TOpt * ScaleOpt * V * Disp;
+		// Here we displace the origin of the Dot Buffer near the edge. Then we apply the same transformation
+		// we do in RenderVRBrackets. That will give us the 3D position of a vertex on the edge of the bracket.
+		Vector4 midTop = TOpt * ScaleOpt * V * Disp * Vector4(0, 0, 0, 1);
+		// Now we take the direction of that vertex, normalize it, and put it at a fixed distance. That way,
+		// we know where to put the text and its size won't change because it's always the same distance.
+		Vector3 midTopDir = BRACKET_DEPTH_OPT * Vector4ToVector3(midTop).normalize();
+		Matrix4 TmidTop = Matrix4().translate(midTopDir.x, midTopDir.y, midTopDir.z);
+		// Finally, we switch to a fixed scale so that the label does not change size:
+		DotTransform = swapScale * TmidTop * Scale * V;
+
+		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
+		DotTransform.transpose();
+		g_OPTMeshTransformCB.MeshTransform = DotTransform;
+
+		// Apply the VS and PS constants
+		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
+		RenderScene(false);
+	}
+
+	_bEnhancedBracketsRendered = true;
 	RestoreContext();
 	_deviceResources->EndAnnotatedEvent();
 }
@@ -8048,7 +8309,7 @@ void EffectsRenderer::RenderVRKeyboard()
 		g_VRGeometryCBuffer.clicked[i] = g_LaserPointerBuffer.TriggerState[i];
 		g_VRGeometryCBuffer.clickRegions[i] = g_vrKeybState.clickRegions[i];
 	}
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	// Flags used in RenderScene():
 	_bIsCockpit = !bGunnerTurret;
@@ -8139,7 +8400,7 @@ void EffectsRenderer::RenderVRGloves()
 	// Disable region highlighting on the gloves for now...
 	g_VRGeometryCBuffer.clicked[0] = false;
 	g_VRGeometryCBuffer.clicked[1] = false;
-	g_VRGeometryCBuffer.bRenderBracket = false;
+	g_VRGeometryCBuffer.renderBracket = 0;
 
 	const bool bGunnerTurret = (g_iPresentCounter > PLAYERDATATABLE_MIN_SAFE_FRAME) ?
 		PlayerDataTable[*g_playerIndex].gunnerTurretActive : false;

@@ -209,19 +209,6 @@ std::map<int, bool> g_StarfieldGroupIdImageIdMap;
 std::map<int, void*> g_GroupIdImageIdToTextureMap;
 Direct3DTexture* g_StarfieldSRVs[STARFIELD_TYPE::MAX] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
-// Subcomponent name map
-std::map<uint16_t, void*> g_speciesCompMap;
-
-void ClearSpeciesCompMap()
-{
-	for (auto& item : g_speciesCompMap)
-	{
-		delete[] item.second;
-	}
-
-	g_speciesCompMap.clear();
-}
-
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
 void RTResetBlasIDs();
@@ -1893,39 +1880,6 @@ char* OptNodeTypeToStr(int type)
 	return "Invalid";
 }
 
-void PopulateComponentNames(OptHeader *optHeader, uint16_t species)
-{
-	char** s_stringsComponentName = (char** )0x0091B160;
-	uint16_t* compIndices = new uint16_t[optHeader->NumOfNodes];
-
-#ifdef DEBUG_COMP_NAMES
-	log_debug("[DBG] [OPT] -----------------------------");
-	log_debug("[DBG] [OPT] Species: %d, numNodes: %d", species, optHeader->NumOfNodes);
-#endif
-	for (int nodeIndex = 0; nodeIndex < optHeader->NumOfNodes; nodeIndex++)
-	{
-		OptNode* node = optHeader->Nodes[nodeIndex];
-		if (node->NumOfNodes > 0)
-		{
-			for (int i = 0; i < node->NumOfNodes; i++)
-			{
-				OptNode* subNode = node->Nodes[i];
-				if (subNode->NodeType == OptNode_MeshDescriptor)
-				{
-					uint16_t componentIndex = *(uint16_t*)subNode->Parameter2;
-					compIndices[nodeIndex] = componentIndex;
-#ifdef DEBUG_COMP_NAMES
-					log_debug("[DBG] [OPT]     %d: %d = %s",
-						nodeIndex, componentIndex, s_stringsComponentName[componentIndex]);
-#endif
-				}
-			}
-		}
-	}
-
-	g_speciesCompMap[species] = compIndices;
-}
-
 void ParseOptNode(OptNode* node, std::string prefix)
 {
 	if (node == nullptr)
@@ -2140,16 +2094,6 @@ void D3dRendererOptNodeHook(OptHeader* optHeader, int nodeIndex, SceneCompData* 
 			}
 		}
 
-		if (nodeIndex == 0)
-		{
-			const uint16_t species = scene->pObject->ObjectSpecies;
-			auto& it = g_speciesCompMap.find(species);
-			if (it == g_speciesCompMap.end())
-			{
-				// We haven't seen this species so far, let's populate it:
-				PopulateComponentNames(optHeader, species);
-			}
-		}
 	}
 
 	L00482000(optHeader, node, scene);

@@ -2393,12 +2393,97 @@ bool LoadSSAOParams() {
 
 			if (_stricmp(param, "enable_enhanced_hud") == 0) {
 				g_EnhancedHUDData.Enabled = (bool)fValue;
+				g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
+			}
+			if (_stricmp(param, "enhanced_hud_enhance_name_col") == 0) {
+				g_EnhancedHUDData.enhanceNameColor = (bool)fValue;
+			}
+			if (_stricmp(param, "enhanced_hud_display_bars") == 0) {
+				g_EnhancedHUDData.displayBars = (bool)fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_vertical_bars") == 0) {
+				g_EnhancedHUDData.verticalBarLayout = (bool)fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_enable_bg_text_box") == 0) {
+				g_EnhancedHUDData.bgTextBoxEnabled = (bool)fValue;
 			}
 			else if (_stricmp(param, "enhanced_hud_min_bracket_size") == 0) {
 				g_EnhancedHUDData.MinBracketSize = (int)fValue;
 			}
 			else if (_stricmp(param, "enhanced_hud_max_bracket_size") == 0) {
 				g_EnhancedHUDData.MaxBracketSize = (int)fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_min_bar_length") == 0) {
+				g_EnhancedHUDData.minBarW = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_max_bar_length") == 0) {
+				g_EnhancedHUDData.maxBarW = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_bar_thickness") == 0) {
+				g_EnhancedHUDData.barH = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_bar_gap") == 0) {
+				g_EnhancedHUDData.gapH = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_bar_frame_width") == 0) {
+				g_EnhancedHUDData.barStrokeSize = fValue;
+			}
+			else if (_stricmp(param, "enhanced_hud_font_size") == 0) {
+				const int size = (int)fValue;
+				switch (size)
+				{
+				case 0:
+				case 1:
+					g_EnhancedHUDData.fontIdx = FONT_SMALL_IDX;
+					break;
+				case 2:
+					g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
+					break;
+				case 3:
+					g_EnhancedHUDData.fontIdx = FONT_LARGE_IDX;
+					break;
+				default:
+					g_EnhancedHUDData.fontIdx = FONT_MEDIUM_IDX;
+				}
+			}
+			else if (_stricmp(param, "enhanced_hud_shields_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.shieldsCol = 0xFF000000 |
+					((uint32_t)(x * 255.0f) << 16) |
+					((uint32_t)(y * 255.0f) << 8) |
+					 (uint32_t)(z * 255.0f);
+			}
+			else if (_stricmp(param, "enhanced_hud_overshds_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.overShdCol = 0xFF000000 |
+					((uint32_t)(x * 255.0f) << 16) |
+					((uint32_t)(y * 255.0f) << 8) |
+					(uint32_t)(z * 255.0f);
+			}
+			else if (_stricmp(param, "enhanced_hud_hull_col_full") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.hullCol1 = { x, y, z };
+			}
+			else if (_stricmp(param, "enhanced_hud_hull_col_mid") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.hullCol2 = { x, y, z };
+			}
+			else if (_stricmp(param, "enhanced_hud_hull_col_low") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.hullCol3 = { x, y, z };
+			}
+			else if (_stricmp(param, "enhanced_hud_sys_col") == 0) {
+				float x, y, z;
+				LoadGeneric3DCoords(buf, &x, &y, &z);
+				g_EnhancedHUDData.sysCol = 0xFF000000 |
+					((uint32_t)(x * 255.0f) << 16) |
+					((uint32_t)(y * 255.0f) << 8) |
+					(uint32_t)(z * 255.0f);
 			}
 
 			if (_stricmp(param, "bias") == 0) {

@@ -322,11 +322,13 @@ struct BracketVR
 	float halfWidthOPT;
 	float strokeWidth;
 	Vector3 color;
-	float rollCompensation;
+	int  widthPix;
 	bool isSubComponent;
-	bool renderText;
 };
 extern std::vector<BracketVR> g_bracketsVR;
+extern BracketVR g_curTargetBracketVR;
+extern bool g_curTargetBracketVRCaptured;
+constexpr float DOT_MESH_SIZE_M = 0.017f;
 
 // Enhanced HUD
 constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 1024;
@@ -335,6 +337,25 @@ struct EnhancedHUDData
 	bool Enabled;
 	int  MinBracketSize;
 	int  MaxBracketSize;
+	int  fontIdx;
+	std::string sName, sShields, sHull, sSys;
+	std::string sDist, sCargo, sSubCmp, sTmp;
+	uint32_t nameColor, statsColor, subCmpColor;
+	int   shields, hull, sys;
+	float dist;
+	uint32_t shieldsCol = 0xFF2080FF;
+	uint32_t overShdCol = 0xFF7DF9FF; // Electric blue
+	uint32_t sysCol     = 0xFFCCC0FF; // Periwinkle!
+	float3 hullCol1 = { 0.0f, 1.0f, 0.0f };
+	float3 hullCol2 = { 1.0f, 1.0f, 0.0f };
+	float3 hullCol3 = { 1.0f, 0.0f, 0.0f };
+	bool   enhanceNameColor = true;
+	bool   displayBars = true;
+	bool   verticalBarLayout = false;
+	float  minBarW = 16.0f, maxBarW = 140.0f, barStrokeSize = 3.0f;
+	float  barH = 9.0f, gapH = 7.0f;
+	bool   bgTextBoxComputed, bgTextBoxEnabled = false;
+	Box    bgTextBox;
 };
 extern EnhancedHUDData g_EnhancedHUDData;
 

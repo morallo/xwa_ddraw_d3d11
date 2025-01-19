@@ -97,6 +97,8 @@ public:
 
 	void DrawHUDVertices();
 
+	void DrawEnhancedHUDVertices();
+
 	//void SetLights(float fSSDOEnabled);
 	
 	void SSAOPass(float fZoomFactor);
@@ -221,11 +223,15 @@ public:
 
 	STDMETHOD(UpdateOverlayZOrder)(THIS_ DWORD, LPDIRECTDRAWSURFACE);
 
+	void ExtractDCText();
+
 	void RenderText(bool earlyExit=false);
 
 	void RenderRadar();
 
 	void RenderBracket();
+
+	void RenderEnhancedHUDBars(bool bDestroyed);
 
 	void CacheBracketsVR();
 

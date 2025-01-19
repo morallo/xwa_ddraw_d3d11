@@ -33,6 +33,7 @@
 #include "../Debug/PixelShaderDCHolo.h"
 #include "../Debug/PixelShaderEmptyDC.h"
 #include "../Debug/PixelShaderHUD.h"
+#include "../Debug/EnhancedHudPS.h"
 #include "../Debug/PixelShaderSolid.h"
 #include "../Debug/PixelShaderClearBox.h"
 #include "../Debug/BloomHGaussPS.h"
@@ -122,6 +123,7 @@
 #include "../Release/PixelShaderDCHolo.h"
 #include "../Release/PixelShaderEmptyDC.h"
 #include "../Release/PixelShaderHUD.h"
+#include "../Release/EnhancedHudPS.h"
 #include "../Release/PixelShaderSolid.h"
 #include "../Release/PixelShaderClearBox.h"
 #include "../Release/BloomHGaussPS.h"
@@ -1726,7 +1728,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ResetGameEvent();
 	ResetObjectIndexMap();
 	ReloadInterdictionMap();
-	ClearSpeciesCompMap();
 	//ResetRawMouseInput();
 	if (IsZIPReaderLoaded() && g_bCleanupZIPDirs)
 		DeleteAllTempZIPDirectories();
@@ -1737,7 +1738,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_depthStencilR.Release();
 	this->_d2d1RenderTarget.Release();
 	this->_d2d1OffscreenRenderTarget.Release();
-	if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
+	if (g_EnhancedHUDData.Enabled)
 		_d2d1EnhancedHUDRenderTarget.Release();
 	this->_d2d1DCRenderTarget.Release();
 	this->_renderTargetView.Release();
@@ -1769,6 +1770,11 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	this->_shadertoyRTV.Release();
 	this->_shadertoySRV.Release();
 	this->_shadertoyAuxSRV.Release();
+	if (g_EnhancedHUDData.Enabled)
+	{
+		this->_enhancedHUDBuffer.Release();
+		this->_enhancedHUDSRV.Release();
+	}
 
 	/*
 	if (this->_HUDVertexBuffer)
@@ -1817,11 +1823,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		this->_shadertoyBufR.Release();
 		this->_shadertoyRTV_R.Release();
 		this->_shadertoySRV_R.Release();
-		if (g_EnhancedHUDData.Enabled)
-		{
-			this->_enhancedHUDBuffer.Release();
-			this->_enhancedHUDSRV.Release();
-		}
 	}
 	if (g_b3DVisionEnabled) {
 		log_debug("[DBG] [3DV] Releasing 3D vision buffers");
@@ -2817,11 +2818,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					log_err("Successfully created _DCTextAsInput with combined flags\n");
 				}
 
-				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
+				if (g_EnhancedHUDData.Enabled)
 				{
-					CD3D11_TEXTURE2D_DESC tmp = desc;
-					desc.Width  = VR_ENHANCED_HUD_BUFFER_SIZE;
-					desc.Height = VR_ENHANCED_HUD_BUFFER_SIZE;
+					// desc.Width, Height is the current screen resolution.
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_enhancedHUDBuffer);
 					if (FAILED(hr)) {
 						log_err("Failed to create _enhancedHUDBuffer, error: 0x%x\n", hr);
@@ -2833,7 +2832,6 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					else {
 						log_err("Successfully created _enhancedHUDBuffer\n");
 					}
-					desc = tmp;
 				}
 
 				// Restore the previous bind flags, just in case there is a dependency on these later on
@@ -3517,7 +3515,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					goto out;
 				}
 
-				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
+				if (g_EnhancedHUDData.Enabled)
 				{
 					step = "_enhancedHUDBuffer";
 					hr = this->_d3dDevice->CreateShaderResourceView(this->_enhancedHUDBuffer,
@@ -4092,7 +4090,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 		else
 			hr = this->_offscreenBuffer.As(&offscreenSurface);
 
-		if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
+		if (g_EnhancedHUDData.Enabled)
 			this->_enhancedHUDBuffer.As(&enhancedHUDSurface);
 
 		// This surface can be used to render directly to the DC foreground buffer
@@ -4108,7 +4106,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(surface, properties, &this->_d2d1RenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(DCSurface, properties, &this->_d2d1DCRenderTarget);
 			hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(offscreenSurface, properties, &this->_d2d1OffscreenRenderTarget);
-			if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
+			if (g_EnhancedHUDData.Enabled)
 				hr = this->_d2d1Factory->CreateDxgiSurfaceRenderTarget(enhancedHUDSurface, properties, &this->_d2d1EnhancedHUDRenderTarget);
 
 			if (SUCCEEDED(hr))
@@ -4118,10 +4116,14 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 
 				this->_d2d1OffscreenRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
 				this->_d2d1OffscreenRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
-				if (g_bUseSteamVR && g_EnhancedHUDData.Enabled)
+
+				if (g_EnhancedHUDData.Enabled)
 				{
 					this->_d2d1EnhancedHUDRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
-					this->_d2d1EnhancedHUDRenderTarget->SetTextAntialiasMode(g_config.Text2DAntiAlias ? D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE : D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
+					// The Cleartype mode destroys the alpha component (the alpha is _always_ 0 after rendering the text).
+					// For the Enhanced HUD, we might want to add transparency or even render a dark rect below the text
+					// to make it easier to read. So, let's use a different antialias mode that writes the alpha channel:
+					this->_d2d1EnhancedHUDRenderTarget->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 				}
 
 				this->_d2d1DCRenderTarget->SetAntialiasMode(g_config.Geometry2DAntiAlias ? D2D1_ANTIALIAS_MODE_PER_PRIMITIVE : D2D1_ANTIALIAS_MODE_ALIASED);
@@ -4604,6 +4606,9 @@ HRESULT DeviceResources::LoadResources()
 	}
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderHUD, sizeof(g_PixelShaderHUD), nullptr, &_pixelShaderHUD)))
+		return hr;
+
+	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_EnhancedHudPS, sizeof(g_EnhancedHudPS), nullptr, &_enhancedHudPS)))
 		return hr;
 
 	if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_PixelShaderSolid, sizeof(g_PixelShaderSolid), nullptr, &_pixelShaderSolid)))
