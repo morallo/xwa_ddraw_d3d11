@@ -400,6 +400,7 @@ void PrimarySurface::RenderEnhancedHUDText()
 	char rows[3][SIZE];
 	char* dRows[3] = { rows[0], rows[1], rows[2] };
 	const int fontIdx = g_EnhancedHUDData.fontIdx;
+	const int vrCenterX = VR_ENHANCED_HUD_BUFFER_SIZE / 2;
 
 	// Render text on the target bracket
 	{
@@ -428,7 +429,13 @@ void PrimarySurface::RenderEnhancedHUDText()
 			if (g_EnhancedHUDData.dist > -1.0f)
 				sprintf_s(rows[numLines++], SIZE, "%0.2f km", g_EnhancedHUDData.dist);
 			int yPos = 18 + numLines * 15;
-			g_EnhancedHUDData.bgTextBox = DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -yPos, numLines, dRows, fontIdx);
+			if (!g_bUseSteamVR)
+				g_EnhancedHUDData.bgTextBox = DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -yPos, numLines, dRows, fontIdx);
+			else
+			{
+				g_EnhancedHUDData.bgTextBox = DisplayCenteredLines(vrCenterX, 0, g_EnhancedHUDData.nameColor, 0.5f, 0, 0, numLines, dRows, fontIdx);
+				g_EnhancedHUDData.bgTextBoxNumLines = numLines;
+			}
 			g_EnhancedHUDData.bgTextBoxComputed = true;
 		}
 	}
@@ -440,6 +447,7 @@ void PrimarySurface::RenderEnhancedHUDText()
 		// textX and textY are in in-game coordinates (eg. 1920x1080)
 		const int textX = xwaBracket.positionX + xwaBracket.width / 2;
 		const int textY = xwaBracket.positionY + xwaBracket.height / 2;
+		constexpr int vrStartY = 60 + 4; // ySize * 3 + small-offset (max num lines for the text, plus largest y-size for a font)
 
 		// Do not display anything when the text is outside the screen:
 		if (xwaBracket.subComponentIdx > -1 &&
@@ -447,8 +455,15 @@ void PrimarySurface::RenderEnhancedHUDText()
 			textY >= 0 && textY <= (int)g_fCurInGameHeight)
 		{
 			sprintf_s(rows[0], 128, "%s", g_EnhancedHUDData.sSubCmp.c_str());
-			DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, g_EnhancedHUDData.subCmpColor,
-				0.5f, 0,10, 1, dRows, fontIdx);
+			if (!g_bUseSteamVR)
+				DisplayCenteredLines(textX, xwaBracket.positionY + xwaBracket.height, g_EnhancedHUDData.subCmpColor,
+					0.5f, 0,10, 1, dRows, fontIdx);
+			else
+			{
+				g_EnhancedHUDData.subCmpBox = DisplayCenteredLines(vrCenterX, vrStartY, g_EnhancedHUDData.subCmpColor,
+					0.5f, 0,0, 1, dRows, fontIdx);
+				g_EnhancedHUDData.subCmpBoxComputed = true;
+			}
 		}
 	}
 }
@@ -10728,11 +10743,13 @@ HRESULT PrimarySurface::Flip(
 				if (g_EnhancedHUDData.Enabled)
 				{
 					this->ExtractDCText();
-					/*log_debug("[DBG] tmp: [%s]", g_EnhancedHUDData.sTmp);
-					log_debug("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
+					//float width = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
+					//log_debug_vr("bgTextBoxWidth: %0.3f", width);
+					/*log_debug_vr("[DBG] tmp: [%s]", g_EnhancedHUDData.sTmp);
+					log_debug_vr("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
 						g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.shields,
 						g_EnhancedHUDData.hull, g_EnhancedHUDData.sys);
-					log_debug("[DBG] dist: [%0.1f], cargo: [%s], subCmp: [%s]",
+					log_debug_vr("[DBG] dist: [%0.1f], cargo: [%s], subCmp: [%s]",
 						g_EnhancedHUDData.dist, g_EnhancedHUDData.sCargo.c_str(),
 						g_EnhancedHUDData.sSubCmp.c_str());*/
 				}
@@ -11120,6 +11137,7 @@ HRESULT PrimarySurface::Flip(
 							(craftInstance->CraftState == Craftstate_Dying) ||
 							(craftInstance->CraftState == Craftstate_DiedInstantly);
 						g_EnhancedHUDData.bgTextBoxComputed = false;
+						this->ClearEnhancedHUD();
 						this->RenderEnhancedHUDText();
 						this->RenderEnhancedHUDBars(bDestroyed);
 						this->RenderText(true);
@@ -11130,17 +11148,38 @@ HRESULT PrimarySurface::Flip(
 						}
 					}
 					RenderBracket();
-					DrawEnhancedHUDVertices();
-					ResetGlobalBrackets();
+					if (g_EnhancedHUDData.Enabled && !g_bMapMode)
+						DrawEnhancedHUDVertices();
 				}
 				else if (g_bRendering3D)
 				{
+					if (g_EnhancedHUDData.Enabled)
+					{
+						CraftInstance *craftInstance = GetCraftInstanceForCurrentTargetSafe();
+						const bool bDestroyed = (craftInstance == nullptr) ||
+							(craftInstance->CraftState == Craftstate_Dying) ||
+							(craftInstance->CraftState == Craftstate_DiedInstantly);
+						g_EnhancedHUDData.bgTextBoxComputed = false;
+						g_EnhancedHUDData.subCmpBoxComputed = false;
+						g_EnhancedHUDData.bgTextBoxNumLines = 0;
+						this->ClearEnhancedHUD();
+						this->RenderEnhancedHUDText();
+
+						_renderTextAbsCoords = true;
+						this->RenderText(true);
+						_renderTextAbsCoords = false;
+					}
 					this->CacheBracketsVR();
+					if (g_bDumpSSAOBuffers && g_EnhancedHUDData.Enabled)
+					{
+						DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
+					}
 					// The enhanced VR HUD needs to be rendered right here or there will be a one-frame delay
 					// that is noticeable as a shaky bracket
 					if (g_EnhancedHUDData.Enabled)
 						((EffectsRenderer*)g_current_renderer)->RenderVREnhancedHUD();
 				}
+				ResetGlobalBrackets();
 			}
 
 			// Draw the reticle on top of everything else
@@ -12950,9 +12989,6 @@ void PrimarySurface::RenderText(bool earlyExit)
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
 
-	/*if (earlyExit && g_EnhancedHUDData.Enabled)
-		this->_deviceResources->_d2d1EnhancedHUDRenderTarget->Clear(NULL);*/
-
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
 
@@ -13046,8 +13082,17 @@ void PrimarySurface::RenderText(bool earlyExit)
 			s_brush->SetColor(D2D1::ColorF(brushColor));
 		}
 
-		float x = (float)s_left + (float)xwaText.positionX * s_scaleX;
-		float y = (float)s_top + (float)xwaText.positionY * s_scaleY;
+		float x, y;
+		if (!_renderTextAbsCoords)
+		{
+			x = (float)s_left + (float)xwaText.positionX * s_scaleX;
+			y = (float)s_top + (float)xwaText.positionY * s_scaleY;
+		}
+		else
+		{
+			x = (float)xwaText.positionX;
+			y = (float)xwaText.positionY;
+		}
 
 		//textLayout->SetFontStretch(DWRITE_FONT_STRETCH_ULTRA_EXPANDED, { 0, 256 });
 		//this->_deviceResources->_d2d1RenderTarget->DrawTextLayout(
@@ -13556,6 +13601,16 @@ void PrimarySurface::RenderBracket()
 	this->_deviceResources->EndAnnotatedEvent();
 }
 
+void PrimarySurface::ClearEnhancedHUD()
+{
+	ID2D1RenderTarget *rtv = _deviceResources->_d2d1EnhancedHUDRenderTarget;
+	rtv->SaveDrawingState(_deviceResources->_d2d1DrawingStateBlock);
+	rtv->BeginDraw();
+	rtv->Clear(NULL);
+	rtv->EndDraw();
+	rtv->RestoreDrawingState(_deviceResources->_d2d1DrawingStateBlock);
+}
+
 void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 {
 	if (!g_EnhancedHUDData.displayBars || *g_playerInHangar)
@@ -13628,7 +13683,6 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 	ID2D1RenderTarget *rtv = this->_deviceResources->_d2d1EnhancedHUDRenderTarget;
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
-	rtv->Clear(NULL);
 
 	// Draw a semi-transparent dark box behind the text to make it more readable
 	if (g_EnhancedHUDData.bgTextBoxEnabled && g_EnhancedHUDData.bgTextBoxComputed)

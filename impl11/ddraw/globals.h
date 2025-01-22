@@ -331,7 +331,7 @@ extern bool g_curTargetBracketVRCaptured;
 constexpr float DOT_MESH_SIZE_M = 0.017f;
 
 // Enhanced HUD
-constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 1024;
+constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 512;
 struct EnhancedHUDData
 {
 	bool Enabled;
@@ -355,7 +355,10 @@ struct EnhancedHUDData
 	float  minBarW = 16.0f, maxBarW = 140.0f, barStrokeSize = 3.0f;
 	float  barH = 9.0f, gapH = 7.0f;
 	bool   bgTextBoxComputed, bgTextBoxEnabled = false;
+	bool   subCmpBoxComputed;
+	int    bgTextBoxNumLines;
 	Box    bgTextBox;
+	Box    subCmpBox;
 };
 extern EnhancedHUDData g_EnhancedHUDData;
 

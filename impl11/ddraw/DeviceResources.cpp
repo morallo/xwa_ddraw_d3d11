@@ -2821,6 +2821,9 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 				if (g_EnhancedHUDData.Enabled)
 				{
 					// desc.Width, Height is the current screen resolution.
+					CD3D11_TEXTURE2D_DESC tmp = desc;
+					if (g_bUseSteamVR) desc.Width = desc.Height = VR_ENHANCED_HUD_BUFFER_SIZE;
+
 					hr = this->_d3dDevice->CreateTexture2D(&desc, nullptr, &this->_enhancedHUDBuffer);
 					if (FAILED(hr)) {
 						log_err("Failed to create _enhancedHUDBuffer, error: 0x%x\n", hr);
@@ -2832,6 +2835,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 					else {
 						log_err("Successfully created _enhancedHUDBuffer\n");
 					}
+					if (g_bUseSteamVR) desc = tmp;
 				}
 
 				// Restore the previous bind flags, just in case there is a dependency on these later on

@@ -7568,7 +7568,8 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	g_VRGeometryCBuffer.renderBracket = 2;
 
 	// Set the textures
-	_deviceResources->InitPSShaderResourceView(resources->_DCTextSRV.Get(), nullptr);
+	//_deviceResources->InitPSShaderResourceView(resources->_DCTextSRV.Get(), nullptr);
+	_deviceResources->InitPSShaderResourceView(resources->_enhancedHUDSRV.Get(), nullptr);
 
 	// Set the mesh buffers
 	ID3D11ShaderResourceView* vsSSRV[4] = { _vrDotMeshVerticesSRV.Get(), nullptr, _vrDotMeshTexCoordsSRV.Get(), nullptr };
@@ -7681,12 +7682,13 @@ void EffectsRenderer::RenderVREnhancedHUD()
 
 	Matrix4 DotTransform;
 	// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
-	// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_METERS by side and it's centered
+	// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_M(ETERS) by side and it's centered
 	// at the origin. Displacing points by half that amount makes the points like on one of the edges
 	// of the quad. We want to add an extra displacement so that the text is just outside the quad too.
 	constexpr float HALF_DOT_MESH_SIZE_M = DOT_MESH_SIZE_M * 0.5f;
 	const int dcSrcRegions[] = {
 		TARGETED_OBJ_NAME_SRC_IDX,
+		-1,
 
 		TARGETED_OBJ_SHD_SRC_IDX,
 		TARGETED_OBJ_SYS_SRC_IDX,
@@ -7702,8 +7704,15 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	// x: X-Displacement
 	// y: Z-Displacement (vertical disp)
 	// z: Scale
+	const float bgTextBoxWidth = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
+	const float normWidth = (max(80, bgTextBoxWidth) - 80.0f) / 40.0f;
+	const float horzScale = lerp(1.3f, 1.75f, normWidth);
 	float3 dcDispScale[] = {
-		{ 0, -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.1f), 2.25f },
+		//{ 0, -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.1f * g_EnhancedHUDData.bgTextBoxNumLines), 1.25f },
+		//{ 0, -(HALF_DOT_MESH_SIZE_M + 0.1f * g_EnhancedHUDData.bgTextBoxNumLines), 1.0f + (bgTextBoxWidth * 0.1f) },
+		//{ 0, -(HALF_DOT_MESH_SIZE_M + 0.1f * g_EnhancedHUDData.bgTextBoxNumLines), 1.25f },
+		{ 0, -HALF_DOT_MESH_SIZE_M, horzScale },
+		//{ 0, 0, horzScale },
 
 		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
 		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
@@ -7722,14 +7731,18 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		const float scale = dcDispScale[dcCurRegion].z * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
 		// If the bracket is too small, then the text will get clobbered. To prevent this, we're adding
 		// a lower limit (determined empirically) for the bracket size:
-		const float bracketSizeOPT = max(95000.0f, g_curTargetBracketVR.halfWidthOPT);
+		//const float bracketSizeOPT = max(95000.0f, g_curTargetBracketVR.halfWidthOPT);
+		// Here we're increasing the size of the quad so that moving the text to the edge of the
+		// target bracket actually puts the text slightly outside the edge. That's why the increase is
+		// proportional to the number of lines in the bgTextBox:
+		const float bracketSizeOPT = g_curTargetBracketVR.halfWidthOPT + 25000.0f * g_EnhancedHUDData.bgTextBoxNumLines;
 		// This is the variable scale of the target bracket (this is the same scale we use
 		// in RenderVRBrackets).
 		const float meshScale = (bracketSizeOPT * 2.0f) / meshWidth;
 		Matrix4 ScaleOpt = Matrix4().scale(meshScale);
 		Matrix4 Scale    = Matrix4().scale(scale);
 
-		DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]];
+		/*DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]];
 		g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
 		g_VRGeometryCBuffer.u1 = g_VRGeometryCBuffer.v1 = 0;
 		if (src_box->bComputed)
@@ -7739,7 +7752,13 @@ void EffectsRenderer::RenderVREnhancedHUD()
 
 			g_VRGeometryCBuffer.u1 = src_box->coords.x1;
 			g_VRGeometryCBuffer.v1 = src_box->coords.y1;
-		}
+		}*/
+		g_VRGeometryCBuffer.u0 = g_EnhancedHUDData.bgTextBox.x0 / VR_ENHANCED_HUD_BUFFER_SIZE;
+		g_VRGeometryCBuffer.v0 = g_EnhancedHUDData.bgTextBox.y0 / VR_ENHANCED_HUD_BUFFER_SIZE;
+
+		g_VRGeometryCBuffer.u1 = g_EnhancedHUDData.bgTextBox.x1 / VR_ENHANCED_HUD_BUFFER_SIZE;
+		g_VRGeometryCBuffer.v1 = g_EnhancedHUDData.bgTextBox.y1 / VR_ENHANCED_HUD_BUFFER_SIZE;
+
 		// Apply the VS constants
 		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 
