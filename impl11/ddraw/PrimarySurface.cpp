@@ -11161,19 +11161,23 @@ HRESULT PrimarySurface::Flip(
 							(craftInstance->CraftState == Craftstate_DiedInstantly);
 						g_EnhancedHUDData.bgTextBoxComputed = false;
 						g_EnhancedHUDData.subCmpBoxComputed = false;
+						g_EnhancedHUDData.barsBoxComputed   = false;
 						g_EnhancedHUDData.bgTextBoxNumLines = 0;
 						this->ClearEnhancedHUD();
 						this->RenderEnhancedHUDText();
+						this->RenderEnhancedHUDBars(bDestroyed);
 
 						_renderTextAbsCoords = true;
 						this->RenderText(true);
 						_renderTextAbsCoords = false;
+
+						if (g_bDumpSSAOBuffers)
+						{
+							DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
+						}
 					}
+
 					this->CacheBracketsVR();
-					if (g_bDumpSSAOBuffers && g_EnhancedHUDData.Enabled)
-					{
-						DirectX::SaveDDSTextureToFile(context, resources->_enhancedHUDBuffer, L"C:\\Temp\\_enhancedHUDBuffer.dds");
-					}
 					// The enhanced VR HUD needs to be rendered right here or there will be a one-frame delay
 					// that is noticeable as a shaky bracket
 					if (g_EnhancedHUDData.Enabled)
@@ -13685,7 +13689,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 	rtv->BeginDraw();
 
 	// Draw a semi-transparent dark box behind the text to make it more readable
-	if (g_EnhancedHUDData.bgTextBoxEnabled && g_EnhancedHUDData.bgTextBoxComputed)
+	if (!g_bUseSteamVR && g_EnhancedHUDData.bgTextBoxEnabled && g_EnhancedHUDData.bgTextBoxComputed)
 	{
 		const Box& srcBox = g_EnhancedHUDData.bgTextBox;
 		Box box;
@@ -13720,7 +13724,9 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 		const float shd     = g_EnhancedHUDData.shields / 100.0f;
 		const float hull    = g_EnhancedHUDData.hull / 100.0f;
 		const float sys     = g_EnhancedHUDData.sys / 100.0f;
-		float barW = max(minBarW, min(maxBarW, posW * 0.7f));
+		float barW = g_bUseSteamVR ? maxBarW : max(minBarW, min(maxBarW, posW * 0.7f));
+		constexpr float vrCenterX = VR_ENHANCED_HUD_BUFFER_SIZE / 2.0f;
+		constexpr float vrCenterY = VR_ENHANCED_HUD_BUFFER_SIZE / 2.0f;
 
 		// Let's make the hull change color depending on its value
 		float3 hullCol;
@@ -13732,10 +13738,13 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 
 		if (!g_EnhancedHUDData.verticalBarLayout)
 		{
-			const float centerX = posX + posW * 0.5f;
+			const float centerX = g_bUseSteamVR ? vrCenterX : posX + posW * 0.5f;
 			const float startX  = centerX - barW * 0.5f;
-			float y = posY + posH + gapH;
+			float y = g_bUseSteamVR ? vrCenterY : posY + posH + gapH;
 
+			g_EnhancedHUDData.barsBox.x0 = startX;
+			g_EnhancedHUDData.barsBox.x1 = startX + barW;
+			g_EnhancedHUDData.barsBox.y0 = y;
 			if (g_EnhancedHUDData.shields >= 0)
 			{
 				s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.shieldsCol));
@@ -13757,12 +13766,16 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 			}
 			y += barH + gapH;
 
+			g_EnhancedHUDData.barsBox.y1 = y;
+
 			// Only display the sys bar when there's damage
 			if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
 			{
 				rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, strokeSize);
 				rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW, y + barH), s_sysBrush);
+				g_EnhancedHUDData.barsBox.y1 += (barH + gapH);
 			}
+			g_EnhancedHUDData.barsBoxComputed = true;
 		}
 		else
 		{

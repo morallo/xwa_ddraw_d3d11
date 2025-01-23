@@ -7686,78 +7686,47 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	// at the origin. Displacing points by half that amount makes the points like on one of the edges
 	// of the quad. We want to add an extra displacement so that the text is just outside the quad too.
 	constexpr float HALF_DOT_MESH_SIZE_M = DOT_MESH_SIZE_M * 0.5f;
-	const int dcSrcRegions[] = {
-		TARGETED_OBJ_NAME_SRC_IDX,
-		-1,
 
-		TARGETED_OBJ_SHD_SRC_IDX,
-		TARGETED_OBJ_SYS_SRC_IDX,
-
-		TARGETED_OBJ_HULL_SRC_IDX,
-		TARGETED_OBJ_DIST_SRC_IDX,
-
-		TARGETED_OBJ_CARGO_SRC_IDX,
-		TARGETED_OBJ_SUBCMP_SRC_IDX,
-		-1
+	const int numRegions = 2;
+	const Box* srcBoxes[] = {
+		&g_EnhancedHUDData.bgTextBox,
+		&g_EnhancedHUDData.barsBox,
 	};
 
 	// x: X-Displacement
-	// y: Z-Displacement (vertical disp)
-	// z: Scale
+	// y: Z-Displacement (Used to offset the label to the edge of the current target bracket)
+	// z: Z-Displacement (Additional displacement, applied as part of meshScale after the first displacement)
+	// w: Scale
 	const float bgTextBoxWidth = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
 	const float normWidth = (max(80, bgTextBoxWidth) - 80.0f) / 40.0f;
 	const float horzScale = lerp(1.3f, 1.75f, normWidth);
-	float3 dcDispScale[] = {
-		//{ 0, -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.1f * g_EnhancedHUDData.bgTextBoxNumLines), 1.25f },
-		//{ 0, -(HALF_DOT_MESH_SIZE_M + 0.1f * g_EnhancedHUDData.bgTextBoxNumLines), 1.0f + (bgTextBoxWidth * 0.1f) },
-		//{ 0, -(HALF_DOT_MESH_SIZE_M + 0.1f * g_EnhancedHUDData.bgTextBoxNumLines), 1.25f },
-		{ 0, -HALF_DOT_MESH_SIZE_M, horzScale },
-		//{ 0, 0, horzScale },
-
-		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-
-		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-
-		{ -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.15f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
-		{  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.20f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
+	float4 dcDispScale[] = {
+		{ 0, -HALF_DOT_MESH_SIZE_M, 25000.0f * g_EnhancedHUDData.bgTextBoxNumLines, horzScale },
+		{ 0,  HALF_DOT_MESH_SIZE_M, 45000.0f, 1.0f },
 	};
 
-	for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
+	for (int dcCurRegion = 0; dcCurRegion < numRegions; dcCurRegion++)
 	{
 		// This is the *fixed* scale of the text bracket. Here we're using a scale that is
 		// proportional to the fixed depth we'll be using.
-		const float scale = dcDispScale[dcCurRegion].z * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
-		// If the bracket is too small, then the text will get clobbered. To prevent this, we're adding
-		// a lower limit (determined empirically) for the bracket size:
-		//const float bracketSizeOPT = max(95000.0f, g_curTargetBracketVR.halfWidthOPT);
+		const float scale = dcDispScale[dcCurRegion].w * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
+
 		// Here we're increasing the size of the quad so that moving the text to the edge of the
 		// target bracket actually puts the text slightly outside the edge. That's why the increase is
 		// proportional to the number of lines in the bgTextBox:
-		const float bracketSizeOPT = g_curTargetBracketVR.halfWidthOPT + 25000.0f * g_EnhancedHUDData.bgTextBoxNumLines;
+		//const float bracketSizeOPT = g_curTargetBracketVR.halfWidthOPT + 25000.0f * g_EnhancedHUDData.bgTextBoxNumLines;
+		const float bracketSizeOPT = g_curTargetBracketVR.halfWidthOPT + dcDispScale[dcCurRegion].z;
 		// This is the variable scale of the target bracket (this is the same scale we use
 		// in RenderVRBrackets).
 		const float meshScale = (bracketSizeOPT * 2.0f) / meshWidth;
 		Matrix4 ScaleOpt = Matrix4().scale(meshScale);
 		Matrix4 Scale    = Matrix4().scale(scale);
 
-		/*DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]];
-		g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
-		g_VRGeometryCBuffer.u1 = g_VRGeometryCBuffer.v1 = 0;
-		if (src_box->bComputed)
-		{
-			g_VRGeometryCBuffer.u0 = src_box->coords.x0;
-			g_VRGeometryCBuffer.v0 = src_box->coords.y0;
+		g_VRGeometryCBuffer.u0 = srcBoxes[dcCurRegion]->x0 / VR_ENHANCED_HUD_BUFFER_SIZE;
+		g_VRGeometryCBuffer.v0 = srcBoxes[dcCurRegion]->y0 / VR_ENHANCED_HUD_BUFFER_SIZE;
 
-			g_VRGeometryCBuffer.u1 = src_box->coords.x1;
-			g_VRGeometryCBuffer.v1 = src_box->coords.y1;
-		}*/
-		g_VRGeometryCBuffer.u0 = g_EnhancedHUDData.bgTextBox.x0 / VR_ENHANCED_HUD_BUFFER_SIZE;
-		g_VRGeometryCBuffer.v0 = g_EnhancedHUDData.bgTextBox.y0 / VR_ENHANCED_HUD_BUFFER_SIZE;
-
-		g_VRGeometryCBuffer.u1 = g_EnhancedHUDData.bgTextBox.x1 / VR_ENHANCED_HUD_BUFFER_SIZE;
-		g_VRGeometryCBuffer.v1 = g_EnhancedHUDData.bgTextBox.y1 / VR_ENHANCED_HUD_BUFFER_SIZE;
+		g_VRGeometryCBuffer.u1 = srcBoxes[dcCurRegion]->x1 / VR_ENHANCED_HUD_BUFFER_SIZE;
+		g_VRGeometryCBuffer.v1 = srcBoxes[dcCurRegion]->y1 / VR_ENHANCED_HUD_BUFFER_SIZE;
 
 		// Apply the VS constants
 		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
