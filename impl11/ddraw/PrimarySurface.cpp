@@ -13865,6 +13865,7 @@ void PrimarySurface::CacheBracketsVR()
 	const float strokeWidthOPT = fabs(C.x - U.x);
 
 	g_curTargetBracketVRCaptured = false;
+	g_curSubCmpBracketVRCaptured = false;
 	for (const auto& xwaBracket : g_xwa_bracket)
 	{
 		unsigned short si = ((unsigned short*)0x08D9420)[xwaBracket.colorIndex];
@@ -13924,11 +13925,19 @@ void PrimarySurface::CacheBracketsVR()
 		bracketVR.isSubComponent = xwaBracket.isSubComponent;
 		g_bracketsVR.push_back(bracketVR);
 
-		if (g_EnhancedHUDData.Enabled && xwaBracket.isCurrentTarget)
+		if (g_EnhancedHUDData.Enabled)
 		{
-			// For the enhanced HUD, we'll add a special bracket just to render the text.
-			g_curTargetBracketVR = bracketVR;
-			g_curTargetBracketVRCaptured = true;
+			if (xwaBracket.isCurrentTarget)
+			{
+				// For the enhanced HUD, we'll add a special bracket just to render the text.
+				g_curTargetBracketVR = bracketVR;
+				g_curTargetBracketVRCaptured = true;
+			}
+			if (xwaBracket.isSubComponent)
+			{
+				g_curSubCmpBracketVR = bracketVR;
+				g_curSubCmpBracketVRCaptured = true;
+			}
 		}
 	}
 	g_xwa_bracket.clear();

@@ -326,8 +326,8 @@ struct BracketVR
 	bool isSubComponent;
 };
 extern std::vector<BracketVR> g_bracketsVR;
-extern BracketVR g_curTargetBracketVR;
-extern bool g_curTargetBracketVRCaptured;
+extern BracketVR g_curTargetBracketVR, g_curSubCmpBracketVR;
+extern bool g_curTargetBracketVRCaptured, g_curSubCmpBracketVRCaptured;
 constexpr float DOT_MESH_SIZE_M = 0.017f;
 
 // Enhanced HUD
