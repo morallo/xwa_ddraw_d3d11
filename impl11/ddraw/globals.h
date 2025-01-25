@@ -354,6 +354,7 @@ struct EnhancedHUDData
 	bool   verticalBarLayout = false;
 	float  minBarW = 16.0f, maxBarW = 140.0f, barStrokeSize = 3.0f;
 	float  barH = 9.0f, gapH = 7.0f;
+	float  vrTextScale = 1.0f;
 	bool   bgTextBoxComputed, bgTextBoxEnabled = false;
 	bool   subCmpBoxComputed, barsBoxComputed;
 	int    bgTextBoxNumLines;

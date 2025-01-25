@@ -7624,7 +7624,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		// - A box of width  30 maps to a factor of 0.5
 		// - A box of width 138 maps to a factor of 2.0
 		// So, we substract 30, then divide by 138 - 30 ~ 100 and map that to the range [0.5..2.0]
-		const float normWidth = (max(30, boxWidth) - 30.0f) / 100.0f;
+		const float normWidth = (boxWidth - 30.0f) / 100.0f;
 		const float horzScale = lerp(0.5f, 2.15f, normWidth);
 		float4 dcDispScale[] = {
 			// Here dcDispScale.z is increasing the size of the quad so that moving the text to the edge of the
@@ -7648,7 +7648,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		// z: Z-Displacement (Additional displacement, applied as part of meshScale after the first displacement)
 		// w: Scale
 		const float boxWidth  = g_EnhancedHUDData.subCmpBox.x1 - g_EnhancedHUDData.subCmpBox.x0;
-		const float normWidth = (max(30, boxWidth) - 30.0f) / 100.0f;
+		const float normWidth = (boxWidth - 30.0f) / 100.0f;
 		const float horzScale = lerp(0.5f, 2.15f, normWidth);
 		float4 dcDispScale[] = {
 			{ 0,  HALF_DOT_MESH_SIZE_M, 55000.0f, horzScale },
@@ -7749,11 +7749,12 @@ void EffectsRenderer::RenderVREnhancedHUDSingleBracket(const BracketVR& curTarge
 
 	_trianglesCount = g_vrDotNumTriangles;
 	Matrix4 DotTransform;
+
 	for (int dcCurRegion = 0; dcCurRegion < numRegions; dcCurRegion++)
 	{
 		// This is the *fixed* scale of the text bracket. Here we're using a scale that is
 		// proportional to the fixed depth we'll be using.
-		const float scale = dcDispScale[dcCurRegion].w * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
+		const float scale = g_EnhancedHUDData.vrTextScale * dcDispScale[dcCurRegion].w * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
 		// This is the variable size of the bracket (the size is given by the 2D bracket size converted
 		// to OPT coords, plus a little extra to move labels outside the edge of the bracket).
 		const float bracketSizeOPT = curTargetBracketVR.halfWidthOPT + dcDispScale[dcCurRegion].z;
