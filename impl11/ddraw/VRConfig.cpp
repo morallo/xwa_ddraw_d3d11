@@ -2485,6 +2485,9 @@ bool LoadSSAOParams() {
 					((uint32_t)(y * 255.0f) << 8) |
 					(uint32_t)(z * 255.0f);
 			}
+			else if (_stricmp(param, "enhanced_hud_vr_text_scale") == 0) {
+				g_EnhancedHUDData.vrTextScale = fValue;
+			}
 
 			if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;

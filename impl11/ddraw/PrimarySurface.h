@@ -40,6 +40,8 @@ class PrimarySurface : public IDirectDrawSurface
 	D3D11_VIEWPORT _oldViewports[2];
 	UINT _oldNumViewports = 2;
 
+	bool _renderTextAbsCoords = false;
+
 public:
 	PrimarySurface(DeviceResources* deviceResources, bool hasBackbufferAttached);
 
@@ -230,6 +232,8 @@ public:
 	void RenderRadar();
 
 	void RenderBracket();
+
+	void ClearEnhancedHUD();
 
 	void RenderEnhancedHUDBars(bool bDestroyed);
 

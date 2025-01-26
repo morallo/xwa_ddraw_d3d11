@@ -326,12 +326,12 @@ struct BracketVR
 	bool isSubComponent;
 };
 extern std::vector<BracketVR> g_bracketsVR;
-extern BracketVR g_curTargetBracketVR;
-extern bool g_curTargetBracketVRCaptured;
+extern BracketVR g_curTargetBracketVR, g_curSubCmpBracketVR;
+extern bool g_curTargetBracketVRCaptured, g_curSubCmpBracketVRCaptured;
 constexpr float DOT_MESH_SIZE_M = 0.017f;
 
 // Enhanced HUD
-constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 1024;
+constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 512;
 struct EnhancedHUDData
 {
 	bool Enabled;
@@ -354,8 +354,13 @@ struct EnhancedHUDData
 	bool   verticalBarLayout = false;
 	float  minBarW = 16.0f, maxBarW = 140.0f, barStrokeSize = 3.0f;
 	float  barH = 9.0f, gapH = 7.0f;
+	float  vrTextScale = 1.0f;
 	bool   bgTextBoxComputed, bgTextBoxEnabled = false;
+	bool   subCmpBoxComputed, barsBoxComputed;
+	int    bgTextBoxNumLines;
 	Box    bgTextBox;
+	Box    subCmpBox;
+	Box    barsBox;
 };
 extern EnhancedHUDData g_EnhancedHUDData;
 

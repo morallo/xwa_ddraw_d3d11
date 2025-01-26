@@ -115,7 +115,9 @@ EffectsRenderer *g_effects_renderer = nullptr;
 
 std::vector<BracketVR> g_bracketsVR;
 BracketVR g_curTargetBracketVR;
+BracketVR g_curSubCmpBracketVR;
 bool g_curTargetBracketVRCaptured = false;
+bool g_curSubCmpBracketVRCaptured = false;
 
 // Current turn rate. This will make the ship turn faster at 1/3 throttle.
 // This variable makes a smooth transition when the throttle changes.
@@ -7568,7 +7570,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	g_VRGeometryCBuffer.renderBracket = 2;
 
 	// Set the textures
-	_deviceResources->InitPSShaderResourceView(resources->_DCTextSRV.Get(), nullptr);
+	_deviceResources->InitPSShaderResourceView(resources->_enhancedHUDSRV.Get(), nullptr);
 
 	// Set the mesh buffers
 	ID3D11ShaderResourceView* vsSSRV[4] = { _vrDotMeshVerticesSRV.Get(), nullptr, _vrDotMeshTexCoordsSRV.Get(), nullptr };
@@ -7583,19 +7585,6 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	// Apply the PS constants
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	_deviceResources->InitPixelShader(resources->_pixelShaderVRGeom);
-
-	Vector4 cUp, cBk, cDn, cFd;
-	{
-		Matrix4 ViewMatrix = g_VSMatrixCB.fullViewMat;
-		ViewMatrix.invert();
-
-		// Up vector, SteamVR coords. Compensated for HMD rotation
-		cUp = ViewMatrix * Vector4(0, 1, 0, 0);
-		cDn = -1.0f * cUp;
-		// This produces a backwards vector in SteamVR coords:
-		cBk = ViewMatrix * Vector4(0, 0, 1, 0);
-		cFd = -1.0f * cBk;
-	}
 
 	// Let's replace transformWorldView with the identity matrix:
 	const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
@@ -7612,7 +7601,88 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		context->UpdateSubresource(_constantBuffer, 0, nullptr, &_ExteriorConstants, 0, 0);
 	}
 
-	_trianglesCount = g_vrDotNumTriangles;
+	// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
+	// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_M(ETERS) by side and it's centered
+	// at the origin. Displacing points by half that amount makes the points like on one of the edges
+	// of the quad. We want to add an extra displacement so that the text is just outside the quad too.
+	constexpr float HALF_DOT_MESH_SIZE_M = DOT_MESH_SIZE_M * 0.5f;
+
+	// Render the current target bracket and its labels
+	{
+		const int numRegions = 2;
+		const Box* srcBoxes[] = {
+			&g_EnhancedHUDData.bgTextBox,
+			&g_EnhancedHUDData.barsBox,
+		};
+
+		// x: X-Displacement
+		// y: Z-Displacement (Used to offset the label to the edge of the current target bracket)
+		// z: Z-Displacement (Additional displacement, applied as part of meshScale after the first displacement)
+		// w: Scale
+		const float boxWidth  = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
+		// The scale was determined empirically:
+		// - A box of width  30 maps to a factor of 0.5
+		// - A box of width 138 maps to a factor of 2.0
+		// So, we substract 30, then divide by 138 - 30 ~ 100 and map that to the range [0.5..2.0]
+		const float normWidth = (boxWidth - 30.0f) / 100.0f;
+		const float horzScale = lerp(0.5f, 2.15f, normWidth);
+		float4 dcDispScale[] = {
+			// Here dcDispScale.z is increasing the size of the quad so that moving the text to the edge of the
+			// target bracket actually puts the text slightly outside the edge. That's why the increase is
+			// proportional to the number of lines in the bgTextBox:
+			{ 0, -HALF_DOT_MESH_SIZE_M, 28000.0f * g_EnhancedHUDData.bgTextBoxNumLines, horzScale },
+			{ 0,  HALF_DOT_MESH_SIZE_M, 45000.0f, 1.0f },
+		};
+		RenderVREnhancedHUDSingleBracket(g_curTargetBracketVR, numRegions, dcDispScale, srcBoxes);
+	}
+
+	if (g_curSubCmpBracketVRCaptured)
+	{
+		const int numRegions = 1;
+		const Box* srcBoxes[] = {
+			&g_EnhancedHUDData.subCmpBox,
+		};
+
+		// x: X-Displacement
+		// y: Z-Displacement (Used to offset the label to the edge of the current target bracket)
+		// z: Z-Displacement (Additional displacement, applied as part of meshScale after the first displacement)
+		// w: Scale
+		const float boxWidth  = g_EnhancedHUDData.subCmpBox.x1 - g_EnhancedHUDData.subCmpBox.x0;
+		const float normWidth = (boxWidth - 30.0f) / 100.0f;
+		const float horzScale = lerp(0.5f, 2.15f, normWidth);
+		float4 dcDispScale[] = {
+			{ 0,  HALF_DOT_MESH_SIZE_M, 55000.0f, horzScale },
+		};
+		RenderVREnhancedHUDSingleBracket(g_curSubCmpBracketVR, numRegions, dcDispScale, srcBoxes);
+	}
+
+	_bEnhancedBracketsRendered = true;
+	RestoreContext();
+	_deviceResources->EndAnnotatedEvent();
+}
+
+void EffectsRenderer::RenderVREnhancedHUDSingleBracket(const BracketVR& curTargetBracketVR, const int numRegions,
+	const float4 *dcDispScale, const Box** srcBoxes)
+{
+	auto& resources = _deviceResources;
+	auto& context = resources->_d3dDeviceContext;
+
+	const float BRACKET_DEPTH_METERS = 65536.0f;
+	const float BRACKET_DEPTH_OPT = METERS_TO_OPT * BRACKET_DEPTH_METERS;
+
+	Vector4 cUp, cBk, cDn, cFd;
+	{
+		Matrix4 ViewMatrix = g_VSMatrixCB.fullViewMat;
+		ViewMatrix.invert();
+
+		// Up vector, SteamVR coords. Compensated for HMD rotation
+		cUp = ViewMatrix * Vector4(0, 1, 0, 0);
+		cDn = -1.0f * cUp;
+		// This produces a backwards vector in SteamVR coords:
+		cBk = ViewMatrix * Vector4(0, 0, 1, 0);
+		cFd = -1.0f * cBk;
+	}
+
 	// Get the width in OPT-scale of the mesh that will be rendered:
 	// 0 -> 1
 	// |    |
@@ -7624,9 +7694,7 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	Matrix4 S = Matrix4().scale(OPT_TO_METERS);
 	Matrix4 toSteamVR = swap * S;
 
-	const float BRACKET_DEPTH_METERS = 65536.0f;
-	const float BRACKET_DEPTH_OPT    = METERS_TO_OPT * BRACKET_DEPTH_METERS;
-	Vector3 X = g_curTargetBracketVR.posOPT;
+	Vector3 X = curTargetBracketVR.posOPT;
 	Matrix4 TOpt = Matrix4().translate(X.x, X.y, X.z);
 	// If we translate the current bracket to X, it will appear exactly on top of the
 	// targeted craft, but the size of the bracket will change depending on the distance
@@ -7645,9 +7713,9 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		Vector4 P;
 		//if (!bGunnerTurret)
 		{
-			P.x = g_curTargetBracketVR.posOPT.x * OPT_TO_METERS;
-			P.y = g_curTargetBracketVR.posOPT.z * OPT_TO_METERS;
-			P.z = g_curTargetBracketVR.posOPT.y * OPT_TO_METERS;
+			P.x = curTargetBracketVR.posOPT.x * OPT_TO_METERS;
+			P.y = curTargetBracketVR.posOPT.z * OPT_TO_METERS;
+			P.z = curTargetBracketVR.posOPT.y * OPT_TO_METERS;
 			P.w = 1.0f;
 		}
 
@@ -7679,67 +7747,29 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		V = swap * V * swap;
 	}
 
+	_trianglesCount = g_vrDotNumTriangles;
 	Matrix4 DotTransform;
-	// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
-	// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_METERS by side and it's centered
-	// at the origin. Displacing points by half that amount makes the points like on one of the edges
-	// of the quad. We want to add an extra displacement so that the text is just outside the quad too.
-	constexpr float HALF_DOT_MESH_SIZE_M = DOT_MESH_SIZE_M * 0.5f;
-	const int dcSrcRegions[] = {
-		TARGETED_OBJ_NAME_SRC_IDX,
 
-		TARGETED_OBJ_SHD_SRC_IDX,
-		TARGETED_OBJ_SYS_SRC_IDX,
-
-		TARGETED_OBJ_HULL_SRC_IDX,
-		TARGETED_OBJ_DIST_SRC_IDX,
-
-		TARGETED_OBJ_CARGO_SRC_IDX,
-		TARGETED_OBJ_SUBCMP_SRC_IDX,
-		-1
-	};
-
-	// x: X-Displacement
-	// y: Z-Displacement (vertical disp)
-	// z: Scale
-	float3 dcDispScale[] = {
-		{ 0, -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.1f), 2.25f },
-
-		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f), -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-
-		{ -(HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-		{  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.25f),  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.27f), 0.85f },
-
-		{ -(HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.15f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
-		{  (HALF_DOT_MESH_SIZE_M - DOT_MESH_SIZE_M * 0.20f),  (HALF_DOT_MESH_SIZE_M + DOT_MESH_SIZE_M * 0.09f), 2.25f },
-	};
-
-	for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
+	for (int dcCurRegion = 0; dcCurRegion < numRegions; dcCurRegion++)
 	{
 		// This is the *fixed* scale of the text bracket. Here we're using a scale that is
 		// proportional to the fixed depth we'll be using.
-		const float scale = dcDispScale[dcCurRegion].z * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
-		// If the bracket is too small, then the text will get clobbered. To prevent this, we're adding
-		// a lower limit (determined empirically) for the bracket size:
-		const float bracketSizeOPT = max(95000.0f, g_curTargetBracketVR.halfWidthOPT);
+		const float scale = g_EnhancedHUDData.vrTextScale * dcDispScale[dcCurRegion].w * (BRACKET_DEPTH_METERS * 0.1f) * METERS_TO_OPT;
+		// This is the variable size of the bracket (the size is given by the 2D bracket size converted
+		// to OPT coords, plus a little extra to move labels outside the edge of the bracket).
+		const float bracketSizeOPT = curTargetBracketVR.halfWidthOPT + dcDispScale[dcCurRegion].z;
 		// This is the variable scale of the target bracket (this is the same scale we use
 		// in RenderVRBrackets).
 		const float meshScale = (bracketSizeOPT * 2.0f) / meshWidth;
 		Matrix4 ScaleOpt = Matrix4().scale(meshScale);
 		Matrix4 Scale    = Matrix4().scale(scale);
 
-		DCElemSrcBox *src_box = &g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]];
-		g_VRGeometryCBuffer.u0 = g_VRGeometryCBuffer.v0 = 0;
-		g_VRGeometryCBuffer.u1 = g_VRGeometryCBuffer.v1 = 0;
-		if (src_box->bComputed)
-		{
-			g_VRGeometryCBuffer.u0 = src_box->coords.x0;
-			g_VRGeometryCBuffer.v0 = src_box->coords.y0;
+		g_VRGeometryCBuffer.u0 = srcBoxes[dcCurRegion]->x0 / VR_ENHANCED_HUD_BUFFER_SIZE;
+		g_VRGeometryCBuffer.v0 = srcBoxes[dcCurRegion]->y0 / VR_ENHANCED_HUD_BUFFER_SIZE;
 
-			g_VRGeometryCBuffer.u1 = src_box->coords.x1;
-			g_VRGeometryCBuffer.v1 = src_box->coords.y1;
-		}
+		g_VRGeometryCBuffer.u1 = srcBoxes[dcCurRegion]->x1 / VR_ENHANCED_HUD_BUFFER_SIZE;
+		g_VRGeometryCBuffer.v1 = srcBoxes[dcCurRegion]->y1 / VR_ENHANCED_HUD_BUFFER_SIZE;
+
 		// Apply the VS constants
 		resources->InitVRGeometryCBuffer(resources->_VRGeometryCBuffer.GetAddressOf(), &g_VRGeometryCBuffer);
 
@@ -7769,10 +7799,6 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 		RenderScene(false);
 	}
-
-	_bEnhancedBracketsRendered = true;
-	RestoreContext();
-	_deviceResources->EndAnnotatedEvent();
 }
 
 void EffectsRenderer::RenderSkyBox(bool debug)
