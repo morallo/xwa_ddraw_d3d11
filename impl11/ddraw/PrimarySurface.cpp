@@ -426,8 +426,8 @@ void PrimarySurface::RenderEnhancedHUDText()
 				sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sName.c_str());
 			if (g_EnhancedHUDData.sCargo.size() > 0)
 				sprintf_s(rows[numLines++], SIZE, "%s", g_EnhancedHUDData.sCargo.c_str());
-			if (g_EnhancedHUDData.dist > -1.0f)
-				sprintf_s(rows[numLines++], SIZE, "%0.2f km", g_EnhancedHUDData.dist);
+			if (g_EnhancedHUDData.tgtDist > -1.0f)
+				sprintf_s(rows[numLines++], SIZE, "%0.2f km", g_EnhancedHUDData.tgtDist);
 			int yPos = 18 + numLines * 15;
 			if (!g_bUseSteamVR)
 				g_EnhancedHUDData.bgTextBox = DisplayCenteredLines(centerX, y0, g_EnhancedHUDData.nameColor, 0.5f, 0, -yPos, numLines, dRows, fontIdx);
@@ -10743,6 +10743,8 @@ HRESULT PrimarySurface::Flip(
 				if (g_EnhancedHUDData.Enabled)
 				{
 					this->ExtractDCText();
+					//log_debug_vr("[DBG] SHD_FWD: [%s]", g_EnhancedHUDData.sShieldsFwd.c_str());
+					//log_debug_vr("[DBG] SHD_BCK: [%s]", g_EnhancedHUDData.sShieldsBck.c_str());
 					//float width = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
 					//log_debug_vr("bgTextBoxWidth: %0.3f", width);
 					/*log_debug_vr("[DBG] tmp: [%s]", g_EnhancedHUDData.sTmp);
@@ -12677,44 +12679,59 @@ void PrimarySurface::ExtractDCText()
 
 	g_EnhancedHUDData.sName    = "";
 	g_EnhancedHUDData.sTmp     = ""; // This is used to temporaily store the name of the craft (it's two rows)
-	g_EnhancedHUDData.sShields = "";
-	g_EnhancedHUDData.sHull    = "";
-	g_EnhancedHUDData.sSys     = "";
-	g_EnhancedHUDData.sDist    = "";
+	g_EnhancedHUDData.sTgtShds = "";
+	g_EnhancedHUDData.sTgtHull = "";
+	g_EnhancedHUDData.sTgtSys  = "";
+	g_EnhancedHUDData.sTgtDist = "";
 	g_EnhancedHUDData.sCargo   = "";
 	g_EnhancedHUDData.sSubCmp  = "";
 
-	g_EnhancedHUDData.shields = -1;
-	g_EnhancedHUDData.hull    = -1;
-	g_EnhancedHUDData.sys     = -1;
-	g_EnhancedHUDData.dist    = -1.0f;
+	g_EnhancedHUDData.sShieldsFwd = "";
+	g_EnhancedHUDData.sShieldsBck = "";
+
+	g_EnhancedHUDData.tgtShds = -1;
+	g_EnhancedHUDData.tgtHull = -1;
+	g_EnhancedHUDData.tgtSys  = -1;
+	g_EnhancedHUDData.tgtDist = -1.0f;
+
+	g_EnhancedHUDData.shieldsFwd = -1;
+	g_EnhancedHUDData.shieldsBck = -1;
 
 	uint32_t nameColors[4] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
 	int      nameColorIdx  = -1, nameColorPosY = -1;
 	bool     bNameCaptured = false;
 
 	// These are indices of dcSrcRegions:
-	constexpr int NAME_IDX   = 0;
-	constexpr int SHD_IDX    = 1;
-	constexpr int HULL_IDX   = 2;
-	constexpr int SYS_IDX    = 3;
-	constexpr int DIST_IDX   = 4;
-	constexpr int SUBCMP_IDX = 6;
-	constexpr int MAX_IDX    = 7;
+	constexpr int NAME_IDX    = 0;
+	constexpr int SHD_IDX     = 1;
+	constexpr int HULL_IDX    = 2;
+	constexpr int SYS_IDX     = 3;
+	constexpr int DIST_IDX    = 4;
+	constexpr int SUBCMP_IDX  = 6;
+	constexpr int SHD_FWD_IDX = 7;
+	constexpr int SHD_BCK_IDX = 8;
+	constexpr int MAX_IDX     = 9;
 
 	static Box  s_boxes[MAX_IDX] = {};
-	static bool s_boxesComputed[MAX_IDX] = { false, false, false, false, false, false, false };
+	static bool s_boxesComputed[MAX_IDX] = {
+		false, false, false, false,
+		false, false, false,
+		false, false,
+	};
 	static int  s_numComputedBoxes = 0;
 	const  int  dcSrcRegions[] = {
 		TARGETED_OBJ_NAME_SRC_IDX, TARGETED_OBJ_SHD_SRC_IDX, TARGETED_OBJ_HULL_SRC_IDX,
 		TARGETED_OBJ_SYS_SRC_IDX, TARGETED_OBJ_DIST_SRC_IDX, TARGETED_OBJ_CARGO_SRC_IDX,
-		TARGETED_OBJ_SUBCMP_SRC_IDX, -1,
+		TARGETED_OBJ_SUBCMP_SRC_IDX,
+		SHIELDS_FRONT_DC_ELEM_SRC_IDX, SHIELDS_BACK_DC_ELEM_SRC_IDX, -1,
 	};
 	std::string *strings[] = {
-		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sShields, &g_EnhancedHUDData.sHull,
-		&g_EnhancedHUDData.sSys, &g_EnhancedHUDData.sDist, &g_EnhancedHUDData.sCargo,
-		&g_EnhancedHUDData.sSubCmp };
-	int rows[MAX_IDX] = { -1, -1, -1, -1, -1, -1, -1 };
+		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sTgtShds, &g_EnhancedHUDData.sTgtHull,
+		&g_EnhancedHUDData.sTgtSys, &g_EnhancedHUDData.sTgtDist, &g_EnhancedHUDData.sCargo,
+		&g_EnhancedHUDData.sSubCmp,
+		&g_EnhancedHUDData.sShieldsFwd, &g_EnhancedHUDData.sShieldsBck,
+	};
+	int rows[MAX_IDX] = { -1, -1, -1, -1,   -1, -1, -1,   -1, -1 };
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
@@ -12730,7 +12747,7 @@ void PrimarySurface::ExtractDCText()
 	// Precompute the box sizes
 	if (s_numComputedBoxes < MAX_IDX)
 	{
-		for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
+		for (int dcCurRegion = 0; dcCurRegion < MAX_IDX; dcCurRegion++)
 		{
 			if (s_boxesComputed[dcCurRegion])
 				continue;
@@ -12758,6 +12775,7 @@ void PrimarySurface::ExtractDCText()
 	if (s_numComputedBoxes < MAX_IDX)
 		return;
 
+	int prevPositionX = -1, prevPositionY = -1;
 	for (const auto& xwaText : g_xwa_text)
 	{
 		int fontIndex = 0;
@@ -12770,7 +12788,7 @@ void PrimarySurface::ExtractDCText()
 		const float x1 = (float)xwaText.positionX + (float)fontWidths[fontIndex][(int)xwaText.textChar];
 		const float y1 = (float)xwaText.positionY + (float)s_rowSize;
 
-		for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
+		for (int dcCurRegion = 0; dcCurRegion < MAX_IDX; dcCurRegion++)
 		{
 			if (!s_boxesComputed[dcCurRegion])
 				continue;
@@ -12833,9 +12851,19 @@ void PrimarySurface::ExtractDCText()
 
 					rows[dcCurRegion] = xwaText.positionY;
 				}
-				*strings[dcCurRegion] += xwaText.textChar;
+
+				// Sometimes letters are rendered twice with a horizontal offset of 1
+				// pixel (I think this is probably how the game renders *bold*). Here
+				// we detect and remove those duplicates:
+				const bool duplicate = (prevPositionY == xwaText.positionY) &&
+					(abs(xwaText.positionX - prevPositionX) <= 1);
+				if (!duplicate)
+					*strings[dcCurRegion] += xwaText.textChar;
 			}
 		}
+
+		prevPositionX = xwaText.positionX;
+		prevPositionY = xwaText.positionY;
 	}
 
 	if (!bNameCaptured)
@@ -12856,14 +12884,14 @@ void PrimarySurface::ExtractDCText()
 		g_EnhancedHUDData.subCmpColor = EnhanceTextColor(g_EnhancedHUDData.subCmpColor);
 	}
 
-	if (g_EnhancedHUDData.sShields.size() > 0)
-		g_EnhancedHUDData.shields = atoi(g_EnhancedHUDData.sShields.c_str());
-	if (g_EnhancedHUDData.sHull.size() > 0)
-		g_EnhancedHUDData.hull = atoi(g_EnhancedHUDData.sHull.c_str());
-	if (g_EnhancedHUDData.sSys.size() > 0)
-		g_EnhancedHUDData.sys = atoi(g_EnhancedHUDData.sSys.c_str());
-	if (g_EnhancedHUDData.sDist.size() > 0)
-		g_EnhancedHUDData.dist = (float)atof(g_EnhancedHUDData.sDist.c_str());
+	if (g_EnhancedHUDData.sTgtShds.size() > 0)
+		g_EnhancedHUDData.tgtShds = atoi(g_EnhancedHUDData.sTgtShds.c_str());
+	if (g_EnhancedHUDData.sTgtHull.size() > 0)
+		g_EnhancedHUDData.tgtHull = atoi(g_EnhancedHUDData.sTgtHull.c_str());
+	if (g_EnhancedHUDData.sTgtSys.size() > 0)
+		g_EnhancedHUDData.tgtSys = atoi(g_EnhancedHUDData.sTgtSys.c_str());
+	if (g_EnhancedHUDData.sTgtDist.size() > 0)
+		g_EnhancedHUDData.tgtDist = (float)atof(g_EnhancedHUDData.sTgtDist.c_str());
 }
 
 void PrimarySurface::RenderText(bool earlyExit)
@@ -13722,9 +13750,9 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 		const float maxBarW = g_EnhancedHUDData.maxBarW;
 		const float barH    = g_EnhancedHUDData.barH;
 		const float gapH    = g_EnhancedHUDData.gapH;
-		const float shd     = g_EnhancedHUDData.shields / 100.0f;
-		const float hull    = g_EnhancedHUDData.hull / 100.0f;
-		const float sys     = g_EnhancedHUDData.sys / 100.0f;
+		const float shd     = g_EnhancedHUDData.tgtShds / 100.0f;
+		const float hull    = g_EnhancedHUDData.tgtHull / 100.0f;
+		const float sys     = g_EnhancedHUDData.tgtSys / 100.0f;
 		float barW = g_bUseSteamVR ? maxBarW : max(minBarW, min(maxBarW, posW * 0.7f));
 		constexpr float vrCenterX = VR_ENHANCED_HUD_BUFFER_SIZE / 2.0f;
 		constexpr float vrCenterY = VR_ENHANCED_HUD_BUFFER_SIZE / 2.0f;
@@ -13746,7 +13774,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 			g_EnhancedHUDData.barsBox.x0 = startX;
 			g_EnhancedHUDData.barsBox.x1 = startX + barW;
 			g_EnhancedHUDData.barsBox.y0 = y;
-			if (g_EnhancedHUDData.shields >= 0)
+			if (g_EnhancedHUDData.tgtShds >= 0)
 			{
 				s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.shieldsCol));
 				rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_shieldsBrush, strokeSize);
@@ -13760,7 +13788,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 			}
 			y += barH + gapH;
 
-			if (g_EnhancedHUDData.hull >= 0)
+			if (g_EnhancedHUDData.tgtHull >= 0)
 			{
 				rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, strokeSize);
 				rtv->FillRectangle(D2D1::RectF(startX, y, startX + hull * barW, y + barH), s_hullBrush);
@@ -13770,7 +13798,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 			g_EnhancedHUDData.barsBox.y1 = y;
 
 			// Only display the sys bar when there's damage
-			if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
+			if (g_EnhancedHUDData.tgtSys >= 0 && g_EnhancedHUDData.tgtSys < 100)
 			{
 				rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_sysBrush, strokeSize);
 				rtv->FillRectangle(D2D1::RectF(startX, y, startX + sys * barW, y + barH), s_sysBrush);
@@ -13782,7 +13810,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 		{
 			const float centerY = posY + posH * 0.5f;
 			const float startY  = centerY + barW * 0.5f;
-			if (g_EnhancedHUDData.shields >= 0)
+			if (g_EnhancedHUDData.tgtShds >= 0)
 			{
 				const float x = posX - gapH - barH;
 				s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.shieldsCol));
@@ -13796,7 +13824,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 				}
 			}
 
-			if (g_EnhancedHUDData.hull >= 0)
+			if (g_EnhancedHUDData.tgtHull >= 0)
 			{
 				const float x = posX + posW + gapH;
 				rtv->DrawRectangle(D2D1::RectF(x, startY, x + barH, startY - barW), s_hullBrush, strokeSize);
@@ -13804,7 +13832,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 			}
 
 			// Only display the sys bar when there's damage
-			if (g_EnhancedHUDData.sys >= 0 && g_EnhancedHUDData.sys < 100)
+			if (g_EnhancedHUDData.tgtSys >= 0 && g_EnhancedHUDData.tgtSys < 100)
 			{
 				const float centerX = posX + posW * 0.5f;
 				const float startX  = centerX - barW * 0.5f;

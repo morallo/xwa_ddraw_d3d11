@@ -338,11 +338,11 @@ struct EnhancedHUDData
 	int  MinBracketSize;
 	int  MaxBracketSize;
 	int  fontIdx;
-	std::string sName, sShields, sHull, sSys;
-	std::string sDist, sCargo, sSubCmp, sTmp;
+	std::string sName, sTgtShds, sTgtHull, sTgtSys;
+	std::string sTgtDist, sCargo, sSubCmp, sTmp;
 	uint32_t nameColor, statsColor, subCmpColor;
-	int   shields, hull, sys;
-	float dist;
+	int   tgtShds, tgtHull, tgtSys;
+	float tgtDist;
 	uint32_t shieldsCol = 0xFF2080FF;
 	uint32_t overShdCol = 0xFF7DF9FF; // Electric blue
 	uint32_t sysCol     = 0xFFCCC0FF; // Periwinkle!
@@ -361,6 +361,9 @@ struct EnhancedHUDData
 	Box    bgTextBox;
 	Box    subCmpBox;
 	Box    barsBox;
+
+	std::string sShieldsFwd, sShieldsBck;
+	int shieldsFwd, shieldsBck;
 };
 extern EnhancedHUDData g_EnhancedHUDData;
 
