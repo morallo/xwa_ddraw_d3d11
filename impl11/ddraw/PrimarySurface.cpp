@@ -12700,9 +12700,10 @@ void PrimarySurface::ExtractDCText()
 	constexpr int SYS_IDX    = 3;
 	constexpr int DIST_IDX   = 4;
 	constexpr int SUBCMP_IDX = 6;
+	constexpr int MAX_IDX    = 7;
 
-	static Box  s_boxes[7] = {};
-	static bool s_boxesComputed[7] = { false, false, false, false, false, false, false };
+	static Box  s_boxes[MAX_IDX] = {};
+	static bool s_boxesComputed[MAX_IDX] = { false, false, false, false, false, false, false };
 	static int  s_numComputedBoxes = 0;
 	const  int  dcSrcRegions[] = {
 		TARGETED_OBJ_NAME_SRC_IDX, TARGETED_OBJ_SHD_SRC_IDX, TARGETED_OBJ_HULL_SRC_IDX,
@@ -12713,21 +12714,21 @@ void PrimarySurface::ExtractDCText()
 		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sShields, &g_EnhancedHUDData.sHull,
 		&g_EnhancedHUDData.sSys, &g_EnhancedHUDData.sDist, &g_EnhancedHUDData.sCargo,
 		&g_EnhancedHUDData.sSubCmp };
-	int rows[7] = { -1, -1, -1, -1, -1, -1, -1 };
+	int rows[MAX_IDX] = { -1, -1, -1, -1, -1, -1, -1 };
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
 	if (s_lastInGameWidth != g_fCurInGameWidth || s_lastInGameHeight != g_fCurInGameHeight)
 	{
 		s_numComputedBoxes = 0;
-		for (int i = 0; i < 7; i++) s_boxesComputed[i] = false;
+		for (int i = 0; i < MAX_IDX; i++) s_boxesComputed[i] = false;
 
 		s_lastInGameWidth  = g_fCurInGameWidth;
 		s_lastInGameHeight = g_fCurInGameHeight;
 	}
 
 	// Precompute the box sizes
-	if (s_numComputedBoxes < 7)
+	if (s_numComputedBoxes < MAX_IDX)
 	{
 		for (int dcCurRegion = 0; dcSrcRegions[dcCurRegion] != -1; dcCurRegion++)
 		{
@@ -12754,7 +12755,7 @@ void PrimarySurface::ExtractDCText()
 		}
 	}
 
-	if (s_numComputedBoxes < 7)
+	if (s_numComputedBoxes < MAX_IDX)
 		return;
 
 	for (const auto& xwaText : g_xwa_text)
