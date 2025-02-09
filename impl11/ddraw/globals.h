@@ -332,6 +332,18 @@ constexpr float DOT_MESH_SIZE_M = 0.017f;
 
 // Enhanced HUD
 constexpr int VR_ENHANCED_HUD_BUFFER_SIZE = 512;
+constexpr int MAX_DC_SHIELDS_CHARS = 5;
+struct DCChar
+{
+	int x, y;
+	char c;
+	DCChar()
+	{
+		x = y = -1;
+		c = 0;
+	}
+};
+
 struct EnhancedHUDData
 {
 	bool Enabled;
@@ -363,7 +375,11 @@ struct EnhancedHUDData
 	Box    barsBox;
 
 	std::string sShieldsFwd, sShieldsBck;
-	int shieldsFwd, shieldsBck;
+	DCChar shdFwdChars[MAX_DC_SHIELDS_CHARS];
+	DCChar shdBckChars[MAX_DC_SHIELDS_CHARS];
+	int shdFwdNumChars;
+	int shdBckNumChars;
+
 };
 extern EnhancedHUDData g_EnhancedHUDData;
 

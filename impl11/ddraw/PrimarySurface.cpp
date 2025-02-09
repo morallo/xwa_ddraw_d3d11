@@ -10740,11 +10740,12 @@ HRESULT PrimarySurface::Flip(
 				//AddCenteredText("Hello World", FONT_LARGE_IDX, 260, 0x5555FF);
 				// The following text gets captured as part of the missile count DC element:
 				//AddCenteredText("XXXXXXXXXXXXXXXXXXXXXXXX", FONT_LARGE_IDX, 17, 0x5555FF);
-				if (g_EnhancedHUDData.Enabled)
+				//if (g_EnhancedHUDData.Enabled)
 				{
+					// This function has been extended to extract various DC areas that are useful
+					// not only for the Enhanced HUD, but also for Telemetry. So it's a good idea
+					// to call it even if the Enhanced HUD is disabled.
 					this->ExtractDCText();
-					//log_debug_vr("[DBG] SHD_FWD: [%s]", g_EnhancedHUDData.sShieldsFwd.c_str());
-					//log_debug_vr("[DBG] SHD_BCK: [%s]", g_EnhancedHUDData.sShieldsBck.c_str());
 					//float width = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
 					//log_debug_vr("bgTextBoxWidth: %0.3f", width);
 					/*log_debug_vr("[DBG] tmp: [%s]", g_EnhancedHUDData.sTmp);
@@ -12694,9 +12695,6 @@ void PrimarySurface::ExtractDCText()
 	g_EnhancedHUDData.tgtSys  = -1;
 	g_EnhancedHUDData.tgtDist = -1.0f;
 
-	g_EnhancedHUDData.shieldsFwd = -1;
-	g_EnhancedHUDData.shieldsBck = -1;
-
 	uint32_t nameColors[4] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
 	int      nameColorIdx  = -1, nameColorPosY = -1;
 	bool     bNameCaptured = false;
@@ -12775,7 +12773,8 @@ void PrimarySurface::ExtractDCText()
 	if (s_numComputedBoxes < MAX_IDX)
 		return;
 
-	int prevPositionX = -1, prevPositionY = -1;
+	g_EnhancedHUDData.shdFwdNumChars = 0;
+	g_EnhancedHUDData.shdBckNumChars = 0;
 	for (const auto& xwaText : g_xwa_text)
 	{
 		int fontIndex = 0;
@@ -12852,18 +12851,45 @@ void PrimarySurface::ExtractDCText()
 					rows[dcCurRegion] = xwaText.positionY;
 				}
 
+				// Accumulate the current char to form a string:
+				*strings[dcCurRegion] += xwaText.textChar;
+
 				// Sometimes letters are rendered twice with a horizontal offset of 1
 				// pixel (I think this is probably how the game renders *bold*). Here
 				// we detect and remove those duplicates:
-				const bool duplicate = (prevPositionY == xwaText.positionY) &&
-					(abs(xwaText.positionX - prevPositionX) <= 1);
-				if (!duplicate)
-					*strings[dcCurRegion] += xwaText.textChar;
+				if (dcCurRegion == SHD_FWD_IDX || dcCurRegion == SHD_BCK_IDX)
+				{
+					int &numChars = (dcCurRegion == SHD_FWD_IDX) ?
+						g_EnhancedHUDData.shdFwdNumChars :
+						g_EnhancedHUDData.shdBckNumChars;
+					DCChar* chars = (dcCurRegion == SHD_FWD_IDX) ?
+						g_EnhancedHUDData.shdFwdChars :
+						g_EnhancedHUDData.shdBckChars;
+
+					bool duplicate = false;
+					int i;
+					for (i = 0; i < numChars; i++)
+					{
+						if (chars[i].c == xwaText.textChar &&
+							abs(chars[i].x - xwaText.positionX) <= 1 &&
+							chars[i].y == xwaText.positionY)
+						{
+							duplicate = true;
+							break;
+						}
+					}
+					// Not a duplicate character, add it
+					if (!duplicate && numChars < MAX_DC_SHIELDS_CHARS)
+					{
+						chars[i].c = xwaText.textChar;
+						chars[i].x = xwaText.positionX;
+						chars[i].y = xwaText.positionY;
+						numChars++;
+					}
+				}
+
 			}
 		}
-
-		prevPositionX = xwaText.positionX;
-		prevPositionY = xwaText.positionY;
 	}
 
 	if (!bNameCaptured)
@@ -12892,6 +12918,37 @@ void PrimarySurface::ExtractDCText()
 		g_EnhancedHUDData.tgtSys = atoi(g_EnhancedHUDData.sTgtSys.c_str());
 	if (g_EnhancedHUDData.sTgtDist.size() > 0)
 		g_EnhancedHUDData.tgtDist = (float)atof(g_EnhancedHUDData.sTgtDist.c_str());
+
+	// Compute Telemetry
+	auto charsToString = [](const DCChar* chars, const int numChars)
+	{
+		std::string msg = "";
+		for (int i = 0; i < numChars; i++)
+		{
+			msg += chars[i].c;
+		}
+		return msg;
+	};
+
+	g_EnhancedHUDData.sShieldsFwd = charsToString(
+		g_EnhancedHUDData.shdFwdChars, g_EnhancedHUDData.shdFwdNumChars);
+	g_EnhancedHUDData.sShieldsBck = charsToString(
+		g_EnhancedHUDData.shdBckChars, g_EnhancedHUDData.shdBckNumChars);
+
+	if (g_EnhancedHUDData.sShieldsFwd.size() > 0)
+	{
+		if (g_EnhancedHUDData.sShieldsFwd.back() == '%')
+			g_EnhancedHUDData.sShieldsFwd.pop_back();
+		g_pSharedDataTelemetry->shieldsFwd = atoi(g_EnhancedHUDData.sShieldsFwd.c_str());
+	}
+	if (g_EnhancedHUDData.sShieldsBck.size() > 0)
+	{
+		if (g_EnhancedHUDData.sShieldsBck.back() == '%')
+			g_EnhancedHUDData.sShieldsBck.pop_back();
+		g_pSharedDataTelemetry->shieldsBck = atoi(g_EnhancedHUDData.sShieldsBck.c_str());
+	}
+	g_pSharedDataTelemetry->counter++;
+	g_SharedMemTelemetry.SetDataReady();
 }
 
 void PrimarySurface::RenderText(bool earlyExit)

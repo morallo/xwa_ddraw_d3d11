@@ -52,16 +52,26 @@ struct SharedMemDataTgSmush
 	char* videoDataPtr;
 };
 
+struct SharedMemDataTelemetry
+{
+	int counter;
+	int shieldsFwd, shieldsBck;
+	// Initialized by the CockpitLook hook. See CockpitLook's SharedMem.h
+};
+
 void InitSharedMem();
 
 const auto SHARED_MEM_NAME_COCKPITLOOK = L"Local\\CockpitLookHook";
 const auto SHARED_MEM_NAME_TGSMUSH = L"Local\\TgSmushVideo";
 const auto SHARED_MEM_NAME_JOYSTICK = L"Local\\JoystickFfHook";
+const auto SHARED_MEM_NAME_TELEMETRY = L"Local\\XWATelemetry";
 
 extern SharedMem<SharedMemDataCockpitLook> g_SharedMemCockpitLook;
 extern SharedMem<SharedMemDataTgSmush> g_SharedMemTgSmush;
 extern SharedMem<SharedMemDataJoystick> g_SharedMemJoystick;
+extern SharedMem<SharedMemDataTelemetry> g_SharedMemTelemetry;
 
 extern SharedMemDataCockpitLook* g_pSharedDataCockpitLook;
 extern SharedMemDataTgSmush* g_pSharedDataTgSmush;
 extern SharedMemDataJoystick* g_pSharedDataJoystick;
+extern SharedMemDataTelemetry* g_pSharedDataTelemetry;
