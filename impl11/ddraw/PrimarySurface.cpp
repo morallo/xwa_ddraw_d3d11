@@ -12667,6 +12667,7 @@ uint32_t EnhanceTextColor(uint32_t col)
 	return col;
 }
 
+//Box g_DCTestBox = {};
 /// <summary>
 /// Extract DC strings from the contents of g_xwa_text by comparing the coords of each char
 /// against the DC source regions. The output is stored in g_EnhancedHUDData.
@@ -12733,7 +12734,7 @@ void PrimarySurface::ExtractDCText()
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
-	//if (s_lastInGameWidth != g_fCurInGameWidth || s_lastInGameHeight != g_fCurInGameHeight)
+	if (s_lastInGameWidth != g_fCurInGameWidth || s_lastInGameHeight != g_fCurInGameHeight)
 	{
 		s_numComputedBoxes = 0;
 		for (int i = 0; i < MAX_IDX; i++) s_boxesComputed[i] = false;
@@ -12759,6 +12760,12 @@ void PrimarySurface::ExtractDCText()
 			float y0 = g_fCurScreenHeight * src_box->coords.y0;
 			float x1 = g_fCurScreenWidth  * src_box->coords.x1;
 			float y1 = g_fCurScreenHeight * src_box->coords.y1;
+			// DEBUG: Store the coords of a DC box to be displayed later
+			/*if (dcCurRegion == NAME_IDX)
+			{
+				g_DCTestBox.x0 = x0; g_DCTestBox.y0 = y0;
+				g_DCTestBox.x1 = x1; g_DCTestBox.y1 = y1;
+			}*/
 			ScreenCoordsToInGame(x0, y0, &box_x0, &box_y0);
 			ScreenCoordsToInGame(x1, y1, &box_x1, &box_y1);
 			s_boxes[dcCurRegion].x0 = box_x0;
@@ -13090,6 +13097,12 @@ void PrimarySurface::RenderText(bool earlyExit)
 
 	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 	rtv->BeginDraw();
+
+	// DEBUG: Display the coords of one of the DC boxes:
+	/*{
+		s_brush->SetColor(D2D1::ColorF(0xFFFFFF));
+		rtv->DrawRectangle(D2D1::RectF(g_DCTestBox.x0, g_DCTestBox.y0, g_DCTestBox.x1, g_DCTestBox.y1), s_brush, 3.0f);
+	}*/
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
