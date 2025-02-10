@@ -10747,9 +10747,9 @@ HRESULT PrimarySurface::Flip(
 					// to call it even if the Enhanced HUD is disabled.
 					this->ExtractDCText();
 					//float width = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
-					//log_debug_vr("bgTextBoxWidth: %0.3f", width);
-					/*log_debug_vr("[DBG] tmp: [%s]", g_EnhancedHUDData.sTmp);
-					log_debug_vr("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
+					/*log_debug_vr("[DBG] tmp: [%s], name: [%s]",
+						g_EnhancedHUDData.sTmp.c_str(), g_EnhancedHUDData.sName.c_str());*/
+					/*log_debug_vr("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
 						g_EnhancedHUDData.sName.c_str(), g_EnhancedHUDData.shields,
 						g_EnhancedHUDData.hull, g_EnhancedHUDData.sys);
 					log_debug_vr("[DBG] dist: [%0.1f], cargo: [%s], subCmp: [%s]",
@@ -12733,7 +12733,7 @@ void PrimarySurface::ExtractDCText()
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
-	if (s_lastInGameWidth != g_fCurInGameWidth || s_lastInGameHeight != g_fCurInGameHeight)
+	//if (s_lastInGameWidth != g_fCurInGameWidth || s_lastInGameHeight != g_fCurInGameHeight)
 	{
 		s_numComputedBoxes = 0;
 		for (int i = 0; i < MAX_IDX; i++) s_boxesComputed[i] = false;
@@ -12919,36 +12919,48 @@ void PrimarySurface::ExtractDCText()
 	if (g_EnhancedHUDData.sTgtDist.size() > 0)
 		g_EnhancedHUDData.tgtDist = (float)atof(g_EnhancedHUDData.sTgtDist.c_str());
 
-	// Compute Telemetry
-	auto charsToString = [](const DCChar* chars, const int numChars)
+	if (g_pSharedDataTelemetry != nullptr)
 	{
-		std::string msg = "";
-		for (int i = 0; i < numChars; i++)
+		// Compute Telemetry
+		auto charsToString = [](const DCChar* chars, const int numChars)
 		{
-			msg += chars[i].c;
+			std::string msg = "";
+			for (int i = 0; i < numChars; i++)
+			{
+				msg += chars[i].c;
+			}
+			return msg;
+		};
+
+		g_EnhancedHUDData.sShieldsFwd = charsToString(
+			g_EnhancedHUDData.shdFwdChars, g_EnhancedHUDData.shdFwdNumChars);
+		g_EnhancedHUDData.sShieldsBck = charsToString(
+			g_EnhancedHUDData.shdBckChars, g_EnhancedHUDData.shdBckNumChars);
+
+		if (g_EnhancedHUDData.sShieldsFwd.size() > 0)
+		{
+			if (g_EnhancedHUDData.sShieldsFwd.back() == '%')
+				g_EnhancedHUDData.sShieldsFwd.pop_back();
+			g_pSharedDataTelemetry->shieldsFwd = atoi(g_EnhancedHUDData.sShieldsFwd.c_str());
 		}
-		return msg;
-	};
+		if (g_EnhancedHUDData.sShieldsBck.size() > 0)
+		{
+			if (g_EnhancedHUDData.sShieldsBck.back() == '%')
+				g_EnhancedHUDData.sShieldsBck.pop_back();
+			g_pSharedDataTelemetry->shieldsBck = atoi(g_EnhancedHUDData.sShieldsBck.c_str());
+		}
 
-	g_EnhancedHUDData.sShieldsFwd = charsToString(
-		g_EnhancedHUDData.shdFwdChars, g_EnhancedHUDData.shdFwdNumChars);
-	g_EnhancedHUDData.sShieldsBck = charsToString(
-		g_EnhancedHUDData.shdBckChars, g_EnhancedHUDData.shdBckNumChars);
+		g_pSharedDataTelemetry->tgtShds = g_EnhancedHUDData.tgtShds;
+		g_pSharedDataTelemetry->tgtHull = g_EnhancedHUDData.tgtHull;
+		g_pSharedDataTelemetry->tgtSys  = g_EnhancedHUDData.tgtSys;
+		g_pSharedDataTelemetry->tgtDist = g_EnhancedHUDData.tgtDist;
+		strncpy_s(g_pSharedDataTelemetry->tgtName,   g_EnhancedHUDData.sName.c_str(),   TLM_MAX_NAME);
+		strncpy_s(g_pSharedDataTelemetry->tgtCargo,  g_EnhancedHUDData.sCargo.c_str(),  TLM_MAX_CARGO);
+		strncpy_s(g_pSharedDataTelemetry->tgtSubCmp, g_EnhancedHUDData.sSubCmp.c_str(), TLM_MAX_SUBCMP);
 
-	if (g_EnhancedHUDData.sShieldsFwd.size() > 0)
-	{
-		if (g_EnhancedHUDData.sShieldsFwd.back() == '%')
-			g_EnhancedHUDData.sShieldsFwd.pop_back();
-		g_pSharedDataTelemetry->shieldsFwd = atoi(g_EnhancedHUDData.sShieldsFwd.c_str());
+		g_pSharedDataTelemetry->counter++;
+		g_SharedMemTelemetry.SetDataReady();
 	}
-	if (g_EnhancedHUDData.sShieldsBck.size() > 0)
-	{
-		if (g_EnhancedHUDData.sShieldsBck.back() == '%')
-			g_EnhancedHUDData.sShieldsBck.pop_back();
-		g_pSharedDataTelemetry->shieldsBck = atoi(g_EnhancedHUDData.sShieldsBck.c_str());
-	}
-	g_pSharedDataTelemetry->counter++;
-	g_SharedMemTelemetry.SetDataReady();
 }
 
 void PrimarySurface::RenderText(bool earlyExit)

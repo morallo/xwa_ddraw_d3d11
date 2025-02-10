@@ -52,11 +52,22 @@ struct SharedMemDataTgSmush
 	char* videoDataPtr;
 };
 
+constexpr int TLM_MAX_NAME   = 120;
+constexpr int TLM_MAX_CARGO  =  80;
+constexpr int TLM_MAX_SUBCMP =  80;
 struct SharedMemDataTelemetry
 {
-	int counter;
-	int shieldsFwd, shieldsBck;
 	// Initialized by the CockpitLook hook. See CockpitLook's SharedMem.h
+	int counter;
+	// Player stats
+	int shieldsFwd, shieldsBck;
+
+	// Target stats
+	int tgtShds, tgtSys, tgtHull;
+	float tgtDist;
+	char tgtName[TLM_MAX_NAME];
+	char tgtCargo[TLM_MAX_CARGO];
+	char tgtSubCmp[TLM_MAX_SUBCMP];
 };
 
 void InitSharedMem();
