@@ -260,6 +260,28 @@ public:
 	}
 };
 
+struct SubDCSrcBox
+{
+	Box coords;
+	bool bComputed = false;
+};
+
+constexpr int DC_SUB_SPEED_IDX     = 0;
+constexpr int DC_SUB_THROTTLE_IDX  = 1;
+constexpr int DC_SUB_SHIP_NAME_IDX = 2;
+constexpr int MAX_DC_SUB_ELEMENTS  = 3;
+/// <summary>
+/// This array holds UV coords for fractions of HUD elements, like the speed and
+/// throttle, for instance (they are in the same DC src region). These boxes are
+/// not an exact fit either, rather, they are approximations because the text from
+/// xwaText is parsed in PrimarySurface::ExtractDCText() and the chars that overlap
+/// these regions are captured to rebuild the original text and extract relevant
+/// information. The contents of this array is initialized in Direct3DDevice.cpp,
+/// at the same time when the "parent" DC source element UV coords are computed.
+/// </summary>
+extern SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
+
+
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
 extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields
 extern D2D1::ColorF g_DCLaserColor, g_DCIonColor, g_DCThrottleColor;

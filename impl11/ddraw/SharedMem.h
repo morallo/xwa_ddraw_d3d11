@@ -52,9 +52,10 @@ struct SharedMemDataTgSmush
 	char* videoDataPtr;
 };
 
-constexpr int TLM_MAX_NAME   = 120;
-constexpr int TLM_MAX_CARGO  =  80;
-constexpr int TLM_MAX_SUBCMP =  80;
+constexpr int TLM_MAX_NAME      = 120;
+constexpr int TLM_MAX_CARGO     =  80;
+constexpr int TLM_MAX_SUBCMP    =  80;
+constexpr int TLM_MAX_SHIP_NAME =  40;
 struct SharedMemDataTelemetry
 {
 	// Initialized by the CockpitLook hook. See CockpitLook's SharedMem.h
@@ -68,6 +69,7 @@ struct SharedMemDataTelemetry
 	char tgtName[TLM_MAX_NAME];
 	char tgtCargo[TLM_MAX_CARGO];
 	char tgtSubCmp[TLM_MAX_SUBCMP];
+	char shipName[TLM_MAX_SHIP_NAME];
 };
 
 void InitSharedMem();

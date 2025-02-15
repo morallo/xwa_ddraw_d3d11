@@ -9,6 +9,7 @@ char g_sCurrentCockpit[128] = { 0 };
 DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
 dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
+SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
 
 float g_fCoverTextureBrightness = 1.0f;
 float g_fDCBrightness = 1.0f;

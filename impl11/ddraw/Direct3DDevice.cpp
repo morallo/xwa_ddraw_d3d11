@@ -4368,6 +4368,24 @@ HRESULT Direct3DDevice::Execute(
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 
+							{
+								auto& autoBox  = g_DCSubRegions[DC_SUB_SPEED_IDX];
+								autoBox.coords = dcElemSrcBox->coords;
+								autoBox.coords.y1 = autoBox.coords.y0 + 0.4f * (autoBox.coords.y1 - autoBox.coords.y0);
+								// Extend the box to the right to capture wide fonts
+								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
+								autoBox.bComputed = true;
+							}
+
+							{
+								auto& autoBox  = g_DCSubRegions[DC_SUB_THROTTLE_IDX];
+								autoBox.coords = dcElemSrcBox->coords;
+								autoBox.coords.y0 = autoBox.coords.y0 + 0.6f * (autoBox.coords.y1 - autoBox.coords.y0);
+								// Extend the box to the right to capture wide fonts
+								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
+								autoBox.bComputed = true;
+							}
+
 							// Get the limits for Missiles
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[MISSILES_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
@@ -4438,6 +4456,15 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
+
+							{
+								auto& autoBox  = g_DCSubRegions[DC_SUB_SHIP_NAME_IDX];
+								autoBox.coords = dcElemSrcBox->coords;
+								autoBox.coords.y1 = autoBox.coords.y0 + 0.4f * (autoBox.coords.y1 - autoBox.coords.y0);
+								// Extend the box to the right to capture wide fonts
+								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
+								autoBox.bComputed = true;
+							}
 
 							// Get the limits for Number of Crafts -- Countermeasures
 							// When I wrote this, I *thought* this was the number of ships; but (much) later I realized this

@@ -12667,7 +12667,11 @@ uint32_t EnhanceTextColor(uint32_t col)
 	return col;
 }
 
-//Box g_DCTestBox = {};
+#define DEBUG_DC_BOX 0
+#if DEBUG_DC_BOX == 1
+Box g_DCTestBox = {};
+#endif
+
 /// <summary>
 /// Extract DC strings from the contents of g_xwa_text by comparing the coords of each char
 /// against the DC source regions. The output is stored in g_EnhancedHUDData.
@@ -12685,11 +12689,12 @@ void PrimarySurface::ExtractDCText()
 	g_EnhancedHUDData.sTgtHull = "";
 	g_EnhancedHUDData.sTgtSys  = "";
 	g_EnhancedHUDData.sTgtDist = "";
-	g_EnhancedHUDData.sCargo   = "";
 	g_EnhancedHUDData.sSubCmp  = "";
+	g_EnhancedHUDData.sCargo   = "";
 
 	g_EnhancedHUDData.sShieldsFwd = "";
 	g_EnhancedHUDData.sShieldsBck = "";
+	g_EnhancedHUDData.sShipName   = "";
 
 	g_EnhancedHUDData.tgtShds = -1;
 	g_EnhancedHUDData.tgtHull = -1;
@@ -12701,36 +12706,43 @@ void PrimarySurface::ExtractDCText()
 	bool     bNameCaptured = false;
 
 	// These are indices of dcSrcRegions:
-	constexpr int NAME_IDX    = 0;
-	constexpr int SHD_IDX     = 1;
-	constexpr int HULL_IDX    = 2;
-	constexpr int SYS_IDX     = 3;
-	constexpr int DIST_IDX    = 4;
-	constexpr int SUBCMP_IDX  = 6;
-	constexpr int SHD_FWD_IDX = 7;
-	constexpr int SHD_BCK_IDX = 8;
-	constexpr int MAX_IDX     = 9;
+	constexpr int TGT_NAME_IDX  = 0;
+	constexpr int SHD_IDX       = 1;
+	constexpr int HULL_IDX      = 2;
+
+	constexpr int SYS_IDX       = 3;
+	constexpr int DIST_IDX      = 4;
+	constexpr int SUBCMP_IDX    = 5;
+
+	constexpr int CARGO_IDX     = 6;
+
+	constexpr int SHD_FWD_IDX   = 7;
+	constexpr int SHD_BCK_IDX   = 8;
+	constexpr int SHIP_NAME_IDX = 9;
+
+	constexpr int MAX_IDX = 10;
 
 	static Box  s_boxes[MAX_IDX] = {};
 	static bool s_boxesComputed[MAX_IDX] = {
-		false, false, false, false,
 		false, false, false,
-		false, false,
+		false, false, false,
+		false,
+		false, false, false,
 	};
-	static int  s_numComputedBoxes = 0;
-	const  int  dcSrcRegions[] = {
+	static int s_numComputedBoxes    = 0;
+	const  int dcSrcRegions[MAX_IDX] = {
 		TARGETED_OBJ_NAME_SRC_IDX, TARGETED_OBJ_SHD_SRC_IDX, TARGETED_OBJ_HULL_SRC_IDX,
-		TARGETED_OBJ_SYS_SRC_IDX, TARGETED_OBJ_DIST_SRC_IDX, TARGETED_OBJ_CARGO_SRC_IDX,
-		TARGETED_OBJ_SUBCMP_SRC_IDX,
-		SHIELDS_FRONT_DC_ELEM_SRC_IDX, SHIELDS_BACK_DC_ELEM_SRC_IDX, -1,
+		TARGETED_OBJ_SYS_SRC_IDX, TARGETED_OBJ_DIST_SRC_IDX, TARGETED_OBJ_SUBCMP_SRC_IDX,
+		TARGETED_OBJ_CARGO_SRC_IDX,
+		SHIELDS_FRONT_DC_ELEM_SRC_IDX, SHIELDS_BACK_DC_ELEM_SRC_IDX, NAME_TIME_DC_ELEM_SRC_IDX,
 	};
 	std::string *strings[] = {
 		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sTgtShds, &g_EnhancedHUDData.sTgtHull,
-		&g_EnhancedHUDData.sTgtSys, &g_EnhancedHUDData.sTgtDist, &g_EnhancedHUDData.sCargo,
-		&g_EnhancedHUDData.sSubCmp,
-		&g_EnhancedHUDData.sShieldsFwd, &g_EnhancedHUDData.sShieldsBck,
+		&g_EnhancedHUDData.sTgtSys, &g_EnhancedHUDData.sTgtDist, &g_EnhancedHUDData.sSubCmp,
+		&g_EnhancedHUDData.sCargo,
+		&g_EnhancedHUDData.sShieldsFwd, &g_EnhancedHUDData.sShieldsBck, &g_EnhancedHUDData.sShipName
 	};
-	int rows[MAX_IDX] = { -1, -1, -1, -1,   -1, -1, -1,   -1, -1 };
+	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1 };
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
@@ -12760,12 +12772,31 @@ void PrimarySurface::ExtractDCText()
 			float y0 = g_fCurScreenHeight * src_box->coords.y0;
 			float x1 = g_fCurScreenWidth  * src_box->coords.x1;
 			float y1 = g_fCurScreenHeight * src_box->coords.y1;
-			// DEBUG: Store the coords of a DC box to be displayed later
-			/*if (dcCurRegion == NAME_IDX)
+
+			// Use "DC Sub Regions" for specific indices to capture specific
+			// areas within DC src regions
+			auto UseDCSubRegion = [&](int region)
 			{
+				auto& aBox = g_DCSubRegions[region];
+				if (aBox.bComputed)
+				{
+					x0 = g_fCurScreenWidth  * aBox.coords.x0;
+					y0 = g_fCurScreenHeight * aBox.coords.y0;
+					x1 = g_fCurScreenWidth  * aBox.coords.x1;
+					y1 = g_fCurScreenHeight * aBox.coords.y1;
+				}
+			};
+			if (dcCurRegion == SHIP_NAME_IDX)
+			{
+				UseDCSubRegion(DC_SUB_SHIP_NAME_IDX);
+
+				// DEBUG: Store the coords of a DC box to be displayed later
+#if DEBUG_DC_BOX == 1
 				g_DCTestBox.x0 = x0; g_DCTestBox.y0 = y0;
 				g_DCTestBox.x1 = x1; g_DCTestBox.y1 = y1;
-			}*/
+#endif
+			}
+
 			ScreenCoordsToInGame(x0, y0, &box_x0, &box_y0);
 			ScreenCoordsToInGame(x1, y1, &box_x1, &box_y1);
 			s_boxes[dcCurRegion].x0 = box_x0;
@@ -12782,6 +12813,7 @@ void PrimarySurface::ExtractDCText()
 
 	g_EnhancedHUDData.shdFwdNumChars = 0;
 	g_EnhancedHUDData.shdBckNumChars = 0;
+	g_EnhancedHUDData.shipNameNumChars = 0;
 	for (const auto& xwaText : g_xwa_text)
 	{
 		int fontIndex = 0;
@@ -12806,7 +12838,7 @@ void PrimarySurface::ExtractDCText()
 				x0, y0, x1, y1))
 			{
 				// The name field sometimes has two colors on the first row. We want to capture the second color:
-				if (dcCurRegion == NAME_IDX)
+				if (dcCurRegion == TGT_NAME_IDX)
 				{
 					if (nameColorPosY == -1)
 						nameColorPosY = xwaText.positionY;
@@ -12842,7 +12874,7 @@ void PrimarySurface::ExtractDCText()
 						// Parse the existing string at the beginning of the second row
 						switch (dcCurRegion)
 						{
-						case NAME_IDX:
+						case TGT_NAME_IDX:
 							g_EnhancedHUDData.sName = *strings[dcCurRegion];
 							bNameCaptured = true;
 							break;
@@ -12864,35 +12896,44 @@ void PrimarySurface::ExtractDCText()
 				// Sometimes letters are rendered twice with a horizontal offset of 1
 				// pixel (I think this is probably how the game renders *bold*). Here
 				// we detect and remove those duplicates:
+				auto AddIfNotDuplicate = [&](DCChar* chars, int& numChars, int maxChars)
+				{
+					for (int i = 0; i < numChars; i++)
+					{
+						if (chars[i].c == xwaText.textChar &&
+							abs(chars[i].x - xwaText.positionX) <= 1 &&
+							chars[i].y == xwaText.positionY)
+						{
+							return;
+						}
+					}
+
+					// Not a duplicate character, add it
+					if (numChars < maxChars)
+					{
+						chars[numChars].c = xwaText.textChar;
+						chars[numChars].x = xwaText.positionX;
+						chars[numChars].y = xwaText.positionY;
+						numChars++;
+					}
+				};
+
 				if (dcCurRegion == SHD_FWD_IDX || dcCurRegion == SHD_BCK_IDX)
 				{
+
 					int &numChars = (dcCurRegion == SHD_FWD_IDX) ?
 						g_EnhancedHUDData.shdFwdNumChars :
 						g_EnhancedHUDData.shdBckNumChars;
 					DCChar* chars = (dcCurRegion == SHD_FWD_IDX) ?
 						g_EnhancedHUDData.shdFwdChars :
 						g_EnhancedHUDData.shdBckChars;
-
-					bool duplicate = false;
-					int i;
-					for (i = 0; i < numChars; i++)
-					{
-						if (chars[i].c == xwaText.textChar &&
-							abs(chars[i].x - xwaText.positionX) <= 1 &&
-							chars[i].y == xwaText.positionY)
-						{
-							duplicate = true;
-							break;
-						}
-					}
-					// Not a duplicate character, add it
-					if (!duplicate && numChars < MAX_DC_SHIELDS_CHARS)
-					{
-						chars[i].c = xwaText.textChar;
-						chars[i].x = xwaText.positionX;
-						chars[i].y = xwaText.positionY;
-						numChars++;
-					}
+					AddIfNotDuplicate(chars, numChars, MAX_DC_SHIELDS_CHARS);
+				}
+				else if (dcCurRegion == SHIP_NAME_IDX)
+				{
+					int& numChars = g_EnhancedHUDData.shipNameNumChars;
+					DCChar* chars = g_EnhancedHUDData.shipNameChars;
+					AddIfNotDuplicate(chars, numChars, MAX_DC_SHIP_NAME_CHARS);
 				}
 
 			}
@@ -12903,7 +12944,7 @@ void PrimarySurface::ExtractDCText()
 	{
 		// Sometimes the name field is only one row. In that case, we need to capture
 		// whatever we have in sTmp:
-		g_EnhancedHUDData.sName = *strings[NAME_IDX];
+		g_EnhancedHUDData.sName = *strings[TGT_NAME_IDX];
 	}
 
 	// Names sometimes have two colors. The craft type is darker than the craft's name proper.
@@ -12929,7 +12970,7 @@ void PrimarySurface::ExtractDCText()
 	if (g_pSharedDataTelemetry != nullptr)
 	{
 		// Compute Telemetry
-		auto charsToString = [](const DCChar* chars, const int numChars)
+		auto CharsToString = [](const DCChar* chars, const int numChars)
 		{
 			std::string msg = "";
 			for (int i = 0; i < numChars; i++)
@@ -12939,10 +12980,12 @@ void PrimarySurface::ExtractDCText()
 			return msg;
 		};
 
-		g_EnhancedHUDData.sShieldsFwd = charsToString(
+		g_EnhancedHUDData.sShieldsFwd = CharsToString(
 			g_EnhancedHUDData.shdFwdChars, g_EnhancedHUDData.shdFwdNumChars);
-		g_EnhancedHUDData.sShieldsBck = charsToString(
+		g_EnhancedHUDData.sShieldsBck = CharsToString(
 			g_EnhancedHUDData.shdBckChars, g_EnhancedHUDData.shdBckNumChars);
+		g_EnhancedHUDData.sShipName = CharsToString(
+			g_EnhancedHUDData.shipNameChars, g_EnhancedHUDData.shipNameNumChars);
 
 		if (g_EnhancedHUDData.sShieldsFwd.size() > 0)
 		{
@@ -12957,13 +13000,30 @@ void PrimarySurface::ExtractDCText()
 			g_pSharedDataTelemetry->shieldsBck = atoi(g_EnhancedHUDData.sShieldsBck.c_str());
 		}
 
+#if 0
+		if (g_EnhancedHUDData.sSpeed.size() > 0)
+		{
+			int idx = g_EnhancedHUDData.sSpeed.find_first_of("0123456789");
+			g_pSharedDataTelemetry->speed = atoi(g_EnhancedHUDData.sSpeed.substr(idx).c_str());
+		}
+
+		if (g_EnhancedHUDData.sThrottle.size() > 0)
+		{
+			if (g_EnhancedHUDData.sThrottle.back() == '%')
+				g_EnhancedHUDData.sThrottle.pop_back();
+			int idx = g_EnhancedHUDData.sThrottle.find_first_of("0123456789");
+			g_pSharedDataTelemetry->throttle = atoi(g_EnhancedHUDData.sThrottle.substr(idx).c_str());
+		}
+#endif
+
 		g_pSharedDataTelemetry->tgtShds = g_EnhancedHUDData.tgtShds;
 		g_pSharedDataTelemetry->tgtHull = g_EnhancedHUDData.tgtHull;
 		g_pSharedDataTelemetry->tgtSys  = g_EnhancedHUDData.tgtSys;
 		g_pSharedDataTelemetry->tgtDist = g_EnhancedHUDData.tgtDist;
-		strncpy_s(g_pSharedDataTelemetry->tgtName,   g_EnhancedHUDData.sName.c_str(),   TLM_MAX_NAME);
-		strncpy_s(g_pSharedDataTelemetry->tgtCargo,  g_EnhancedHUDData.sCargo.c_str(),  TLM_MAX_CARGO);
-		strncpy_s(g_pSharedDataTelemetry->tgtSubCmp, g_EnhancedHUDData.sSubCmp.c_str(), TLM_MAX_SUBCMP);
+		strncpy_s(g_pSharedDataTelemetry->tgtName,   g_EnhancedHUDData.sName.c_str(),     TLM_MAX_NAME);
+		strncpy_s(g_pSharedDataTelemetry->tgtCargo,  g_EnhancedHUDData.sCargo.c_str(),    TLM_MAX_CARGO);
+		strncpy_s(g_pSharedDataTelemetry->tgtSubCmp, g_EnhancedHUDData.sSubCmp.c_str(),   TLM_MAX_SUBCMP);
+		strncpy_s(g_pSharedDataTelemetry->shipName,  g_EnhancedHUDData.sShipName.c_str(), TLM_MAX_SHIP_NAME);
 
 		g_pSharedDataTelemetry->counter++;
 		g_SharedMemTelemetry.SetDataReady();
@@ -13099,10 +13159,12 @@ void PrimarySurface::RenderText(bool earlyExit)
 	rtv->BeginDraw();
 
 	// DEBUG: Display the coords of one of the DC boxes:
-	/*{
+#if DEBUG_DC_BOX == 1
+	{
 		s_brush->SetColor(D2D1::ColorF(0xFFFFFF));
 		rtv->DrawRectangle(D2D1::RectF(g_DCTestBox.x0, g_DCTestBox.y0, g_DCTestBox.x1, g_DCTestBox.y1), s_brush, 3.0f);
-	}*/
+	}
+#endif
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));
