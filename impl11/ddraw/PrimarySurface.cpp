@@ -344,6 +344,8 @@ inline void ResetGlobalBrackets()
 {
 	g_curTargetBracket = { 0 };
 	g_curSubcomponentBracket = { 0 };
+	g_curTargetBracket.positionX = g_curTargetBracket.positionY = -1;
+	g_curSubcomponentBracket.positionX = g_curSubcomponentBracket.positionY = -1;
 }
 
 /// <summary>
@@ -13884,6 +13886,15 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 		float centerX = posX + posW * 0.5f;
 		float centerY = posY + posH * 0.5f;
 
+		// Don't render the bars if the bracket is out of view
+		{
+			const int bracketCenterX = xwaBracket.positionX + xwaBracket.width / 2;
+			const int bracketCenterY = xwaBracket.positionY + xwaBracket.height / 2;
+			if (bracketCenterX < 0 || bracketCenterX >(int)g_fCurInGameWidth &&
+			    bracketCenterY < 0 || bracketCenterY >(int)g_fCurInGameHeight)
+				goto out;
+		}
+
 		// Original version:
 		float strokeWidth = 2.0f * min(s_scaleX, s_scaleY);
 
@@ -13988,6 +13999,7 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 		}
 	}
 
+out:
 	this->_deviceResources->_d2d1EnhancedHUDRenderTarget->EndDraw();
 	this->_deviceResources->_d2d1EnhancedHUDRenderTarget->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
 
