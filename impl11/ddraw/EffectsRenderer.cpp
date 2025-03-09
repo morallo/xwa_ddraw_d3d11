@@ -4229,7 +4229,8 @@ void EffectsRenderer::ApplyActiveCockpit(const SceneCompData* scene)
 			// See BuildMultipleBLASFromCurrentBLASMap() too
 			for (int edge = 2; edge < edgesCount; edge++)
 			{
-				for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
+				// vertexIndex is not used in the loop, so the loop itself was unnecessary!
+				//for (int vertexIndex = 0; vertexIndex < edgesCount; vertexIndex++)
 				{
 					D3dTriangle t;
 					t.v1 = 0;
