@@ -10748,8 +10748,6 @@ HRESULT PrimarySurface::Flip(
 					// not only for the Enhanced HUD, but also for Telemetry. So it's a good idea
 					// to call it even if the Enhanced HUD is disabled.
 					this->ExtractDCText();
-					log_debug_vr("sMIssiles: %s", g_EnhancedHUDData.sMissiles.c_str());
-					//float width = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
 					/*log_debug_vr("[DBG] tmp: [%s], name: [%s]",
 						g_EnhancedHUDData.sTmp.c_str(), g_EnhancedHUDData.sName.c_str());*/
 					/*log_debug_vr("[DBG] name: [%s], shd: [%d], hull: [%d], sys: [%d]",
@@ -12670,9 +12668,9 @@ uint32_t EnhanceTextColor(uint32_t col)
 	return col;
 }
 
-#define DEBUG_DC_BOX 1
+#define DEBUG_DC_BOX 0
 #if DEBUG_DC_BOX == 1
-Box g_DCExtractedBox = { 0 };
+Box g_DCDebugBox = { 0 };
 #endif
 
 /// <summary>
@@ -12730,7 +12728,10 @@ void PrimarySurface::ExtractDCText()
 	constexpr int MAX_IDX = 11;
 
 	int mslsFSM = 0;
-	static Box  s_mslsBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+	static Box  s_mslsBox[2] = {
+		{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX },
+		{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX }
+	};
 	static Box  s_boxes[MAX_IDX] = {};
 	static bool s_boxesComputed[MAX_IDX] = {
 		false, false, false,
@@ -12910,25 +12911,20 @@ void PrimarySurface::ExtractDCText()
 					if (xwaText.textChar != ' ')
 					{
 						if (xwaText.textChar == ':')
-							mslsFSM = 1;
-
-						/*
-						if (mslsFSM == 0)
 						{
-							*strings[dcCurRegion] += xwaText.textChar;
-							s_mslsBox.x0 = min(s_mslsBox.x0, x0);
-							s_mslsBox.y0 = min(s_mslsBox.y0, y0);
-
-							s_mslsBox.x1 = max(s_mslsBox.x1, x1);
-							s_mslsBox.y1 = max(s_mslsBox.y1, y1);
+							mslsFSM = 1;
 						}
-						*/
-					}
-					s_mslsBox.x0 = min(s_mslsBox.x0, x0);
-					s_mslsBox.y0 = min(s_mslsBox.y0, y0);
+						else
+						{
+							// The colon char should not be accumulated for the right bounding box
+							s_mslsBox[mslsFSM].x0 = min(s_mslsBox[mslsFSM].x0, x0);
+							s_mslsBox[mslsFSM].y0 = min(s_mslsBox[mslsFSM].y0, y0);
 
-					s_mslsBox.x1 = max(s_mslsBox.x1, x1);
-					s_mslsBox.y1 = max(s_mslsBox.y1, y1);
+							s_mslsBox[mslsFSM].x1 = max(s_mslsBox[mslsFSM].x1, x1);
+							s_mslsBox[mslsFSM].y1 = max(s_mslsBox[mslsFSM].y1, y1);
+						}
+						*strings[dcCurRegion] += xwaText.textChar;
+					}
 				}
 				else
 				{
@@ -12982,10 +12978,28 @@ void PrimarySurface::ExtractDCText()
 		}
 	}
 
+	// Convert missile box coords to screen coords:
+	for (int i = 0; i < 2; i++)
+	{
+		int slot = (i == 0) ? AUTO_MSLS_LEFT_DC_SRC_IDX : AUTO_MSLS_RIGHT_DC_SRC_IDX;
+		DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[slot]);
+		InGameToScreenCoords(s_mslsBox[i].x0, s_mslsBox[i].y0, &box->coords.x0, &box->coords.y0);
+		InGameToScreenCoords(s_mslsBox[i].x1, s_mslsBox[i].y1, &box->coords.x1, &box->coords.y1);
+
 #if DEBUG_DC_BOX == 1
-	InGameToScreenCoords(s_mslsBox.x0, s_mslsBox.y0, &g_DCExtractedBox.x0, &g_DCExtractedBox.y0);
-	InGameToScreenCoords(s_mslsBox.x1, s_mslsBox.y1, &g_DCExtractedBox.x1, &g_DCExtractedBox.y1);
+		if (i == 0)
+		{
+			g_DCDebugBox = box->coords;
+		}
 #endif
+
+		// Normalize to uv coords:
+		box->coords.x0 *= g_fCurScreenWidthRcp;
+		box->coords.y0 *= g_fCurScreenHeightRcp;
+		box->coords.x1 *= g_fCurScreenWidthRcp;
+		box->coords.y1 *= g_fCurScreenHeightRcp;
+		box->bComputed = true;
+	}
 
 	if (!bNameCaptured)
 	{
@@ -13016,10 +13030,8 @@ void PrimarySurface::ExtractDCText()
 	if (g_EnhancedHUDData.sMissiles.size() > 0)
 	{
 		size_t idx = g_EnhancedHUDData.sMissiles.find(':');
-		//log_debug_vr("idx: %d", (int)idx);
 		std::string sLeft  = g_EnhancedHUDData.sMissiles.substr(0, idx);
 		std::string sRight = g_EnhancedHUDData.sMissiles.substr(idx + 1);
-		log_debug_vr("[%s]-[%s]", sLeft.c_str(), sRight.c_str());
 	}
 
 	if (g_pSharedDataTelemetry != nullptr)
@@ -13216,8 +13228,8 @@ void PrimarySurface::RenderText(bool earlyExit)
 	// DEBUG: Display the coords of one of the DC boxes:
 #if DEBUG_DC_BOX == 1
 	{
-		//s_brush->SetColor(D2D1::ColorF(0xFF3030));
-		//rtv->DrawRectangle(D2D1::RectF(g_DCExtractedBox.x0, g_DCExtractedBox.y0, g_DCExtractedBox.x1, g_DCExtractedBox.y1), s_brush, 9.0f);
+		s_brush->SetColor(D2D1::ColorF(0xFF3030));
+		rtv->DrawRectangle(D2D1::RectF(g_DCDebugBox.x0, g_DCDebugBox.y0, g_DCDebugBox.x1, g_DCDebugBox.y1), s_brush, 9.0f);
 	}
 #endif
 

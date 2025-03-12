@@ -21,9 +21,6 @@ constexpr float BACKGROUND_CUBE_HALFSIZE_METERS = BACKGROUND_CUBE_SIZE_METERS / 
 constexpr float BACKGROUND_CYL_RATIO = 1.09f; // 1.053f ? 1.375f ?
 static constexpr int s_numCylTriangles = 12;
 
-// Dynamic Cockpit
-extern Box g_DCExtractedBox;
-
 // Raytracing
 extern bool g_bEnableQBVHwSAH;
 //BVHBuilderType g_BVHBuilderType = BVHBuilderType_BVH2;
@@ -6634,17 +6631,6 @@ bool EffectsRenderer::DCReplaceTextures(const SceneCompData* scene)
 				uvfloat4 uv_src;
 				uv_src.x0 = src_box->coords.x0; uv_src.y0 = src_box->coords.y0;
 				uv_src.x1 = src_box->coords.x1; uv_src.y1 = src_box->coords.y1;
-
-				const bool bReplaceUVs = (src_slot == MISSILES_DC_ELEM_SRC_IDX && dc_element->coords.numCoords == 1);
-				if (bReplaceUVs)
-				{
-					// Use this when a single texture is used for missles-L:
-					uv_src.x0 = g_DCExtractedBox.x0 / g_fCurScreenWidth;
-					uv_src.y0 = g_DCExtractedBox.y0 / g_fCurScreenHeight;
-					uv_src.x1 = g_DCExtractedBox.x1 / g_fCurScreenWidth;
-					uv_src.y1 = g_DCExtractedBox.y1 / g_fCurScreenHeight;
-				}
-
 				g_DCPSCBuffer.src[numCoords] = uv_src;
 				g_DCPSCBuffer.dst[numCoords] = dc_element->coords.dst[i];
 				g_DCPSCBuffer.noisy_holo = _bIsNoisyHolo;

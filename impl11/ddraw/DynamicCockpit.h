@@ -224,7 +224,9 @@ const int TARGETED_OBJ_DIST_SRC_IDX = 38;
 const int TARGETED_OBJ_SUBCMP_SRC_IDX = 39;
 const int EIGHT_LASERS_BOTH_SRC_IDX = 40;
 const int THROTTLE_BAR_DC_SRC_IDX = 41;
-const int MAX_DC_SRC_ELEMENTS = 42;
+const int AUTO_MSLS_LEFT_DC_SRC_IDX = 42;
+const int AUTO_MSLS_RIGHT_DC_SRC_IDX = 43;
+const int MAX_DC_SRC_ELEMENTS = 44;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
