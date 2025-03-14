@@ -11,6 +11,7 @@ DCElemSrcBoxes g_DCElemSrcBoxes;
 dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
 Box g_speedBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+Box g_chaffBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 Box g_mslsBox[2] = {
 	{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX },
 	{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX }
@@ -20,6 +21,7 @@ void DCResetSubRegions()
 {
 	g_bRecomputeFontHeights = true;
 	g_speedBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+	g_chaffBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 	g_mslsBox[0] = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 	g_mslsBox[1] = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 }
@@ -129,6 +131,7 @@ std::vector<const char*> g_DCElemSrcNames = {
 	"AUTOSIZE_MISSILES_L_SRC",  // 42
 	"AUTOSIZE_MISSILES_R_SRC",  // 43
 	"AUTOSIZE_SPEED_SRC",       // 44
+	"AUTOSIZE_CHAFF_SRC",       // 45
 };
 
 int HUDRegionNameToIndex(char* name) {

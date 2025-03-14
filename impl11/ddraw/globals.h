@@ -376,7 +376,7 @@ struct EnhancedHUDData
 	Box    subCmpBox;
 	Box    barsBox;
 
-	std::string sShieldsFwd, sShieldsBck, sShipName, sMissiles, sSpeed;
+	std::string sShieldsFwd, sShieldsBck, sShipName, sMissiles, sSpeed, sChaff;
 	//std::string sThrottle, sSpeed;
 	DCChar shdFwdChars[MAX_DC_SHIELDS_CHARS];
 	DCChar shdBckChars[MAX_DC_SHIELDS_CHARS];

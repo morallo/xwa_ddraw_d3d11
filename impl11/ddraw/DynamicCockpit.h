@@ -227,7 +227,8 @@ const int THROTTLE_BAR_DC_SRC_IDX = 41;
 const int AUTO_MSLS_LEFT_DC_SRC_IDX = 42;
 const int AUTO_MSLS_RIGHT_DC_SRC_IDX = 43;
 const int AUTO_SPEED_DC_SRC_IDX = 44;
-const int MAX_DC_SRC_ELEMENTS = 45;
+const int AUTO_CHAFF_DC_SRC_IDX = 45;
+const int MAX_DC_SRC_ELEMENTS = 46;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
@@ -272,7 +273,8 @@ struct SubDCSrcBox
 constexpr int DC_SUB_SPEED_IDX     = 0;
 constexpr int DC_SUB_THROTTLE_IDX  = 1;
 constexpr int DC_SUB_SHIP_NAME_IDX = 2;
-constexpr int MAX_DC_SUB_ELEMENTS  = 3;
+constexpr int DC_SUB_CHAFF_IDX     = 3;
+constexpr int MAX_DC_SUB_ELEMENTS  = 4;
 /// <summary>
 /// This array holds UV coords for fractions of HUD elements, like the speed and
 /// throttle, for instance (they are in the same DC src region). These boxes are
@@ -284,6 +286,7 @@ constexpr int MAX_DC_SUB_ELEMENTS  = 3;
 /// </summary>
 extern SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
 extern Box g_speedBox;
+extern Box g_chaffBox;
 extern Box g_mslsBox[2];
 extern bool g_bRecomputeFontHeights;
 void DCResetSubRegions();
