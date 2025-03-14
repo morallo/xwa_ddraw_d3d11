@@ -226,7 +226,8 @@ const int EIGHT_LASERS_BOTH_SRC_IDX = 40;
 const int THROTTLE_BAR_DC_SRC_IDX = 41;
 const int AUTO_MSLS_LEFT_DC_SRC_IDX = 42;
 const int AUTO_MSLS_RIGHT_DC_SRC_IDX = 43;
-const int MAX_DC_SRC_ELEMENTS = 44;
+const int AUTO_SPEED_DC_SRC_IDX = 44;
+const int MAX_DC_SRC_ELEMENTS = 45;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
@@ -282,7 +283,10 @@ constexpr int MAX_DC_SUB_ELEMENTS  = 3;
 /// at the same time when the "parent" DC source element UV coords are computed.
 /// </summary>
 extern SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
-
+extern Box g_speedBox;
+extern Box g_mslsBox[2];
+extern bool g_bRecomputeFontHeights;
+void DCResetSubRegions();
 
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
 extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields

@@ -41,6 +41,9 @@ bool g_bUseExternalCameraState = false;
 
 // Text Rendering
 TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
+float g_screenFontHeights[3];
+float g_inGameFontHeights[3];
+bool g_bRecomputeFontHeights = true;
 
 CraftInstanceHardpoint GetHardpoint(CraftInstance* craftInstance, int index);
 void ZToDepthRHW(float Z, float *sz, float *rhw);
@@ -12679,10 +12682,29 @@ Box g_DCDebugBox = { 0 };
 /// </summary>
 void PrimarySurface::ExtractDCText()
 {
+	if (!g_bRendering3D)
+		return;
+
 	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
 	static   short s_rowSize    = (short)(0.0185f * g_fCurInGameHeight);
 	static   float s_lastInGameWidth = 0, s_lastInGameHeight = 0;
 	//static   int   s_fontSizes[3] = { 12, 16, 10 };
+
+	// g_bRecomputeFontHeights is set to true on OnSizeChanged(), causing the font heights to be
+	// recomputed. The first step happens in RenderText(), where screen-heights are computed. The
+	// second step happens here, where we convert screen heights to in-game heights:
+	if (g_bRecomputeFontHeights)
+	{
+		for (int index = 0; index < 3; index++)
+		{
+			float x, y0, y1;
+			ScreenCoordsToInGame(g_fCurScreenWidth, g_fCurScreenHeight, &x, &y0);
+			ScreenCoordsToInGame(g_fCurScreenWidth, g_fCurScreenHeight + g_screenFontHeights[index], &x, &y1);
+			g_inGameFontHeights[index] = y1 - y0 + 1;
+		}
+		// As soon as in-game heights are computed, we're done:
+		g_bRecomputeFontHeights = false;
+	}
 
 	g_EnhancedHUDData.sName    = "";
 	g_EnhancedHUDData.sTmp     = ""; // This is used to temporaily store the name of the craft (it's two rows)
@@ -12697,6 +12719,7 @@ void PrimarySurface::ExtractDCText()
 	g_EnhancedHUDData.sShieldsBck = "";
 	g_EnhancedHUDData.sShipName   = "";
 	g_EnhancedHUDData.sMissiles   = "";
+	g_EnhancedHUDData.sSpeed      = "";
 
 	g_EnhancedHUDData.tgtShds = -1;
 	g_EnhancedHUDData.tgtHull = -1;
@@ -12724,21 +12747,20 @@ void PrimarySurface::ExtractDCText()
 	constexpr int SHD_BCK_IDX   = 8;
 	constexpr int SHIP_NAME_IDX = 9;
 	constexpr int MISSILES_IDX  = 10;
+	constexpr int SPEED_IDX     = 11;
 
-	constexpr int MAX_IDX = 11;
+	constexpr int MAX_IDX = 12;
 
+	// This Finite State Machine is used to parse the missile count and make
+	// two bounding boxes.
 	int mslsFSM = 0;
-	static Box  s_mslsBox[2] = {
-		{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX },
-		{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX }
-	};
 	static Box  s_boxes[MAX_IDX] = {};
 	static bool s_boxesComputed[MAX_IDX] = {
 		false, false, false,
 		false, false, false,
 		false,
 		false, false, false,
-		false,
+		false, false,
 	};
 	static int s_numComputedBoxes    = 0;
 	const  int dcSrcRegions[MAX_IDX] = {
@@ -12746,16 +12768,16 @@ void PrimarySurface::ExtractDCText()
 		TARGETED_OBJ_SYS_SRC_IDX, TARGETED_OBJ_DIST_SRC_IDX, TARGETED_OBJ_SUBCMP_SRC_IDX,
 		TARGETED_OBJ_CARGO_SRC_IDX,
 		SHIELDS_FRONT_DC_ELEM_SRC_IDX, SHIELDS_BACK_DC_ELEM_SRC_IDX, NAME_TIME_DC_ELEM_SRC_IDX,
-		MISSILES_DC_ELEM_SRC_IDX,
+		MISSILES_DC_ELEM_SRC_IDX, SPEED_N_THROTTLE_DC_ELEM_SRC_IDX,
 	};
 	std::string *strings[] = {
 		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sTgtShds, &g_EnhancedHUDData.sTgtHull,
 		&g_EnhancedHUDData.sTgtSys, &g_EnhancedHUDData.sTgtDist, &g_EnhancedHUDData.sSubCmp,
 		&g_EnhancedHUDData.sCargo,
 		&g_EnhancedHUDData.sShieldsFwd, &g_EnhancedHUDData.sShieldsBck, &g_EnhancedHUDData.sShipName,
-		&g_EnhancedHUDData.sMissiles
+		&g_EnhancedHUDData.sMissiles, &g_EnhancedHUDData.sSpeed
 	};
-	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1, -1 };
+	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1,  -1, -1 };
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
@@ -12805,9 +12827,17 @@ void PrimarySurface::ExtractDCText()
 
 				// DEBUG: Store the coords of a DC box to be displayed later
 //#if DEBUG_DC_BOX == 1
-//				g_DCTestBox.x0 = x0; g_DCTestBox.y0 = y0;
-//				g_DCTestBox.x1 = x1; g_DCTestBox.y1 = y1;
+//				g_DCDebugBox.x0 = x0; g_DCDebugBox.y0 = y0;
+//				g_DCDebugBox.x1 = x1; g_DCDebugBox.y1 = y1;
 //#endif
+			}
+			else if (dcCurRegion == SPEED_IDX)
+			{
+				UseDCSubRegion(DC_SUB_SPEED_IDX);
+#if DEBUG_DC_BOX == 1
+				//g_DCDebugBox.x0 = x0; g_DCDebugBox.y0 = y0;
+				//g_DCDebugBox.x1 = x1; g_DCDebugBox.y1 = y1;
+#endif
 			}
 
 			ScreenCoordsToInGame(x0, y0, &box_x0, &box_y0);
@@ -12837,7 +12867,13 @@ void PrimarySurface::ExtractDCText()
 		const float x0 = (float)xwaText.positionX;
 		const float y0 = (float)xwaText.positionY;
 		const float x1 = (float)xwaText.positionX + (float)fontWidths[fontIndex][(int)xwaText.textChar];
-		const float y1 = (float)xwaText.positionY + (float)s_rowSize;
+		//const float y1 = (float)xwaText.positionY + (float)s_rowSize;
+		const float y1 = (float)xwaText.positionY + g_inGameFontHeights[fontIndex];
+
+		// We don't care about any text appearing on the bottom half of the screen: there's
+		// no DC content in that area.
+		if (y1 > 0.5f * g_fCurInGameHeight)
+			continue;
 
 		for (int dcCurRegion = 0; dcCurRegion < MAX_IDX; dcCurRegion++)
 		{
@@ -12903,8 +12939,6 @@ void PrimarySurface::ExtractDCText()
 					rows[dcCurRegion] = xwaText.positionY;
 				}
 
-				// Accumulate the current char to form a string:
-				const bool ignoreSpaces = (dcCurRegion == MISSILES_IDX);
 				if (dcCurRegion == MISSILES_IDX)
 				{
 					// The text for missiles has whitespaces in it. We don't want that:
@@ -12917,17 +12951,46 @@ void PrimarySurface::ExtractDCText()
 						else
 						{
 							// The colon char should not be accumulated for the right bounding box
-							s_mslsBox[mslsFSM].x0 = min(s_mslsBox[mslsFSM].x0, x0);
-							s_mslsBox[mslsFSM].y0 = min(s_mslsBox[mslsFSM].y0, y0);
-
-							s_mslsBox[mslsFSM].x1 = max(s_mslsBox[mslsFSM].x1, x1);
-							s_mslsBox[mslsFSM].y1 = max(s_mslsBox[mslsFSM].y1, y1);
+							g_mslsBox[mslsFSM].x0 = min(g_mslsBox[mslsFSM].x0, x0);
+							g_mslsBox[mslsFSM].y0 = min(g_mslsBox[mslsFSM].y0, y0);
+							g_mslsBox[mslsFSM].x1 = max(g_mslsBox[mslsFSM].x1, x1);
+							g_mslsBox[mslsFSM].y1 = max(g_mslsBox[mslsFSM].y1, y1);
 						}
+						// Accumulate the current char to form a string:
 						*strings[dcCurRegion] += xwaText.textChar;
+					}
+				}
+				else if (dcCurRegion == SPEED_IDX)
+				{
+					// Skip chars that aren't digits: we only want to capture the speed proper
+					if (xwaText.textChar >= '0' && xwaText.textChar <= '9')
+					{
+						g_speedBox.x0 = min(g_speedBox.x0, x0);
+						g_speedBox.y0 = min(g_speedBox.y0, y0);
+						g_speedBox.x1 = max(g_speedBox.x1, x1);
+						g_speedBox.y1 = max(g_speedBox.y1, y1);
+						*strings[dcCurRegion] += xwaText.textChar;
+
+						DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[AUTO_SPEED_DC_SRC_IDX]);
+						InGameToScreenCoords(g_speedBox.x0, g_speedBox.y0, &(box->coords.x0), &(box->coords.y0));
+						InGameToScreenCoords(g_speedBox.x1, g_speedBox.y1, &(box->coords.x1), &(box->coords.y1));
+
+						// Normalize to uv coords:
+						box->coords.x0 *= g_fCurScreenWidthRcp;
+						box->coords.y0 *= g_fCurScreenHeightRcp;
+						box->coords.x1 *= g_fCurScreenWidthRcp;
+						box->coords.y1 *= g_fCurScreenHeightRcp;
+						box->bComputed = true;
+
+#if DEBUG_DC_BOX == 1
+						//InGameToScreenCoords(g_speedBox.x0, g_speedBox.y0, &g_DCDebugBox.x0, &g_DCDebugBox.y0);
+						//InGameToScreenCoords(g_speedBox.x1, g_speedBox.y1, &g_DCDebugBox.x1, &g_DCDebugBox.y1);
+#endif
 					}
 				}
 				else
 				{
+					// Accumulate the current char to form a string:
 					*strings[dcCurRegion] += xwaText.textChar;
 				}
 
@@ -12973,7 +13036,6 @@ void PrimarySurface::ExtractDCText()
 					DCChar* chars = g_EnhancedHUDData.shipNameChars;
 					AddIfNotDuplicate(chars, numChars, MAX_DC_SHIP_NAME_CHARS);
 				}
-
 			}
 		}
 	}
@@ -12983,14 +13045,11 @@ void PrimarySurface::ExtractDCText()
 	{
 		int slot = (i == 0) ? AUTO_MSLS_LEFT_DC_SRC_IDX : AUTO_MSLS_RIGHT_DC_SRC_IDX;
 		DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[slot]);
-		InGameToScreenCoords(s_mslsBox[i].x0, s_mslsBox[i].y0, &box->coords.x0, &box->coords.y0);
-		InGameToScreenCoords(s_mslsBox[i].x1, s_mslsBox[i].y1, &box->coords.x1, &box->coords.y1);
+		InGameToScreenCoords(g_mslsBox[i].x0, g_mslsBox[i].y0, &box->coords.x0, &box->coords.y0);
+		InGameToScreenCoords(g_mslsBox[i].x1, g_mslsBox[i].y1, &box->coords.x1, &box->coords.y1);
 
 #if DEBUG_DC_BOX == 1
-		if (i == 0)
-		{
-			g_DCDebugBox = box->coords;
-		}
+		//if (i == 1) g_DCDebugBox = box->coords;
 #endif
 
 		// Normalize to uv coords:
@@ -13183,6 +13242,11 @@ void PrimarySurface::RenderText(bool earlyExit)
 				L"en-US",
 				&s_textFormats[index]);
 
+			// g_bRecomputeFontHeights is set to true on OnSizeChanged(), causing the font heights
+			// to be recomputed. This is only the first part of the process, though. The second part
+			// converts screen-heights to in-game heights. See ExtractDCText() for details.
+			if (g_bRecomputeFontHeights) g_screenFontHeights[index] = s_textFormats[index]->GetFontSize();
+
 			for (int c = 33; c < 256; c++)
 			{
 				char t[2];
@@ -13229,7 +13293,7 @@ void PrimarySurface::RenderText(bool earlyExit)
 #if DEBUG_DC_BOX == 1
 	{
 		s_brush->SetColor(D2D1::ColorF(0xFF3030));
-		rtv->DrawRectangle(D2D1::RectF(g_DCDebugBox.x0, g_DCDebugBox.y0, g_DCDebugBox.x1, g_DCDebugBox.y1), s_brush, 9.0f);
+		rtv->DrawRectangle(D2D1::RectF(g_DCDebugBox.x0, g_DCDebugBox.y0, g_DCDebugBox.x1, g_DCDebugBox.y1), s_brush, 3.0f);
 	}
 #endif
 
