@@ -4464,9 +4464,18 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							{
-								auto& autoBox  = g_DCSubRegions[DC_SUB_SHIP_NAME_IDX];
+								auto& autoBox  = g_DCSubRegions[DC_SUB_NAME_IDX];
 								autoBox.coords = dcElemSrcBox->coords;
 								autoBox.coords.y1 = autoBox.coords.y0 + 0.4f * (autoBox.coords.y1 - autoBox.coords.y0);
+								// Extend the box to the right to capture wide fonts
+								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
+								autoBox.bComputed = true;
+							}
+
+							{
+								auto& autoBox  = g_DCSubRegions[DC_SUB_TIME_IDX];
+								autoBox.coords = dcElemSrcBox->coords;
+								autoBox.coords.y0 = autoBox.coords.y0 + 0.6f * (autoBox.coords.y1 - autoBox.coords.y0);
 								// Extend the box to the right to capture wide fonts
 								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
 								autoBox.bComputed = true;

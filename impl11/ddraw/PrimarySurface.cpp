@@ -12671,7 +12671,7 @@ uint32_t EnhanceTextColor(uint32_t col)
 	return col;
 }
 
-#define DEBUG_DC_BOX 0
+#define DEBUG_DC_BOX 1
 #if DEBUG_DC_BOX == 1
 Box g_DCDebugBox = { 0 };
 #endif
@@ -12707,6 +12707,7 @@ void PrimarySurface::ExtractDCText()
 	}
 
 	g_EnhancedHUDData.sName    = "";
+	g_EnhancedHUDData.sTime    = "";
 	g_EnhancedHUDData.sTmp     = ""; // This is used to temporaily store the name of the craft (it's two rows)
 	g_EnhancedHUDData.sTgtShds = "";
 	g_EnhancedHUDData.sTgtHull = "";
@@ -12750,8 +12751,9 @@ void PrimarySurface::ExtractDCText()
 	constexpr int MISSILES_IDX  = 10;
 	constexpr int SPEED_IDX     = 11;
 	constexpr int CHAFF_IDX     = 12;
+	constexpr int TIME_IDX      = 13;
 
-	constexpr int MAX_IDX = 13;
+	constexpr int MAX_IDX = 14;
 
 	// This Finite State Machine is used to parse the missile count and make
 	// two bounding boxes.
@@ -12763,6 +12765,7 @@ void PrimarySurface::ExtractDCText()
 		false,
 		false, false, false,
 		false, false, false,
+		false,
 	};
 	static int s_numComputedBoxes    = 0;
 	const  int dcSrcRegions[MAX_IDX] = {
@@ -12770,7 +12773,8 @@ void PrimarySurface::ExtractDCText()
 		TARGETED_OBJ_SYS_SRC_IDX, TARGETED_OBJ_DIST_SRC_IDX, TARGETED_OBJ_SUBCMP_SRC_IDX,
 		TARGETED_OBJ_CARGO_SRC_IDX,
 		SHIELDS_FRONT_DC_ELEM_SRC_IDX, SHIELDS_BACK_DC_ELEM_SRC_IDX, NAME_TIME_DC_ELEM_SRC_IDX,
-		MISSILES_DC_ELEM_SRC_IDX, SPEED_N_THROTTLE_DC_ELEM_SRC_IDX, NUM_CRAFTS_DC_ELEM_SRC_IDX
+		MISSILES_DC_ELEM_SRC_IDX, SPEED_N_THROTTLE_DC_ELEM_SRC_IDX, NUM_CRAFTS_DC_ELEM_SRC_IDX,
+		NAME_TIME_DC_ELEM_SRC_IDX
 	};
 	std::string *strings[] = {
 		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sTgtShds, &g_EnhancedHUDData.sTgtHull,
@@ -12778,8 +12782,9 @@ void PrimarySurface::ExtractDCText()
 		&g_EnhancedHUDData.sCargo,
 		&g_EnhancedHUDData.sShieldsFwd, &g_EnhancedHUDData.sShieldsBck, &g_EnhancedHUDData.sShipName,
 		&g_EnhancedHUDData.sMissiles, &g_EnhancedHUDData.sSpeed, &g_EnhancedHUDData.sChaff,
+		&g_EnhancedHUDData.sTime
 	};
-	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1,  -1, -1, -1 };
+	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1,  -1, -1, -1,  -1 };
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
@@ -12823,15 +12828,22 @@ void PrimarySurface::ExtractDCText()
 					y1 = g_fCurScreenHeight * aBox.coords.y1;
 				}
 			};
+
 			if (dcCurRegion == SHIP_NAME_IDX)
 			{
-				UseDCSubRegion(DC_SUB_SHIP_NAME_IDX);
-
-				// DEBUG: Store the coords of a DC box to be displayed later
-//#if DEBUG_DC_BOX == 1
-//				g_DCDebugBox.x0 = x0; g_DCDebugBox.y0 = y0;
-//				g_DCDebugBox.x1 = x1; g_DCDebugBox.y1 = y1;
-//#endif
+				UseDCSubRegion(DC_SUB_NAME_IDX);
+#if DEBUG_DC_BOX == 1
+				//g_DCDebugBox.x0 = x0; g_DCDebugBox.y0 = y0;
+				//g_DCDebugBox.x1 = x1; g_DCDebugBox.y1 = y1;
+#endif
+			}
+			else if (dcCurRegion == TIME_IDX)
+			{
+				UseDCSubRegion(DC_SUB_TIME_IDX);
+#if DEBUG_DC_BOX == 1
+				//g_DCDebugBox.x0 = x0; g_DCDebugBox.y0 = y0;
+				//g_DCDebugBox.x1 = x1; g_DCDebugBox.y1 = y1;
+#endif
 			}
 			else if (dcCurRegion == SPEED_IDX)
 			{
@@ -13019,6 +13031,52 @@ void PrimarySurface::ExtractDCText()
 						box->coords.y1 *= g_fCurScreenHeightRcp;
 						box->bComputed = true;
 					}
+				}
+				else if (dcCurRegion == SHIP_NAME_IDX)
+				{
+					g_nameBox.x0 = min(g_nameBox.x0, x0);
+					g_nameBox.y0 = min(g_nameBox.y0, y0);
+					g_nameBox.x1 = max(g_nameBox.x1, x1);
+					g_nameBox.y1 = max(g_nameBox.y1, y1);
+
+					DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[AUTO_NAME_DC_SRC_IDX]);
+					InGameToScreenCoords(g_nameBox.x0, g_nameBox.y0, &(box->coords.x0), &(box->coords.y0));
+					InGameToScreenCoords(g_nameBox.x1, g_nameBox.y1, &(box->coords.x1), &(box->coords.y1));
+
+					// Normalize to uv coords:
+					box->coords.x0 *= g_fCurScreenWidthRcp;
+					box->coords.y0 *= g_fCurScreenHeightRcp;
+					box->coords.x1 *= g_fCurScreenWidthRcp;
+					box->coords.y1 *= g_fCurScreenHeightRcp;
+					box->bComputed = true;
+
+#if DEBUG_DC_BOX == 1
+					//InGameToScreenCoords(g_nameBox.x0, g_nameBox.y0, &g_DCDebugBox.x0, &g_DCDebugBox.y0);
+					//InGameToScreenCoords(g_nameBox.x1, g_nameBox.y1, &g_DCDebugBox.x1, &g_DCDebugBox.y1);
+#endif
+				}
+				else if (dcCurRegion == TIME_IDX)
+				{
+					g_timeBox.x0 = min(g_timeBox.x0, x0);
+					g_timeBox.y0 = min(g_timeBox.y0, y0);
+					g_timeBox.x1 = max(g_timeBox.x1, x1);
+					g_timeBox.y1 = max(g_timeBox.y1, y1);
+
+					DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[AUTO_TIME_DC_SRC_IDX]);
+					InGameToScreenCoords(g_timeBox.x0, g_timeBox.y0, &(box->coords.x0), &(box->coords.y0));
+					InGameToScreenCoords(g_timeBox.x1, g_timeBox.y1, &(box->coords.x1), &(box->coords.y1));
+
+					// Normalize to uv coords:
+					box->coords.x0 *= g_fCurScreenWidthRcp;
+					box->coords.y0 *= g_fCurScreenHeightRcp;
+					box->coords.x1 *= g_fCurScreenWidthRcp;
+					box->coords.y1 *= g_fCurScreenHeightRcp;
+					box->bComputed = true;
+
+#if DEBUG_DC_BOX == 1
+					//InGameToScreenCoords(g_timeBox.x0, g_timeBox.y0, &g_DCDebugBox.x0, &g_DCDebugBox.y0);
+					//InGameToScreenCoords(g_timeBox.x1, g_timeBox.y1, &g_DCDebugBox.x1, &g_DCDebugBox.y1);
+#endif
 				}
 				else
 				{
