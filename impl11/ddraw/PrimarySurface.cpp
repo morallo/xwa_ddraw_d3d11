@@ -12892,9 +12892,10 @@ void PrimarySurface::ExtractDCText()
 		//const float y1 = (float)xwaText.positionY + (float)s_rowSize;
 		const float y1 = (float)xwaText.positionY + g_inGameFontHeights[fontIndex];
 
-		// We don't care about any text appearing on the bottom half of the screen: there's
-		// no DC content in that area.
-		if (y1 > 0.5f * g_fCurInGameHeight)
+		// We don't care about any text appearing on the text boxes: it's not used neither by the
+		// Enhanced HUD, nor the DC Autosize.
+		if (y1 > 0.5f * g_fCurInGameHeight &&
+			(x1 < 0.333f * g_fCurInGameWidth || x1 > 0.666f * g_fCurInGameWidth))
 			continue;
 
 		for (int dcCurRegion = 0; dcCurRegion < MAX_IDX; dcCurRegion++)
