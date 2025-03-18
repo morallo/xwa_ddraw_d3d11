@@ -12671,7 +12671,7 @@ uint32_t EnhanceTextColor(uint32_t col)
 	return col;
 }
 
-#define DEBUG_DC_BOX 1
+#define DEBUG_DC_BOX 0
 #if DEBUG_DC_BOX == 1
 Box g_DCDebugBox = { 0 };
 #endif
@@ -12785,6 +12785,11 @@ void PrimarySurface::ExtractDCText()
 		&g_EnhancedHUDData.sTime
 	};
 	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1,  -1, -1, -1,  -1 };
+	constexpr int MAX_TGT_BOXES = 7;
+	Box* tgtBoxes[MAX_TGT_BOXES] = { &g_tgtNameBox, &g_tgtShdBox, &g_tgtHullBox,
+		&g_tgtSysBox, &g_tgtDistBox, &g_tgtSubCmpBox,
+		&g_tgtCargoBox
+	};
 
 	// Detect when the in-game screen resolution has changed so that we can recompute the
 	// DC boxes.
@@ -12879,6 +12884,11 @@ void PrimarySurface::ExtractDCText()
 	g_EnhancedHUDData.shdFwdNumChars = 0;
 	g_EnhancedHUDData.shdBckNumChars = 0;
 	g_EnhancedHUDData.shipNameNumChars = 0;
+	// The following DC components can shrink:
+	// ... eh, the text looks quite wide and distorted when the string is short, like "hull" or "junk"
+	//g_tgtNameBox.Invalidate();
+	//g_tgtCargoBox.Invalidate();
+	//g_tgtSubCmpBox.Invalidate();
 	for (const auto& xwaText : g_xwa_text)
 	{
 		int fontIndex = 0;
@@ -12909,6 +12919,35 @@ void PrimarySurface::ExtractDCText()
 			if (IsOverlapping(box.x0, box.y0, box.x1, box.y1,
 				x0, y0, x1, y1))
 			{
+				// Update the boxes for the target areas (shields, hull, sys, etc)
+				if (dcCurRegion < MAX_TGT_BOXES)
+				{
+					Box* tgtBox = tgtBoxes[dcCurRegion];
+					tgtBox->x0 = min(tgtBox->x0, x0);
+					tgtBox->y0 = min(tgtBox->y0, y0);
+					tgtBox->x1 = max(tgtBox->x1, x1);
+					tgtBox->y1 = max(tgtBox->y1, y1);
+
+					DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[dcSrcRegions[dcCurRegion]]);
+					InGameToScreenCoords(tgtBox->x0, tgtBox->y0, &(box->coords.x0), &(box->coords.y0));
+					InGameToScreenCoords(tgtBox->x1, tgtBox->y1, &(box->coords.x1), &(box->coords.y1));
+
+					// Normalize to uv coords:
+					box->coords.x0 *= g_fCurScreenWidthRcp;
+					box->coords.y0 *= g_fCurScreenHeightRcp;
+					box->coords.x1 *= g_fCurScreenWidthRcp;
+					box->coords.y1 *= g_fCurScreenHeightRcp;
+					box->bComputed = true;
+
+#if DEBUG_DC_BOX == 1
+					if (dcSrcRegions[dcCurRegion] == TARGETED_OBJ_SUBCMP_SRC_IDX)
+					{
+						//InGameToScreenCoords(tgtBox->x0, tgtBox->y0, &g_DCDebugBox.x0, &g_DCDebugBox.y0);
+						//InGameToScreenCoords(tgtBox->x1, tgtBox->y1, &g_DCDebugBox.x1, &g_DCDebugBox.y1);
+					}
+#endif
+				}
+
 				// The name field sometimes has two colors on the first row. We want to capture the second color:
 				if (dcCurRegion == TGT_NAME_IDX)
 				{

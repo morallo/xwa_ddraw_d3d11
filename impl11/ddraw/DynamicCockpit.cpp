@@ -10,24 +10,30 @@ DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
 dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
-Box g_speedBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-Box g_chaffBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-Box g_nameBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-Box g_timeBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-Box g_mslsBox[2] = {
-	{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX },
-	{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX }
-};
+Box g_speedBox;
+Box g_chaffBox;
+Box g_nameBox;
+Box g_timeBox;
+Box g_mslsBox[2];
+Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
+Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
 
 void DCResetSubRegions()
 {
 	g_bRecomputeFontHeights = true;
-	g_speedBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-	g_chaffBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-	g_nameBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-	g_timeBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-	g_mslsBox[0] = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
-	g_mslsBox[1] = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+	g_speedBox.Invalidate();
+	g_chaffBox.Invalidate();
+	g_nameBox.Invalidate();
+	g_timeBox.Invalidate();
+	g_mslsBox[0].Invalidate();
+	g_mslsBox[1].Invalidate();
+	g_tgtNameBox.Invalidate();
+	g_tgtShdBox.Invalidate();
+	g_tgtHullBox.Invalidate();
+	g_tgtSysBox.Invalidate();
+	g_tgtDistBox.Invalidate();
+	g_tgtSubCmpBox.Invalidate();
+	g_tgtCargoBox.Invalidate();
 }
 
 float g_fCoverTextureBrightness = 1.0f;

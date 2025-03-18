@@ -61,9 +61,13 @@ HOW TO ADD NEW ERASE REGION COMMANDS:
 */
 
 // DYNAMIC COCKPIT
-typedef struct Box_struct {
+struct Box {
 	float x0, y0, x1, y1;
-} Box;
+	void Invalidate()
+	{
+		*this = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+	}
+};
 
 // Also found in the Floating_GUI_RESNAME list:
 extern const char* DC_TARGET_COMP_SRC_RESNAME;
@@ -292,6 +296,8 @@ extern Box g_speedBox;
 extern Box g_chaffBox;
 extern Box g_nameBox;
 extern Box g_timeBox;
+extern Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
+extern Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
 extern Box g_mslsBox[2];
 extern bool g_bRecomputeFontHeights;
 void DCResetSubRegions();
