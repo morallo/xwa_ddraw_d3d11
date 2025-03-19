@@ -302,6 +302,11 @@ extern Box g_mslsBox[2];
 extern bool g_bRecomputeFontHeights;
 void DCResetSubRegions();
 
+// DC Debug
+extern Box  g_DCDebugBox;
+extern bool g_bEnableDCDebug;
+extern int  g_iDCDebugSrcIndex;
+
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
 extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields
 extern D2D1::ColorF g_DCLaserColor, g_DCIonColor, g_DCThrottleColor;

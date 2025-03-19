@@ -18,6 +18,11 @@ Box g_mslsBox[2];
 Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
 Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
 
+// DC Debug
+Box  g_DCDebugBox       = { 0 };
+bool g_bEnableDCDebug   = false;
+int  g_iDCDebugSrcIndex = -1;
+
 void DCResetSubRegions()
 {
 	g_bRecomputeFontHeights = true;

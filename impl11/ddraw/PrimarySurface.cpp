@@ -12671,11 +12671,6 @@ uint32_t EnhanceTextColor(uint32_t col)
 	return col;
 }
 
-#define DEBUG_DC_BOX 0
-#if DEBUG_DC_BOX == 1
-Box g_DCDebugBox = { 0 };
-#endif
-
 /// <summary>
 /// Extract DC strings from the contents of g_xwa_text by comparing the coords of each char
 /// against the DC source regions. The output is stored in g_EnhancedHUDData.
@@ -13420,12 +13415,21 @@ void PrimarySurface::RenderText(bool earlyExit)
 	rtv->BeginDraw();
 
 	// DEBUG: Display the coords of one of the DC boxes:
-#if DEBUG_DC_BOX == 1
+	if (g_bEnableDCDebug)
 	{
+		float width = 3.0f;
+		if (g_iDCDebugSrcIndex != -1)
+		{
+			DCElemSrcBox* src_box = &g_DCElemSrcBoxes.src_boxes[g_iDCDebugSrcIndex];
+			g_DCDebugBox.x0 = g_fCurScreenWidth  * src_box->coords.x0;
+			g_DCDebugBox.y0 = g_fCurScreenHeight * src_box->coords.y0;
+			g_DCDebugBox.x1 = g_fCurScreenWidth  * src_box->coords.x1;
+			g_DCDebugBox.y1 = g_fCurScreenHeight * src_box->coords.y1;
+			width = 1.0f;
+		}
 		s_brush->SetColor(D2D1::ColorF(0xFF3030));
-		rtv->DrawRectangle(D2D1::RectF(g_DCDebugBox.x0, g_DCDebugBox.y0, g_DCDebugBox.x1, g_DCDebugBox.y1), s_brush, 3.0f);
+		rtv->DrawRectangle(D2D1::RectF(g_DCDebugBox.x0, g_DCDebugBox.y0, g_DCDebugBox.x1, g_DCDebugBox.y1), s_brush, width);
 	}
-#endif
 
 	unsigned int brushColor = 0;
 	s_brush->SetColor(D2D1::ColorF(brushColor));

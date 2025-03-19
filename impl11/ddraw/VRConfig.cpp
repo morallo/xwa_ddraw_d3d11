@@ -1590,6 +1590,15 @@ bool LoadDCParams() {
 			else if (_stricmp(param, "reset_cockpit_damage_in_hangar") == 0) {
 				g_bResetCockpitDamageInHangar = (bool)fValue;
 			}
+			else if (_stricmp(param, "enable_developer_mode") == 0) {
+				g_bEnableDCDebug = (bool)fValue;
+			}
+			else if (_stricmp(param, "display_dc_index") == 0) {
+				g_iDCDebugSrcIndex = DCSrcElemNameToIndex(svalue);
+				if (g_iDCDebugSrcIndex >= MAX_DC_SRC_ELEMENTS)
+					g_iDCDebugSrcIndex = -1;
+				log_debug("[DBG] [DC] Debug src index: %d", g_iDCDebugSrcIndex);
+			}
 		}
 	}
 	fclose(file);
