@@ -34,13 +34,20 @@ void DCResetSubRegions()
 	g_timeBox.Invalidate();
 	g_mslsBox[0].Invalidate();
 	g_mslsBox[1].Invalidate();
-	g_tgtNameBox.Invalidate();
+
 	g_tgtShdBox.Invalidate();
 	g_tgtHullBox.Invalidate();
 	g_tgtSysBox.Invalidate();
 	g_tgtDistBox.Invalidate();
-	g_tgtSubCmpBox.Invalidate();
-	g_tgtCargoBox.Invalidate();
+
+	// Do not invalidate these fields. It will cause them to shink and text will look
+	// quite stretched:
+	//g_tgtNameBox.Invalidate();
+	//g_tgtSubCmpBox.Invalidate();
+	//g_tgtCargoBox.Invalidate();
+	g_tgtNameBox   = g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_NAME_SRC_IDX].coords;
+	g_tgtSubCmpBox = g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_SUBCMP_SRC_IDX].coords;
+	g_tgtCargoBox  = g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_CARGO_SRC_IDX].coords;
 }
 
 float g_fCoverTextureBrightness = 1.0f;
