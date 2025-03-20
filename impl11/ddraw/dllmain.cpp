@@ -313,10 +313,24 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 		if (AltKey && CtrlKey && ShiftKey) {
 			switch (wParam) {
 			case 0xbb:
-				IncreaseZoomOutScale(0.1f);
+				if (g_bDCDebugDisplayLabels)
+				{
+					g_iDCDebugSrcIndex = (g_iDCDebugSrcIndex + 1) % MAX_DC_SRC_ELEMENTS;
+					g_DCDebugLabel = g_DCElemSrcNames[g_iDCDebugSrcIndex];
+				}
+				else
+					IncreaseZoomOutScale(0.1f);
 				return 0;
 			case 0xbd:
-				IncreaseZoomOutScale(-0.1f);
+				if (g_bDCDebugDisplayLabels)
+				{
+					g_iDCDebugSrcIndex--;
+					if (g_iDCDebugSrcIndex < 0)
+						g_iDCDebugSrcIndex = MAX_DC_SRC_ELEMENTS - 1;
+					g_DCDebugLabel = g_DCElemSrcNames[g_iDCDebugSrcIndex];
+				}
+				else
+					IncreaseZoomOutScale(-0.1f);
 				return 0;
 
 			case VK_RIGHT:

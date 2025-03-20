@@ -22,6 +22,8 @@ Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
 Box  g_DCDebugBox       = { 0 };
 bool g_bEnableDCDebug   = false;
 int  g_iDCDebugSrcIndex = -1;
+bool g_bDCDebugDisplayLabels = false;
+std::string g_DCDebugLabel = "";
 
 void DCResetSubRegions()
 {

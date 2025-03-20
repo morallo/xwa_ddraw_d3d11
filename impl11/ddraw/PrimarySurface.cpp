@@ -13415,7 +13415,7 @@ void PrimarySurface::RenderText(bool earlyExit)
 	rtv->BeginDraw();
 
 	// DEBUG: Display the coords of one of the DC boxes:
-	if (g_bEnableDCDebug)
+	if (g_bEnableDCDebug && !g_bUseSteamVR)
 	{
 		float width = 3.0f;
 		if (g_iDCDebugSrcIndex != -1)
@@ -13427,8 +13427,24 @@ void PrimarySurface::RenderText(bool earlyExit)
 			g_DCDebugBox.y1 = g_fCurScreenHeight * src_box->coords.y1;
 			width = 1.0f;
 		}
-		s_brush->SetColor(D2D1::ColorF(0xFF3030));
+		s_brush->SetColor(D2D1::ColorF(0xFFFFFF));
 		rtv->DrawRectangle(D2D1::RectF(g_DCDebugBox.x0, g_DCDebugBox.y0, g_DCDebugBox.x1, g_DCDebugBox.y1), s_brush, width);
+		if (g_bDCDebugDisplayLabels)
+		{
+			char* str = (char*)g_DCDebugLabel.c_str();
+			int width = ComputeMsgWidth(str, FONT_LARGE_IDX);
+
+			float x = (g_DCDebugBox.x0 + g_DCDebugBox.x1) / 2;
+			float y = g_DCDebugBox.y1 + 20;
+			float ix, iy;
+			// Don't put labels below the end of the screen:
+			if (y >= g_fCurScreenHeight)
+				y = g_DCDebugBox.y0 - 60;
+			ScreenCoordsToInGame(x, y, &ix, &iy);
+			ix = ix - width / 2;
+
+			DisplayText(str, FONT_LARGE_IDX, (int)ix, (int)iy, 0xFFFFFF);
+		}
 	}
 
 	unsigned int brushColor = 0;

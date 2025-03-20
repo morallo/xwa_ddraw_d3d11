@@ -306,6 +306,8 @@ void DCResetSubRegions();
 extern Box  g_DCDebugBox;
 extern bool g_bEnableDCDebug;
 extern int  g_iDCDebugSrcIndex;
+extern bool g_bDCDebugDisplayLabels;
+extern std::string g_DCDebugLabel;
 
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
 extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields
