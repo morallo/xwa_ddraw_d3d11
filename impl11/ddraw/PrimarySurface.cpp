@@ -13443,7 +13443,21 @@ void PrimarySurface::RenderText(bool earlyExit)
 			ScreenCoordsToInGame(x, y, &ix, &iy);
 			ix = ix - width / 2;
 
-			DisplayText(str, FONT_LARGE_IDX, (int)ix, (int)iy, 0xFFFFFF);
+			const short ix1 = DisplayText(str, FONT_LARGE_IDX, (int)ix, (int)iy, 0xFFFFFF);
+
+			// Render a rectangle under the text (the reason it appears under the text is that
+			// DisplayText() renders the text later.
+#if 0
+			{
+				float sx0, sy0, sx1, dummy;
+				InGameToScreenCoords(ix, iy, &sx0, &sy0);
+				InGameToScreenCoords(ix1, 0, &sx1, &dummy);
+				s_brush->SetColor(D2D1::ColorF(0x3080F0, 0.75f));
+				const float margin = 18.0f;
+				rtv->FillRectangle(D2D1::RectF(sx0 - margin, sy0 - margin,
+					sx1 + margin, sy0 + g_screenFontHeights[FONT_LARGE_IDX] + margin), s_brush);
+			}
+#endif
 		}
 	}
 
