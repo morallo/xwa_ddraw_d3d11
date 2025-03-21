@@ -1715,6 +1715,7 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	g_b3DSkydomePresent = false;
 	g_SSAO_PSCBuffer.enable_dist_fade = 0.0f;
 	g_bDCApplyEraseRegionCommands = !g_bHUDVisibleOnStartup;
+	DCResetSubRegions();
 	log_debug("[DBG] Resetting g_b3DSunPresent, g_b3DSkydomePresent");
 
 	g_meshToFGMap.clear(); // OnSizeChanged(), called when a mission is loaded

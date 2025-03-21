@@ -4392,6 +4392,12 @@ HRESULT Direct3DDevice::Execute(
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 
+							// This is how we transform from UV coords [0..1] to screen coords:
+							//g_DCCurSrcRegion.x0 = g_fCurScreenWidth  * dcElemSrcBox->coords.x0;
+							//g_DCCurSrcRegion.y0 = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
+							//g_DCCurSrcRegion.x1 = g_fCurScreenWidth  * dcElemSrcBox->coords.x1;
+							//g_DCCurSrcRegion.y1 = g_fCurScreenHeight * dcElemSrcBox->coords.y1;
+
 							// Get the limits for the CMD text
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_CMD_DC_ELEM_SRC_IDX];
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
@@ -4458,9 +4464,18 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->bComputed = true;
 
 							{
-								auto& autoBox  = g_DCSubRegions[DC_SUB_SHIP_NAME_IDX];
+								auto& autoBox  = g_DCSubRegions[DC_SUB_NAME_IDX];
 								autoBox.coords = dcElemSrcBox->coords;
 								autoBox.coords.y1 = autoBox.coords.y0 + 0.4f * (autoBox.coords.y1 - autoBox.coords.y0);
+								// Extend the box to the right to capture wide fonts
+								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
+								autoBox.bComputed = true;
+							}
+
+							{
+								auto& autoBox  = g_DCSubRegions[DC_SUB_TIME_IDX];
+								autoBox.coords = dcElemSrcBox->coords;
+								autoBox.coords.y0 = autoBox.coords.y0 + 0.6f * (autoBox.coords.y1 - autoBox.coords.y0);
 								// Extend the box to the right to capture wide fonts
 								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
 								autoBox.bComputed = true;
@@ -4473,6 +4488,16 @@ HRESULT Direct3DDevice::Execute(
 							dcElemSrcBox->coords = ComputeCoordsFromUV(left, top, width, height,
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
+
+							{
+								auto& autoBox  = g_DCSubRegions[DC_SUB_CHAFF_IDX];
+								autoBox.coords = dcElemSrcBox->coords;
+								// Move the left side of the box, so that we don't capture missile digits:
+								autoBox.coords.x0 = autoBox.coords.x0 + 0.5f * (autoBox.coords.x1 - autoBox.coords.x0);
+								// Extend the box to the right to capture wide fonts:
+								autoBox.coords.x1 += 5.0f / g_fCurInGameWidth;
+								autoBox.bComputed = true;
+							}
 
 							// Get the limits for Text Line 3
 							dcElemSrcBox = &g_DCElemSrcBoxes.src_boxes[KW_TEXT_RADIOSYS_DC_ELEM_SRC_IDX];

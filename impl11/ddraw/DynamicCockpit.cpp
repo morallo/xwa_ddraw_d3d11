@@ -10,6 +10,45 @@ DCHUDRegions g_DCHUDRegions;
 DCElemSrcBoxes g_DCElemSrcBoxes;
 dc_element g_DCElements[MAX_DC_SRC_ELEMENTS] = { 0 };
 SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
+Box g_speedBox;
+Box g_chaffBox;
+Box g_nameBox;
+Box g_timeBox;
+Box g_mslsBox[2];
+Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
+Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
+
+// DC Debug
+Box  g_DCDebugBox       = { 0 };
+bool g_bEnableDCDebug   = false;
+int  g_iDCDebugSrcIndex = -1;
+bool g_bDCDebugDisplayLabels = false;
+std::string g_DCDebugLabel = "";
+
+void DCResetSubRegions()
+{
+	g_bRecomputeFontHeights = true;
+	g_speedBox.Invalidate();
+	g_chaffBox.Invalidate();
+	g_nameBox.Invalidate();
+	g_timeBox.Invalidate();
+	g_mslsBox[0].Invalidate();
+	g_mslsBox[1].Invalidate();
+
+	g_tgtShdBox.Invalidate();
+	g_tgtHullBox.Invalidate();
+	g_tgtSysBox.Invalidate();
+	g_tgtDistBox.Invalidate();
+
+	// Do not invalidate these fields. It will cause them to shink and text will look
+	// quite stretched:
+	//g_tgtNameBox.Invalidate();
+	//g_tgtSubCmpBox.Invalidate();
+	//g_tgtCargoBox.Invalidate();
+	g_tgtNameBox   = g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_NAME_SRC_IDX].coords;
+	g_tgtSubCmpBox = g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_SUBCMP_SRC_IDX].coords;
+	g_tgtCargoBox  = g_DCElemSrcBoxes.src_boxes[TARGETED_OBJ_CARGO_SRC_IDX].coords;
+}
 
 float g_fCoverTextureBrightness = 1.0f;
 float g_fDCBrightness = 1.0f;
@@ -113,6 +152,12 @@ std::vector<const char*> g_DCElemSrcNames = {
 	"TARGETED_OBJ_SUBCMP_SRC",	// 39
 	"EIGHT_LASERS_BOTH_SRC",	// 40
 	"THROTTLE_BAR_SRC",			// 41
+	"AUTOSIZE_MISSILES_L_SRC",  // 42
+	"AUTOSIZE_MISSILES_R_SRC",  // 43
+	"AUTOSIZE_SPEED_SRC",       // 44
+	"AUTOSIZE_CHAFF_SRC",       // 45
+	"AUTOSIZE_NAME_SRC",        // 46
+	"AUTOSIZE_TIME_SRC",        // 47
 };
 
 int HUDRegionNameToIndex(char* name) {
@@ -936,6 +981,11 @@ bool LoadDCInternalCoordinates() {
 					{
 						box.x0 = 34.0f / 128.0f; box.y0 = 13.0f / 128.0f;
 						box.x1 = 63.0f / 128.0f; box.y1 = 25.0f / 128.0f;
+					}
+					else if (source_slot == MISSILES_DC_ELEM_SRC_IDX)
+					{
+						box.x0 = 200.0f / 256.0f; box.y0 =  0.0f / 32.0f;
+						box.x1 = 256.0f / 256.0f; box.y1 = 25.0f / 32.0f;
 					}
 					g_DCElemSrcBoxes.src_boxes[source_slot].uv_coords = box;
 				}

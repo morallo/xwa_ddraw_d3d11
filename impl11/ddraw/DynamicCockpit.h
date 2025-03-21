@@ -61,9 +61,13 @@ HOW TO ADD NEW ERASE REGION COMMANDS:
 */
 
 // DYNAMIC COCKPIT
-typedef struct Box_struct {
+struct Box {
 	float x0, y0, x1, y1;
-} Box;
+	void Invalidate()
+	{
+		*this = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+	}
+};
 
 // Also found in the Floating_GUI_RESNAME list:
 extern const char* DC_TARGET_COMP_SRC_RESNAME;
@@ -224,7 +228,13 @@ const int TARGETED_OBJ_DIST_SRC_IDX = 38;
 const int TARGETED_OBJ_SUBCMP_SRC_IDX = 39;
 const int EIGHT_LASERS_BOTH_SRC_IDX = 40;
 const int THROTTLE_BAR_DC_SRC_IDX = 41;
-const int MAX_DC_SRC_ELEMENTS = 42;
+const int AUTO_MSLS_LEFT_DC_SRC_IDX = 42;
+const int AUTO_MSLS_RIGHT_DC_SRC_IDX = 43;
+const int AUTO_SPEED_DC_SRC_IDX = 44;
+const int AUTO_CHAFF_DC_SRC_IDX = 45;
+const int AUTO_NAME_DC_SRC_IDX = 46;
+const int AUTO_TIME_DC_SRC_IDX = 47;
+const int MAX_DC_SRC_ELEMENTS = 48;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
@@ -266,10 +276,12 @@ struct SubDCSrcBox
 	bool bComputed = false;
 };
 
-constexpr int DC_SUB_SPEED_IDX     = 0;
-constexpr int DC_SUB_THROTTLE_IDX  = 1;
-constexpr int DC_SUB_SHIP_NAME_IDX = 2;
-constexpr int MAX_DC_SUB_ELEMENTS  = 3;
+constexpr int DC_SUB_SPEED_IDX    = 0;
+constexpr int DC_SUB_THROTTLE_IDX = 1;
+constexpr int DC_SUB_NAME_IDX     = 2;
+constexpr int DC_SUB_TIME_IDX     = 3;
+constexpr int DC_SUB_CHAFF_IDX    = 4;
+constexpr int MAX_DC_SUB_ELEMENTS = 5;
 /// <summary>
 /// This array holds UV coords for fractions of HUD elements, like the speed and
 /// throttle, for instance (they are in the same DC src region). These boxes are
@@ -280,7 +292,22 @@ constexpr int MAX_DC_SUB_ELEMENTS  = 3;
 /// at the same time when the "parent" DC source element UV coords are computed.
 /// </summary>
 extern SubDCSrcBox g_DCSubRegions[MAX_DC_SUB_ELEMENTS];
+extern Box g_speedBox;
+extern Box g_chaffBox;
+extern Box g_nameBox;
+extern Box g_timeBox;
+extern Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
+extern Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
+extern Box g_mslsBox[2];
+extern bool g_bRecomputeFontHeights;
+void DCResetSubRegions();
 
+// DC Debug
+extern Box  g_DCDebugBox;
+extern bool g_bEnableDCDebug;
+extern int  g_iDCDebugSrcIndex;
+extern bool g_bDCDebugDisplayLabels;
+extern std::string g_DCDebugLabel;
 
 extern bool g_bRenderLaserIonEnergyLevels; // If set, the Laser/Ion energy levels will be rendered from XWA's heap data
 extern bool g_bRenderThrottle; // If set, render the throttle as a vertical bar next to the shields
