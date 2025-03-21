@@ -982,6 +982,11 @@ bool LoadDCInternalCoordinates() {
 						box.x0 = 34.0f / 128.0f; box.y0 = 13.0f / 128.0f;
 						box.x1 = 63.0f / 128.0f; box.y1 = 25.0f / 128.0f;
 					}
+					else if (source_slot == MISSILES_DC_ELEM_SRC_IDX)
+					{
+						box.x0 = 200.0f / 256.0f; box.y0 =  0.0f / 32.0f;
+						box.x1 = 256.0f / 256.0f; box.y1 = 25.0f / 32.0f;
+					}
 					g_DCElemSrcBoxes.src_boxes[source_slot].uv_coords = box;
 				}
 				else
