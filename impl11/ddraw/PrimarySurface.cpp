@@ -13092,26 +13092,30 @@ void PrimarySurface::ExtractDCText()
 				}
 				else if (dcCurRegion == TIME_IDX)
 				{
-					g_timeBox.x0 = min(g_timeBox.x0, x0);
-					g_timeBox.y0 = min(g_timeBox.y0, y0);
-					g_timeBox.x1 = max(g_timeBox.x1, x1);
-					g_timeBox.y1 = max(g_timeBox.y1, y1);
+					if (xwaText.textChar != ' ' && xwaText.textChar >= '0' && xwaText.textChar <= '9' ||
+						xwaText.textChar == ':')
+					{
+						g_timeBox.x0 = min(g_timeBox.x0, x0);
+						g_timeBox.y0 = min(g_timeBox.y0, y0);
+						g_timeBox.x1 = max(g_timeBox.x1, x1);
+						g_timeBox.y1 = max(g_timeBox.y1, y1);
 
-					DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[AUTO_TIME_DC_SRC_IDX]);
-					InGameToScreenCoords(g_timeBox.x0, g_timeBox.y0, &(box->coords.x0), &(box->coords.y0));
-					InGameToScreenCoords(g_timeBox.x1, g_timeBox.y1, &(box->coords.x1), &(box->coords.y1));
+						DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[AUTO_TIME_DC_SRC_IDX]);
+						InGameToScreenCoords(g_timeBox.x0, g_timeBox.y0, &(box->coords.x0), &(box->coords.y0));
+						InGameToScreenCoords(g_timeBox.x1, g_timeBox.y1, &(box->coords.x1), &(box->coords.y1));
 
-					// Normalize to uv coords:
-					box->coords.x0 *= g_fCurScreenWidthRcp;
-					box->coords.y0 *= g_fCurScreenHeightRcp;
-					box->coords.x1 *= g_fCurScreenWidthRcp;
-					box->coords.y1 *= g_fCurScreenHeightRcp;
-					box->bComputed = true;
+						// Normalize to uv coords:
+						box->coords.x0 *= g_fCurScreenWidthRcp;
+						box->coords.y0 *= g_fCurScreenHeightRcp;
+						box->coords.x1 *= g_fCurScreenWidthRcp;
+						box->coords.y1 *= g_fCurScreenHeightRcp;
+						box->bComputed = true;
 
 #if DEBUG_DC_BOX == 1
-					//InGameToScreenCoords(g_timeBox.x0, g_timeBox.y0, &g_DCDebugBox.x0, &g_DCDebugBox.y0);
-					//InGameToScreenCoords(g_timeBox.x1, g_timeBox.y1, &g_DCDebugBox.x1, &g_DCDebugBox.y1);
+						//InGameToScreenCoords(g_timeBox.x0, g_timeBox.y0, &g_DCDebugBox.x0, &g_DCDebugBox.y0);
+						//InGameToScreenCoords(g_timeBox.x1, g_timeBox.y1, &g_DCDebugBox.x1, &g_DCDebugBox.y1);
 #endif
+					}
 				}
 				else
 				{
