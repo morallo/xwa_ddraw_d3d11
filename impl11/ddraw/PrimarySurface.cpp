@@ -13991,7 +13991,7 @@ void PrimarySurface::RenderBracket()
 			s_brushDC->SetColor(D2D1::ColorF(brushColor));
 		}
 
-		static float variableScale = 0.0f;
+		static float variableScale = 5.0f;
 
 		float posX = s_left + (float)xwaBracket.positionX * s_scaleX;
 		float posY = s_top + (float)xwaBracket.positionY * s_scaleY;
@@ -14003,7 +14003,7 @@ void PrimarySurface::RenderBracket()
 		{
 			const float centerX = posX + 0.5f * posW;
 			const float centerY = posY + 0.5f * posH;
-			// variableScale goes from 0 to 5. Here we normalize it to a different range:
+			// variableScale goes from 5 to 0. Here we normalize it to a different range:
 			const float bracketScale = 0.7f + 0.3f * (variableScale / 5.0f);
 			posH *= bracketScale;
 			posW *= bracketScale;
@@ -14029,8 +14029,8 @@ void PrimarySurface::RenderBracket()
 		// Update variableScale:
 		if (g_EnhancedHUDData.Enabled && xwaBracket.isSubComponent)
 		{
-			variableScale += 5.0f * g_HiResTimer.elapsed_s;
-			if (variableScale > 5.0f) variableScale = 0.0f;
+			variableScale -= 5.0f * g_HiResTimer.elapsed_s;
+			if (variableScale < 0.0f) variableScale = 5.0f;
 		}
 
 		bool fill = xwaBracket.width <= 4 || xwaBracket.height <= 4;
