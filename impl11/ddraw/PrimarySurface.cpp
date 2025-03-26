@@ -12680,6 +12680,22 @@ void PrimarySurface::ExtractDCText()
 	if (!g_bRendering3D)
 		return;
 
+	static int postHangarFrameCounter = 0;
+	if (postHangarFrameCounter == PLAYERDATATABLE_MIN_SAFE_FRAME)
+	{
+		DCResetSubRegions();
+	}
+
+	if (*g_playerInHangar)
+	{
+		postHangarFrameCounter = 0;
+		return;
+	}
+	else
+	{
+		postHangarFrameCounter++;
+	}
+
 	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
 	static   short s_rowSize    = (short)(0.0185f * g_fCurInGameHeight);
 	static   float s_lastInGameWidth = 0, s_lastInGameHeight = 0;
