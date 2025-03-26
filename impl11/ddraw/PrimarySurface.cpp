@@ -12696,6 +12696,7 @@ void PrimarySurface::ExtractDCText()
 		postHangarFrameCounter++;
 	}
 
+	const bool isProvingGround  = *(unsigned char*)(0x08053E0 + 0x05) != 0;
 	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
 	static   short s_rowSize    = (short)(0.0185f * g_fCurInGameHeight);
 	static   float s_lastInGameWidth = 0, s_lastInGameHeight = 0;
@@ -13014,28 +13015,38 @@ void PrimarySurface::ExtractDCText()
 
 				if (dcCurRegion == MISSILES_IDX)
 				{
-					g_mslsBoxBoth.x0 = min(g_mslsBoxBoth.x0, x0);
-					g_mslsBoxBoth.y0 = min(g_mslsBoxBoth.y0, y0);
-					g_mslsBoxBoth.x1 = max(g_mslsBoxBoth.x1, x1);
-					g_mslsBoxBoth.y1 = max(g_mslsBoxBoth.y1, y1);
-
-					// The text for missiles has whitespaces in it. We don't want that:
-					if (xwaText.textChar != ' ')
+					if (isProvingGround)
 					{
-						if (xwaText.textChar == ':')
+						g_mslsBoxBoth = { 0 };
+						g_mslsBox[0]  = { 0 };
+						g_mslsBox[1]  = { 0 };
+						g_chaffBox    = { 0 };
+					}
+					else
+					{
+						g_mslsBoxBoth.x0 = min(g_mslsBoxBoth.x0, x0);
+						g_mslsBoxBoth.y0 = min(g_mslsBoxBoth.y0, y0);
+						g_mslsBoxBoth.x1 = max(g_mslsBoxBoth.x1, x1);
+						g_mslsBoxBoth.y1 = max(g_mslsBoxBoth.y1, y1);
+
+						// The text for missiles has whitespaces in it. We don't want that:
+						if (xwaText.textChar != ' ')
 						{
-							mslsFSM = 1;
+							if (xwaText.textChar == ':')
+							{
+								mslsFSM = 1;
+							}
+							else
+							{
+								// The colon char should not be accumulated for the right bounding box
+								g_mslsBox[mslsFSM].x0 = min(g_mslsBox[mslsFSM].x0, x0);
+								g_mslsBox[mslsFSM].y0 = min(g_mslsBox[mslsFSM].y0, y0);
+								g_mslsBox[mslsFSM].x1 = max(g_mslsBox[mslsFSM].x1, x1);
+								g_mslsBox[mslsFSM].y1 = max(g_mslsBox[mslsFSM].y1, y1);
+							}
+							// Accumulate the current char to form a string:
+							*strings[dcCurRegion] += xwaText.textChar;
 						}
-						else
-						{
-							// The colon char should not be accumulated for the right bounding box
-							g_mslsBox[mslsFSM].x0 = min(g_mslsBox[mslsFSM].x0, x0);
-							g_mslsBox[mslsFSM].y0 = min(g_mslsBox[mslsFSM].y0, y0);
-							g_mslsBox[mslsFSM].x1 = max(g_mslsBox[mslsFSM].x1, x1);
-							g_mslsBox[mslsFSM].y1 = max(g_mslsBox[mslsFSM].y1, y1);
-						}
-						// Accumulate the current char to form a string:
-						*strings[dcCurRegion] += xwaText.textChar;
 					}
 				}
 				else if (dcCurRegion == SPEED_IDX)
