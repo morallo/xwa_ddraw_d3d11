@@ -234,7 +234,8 @@ const int AUTO_SPEED_DC_SRC_IDX = 44;
 const int AUTO_CHAFF_DC_SRC_IDX = 45;
 const int AUTO_NAME_DC_SRC_IDX = 46;
 const int AUTO_TIME_DC_SRC_IDX = 47;
-const int MAX_DC_SRC_ELEMENTS = 48;
+const int AUTO_MSLS_BOTH_SRC_IDX = 48;
+const int MAX_DC_SRC_ELEMENTS = 49;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
@@ -298,7 +299,7 @@ extern Box g_nameBox;
 extern Box g_timeBox;
 extern Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
 extern Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
-extern Box g_mslsBox[2];
+extern Box g_mslsBox[2], g_mslsBoxBoth;
 extern bool g_bRecomputeFontHeights;
 void DCResetSubRegions();
 

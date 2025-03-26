@@ -14,7 +14,7 @@ Box g_speedBox;
 Box g_chaffBox;
 Box g_nameBox;
 Box g_timeBox;
-Box g_mslsBox[2];
+Box g_mslsBox[2], g_mslsBoxBoth;
 Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
 Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
 
@@ -34,6 +34,7 @@ void DCResetSubRegions()
 	g_timeBox.Invalidate();
 	g_mslsBox[0].Invalidate();
 	g_mslsBox[1].Invalidate();
+	g_mslsBoxBoth.Invalidate();
 
 	g_tgtShdBox.Invalidate();
 	g_tgtHullBox.Invalidate();
@@ -158,6 +159,7 @@ std::vector<const char*> g_DCElemSrcNames = {
 	"AUTOSIZE_CHAFF_SRC",       // 45
 	"AUTOSIZE_NAME_SRC",        // 46
 	"AUTOSIZE_TIME_SRC",        // 47
+	"AUTOSIZE_MISSILES_B_SRC",  // 48
 };
 
 int HUDRegionNameToIndex(char* name) {

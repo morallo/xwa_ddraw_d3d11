@@ -12998,6 +12998,11 @@ void PrimarySurface::ExtractDCText()
 
 				if (dcCurRegion == MISSILES_IDX)
 				{
+					g_mslsBoxBoth.x0 = min(g_mslsBoxBoth.x0, x0);
+					g_mslsBoxBoth.y0 = min(g_mslsBoxBoth.y0, y0);
+					g_mslsBoxBoth.x1 = max(g_mslsBoxBoth.x1, x1);
+					g_mslsBoxBoth.y1 = max(g_mslsBoxBoth.y1, y1);
+
 					// The text for missiles has whitespaces in it. We don't want that:
 					if (xwaText.textChar != ' ')
 					{
@@ -13180,6 +13185,19 @@ void PrimarySurface::ExtractDCText()
 #if DEBUG_DC_BOX == 1
 		//if (i == 1) g_DCDebugBox = box->coords;
 #endif
+
+		// Normalize to uv coords:
+		box->coords.x0 *= g_fCurScreenWidthRcp;
+		box->coords.y0 *= g_fCurScreenHeightRcp;
+		box->coords.x1 *= g_fCurScreenWidthRcp;
+		box->coords.y1 *= g_fCurScreenHeightRcp;
+		box->bComputed = true;
+	}
+
+	{
+		DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[AUTO_MSLS_BOTH_SRC_IDX]);
+		InGameToScreenCoords(g_mslsBoxBoth.x0, g_mslsBoxBoth.y0, &box->coords.x0, &box->coords.y0);
+		InGameToScreenCoords(g_mslsBoxBoth.x1, g_mslsBoxBoth.y1, &box->coords.x1, &box->coords.y1);
 
 		// Normalize to uv coords:
 		box->coords.x0 *= g_fCurScreenWidthRcp;
