@@ -12734,6 +12734,7 @@ void PrimarySurface::ExtractDCText()
 	g_EnhancedHUDData.sMissiles   = "";
 	g_EnhancedHUDData.sSpeed      = "";
 	g_EnhancedHUDData.sChaff      = "";
+	g_EnhancedHUDData.sMissilesMis = "";
 
 	g_EnhancedHUDData.tgtShds = -1;
 	g_EnhancedHUDData.tgtHull = -1;
@@ -12764,8 +12765,9 @@ void PrimarySurface::ExtractDCText()
 	constexpr int SPEED_IDX     = 11;
 	constexpr int CHAFF_IDX     = 12;
 	constexpr int TIME_IDX      = 13;
+	constexpr int MISSILES_MIS_IDX = 14;
 
-	constexpr int MAX_IDX = 14;
+	constexpr int MAX_IDX = 15;
 
 	// This Finite State Machine is used to parse the missile count and make
 	// two bounding boxes.
@@ -12777,7 +12779,7 @@ void PrimarySurface::ExtractDCText()
 		false,
 		false, false, false,
 		false, false, false,
-		false,
+		false, false,
 	};
 	static int s_numComputedBoxes    = 0;
 	const  int dcSrcRegions[MAX_IDX] = {
@@ -12786,7 +12788,8 @@ void PrimarySurface::ExtractDCText()
 		TARGETED_OBJ_CARGO_SRC_IDX,
 		SHIELDS_FRONT_DC_ELEM_SRC_IDX, SHIELDS_BACK_DC_ELEM_SRC_IDX, NAME_TIME_DC_ELEM_SRC_IDX,
 		MISSILES_DC_ELEM_SRC_IDX, SPEED_N_THROTTLE_DC_ELEM_SRC_IDX, NUM_CRAFTS_DC_ELEM_SRC_IDX,
-		NAME_TIME_DC_ELEM_SRC_IDX
+		NAME_TIME_DC_ELEM_SRC_IDX,
+		MISSILES_DC_ELEM_SRC_IDX,
 	};
 	std::string *strings[] = {
 		&g_EnhancedHUDData.sTmp, &g_EnhancedHUDData.sTgtShds, &g_EnhancedHUDData.sTgtHull,
@@ -12794,9 +12797,9 @@ void PrimarySurface::ExtractDCText()
 		&g_EnhancedHUDData.sCargo,
 		&g_EnhancedHUDData.sShieldsFwd, &g_EnhancedHUDData.sShieldsBck, &g_EnhancedHUDData.sShipName,
 		&g_EnhancedHUDData.sMissiles, &g_EnhancedHUDData.sSpeed, &g_EnhancedHUDData.sChaff,
-		&g_EnhancedHUDData.sTime
+		&g_EnhancedHUDData.sTime, &g_EnhancedHUDData.sMissilesMis,
 	};
-	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1,  -1, -1, -1,  -1 };
+	int rows[MAX_IDX] = { -1, -1, -1,   -1, -1, -1,   -1,   -1, -1, -1,  -1, -1, -1,  -1, -1 };
 	constexpr int MAX_TGT_BOXES = 7;
 	Box* tgtBoxes[MAX_TGT_BOXES] = { &g_tgtNameBox, &g_tgtShdBox, &g_tgtHullBox,
 		&g_tgtSysBox, &g_tgtDistBox, &g_tgtSubCmpBox,
@@ -12873,6 +12876,14 @@ void PrimarySurface::ExtractDCText()
 			else if (dcCurRegion == CHAFF_IDX)
 			{
 				UseDCSubRegion(DC_SUB_CHAFF_IDX);
+#if DEBUG_DC_BOX == 1
+				//g_DCDebugBox.x0 = x0; g_DCDebugBox.y0 = y0;
+				//g_DCDebugBox.x1 = x1; g_DCDebugBox.y1 = y1;
+#endif
+			}
+			else if (dcCurRegion == MISSILES_MIS_IDX)
+			{
+				UseDCSubRegion(DC_SUB_MIS_MIS_IDX);
 #if DEBUG_DC_BOX == 1
 				//g_DCDebugBox.x0 = x0; g_DCDebugBox.y0 = y0;
 				//g_DCDebugBox.x1 = x1; g_DCDebugBox.y1 = y1;
@@ -13047,6 +13058,34 @@ void PrimarySurface::ExtractDCText()
 							// Accumulate the current char to form a string:
 							*strings[dcCurRegion] += xwaText.textChar;
 						}
+					}
+				}
+				else if (dcCurRegion == MISSILES_MIS_IDX)
+				{
+					if (isProvingGround)
+					{
+						g_mslsBoxMis  = { 0 };
+					}
+					else
+					{
+						g_mslsBoxMis.x0 = min(g_mslsBoxMis.x0, x0);
+						g_mslsBoxMis.y0 = min(g_mslsBoxMis.y0, y0);
+						g_mslsBoxMis.x1 = max(g_mslsBoxMis.x1, x1);
+						g_mslsBoxMis.y1 = max(g_mslsBoxMis.y1, y1);
+
+						// Accumulate the current char to form a string:
+						*strings[dcCurRegion] += xwaText.textChar;
+
+						DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[AUTO_MSLS_MIS_SRC_IDX]);
+						InGameToScreenCoords(g_mslsBoxMis.x0, g_mslsBoxMis.y0, &(box->coords.x0), &(box->coords.y0));
+						InGameToScreenCoords(g_mslsBoxMis.x1, g_mslsBoxMis.y1, &(box->coords.x1), &(box->coords.y1));
+
+						// Normalize to uv coords:
+						box->coords.x0 *= g_fCurScreenWidthRcp;
+						box->coords.y0 *= g_fCurScreenHeightRcp;
+						box->coords.x1 *= g_fCurScreenWidthRcp;
+						box->coords.y1 *= g_fCurScreenHeightRcp;
+						box->bComputed = true;
 					}
 				}
 				else if (dcCurRegion == SPEED_IDX)

@@ -14,7 +14,7 @@ Box g_speedBox;
 Box g_chaffBox;
 Box g_nameBox;
 Box g_timeBox;
-Box g_mslsBox[2], g_mslsBoxBoth;
+Box g_mslsBox[2], g_mslsBoxBoth, g_mslsBoxMis;
 Box g_tgtNameBox, g_tgtShdBox, g_tgtHullBox, g_tgtSysBox;
 Box g_tgtDistBox, g_tgtSubCmpBox, g_tgtCargoBox;
 
@@ -35,6 +35,7 @@ void DCResetSubRegions()
 	g_mslsBox[0].Invalidate();
 	g_mslsBox[1].Invalidate();
 	g_mslsBoxBoth.Invalidate();
+	g_mslsBoxMis.Invalidate();
 
 	g_tgtShdBox.Invalidate();
 	g_tgtHullBox.Invalidate();
@@ -160,6 +161,7 @@ std::vector<const char*> g_DCElemSrcNames = {
 	"AUTOSIZE_NAME_SRC",        // 46
 	"AUTOSIZE_TIME_SRC",        // 47
 	"AUTOSIZE_MISSILES_B_SRC",  // 48
+	"AUTOSIZE_MISSILES_MIS_SRC", // 49
 };
 
 int HUDRegionNameToIndex(char* name) {
@@ -491,7 +493,8 @@ bool LoadIndividualDCParams(char* sFileName) {
 				g_DCElements[lastDCElemSelected].bNoisyHolo = (bool)fValue;
 				log_debug("[DBG] noisy hologram");
 			}
-			else if (_stricmp(param, "fix_missles_countermeasures_text") == 0) {
+			else if (_stricmp(param, "fix_missles_countermeasures_text") == 0 ||
+				     _stricmp(param, "fix_missiles_countermeasures_text") == 0) {
 				g_bReRenderMissilesNCounterMeasures = (bool)fValue;
 			}
 			else if (_stricmp(param, "transparent") == 0) {

@@ -4392,6 +4392,14 @@ HRESULT Direct3DDevice::Execute(
 								uv_minmax, box, dcElemSrcBox->uv_coords);
 							dcElemSrcBox->bComputed = true;
 
+							{
+								auto& autoBox  = g_DCSubRegions[DC_SUB_MIS_MIS_IDX];
+								autoBox.coords = dcElemSrcBox->coords;
+								// Extend the box to the right to capture secondary missiles
+								autoBox.coords.x1 += 23.0f / g_fCurInGameWidth;
+								autoBox.bComputed = true;
+							}
+
 							// This is how we transform from UV coords [0..1] to screen coords:
 							//g_DCCurSrcRegion.x0 = g_fCurScreenWidth  * dcElemSrcBox->coords.x0;
 							//g_DCCurSrcRegion.y0 = g_fCurScreenHeight * dcElemSrcBox->coords.y0;
@@ -4493,7 +4501,7 @@ HRESULT Direct3DDevice::Execute(
 								auto& autoBox  = g_DCSubRegions[DC_SUB_CHAFF_IDX];
 								autoBox.coords = dcElemSrcBox->coords;
 								// Move the left side of the box, so that we don't capture missile digits:
-								autoBox.coords.x0 = autoBox.coords.x0 + 0.5f * (autoBox.coords.x1 - autoBox.coords.x0);
+								autoBox.coords.x0 = autoBox.coords.x0 + 0.7f * (autoBox.coords.x1 - autoBox.coords.x0);
 								// Extend the box to the right to capture wide fonts:
 								autoBox.coords.x1 += 5.0f / g_fCurInGameWidth;
 								autoBox.bComputed = true;
