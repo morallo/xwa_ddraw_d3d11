@@ -27,6 +27,7 @@ std::string g_DCDebugLabel = "";
 
 void DCResetSubRegions()
 {
+	log_debug("[DBG] [DC] Resetting DC Sub-regions");
 	g_bRecomputeFontHeights = true;
 	g_speedBox.Invalidate();
 	g_chaffBox.Invalidate();

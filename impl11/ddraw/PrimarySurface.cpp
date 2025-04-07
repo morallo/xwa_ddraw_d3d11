@@ -10095,6 +10095,29 @@ void PrimarySurface::RenderRTShadowMask()
 	this->_deviceResources->EndAnnotatedEvent();
 }
 
+/// <summary>
+/// Call this function every frame to detect when a mission has restarted.
+/// Courtesy of Jeremy, of course :)
+/// </summary>
+void DetectMissionRestart()
+{
+	static std::string _mission;
+	static int _missionIndex = 0;
+
+	const char* xwaMissionFileName = (const char*)0x06002E8;
+	const int missionFileNameIndex = *(int*)0x06002E4;
+
+	if (missionFileNameIndex == 0 ? (_mission != xwaMissionFileName) : (_missionIndex != missionFileNameIndex))
+	{
+		_mission = xwaMissionFileName;
+		_missionIndex = missionFileNameIndex;
+
+		// mission is reloaded
+		//log_debug("[DBG] MISSION RESTARTED");
+		DCResetSubRegions();
+	}
+}
+
 HRESULT PrimarySurface::Flip(
 	LPDIRECTDRAWSURFACE lpDDSurfaceTargetOverride,
 	DWORD dwFlags
@@ -11972,6 +11995,7 @@ HRESULT PrimarySurface::Flip(
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
 			//log_debug("[DBG] ******************* PRESENT 3D");
+			DetectMissionRestart();
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
 				static bool messageShown = false;

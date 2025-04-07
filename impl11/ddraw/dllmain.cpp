@@ -736,6 +736,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			case 'R':
 				ResetVRParams();
+				DCResetSubRegions();
 				return 0;
 
 			case 'V':
