@@ -63,9 +63,9 @@ Config::Config()
 	this->SwapJoystickXZAxes = false;
 	this->FXAAEnabled = false;
 	this->StayInHyperspace = false;
-	this->TriangleTextEnabled = true;
+	this->TriangleTextEnabled = false;
 	this->TrianglePointerEnabled = true;
-	this->SimplifiedTrianglePointer = false;
+	this->SimplifiedTrianglePointer = true;
 	this->Text2DRendererEnabled = true;
 	this->Radar2DRendererEnabled = true;
 	this->Text2DAntiAlias = true;
