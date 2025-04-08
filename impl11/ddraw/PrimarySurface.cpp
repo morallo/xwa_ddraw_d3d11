@@ -12704,8 +12704,12 @@ void PrimarySurface::ExtractDCText()
 	if (!g_bRendering3D)
 		return;
 
+	const bool bExternalCamera = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
+	static int postExternalCameraCounter = 0;
 	static int postHangarFrameCounter = 0;
-	if (postHangarFrameCounter == PLAYERDATATABLE_MIN_SAFE_FRAME)
+
+	if (postHangarFrameCounter == PLAYERDATATABLE_MIN_SAFE_FRAME ||
+		postExternalCameraCounter == PLAYERDATATABLE_MIN_SAFE_FRAME)
 	{
 		DCResetSubRegions();
 	}
@@ -12718,6 +12722,16 @@ void PrimarySurface::ExtractDCText()
 	else
 	{
 		postHangarFrameCounter++;
+	}
+
+	if (bExternalCamera)
+	{
+		postExternalCameraCounter = 0;
+		return;
+	}
+	else
+	{
+		postExternalCameraCounter++;
 	}
 
 	const bool isProvingGround  = *(unsigned char*)(0x08053E0 + 0x05) != 0;
