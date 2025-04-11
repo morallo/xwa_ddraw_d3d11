@@ -82,6 +82,8 @@ int MakeKeyFromGroupIdImageId(int groupId, int imageId);
 
 bool GetCurrentTargetStats(int* shields, int* hull, int* system, std::string& cargo, std::string &name);
 
+void ResetObjectIndexMap();
+
 void SetPresentCounter(int val, int bResetReticle) {
 	g_iPresentCounter = val;
 	if (g_pSharedDataCockpitLook != nullptr && g_SharedMemCockpitLook.IsDataReady() && bResetReticle) {
@@ -10113,8 +10115,9 @@ void DetectMissionRestart()
 		_missionIndex = missionFileNameIndex;
 
 		// mission is reloaded
-		//log_debug("[DBG] MISSION RESTARTED");
+		log_debug("[DBG] [DC] MISSION RESTARTED");
 		DCResetSubRegions();
+		//ResetObjectIndexMap();
 	}
 }
 
