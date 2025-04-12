@@ -787,9 +787,10 @@ HRESULT OffscreenSurface::Unlock(
 
 		if (copyHdBackground)
 		{
-			this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHdBackground, this->_deviceResources->_offscreenBuffer);
 			if (g_bUseSteamVR)
 				this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHdBackground, this->_deviceResources->_offscreenBufferHd);
+			else
+				this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHdBackground, this->_deviceResources->_offscreenBuffer);
 		}
 	}
 

@@ -1395,6 +1395,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	{
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBuffer,
 			0, BACKBUFFER_FORMAT);
+		// Probably not necessary since we're using a VR Overlay to display one image:
 		context->ResolveSubresource(
 			resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 			resources->_offscreenBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
