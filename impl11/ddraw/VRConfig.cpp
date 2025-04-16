@@ -11,6 +11,7 @@
 #include "Direct3DTexture.h"
 #include "TextureSurface.h"
 #include "SharedMem.h"
+#include "XwaTextureData.h"
 
 #include <map>
 
@@ -3509,7 +3510,7 @@ bool LoadGimbaLockFixConfig() {
 
 void ReloadMaterials()
 {
-	char* surface_name;
+	const char* surface_name;
 	char texname[MAX_TEXNAME];
 	bool bIsDat;
 	OPTNameType OPTname;
@@ -3524,15 +3525,15 @@ void ReloadMaterials()
 	ClearCraftMaterials();
 	ClearOPTnames();
 
-	for (Direct3DTexture* texture : g_AuxTextureVector) {
+	for (XwaTextureData* texture : g_AuxTextureVector) {
 		OPTname.name[0] = 0;
-		surface_name = texture->_surface->_cname;
+		surface_name = texture->_name.c_str();
 		bIsDat = false;
 		//bIsDat = strstr(surface_name, "dat,") != NULL;
 
 		// Capture the OPT/DAT name and load the material file
-		char* start = strstr(surface_name, "\\");
-		char* end = strstr(surface_name, ".opt");
+		const char* start = strstr(surface_name, "\\");
+		const char* end = strstr(surface_name, ".opt");
 		char sFileName[180], sFileNameShort[180];
 		if (start != NULL && end != NULL) {
 			start += 1; // Skip the backslash
@@ -3570,11 +3571,11 @@ void ReloadMaterials()
 		else
 		{
 			//log_debug("[DBG] [MAT] Craft Material %s found", OPTname.name);
-			char* start = strstr(surface_name, ".opt");
+			const char* start = strstr(surface_name, ".opt");
 			// Skip the ".opt," part
 			start += 5;
 			// Find the next comma
-			char* end = strstr(start, ",");
+			const char* end = strstr(start, ",");
 			int size = end - start;
 			strncpy_s(texname, MAX_TEXNAME, start, size);
 		}
