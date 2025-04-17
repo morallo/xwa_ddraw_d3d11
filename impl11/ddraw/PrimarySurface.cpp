@@ -12731,7 +12731,6 @@ void PrimarySurface::ExtractDCText()
 	if (bExternalCamera)
 	{
 		postExternalCameraCounter = 0;
-		return;
 	}
 	else
 	{
