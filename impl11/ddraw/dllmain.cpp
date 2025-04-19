@@ -1666,6 +1666,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				*(int*)(0x004CD35C + 0x01) = (int)D3dReleaseD3DINFO - (0x004CD35C + 0x05);
 				*(int*)(0x004CD147 + 0x01) = (int)D3dOptCreateD3DfromTexture - (0x004CD147 + 0x05);
 				*(unsigned char*)(0x004CD146 + 0x00) = 0x56; // push esi
+				log_debug("[DBG] [PATCH] Applied D3dRendererTexturesHook");
 			}
 
 			// FlightTakeScreenshot
