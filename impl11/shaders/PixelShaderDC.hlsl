@@ -240,8 +240,8 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (dc_bloom) {
 		// coverColor may have changed, we need to convert to HSV again
 		float3 HSV = RGBtoHSV(coverColor.xyz);
-		if (HSV.z >= 0.8) {
-			output.bloom       = float4(fBloomStrength * coverColor.xyz, 1);
+		if (HSV.z >= 0.5) {
+			output.bloom       = float4(2.0 * fBloomStrength * coverColor.xyz, 1);
 			output.ssaoMask.r  = 0;
 			output.ssaoMask.ga = 1; // Maximum glossiness on light areas
 			output.ssaoMask.b  = 0.15; // Low spec intensity
