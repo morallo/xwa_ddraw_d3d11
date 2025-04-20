@@ -1380,6 +1380,155 @@ void Direct3DDevice::GetBoundingBoxUVs(LPD3DINSTRUCTION instruction, UINT curInd
 		log_debug("[DBG] END Geom");
 }
 
+std::vector<Box> Direct3DDevice::GetBoundingBoxes(LPD3DINSTRUCTION instruction, UINT curIndex, bool debug)
+{
+	std::vector<Box> boxes;
+	LPD3DTRIANGLE triangle = (LPD3DTRIANGLE)(instruction + 1);
+	D3DTLVERTEX vert;
+	uint32_t index;
+	UINT idx = curIndex;
+	float px, py;
+	Box box;
+
+	if (debug)
+		log_debug("[DBG] START Geom");
+
+	for (WORD i = 0; i < instruction->wCount; i++)
+	{
+		// Start a new box every two triangles:
+		if (i % 2 == 0)
+		{
+			box.x0 =  FLT_MAX; box.y0 =  FLT_MAX;
+			box.x1 = -FLT_MAX; box.y1 = -FLT_MAX;
+		}
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v1;
+		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		if (px < box.x0) box.x0 = px; if (px > box.x1) box.x1 = px;
+		if (py < box.y0) box.y0 = py; if (py > box.y1) box.y1 = py;
+		if (debug) {
+			vert = g_OrigVerts[index];
+			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", vert.sx, vert.sy, vert.sz, vert.rhw, vert.tu, vert.tv);
+		}
+
+		//index = triangle->v2;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v2;
+		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		if (px < box.x0) box.x0 = px; if (px > box.x1) box.x1 = px;
+		if (py < box.y0) box.y0 = py; if (py > box.y1) box.y1 = py;
+		if (debug) {
+			vert = g_OrigVerts[index];
+			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", vert.sx, vert.sy, vert.sz, vert.rhw, vert.tu, vert.tv);
+		}
+
+		//index = triangle->v3;
+		index = g_config.D3dHookExists ? g_OrigIndex[idx++] : triangle->v3;
+		px = g_OrigVerts[index].sx; py = g_OrigVerts[index].sy;
+		if (px < box.x0) box.x0 = px; if (px > box.x1) box.x1 = px;
+		if (py < box.y0) box.y0 = py; if (py > box.y1) box.y1 = py;
+		if (debug) {
+			vert = g_OrigVerts[index];
+			log_debug("[DBG] sx: %0.6f, sy: %0.6f, sz: %0.6f, rhw: %0.6f, tu: %0.3f, tv: %0.3f", vert.sx, vert.sy, vert.sz, vert.rhw, vert.tu, vert.tv);
+		}
+		triangle++;
+
+		// Store a new box every 2 triangles
+		if (i % 2 == 1)
+			boxes.push_back(box);
+	}
+	if (debug)
+		log_debug("[DBG] END Geom");
+
+	return boxes;
+}
+
+Box ComputeDCEnergyBoxes(std::vector<Box>& boxes)
+{
+	Box fullBox = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
+	const float midScreenX  = g_fCurInGameWidth  * 0.5f;
+	const float midScreenY  = g_fCurInGameHeight * 0.5f;
+	const uint32_t numBoxes = (uint32_t )boxes.size();
+
+	float minBoxesY =  FLT_MAX;
+	float maxBoxesY = -FLT_MAX;
+	for (const Box& box : boxes)
+	{
+		minBoxesY = min(minBoxesY, box.y0);
+		maxBoxesY = max(maxBoxesY, box.y1);
+	}
+	const float midBoxesY = (minBoxesY + maxBoxesY) / 2.0f;
+
+	int dc_idx = -1;
+	for (Box& box : boxes)
+	{
+		const float W = box.x1 - box.x0;
+		const float H = box.y1 - box.y0;
+
+		const float x = (box.x0 + box.x1) / 2.0f;
+		const float y = (box.y0 + box.y1) / 2.0f;
+
+		// Extend to the sides, but avoid the box containing the energy bar:
+		box.x0 = x - (28.5f / 64.0f) * W;
+		box.x1 = x + (28.5f / 64.0f) * W;
+
+		// Make a small margin around the middle:
+		box.y0 = y - (0.5f / 64.0f) * H;
+		box.y1 = y + (0.5f / 64.0f) * H;
+
+		fullBox.x0 = min(fullBox.x0, box.x0);
+		fullBox.y0 = min(fullBox.y0, box.y0);
+
+		fullBox.x1 = max(fullBox.x1, box.x1);
+		fullBox.y1 = max(fullBox.y1, box.y1);
+
+		switch (numBoxes)
+		{
+			case 2:
+				if (x < midScreenX)
+					dc_idx = DUAL_LASER_ENERGY_BAR_L_SRC_IDX;
+				else
+					dc_idx = DUAL_LASER_ENERGY_BAR_R_SRC_IDX;
+				break;
+			case 4:
+				if (y < midBoxesY)
+				{
+					if (x < midScreenX)
+						dc_idx = QUAD_LASER_ENERGY_BAR_LU_SRC_IDX;
+					else
+						dc_idx = QUAD_LASER_ENERGY_BAR_RU_SRC_IDX;
+				}
+				else
+				{
+					if (x < midScreenX)
+						dc_idx = QUAD_LASER_ENERGY_BAR_LD_SRC_IDX;
+					else
+						dc_idx = QUAD_LASER_ENERGY_BAR_RD_SRC_IDX;
+				}
+				break;
+		}
+
+		if (dc_idx < 0)
+		{
+			log_debug("[DBG] [DC] ERROR: Could not compute box!");
+			continue;
+		}
+
+		DCElemSrcBox* dc_box = &(g_DCElemSrcBoxes.src_boxes[dc_idx]);
+		InGameToScreenCoords(box.x0, box.y0, &(dc_box->coords.x0), &(dc_box->coords.y0));
+		InGameToScreenCoords(box.x1, box.y1, &(dc_box->coords.x1), &(dc_box->coords.y1));
+
+		// Normalize to uv coords:
+		dc_box->coords.x0 *= g_fCurScreenWidthRcp;
+		dc_box->coords.y0 *= g_fCurScreenHeightRcp;
+		dc_box->coords.x1 *= g_fCurScreenWidthRcp;
+		dc_box->coords.y1 *= g_fCurScreenHeightRcp;
+		dc_box->bComputed = true;
+		log_debug("[DBG] [DC] %s computed (%0.1f, %0.1f)",
+			g_DCElemSrcNames[dc_idx], x, y);
+	}
+
+	return fullBox;
+}
+
 /*
 bool rayTriangleIntersect_old(
 	const Vector3 &orig, const Vector3 &dir,
@@ -4524,6 +4673,27 @@ HRESULT Direct3DDevice::Execute(
 								g_fCurScreenWidth * dcElemSrcBox->coords.x0, g_fCurScreenHeight * dcElemSrcBox->coords.y0,
 								g_fCurScreenWidth * dcElemSrcBox->coords.x1, g_fCurScreenHeight * dcElemSrcBox->coords.y1);*/
 						}
+					}
+
+					// Capture the bounds for the laser energy bars -- just the inside of the boxes
+					if (bLastTextureSelectedNotNULL && lastTextureSelected->is_DC_LaserBoxSrc &&
+						!g_DCElemSrcBoxes.src_boxes[ALL_LASER_ENERGY_BAR_SRC_IDX].bComputed)
+					{
+						DCElemSrcBox* box = &(g_DCElemSrcBoxes.src_boxes[ALL_LASER_ENERGY_BAR_SRC_IDX]);
+						std::vector<Box> src_boxes = GetBoundingBoxes(instruction, currentIndexLocation);
+						Box fullBox = ComputeDCEnergyBoxes(src_boxes);
+
+						InGameToScreenCoords(fullBox.x0, fullBox.y0, &(box->coords.x0), &(box->coords.y0));
+						InGameToScreenCoords(fullBox.x1, fullBox.y1, &(box->coords.x1), &(box->coords.y1));
+
+						// Normalize to uv coords:
+						box->coords.x0 *= g_fCurScreenWidthRcp;
+						box->coords.y0 *= g_fCurScreenHeightRcp;
+						box->coords.x1 *= g_fCurScreenWidthRcp;
+						box->coords.y1 *= g_fCurScreenHeightRcp;
+						box->bComputed = true;
+						log_debug("[DBG] [DC] LASER_ENERGY_BAR_SRC_IDX computed, num boxes: %d",
+							(int)src_boxes.size());
 					}
 				}
 

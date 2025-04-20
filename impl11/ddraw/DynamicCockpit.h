@@ -236,7 +236,14 @@ const int AUTO_NAME_DC_SRC_IDX = 46;
 const int AUTO_TIME_DC_SRC_IDX = 47;
 const int AUTO_MSLS_BOTH_SRC_IDX = 48;
 const int AUTO_MSLS_MIS_SRC_IDX = 49;
-const int MAX_DC_SRC_ELEMENTS = 50;
+const int DUAL_LASER_ENERGY_BAR_L_SRC_IDX  = 50;
+const int DUAL_LASER_ENERGY_BAR_R_SRC_IDX  = 51;
+const int QUAD_LASER_ENERGY_BAR_LU_SRC_IDX = 52;
+const int QUAD_LASER_ENERGY_BAR_LD_SRC_IDX = 53;
+const int QUAD_LASER_ENERGY_BAR_RU_SRC_IDX = 54;
+const int QUAD_LASER_ENERGY_BAR_RD_SRC_IDX = 55;
+const int ALL_LASER_ENERGY_BAR_SRC_IDX     = 56;
+const int MAX_DC_SRC_ELEMENTS = 57;
 extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
