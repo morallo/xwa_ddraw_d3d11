@@ -1570,6 +1570,7 @@ void DeviceResources::ResetDynamicCockpit() {
 	g_bYCenterHasBeenFixed = false;
 	g_bRenderLaserIonEnergyLevels = false;
 	g_bRenderThrottle = false;
+	g_DcEnergyBarData.Reset();
 	if (g_sCurrentCockpit[0] != 0) // Testing the name of the cockpit should prevent multiple resets
 	{
 		ResetActiveCockpit();

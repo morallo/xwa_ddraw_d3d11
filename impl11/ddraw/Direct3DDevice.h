@@ -42,7 +42,7 @@ public:
 		float *minU, float *minV, float *maxU, float *maxV,
 		bool debug=false);
 
-	std::vector<Box> GetBoundingBoxes(LPD3DINSTRUCTION instruction, UINT curIndex, bool debug=false);
+	void GetBoundingBoxes(LPD3DINSTRUCTION instruction, UINT curIndex, std::vector<Box>& boxes, bool debug=false);
 
 	bool ComputeCentroid(LPD3DINSTRUCTION instruction, UINT curIndex, Vector3 *Centroid, Vector2 *Centroid2D);
 

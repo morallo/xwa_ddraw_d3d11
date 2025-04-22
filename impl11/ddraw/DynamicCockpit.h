@@ -285,6 +285,23 @@ struct SubDCSrcBox
 	bool bComputed = false;
 };
 
+struct DcEnergyBarData
+{
+	bool bComputed = false;
+	std::vector<Box> src_boxes;
+
+	void Reset()
+	{
+		bComputed = false;
+		src_boxes.clear();
+	}
+
+	Box ReduceAndLabelBoxes();
+	void ComputeDCEnergyBoxes();
+};
+
+extern DcEnergyBarData g_DcEnergyBarData;
+
 constexpr int DC_SUB_SPEED_IDX    = 0;
 constexpr int DC_SUB_THROTTLE_IDX = 1;
 constexpr int DC_SUB_NAME_IDX     = 2;

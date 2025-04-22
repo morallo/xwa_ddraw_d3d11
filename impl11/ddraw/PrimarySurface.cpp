@@ -11686,6 +11686,11 @@ HRESULT PrimarySurface::Flip(
 				g_iD3DExecuteCounter = 0; // Reset the draw call counter for the D3DRendererHook
 				g_bDefaultStarfieldRendered = false;
 
+				if (g_bDCEnabled && !g_DcEnergyBarData.bComputed && g_DcEnergyBarData.src_boxes.size() > 0)
+				{
+					g_DcEnergyBarData.ComputeDCEnergyBoxes();
+				}
+
 				if (*g_playerInHangar && !g_bPrevPlayerInHangar)
 				{
 					// Restore the cockpit if we just landed in the hangar and the flag is set.
