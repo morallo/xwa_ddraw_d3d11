@@ -1603,6 +1603,9 @@ bool LoadDCParams() {
 			else if (_stricmp(param, "display_dc_labels") == 0) {
 				g_bDCDebugDisplayLabels = (bool)fValue;
 			}
+			else if (_stricmp(param, "enable_bloom_on_lasers") == 0) {
+				g_bDCEnableLaserBloom = (bool)fValue;
+			}
 		}
 	}
 	fclose(file);

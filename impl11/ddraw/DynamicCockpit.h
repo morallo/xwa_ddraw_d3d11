@@ -248,6 +248,8 @@ extern std::vector<const char*>g_DCElemSrcNames;
 // Convert a string into a *_DC_ELEM_SRC_IDX constant
 int DCSrcElemNameToIndex(char* name);
 
+bool DcIsLaserEnergySlot(int slot);
+
 class DCElemSrcBox {
 public:
 	Box uv_coords;
@@ -357,7 +359,7 @@ extern float g_fDCBrightness;
 extern move_region_coords g_DCMoveRegions;
 extern char g_sCurrentCockpit[128];
 extern bool g_bDCApplyEraseRegionCommands;
-extern bool g_bReRenderMissilesNCounterMeasures, g_bDCEnabled;
+extern bool g_bReRenderMissilesNCounterMeasures, g_bDCEnabled, g_bDCEnableLaserBloom;
 extern bool g_bGlobalDebugFlag, g_bInhibitCMDBracket;
 extern bool g_bHUDVisibleOnStartup;
 extern bool g_bCompensateFOVfor1920x1080;

@@ -6586,6 +6586,7 @@ bool EffectsRenderer::DCReplaceTextures(const SceneCompData* scene)
 	bool bSkip = false;
 	auto &resources = _deviceResources;
 	auto &context = resources->_d3dDeviceContext;
+	const uint32_t bloomOn = 0x10u << 24;
 
 	// Dynamic Cockpit: Replace textures at run-time:
 	if (!g_bDCEnabled || !_bLastTextureSelectedNotNULL || !_lastTextureSelected->is_DynCockpitDst ||
@@ -6645,6 +6646,10 @@ bool EffectsRenderer::DCReplaceTextures(const SceneCompData* scene)
 				// The hologram property will make *all* uvcoords in this DC element
 				// holographic as well:
 				//bIsHologram |= (dc_element->bHologram);
+
+				// Make all laser slots glow by default:
+				if (g_bDCEnableLaserBloom && DcIsLaserEnergySlot(src_slot))
+					g_DCPSCBuffer.bgColor[numCoords] |= bloomOn;
 				numCoords++;
 			} // for
 			// g_bDCHologramsVisible is a hard switch, let's use g_fDCHologramFadeIn instead to

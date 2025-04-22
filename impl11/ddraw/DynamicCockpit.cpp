@@ -58,7 +58,7 @@ float g_fDCBrightness = 1.0f;
 int g_iNumDCElements = 0;
 move_region_coords g_DCMoveRegions = { 0 };
 bool g_bDCApplyEraseRegionCommands = false, g_bReRenderMissilesNCounterMeasures = false;
-bool g_bDCEnabled = true;
+bool g_bDCEnabled = true, g_bDCEnableLaserBloom = true;
 bool g_bGlobalDebugFlag = false, g_bInhibitCMDBracket = false;
 bool g_bHUDVisibleOnStartup = false;
 bool g_bCompensateFOVfor1920x1080 = true;
@@ -171,6 +171,24 @@ std::vector<const char*> g_DCElemSrcNames = {
 	"QUAD_LASER_ENERGY_BAR_RD_SRC", // 55
 	"ALL_LASER_ENERGY_BAR_SRC",     // 56
 };
+
+bool DcIsLaserEnergySlot(int slot)
+{
+	return
+		slot == DUAL_LASERS_L_DC_ELEM_SRC_IDX || slot == DUAL_LASERS_R_DC_ELEM_SRC_IDX || slot == DUAL_LASERS_BOTH_DC_ELEM_SRC_IDX ||
+
+		slot == DUAL_LASER_ENERGY_BAR_L_SRC_IDX || slot == DUAL_LASER_ENERGY_BAR_R_SRC_IDX ||
+
+		slot == QUAD_LASERS_L_DC_ELEM_SRC_IDX || slot == QUAD_LASERS_R_DC_ELEM_SRC_IDX || slot == QUAD_LASERS_BOTH_DC_ELEM_SRC_IDX ||
+
+		slot == QUAD_LASER_ENERGY_BAR_LU_SRC_IDX || slot == QUAD_LASER_ENERGY_BAR_RU_SRC_IDX ||
+		slot == QUAD_LASER_ENERGY_BAR_LD_SRC_IDX || slot == QUAD_LASER_ENERGY_BAR_RD_SRC_IDX ||
+
+		slot == B_WING_LASERS_DC_ELEM_SRC_IDX || slot == EIGHT_LASERS_BOTH_SRC_IDX ||
+		slot == SIX_LASERS_BOTH_DC_ELEM_SRC_IDX || slot == SIX_LASERS_L_DC_ELEM_SRC_IDX || slot == SIX_LASERS_R_DC_ELEM_SRC_IDX ||
+
+		slot == ALL_LASER_ENERGY_BAR_SRC_IDX;
+}
 
 DcEnergyBarData g_DcEnergyBarData;
 
