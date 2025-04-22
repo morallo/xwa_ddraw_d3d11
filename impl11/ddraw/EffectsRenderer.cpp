@@ -3156,7 +3156,7 @@ void EffectsRenderer::SceneEnd()
 				BuildSingleBLASFromCurrentBVHMap();
 			}
 		}
-		else if ((g_bRTEnabled || g_bActiveCockpitEnabled) && !(*g_playerInHangar))
+		else if (g_bRendering3D && (g_bRTEnabled || g_bActiveCockpitEnabled) && !(*g_playerInHangar))
 		{
 			// Build multiple BLASes and put them in g_LBVHMap
 			BuildMultipleBLASFromCurrentBLASMap();
@@ -5494,7 +5494,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 
 	// Update g_TLASMap and get a new BlasID and Matrix Slot if necessary -- or find the
 	// existing blasID and matrixSlot for the current mesh/LOD/centroid
-	if (!g_bInTechRoom)
+	if (!g_bInTechRoom && g_bRendering3D)
 	{
 		// This is the correct transform chain to apply the Diegetic Joystick in RT; but
 		// I'm getting double shadows in the X-Wing (the A-Wing is fine). I think there's
@@ -5562,7 +5562,7 @@ void EffectsRenderer::UpdateBVHMaps(const SceneCompData* scene, int LOD)
 		}
 	}
 
-	if (!g_bInTechRoom)
+	if (!g_bInTechRoom && g_bRendering3D)
 	{
 		// Now update the g_BLASMap so that we can build multiple BLASes if needed.
 		BLASData blasData;
@@ -6128,7 +6128,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Only add these vertices to the BLAS if the texture is not transparent
 	// (engine glows are transparent and may both cast and catch shadows
 	// otherwise)... and other conditions
-	if (((g_bRTEnabledInTechRoom && InTechGlobe()) || g_bRTEnabled || g_bActiveCockpitEnabled) &&
+	if (((g_bRTEnabledInTechRoom && InTechGlobe()) || (g_bRTEnabled || g_bActiveCockpitEnabled) && g_bRendering3D) &&
 		g_rendererType != RendererType_Shadow && // This is a hangar shadow, ignore
 		!(*g_playerInHangar) && // Disable raytracing when parked in the hangar
 		_bLastTextureSelectedNotNULL &&
