@@ -349,12 +349,12 @@ HRESULT DirectDraw::CreateSurface(
 
 		TextureSurface* textureSurface = new TextureSurface(this->_deviceResources, allocOnLoad, lpDDSurfaceDesc->dwWidth, lpDDSurfaceDesc->dwHeight, lpDDSurfaceDesc->ddpfPixelFormat, mipmapCount, (const char*)lpDDSurfaceDesc->dwReserved);
 		*lplpDDSurface = textureSurface;
-		textureSurface->_cname[0] = 0;
-		// TODO: Replace texture names with dynamically-allocated char*'s and release them after they are classified during Load()
-		if (bTexNameAvailable && texName != nullptr && texName[0] != 0) {
-			//log_debug("[DBG] [DC] CreateSurface [%s], 0x%x", texName, textureSurface);
-			strcpy_s(textureSurface->_cname, MAX_TEXTURE_NAME, texName);
-		}
+		//textureSurface->_cname[0] = 0;
+		//// TODO: Replace texture names with dynamically-allocated char*'s and release them after they are classified during Load()
+		//if (bTexNameAvailable && texName != nullptr && texName[0] != 0) {
+		//	//log_debug("[DBG] [DC] CreateSurface [%s], 0x%x", texName, textureSurface);
+		//	strcpy_s(textureSurface->_cname, MAX_TEXTURE_NAME, texName);
+		//}
 
 #if LOGGER
 		str.str("");
