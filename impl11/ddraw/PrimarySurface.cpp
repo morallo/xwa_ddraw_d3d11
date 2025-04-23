@@ -13405,10 +13405,14 @@ void PrimarySurface::ExtractDCText()
 		g_pSharedDataTelemetry->tgtHull = g_EnhancedHUDData.tgtHull;
 		g_pSharedDataTelemetry->tgtSys  = g_EnhancedHUDData.tgtSys;
 		g_pSharedDataTelemetry->tgtDist = g_EnhancedHUDData.tgtDist;
-		strncpy_s(g_pSharedDataTelemetry->tgtName,   g_EnhancedHUDData.sName.c_str(),     TLM_MAX_NAME);
-		strncpy_s(g_pSharedDataTelemetry->tgtCargo,  g_EnhancedHUDData.sCargo.c_str(),    TLM_MAX_CARGO);
-		strncpy_s(g_pSharedDataTelemetry->tgtSubCmp, g_EnhancedHUDData.sSubCmp.c_str(),   TLM_MAX_SUBCMP);
-		strncpy_s(g_pSharedDataTelemetry->shipName,  g_EnhancedHUDData.sShipName.c_str(), TLM_MAX_SHIP_NAME);
+		memset(g_pSharedDataTelemetry->tgtName,   0, TLM_MAX_NAME);
+		memset(g_pSharedDataTelemetry->tgtCargo,  0, TLM_MAX_CARGO);
+		memset(g_pSharedDataTelemetry->tgtSubCmp, 0, TLM_MAX_SUBCMP);
+		memset(g_pSharedDataTelemetry->shipName,  0, TLM_MAX_SHIP_NAME);
+		strncpy_s(g_pSharedDataTelemetry->tgtName,   g_EnhancedHUDData.sName.c_str(),     TLM_MAX_NAME - 1);
+		strncpy_s(g_pSharedDataTelemetry->tgtCargo,  g_EnhancedHUDData.sCargo.c_str(),    TLM_MAX_CARGO - 1);
+		strncpy_s(g_pSharedDataTelemetry->tgtSubCmp, g_EnhancedHUDData.sSubCmp.c_str(),   TLM_MAX_SUBCMP - 1);
+		strncpy_s(g_pSharedDataTelemetry->shipName,  g_EnhancedHUDData.sShipName.c_str(), TLM_MAX_SHIP_NAME - 1);
 
 		g_pSharedDataTelemetry->counter++;
 		g_SharedMemTelemetry.SetDataReady();
