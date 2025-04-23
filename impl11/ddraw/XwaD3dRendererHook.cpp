@@ -2552,6 +2552,18 @@ XwaD3DInfo* D3dOptCreateD3DfromTexture(OptNode* textureNode, int A8, XwaTextureD
 	return d3dInfo;
 }
 
+HGLOBAL WINAPI DatGlobalAllocHook(UINT uFlags, SIZE_T dwBytes)
+{
+	HGLOBAL ptr = GlobalAlloc(uFlags, dwBytes);
+	return ptr;
+}
+
+HGLOBAL WINAPI DatGlobalReAllocHook(HGLOBAL hMem, SIZE_T dwBytes, UINT uFlags)
+{
+	//return GlobalReAlloc(hMem, dwBytes, uFlags);
+	return hMem;
+}
+
 #ifdef DISABLED
 //***************************************************************
 // VertexMap implementation
