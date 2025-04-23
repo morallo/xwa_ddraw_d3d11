@@ -230,6 +230,8 @@ HRESULT Direct3DTexture::PaletteChanged(
 	return DDERR_UNSUPPORTED;
 }
 
+static std::vector<char> g_d3dTextureBuffer;
+
 HRESULT Direct3DTexture::Load(
 	LPDIRECT3DTEXTURE lpD3DTexture)
 {
@@ -283,15 +285,18 @@ HRESULT Direct3DTexture::Load(
 
 	// DEBUG
 
-	if (d3dTexture->_textureData._textureView)
+	if (d3dTexture->_textureData._textureView.Get())
 	{
 #if LOGGER
 		str.str("\tretrieve existing texture");
 		LogText(str.str());
 #endif
 
-		d3dTexture->_textureData._textureView->AddRef();
-		this->_textureData._textureView = d3dTexture->_textureData._textureView.Get();
+		if (d3dTexture != this)
+		{
+			d3dTexture->_textureData._textureView->AddRef();
+			this->_textureData._textureView = d3dTexture->_textureData._textureView.Get();
+		}
 
 		return D3D_OK;
 	}
@@ -341,11 +346,18 @@ HRESULT Direct3DTexture::Load(
 
 		ComPtr<ID3D11Texture2D> texture;
 
-		char* data = nullptr;
+		//char* data = nullptr;
 
 		if (width % 4 != 0 || height % 4 != 0)
 		{
-			data = new char[width * height * 4];
+			size_t size = width * height * 4;
+			if (g_d3dTextureBuffer.capacity() < size)
+			{
+				g_d3dTextureBuffer.reserve(size);
+			}
+			char* data = g_d3dTextureBuffer.data();
+
+			//data = new char[width * height * 4];
 			BC7_Decode(surface->_buffer, data, width, height);
 
 			textureDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -355,10 +367,10 @@ HRESULT Direct3DTexture::Load(
 
 		HRESULT hr = this->_deviceResources->_d3dDevice->CreateTexture2D(&textureDesc, &textureData, &texture);
 
-		if (data)
-		{
-			delete[] data;
-		}
+		//if (data)
+		//{
+		//	delete[] data;
+		//}
 
 		if (FAILED(hr))
 		{
@@ -385,8 +397,11 @@ HRESULT Direct3DTexture::Load(
 			return D3DERR_TEXTURE_LOAD_FAILED;
 		}
 
-		d3dTexture->_textureData._textureView->AddRef();
-		this->_textureData._textureView = d3dTexture->_textureData._textureView.Get();
+		if (d3dTexture != this)
+		{
+			d3dTexture->_textureData._textureView->AddRef();
+			this->_textureData._textureView = d3dTexture->_textureData._textureView.Get();
+		}
 
 		return D3D_OK;
 	}
@@ -514,8 +529,11 @@ out:
 		return D3DERR_TEXTURE_LOAD_FAILED;
 	}
 
-	d3dTexture->_textureData._textureView->AddRef();
-	this->_textureData._textureView = d3dTexture->_textureData._textureView.Get();
+	if (d3dTexture != this)
+	{
+		d3dTexture->_textureData._textureView->AddRef();
+		this->_textureData._textureView = d3dTexture->_textureData._textureView.Get();
+	}
 
 	return D3D_OK;
 }

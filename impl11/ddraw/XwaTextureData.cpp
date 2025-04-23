@@ -45,6 +45,7 @@ int MakeKeyFromGroupIdImageId(int groupId, int imageId);
 
 XwaTextureData::XwaTextureData()
 {
+	this->_name = "";
 	this->_width = 0;
 	this->_height = 0;
 	this->_deviceResources = nullptr;
@@ -1038,13 +1039,15 @@ bool XwaTextureData::LoadShadowOBJ(const char* sFileName)
 	return true;
 }
 
+static std::vector<uint8_t> g_loadDatImageBuffer;
+
 int XwaTextureData::LoadDATImage(const char* sDATFileName, int GroupId, int ImageId, bool cache,
 	ID3D11ShaderResourceView** srv, short* Width_out, short* Height_out)
 {
 	short Width = 0, Height = 0;
 	uint8_t Format = 0;
 	uint8_t* buf = nullptr;
-	int buf_len = 0;
+	uint32_t buf_len = 0;
 	// Initialize the output to null/failure by default:
 	HRESULT res = E_FAIL;
 	auto& resources = this->_deviceResources;
@@ -1087,7 +1090,15 @@ int XwaTextureData::LoadDATImage(const char* sDATFileName, int GroupId, int Imag
 		buf_len = Width * Height * 4;
 	}
 
-	buf = new uint8_t[buf_len];
+	//buf = new uint8_t[buf_len];
+
+	if (g_loadDatImageBuffer.capacity() < buf_len)
+	{
+		g_loadDatImageBuffer.reserve(buf_len);
+	}
+
+	buf = g_loadDatImageBuffer.data();
+
 	if (!isBc7 && g_config.FlipDATImages && ReadFlippedDATImageData != nullptr)
 	{
 		if (ReadFlippedDATImageData(buf, buf_len))
@@ -1103,7 +1114,7 @@ int XwaTextureData::LoadDATImage(const char* sDATFileName, int GroupId, int Imag
 			log_debug("[DBG] [C++] Failed to read image data");
 	}
 
-	if (buf != nullptr) delete[] buf;
+	//if (buf != nullptr) delete[] buf;
 
 	if (FAILED(res))
 		return -1;
