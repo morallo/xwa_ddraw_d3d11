@@ -169,6 +169,14 @@ extern D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
 class XwaTextureData;
 extern std::vector<XwaTextureData*> g_AuxTextureVector;
 
+// Texture loading.
+extern std::vector<char>* g_textureSurfaceBuffer;
+extern std::vector<char>* g_d3dTextureBuffer;
+extern std::vector<uint8_t>* g_loadDatImageBuffer;
+extern std::vector<unsigned char>* g_colorMapBuffer;
+extern std::vector<unsigned char>* g_illumMapBuffer;
+void ClearTextureBuffers();
+
 // DS2 Effects
 extern int g_iReactorExplosionCount;
 

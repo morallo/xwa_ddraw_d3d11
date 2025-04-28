@@ -1,11 +1,33 @@
 // Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 #include "common.h"
+#include "globals.h"
 #include "TextureSurface.h"
 #include "MipmapSurface.h"
 #include "Direct3DTexture.h"
 
-static std::vector<char> g_textureSurfaceBuffer;
+std::vector<char>* g_textureSurfaceBuffer = nullptr;
+
+void ClearTextureBuffers()
+{
+	if (g_textureSurfaceBuffer != nullptr)
+		delete g_textureSurfaceBuffer;
+	if (g_loadDatImageBuffer != nullptr)
+		delete g_loadDatImageBuffer;
+	if (g_d3dTextureBuffer != nullptr)
+		delete g_d3dTextureBuffer;
+	if (g_colorMapBuffer != nullptr)
+		delete g_colorMapBuffer;
+	if (g_illumMapBuffer != nullptr)
+		delete g_illumMapBuffer;
+
+	g_textureSurfaceBuffer = nullptr;
+	g_loadDatImageBuffer = nullptr;
+	g_d3dTextureBuffer = nullptr;
+	g_colorMapBuffer = nullptr;
+	g_illumMapBuffer = nullptr;
+	//g_textureSurfaceBuffer.swap(std::vector<char>());
+}
 
 TextureSurface::TextureSurface(DeviceResources* deviceResources, bool allocOnLoad, DWORD width, DWORD height, DDPIXELFORMAT& pixelFormat, DWORD mipmapCount, const char* name)
 {
@@ -657,12 +679,15 @@ HRESULT TextureSurface::Lock(
 				this->_bufferSize = this->_width * this->_height * this->_pixelFormat.dwRGBBitCount / 8 * 2;
 				//this->_buffer = new char[this->_bufferSize];
 
-				if (g_textureSurfaceBuffer.capacity() < this->_bufferSize)
+				if (g_textureSurfaceBuffer == nullptr)
+					g_textureSurfaceBuffer = new std::vector<char>();
+
+				if (g_textureSurfaceBuffer->capacity() < this->_bufferSize)
 				{
-					g_textureSurfaceBuffer.reserve(this->_bufferSize);
+					g_textureSurfaceBuffer->reserve(this->_bufferSize);
 				}
 
-				this->_buffer = g_textureSurfaceBuffer.data();
+				this->_buffer = g_textureSurfaceBuffer->data();
 			}
 
 			*lpDDSurfaceDesc = {};

@@ -2225,14 +2225,20 @@ public:
 
 ColorConvert g_colorConvert;
 
-std::vector<unsigned char> g_colorMapBuffer;
-std::vector<unsigned char> g_illumMapBuffer;
+std::vector<unsigned char>* g_colorMapBuffer = nullptr;
+std::vector<unsigned char>* g_illumMapBuffer = nullptr;
 
 HRESULT D3dOptCreateTextureColorLight(XwaD3DInfo* d3dInfo, OptNode* textureNode, int textureId, XwaTextureDescription* textureDescription, unsigned char* optTextureData, unsigned char* optTextureAlphaData, unsigned short* optPalette8, unsigned short* optPalette0)
 {
 	// code from the 32bpp hook
 	const int XwaFlightBrightness = *(int*)0x006002C8;
 	const int brightnessLevel = (XwaFlightBrightness - 0x100) / 0x40;
+
+	if (g_colorMapBuffer == nullptr)
+		g_colorMapBuffer = new std::vector<unsigned char>();
+
+	if (g_illumMapBuffer == nullptr)
+		g_illumMapBuffer = new std::vector<unsigned char>();
 
 	int size = textureDescription->Width * textureDescription->Height;
 
@@ -2263,21 +2269,21 @@ HRESULT D3dOptCreateTextureColorLight(XwaD3DInfo* d3dInfo, OptNode* textureNode,
 
 	if (bpp == 8)
 	{
-		if ((int)g_colorMapBuffer.capacity() < size * 8)
+		if ((int)g_colorMapBuffer->capacity() < size * 8)
 		{
-			g_colorMapBuffer.reserve(size * 8);
+			g_colorMapBuffer->reserve(size * 8);
 		}
 
-		if ((int)g_illumMapBuffer.capacity() < size * 8)
+		if ((int)g_illumMapBuffer->capacity() < size * 8)
 		{
-			g_illumMapBuffer.reserve(size * 2);
+			g_illumMapBuffer->reserve(size * 2);
 		}
 
 		bool hasAlpha = optTextureAlphaData != 0;
 		bool hasIllum = false;
 
-		unsigned char* illumBuffer = g_illumMapBuffer.data();
-		unsigned char* colorBuffer = g_colorMapBuffer.data();
+		unsigned char* illumBuffer = g_illumMapBuffer->data();
+		unsigned char* colorBuffer = g_colorMapBuffer->data();
 
 		for (int i = 0; i < bytesSize; i++)
 		{
@@ -2330,18 +2336,18 @@ HRESULT D3dOptCreateTextureColorLight(XwaD3DInfo* d3dInfo, OptNode* textureNode,
 	}
 	else if (bpp == 32)
 	{
-		if ((int)g_colorMapBuffer.capacity() < size * 8)
+		if ((int)g_colorMapBuffer->capacity() < size * 8)
 		{
-			g_colorMapBuffer.reserve(size * 8);
+			g_colorMapBuffer->reserve(size * 8);
 		}
 
-		if ((int)g_illumMapBuffer.capacity() < size * 2)
+		if ((int)g_illumMapBuffer->capacity() < size * 2)
 		{
-			g_illumMapBuffer.reserve(size * 2);
+			g_illumMapBuffer->reserve(size * 2);
 		}
 
-		unsigned char* illumBuffer = g_illumMapBuffer.data();
-		unsigned char* colorBuffer = g_colorMapBuffer.data();
+		unsigned char* illumBuffer = g_illumMapBuffer->data();
+		unsigned char* colorBuffer = g_colorMapBuffer->data();
 
 		bool hasAlpha = ((char*)textureDescription->Palettes)[2] != 0;
 		bool hasIllum = ((char*)textureDescription->Palettes)[4] != 0;
@@ -2410,7 +2416,7 @@ HRESULT D3dOptCreateTextureColorLight(XwaD3DInfo* d3dInfo, OptNode* textureNode,
 	textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
 	D3D11_SUBRESOURCE_DATA textureData{};
-	textureData.pSysMem = g_colorMapBuffer.data();
+	textureData.pSysMem = g_colorMapBuffer->data();
 	textureData.SysMemPitch = textureDesc.Width * 4;
 	textureData.SysMemSlicePitch = 0;
 
@@ -2469,8 +2475,8 @@ HRESULT D3dOptCreateTextureColorLight(XwaD3DInfo* d3dInfo, OptNode* textureNode,
 
 	if (optHasIllum)
 	{
-		unsigned char* illumBuffer = g_illumMapBuffer.data();
-		unsigned char* colorBuffer = g_colorMapBuffer.data();
+		unsigned char* illumBuffer = g_illumMapBuffer->data();
+		unsigned char* colorBuffer = g_colorMapBuffer->data();
 
 		for (int i = 0; i < bytesSize; i++)
 		{

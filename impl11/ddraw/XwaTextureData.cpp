@@ -1039,7 +1039,7 @@ bool XwaTextureData::LoadShadowOBJ(const char* sFileName)
 	return true;
 }
 
-static std::vector<uint8_t> g_loadDatImageBuffer;
+std::vector<uint8_t>* g_loadDatImageBuffer = nullptr;
 
 int XwaTextureData::LoadDATImage(const char* sDATFileName, int GroupId, int ImageId, bool cache,
 	ID3D11ShaderResourceView** srv, short* Width_out, short* Height_out)
@@ -1092,12 +1092,14 @@ int XwaTextureData::LoadDATImage(const char* sDATFileName, int GroupId, int Imag
 
 	//buf = new uint8_t[buf_len];
 
-	if (g_loadDatImageBuffer.capacity() < buf_len)
-	{
-		g_loadDatImageBuffer.reserve(buf_len);
-	}
+	if (g_loadDatImageBuffer == nullptr)
+		g_loadDatImageBuffer = new std::vector<uint8_t>();
 
-	buf = g_loadDatImageBuffer.data();
+	if (g_loadDatImageBuffer->capacity() < buf_len)
+	{
+		g_loadDatImageBuffer->reserve(buf_len);
+	}
+	buf = g_loadDatImageBuffer->data();
 
 	if (!isBc7 && g_config.FlipDATImages && ReadFlippedDATImageData != nullptr)
 	{

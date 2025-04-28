@@ -230,7 +230,7 @@ HRESULT Direct3DTexture::PaletteChanged(
 	return DDERR_UNSUPPORTED;
 }
 
-static std::vector<char> g_d3dTextureBuffer;
+std::vector<char>* g_d3dTextureBuffer = nullptr;
 
 HRESULT Direct3DTexture::Load(
 	LPDIRECT3DTEXTURE lpD3DTexture)
@@ -351,11 +351,14 @@ HRESULT Direct3DTexture::Load(
 		if (width % 4 != 0 || height % 4 != 0)
 		{
 			size_t size = width * height * 4;
-			if (g_d3dTextureBuffer.capacity() < size)
+			if (g_d3dTextureBuffer == nullptr)
+				g_d3dTextureBuffer = new std::vector<char>();
+
+			if (g_d3dTextureBuffer->capacity() < size)
 			{
-				g_d3dTextureBuffer.reserve(size);
+				g_d3dTextureBuffer->reserve(size);
 			}
-			char* data = g_d3dTextureBuffer.data();
+			char* data = g_d3dTextureBuffer->data();
 
 			//data = new char[width * height * 4];
 			BC7_Decode(surface->_buffer, data, width, height);

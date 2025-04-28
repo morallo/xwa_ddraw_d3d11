@@ -12005,6 +12005,7 @@ HRESULT PrimarySurface::Flip(
 			// Doing Present(1, 0) limits the framerate to 30fps, without it, it can go up to 60; but usually
 			// stays around 45 in my system
 			//log_debug("[DBG] ******************* PRESENT 3D");
+			ClearTextureBuffers();
 			DetectMissionRestart();
 			if (FAILED(hr = this->_deviceResources->_swapChain->Present(bEnableVSync ? 1 : 0, 0)))
 			{
