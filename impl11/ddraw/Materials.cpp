@@ -1878,7 +1878,7 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 bool LoadIndividualMATParams(char *OPTname, char *sFileName, bool verbose) {
 	// Do not load materials for OPTs while the Skirmish selection screen is displayed:
 	const bool isInSkirmishShipScreen = (*(int*)0x007838A0 != 0);
-	if (isInSkirmishShipScreen || g_bInTechRoom)
+	if (isInSkirmishShipScreen)
 		return false;
 	// I may have to use std::array<char, DIM> and std::vector<std::array<char, Dim>> instead
 	// of TexnameType
