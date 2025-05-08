@@ -166,7 +166,16 @@ extern D3DTLVERTEX g_SpeedParticles2D[MAX_SPEED_PARTICLES * 12];
  * textures with materials can be placed here so that material properties can be
  * applied while flying.
  */
-extern std::vector<Direct3DTexture*> g_AuxTextureVector;
+class XwaTextureData;
+extern std::vector<XwaTextureData*> g_AuxTextureVector;
+
+// Texture loading.
+extern std::vector<char>* g_textureSurfaceBuffer;
+extern std::vector<char>* g_d3dTextureBuffer;
+extern std::vector<uint8_t>* g_loadDatImageBuffer;
+extern std::vector<unsigned char>* g_colorMapBuffer;
+extern std::vector<unsigned char>* g_illumMapBuffer;
+void ClearTextureBuffers();
 
 // DS2 Effects
 extern int g_iReactorExplosionCount;
