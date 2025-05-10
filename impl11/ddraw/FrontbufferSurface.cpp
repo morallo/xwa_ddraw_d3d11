@@ -492,7 +492,9 @@ HRESULT FrontbufferSurface::GetDC(
 			// Golden ddraw version:
 			//pDC->d2d1RenderTarget = this->_deviceResources->_d2d1RenderTarget;
 
-			pDC->d3d11RenderTargetView = this->_deviceResources->_renderTargetView;
+			pDC->d3d11RenderTargetView = (g_bUseSteamVR && g_config.HDConcourseEnabled) ?
+				pDC->d3d11RenderTargetView = this->_deviceResources->_renderTargetViewHd :
+				pDC->d3d11RenderTargetView = this->_deviceResources->_renderTargetView;
 			pDC->d3d11Device = this->_deviceResources->_d3dDevice;
 			pDC->d3d11DeviceContext = this->_deviceResources->_d3dDeviceContext;
 		}
