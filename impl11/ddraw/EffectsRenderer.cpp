@@ -3633,10 +3633,11 @@ void EffectsRenderer::ApplyMaterialProperties()
 		g_PSCBuffer.fBloomStrength = _lastTextureSelected->material.EffectBloom;
 	}
 
-	// lastTextureSelected can't be a lightmap anymore, so we don't need (?) to test bIsLightTexture
-	if (_lastTextureSelected->material.AlphaIsntGlass)
+	// If AlphaIsntGlass is enabled for a texture, it will show up as blue patches in the Tech Room.
+	// To avoid this, I'm disabling _noGlassPS if the Tech Room is enabled.
+	if (_lastTextureSelected->material.AlphaIsntGlass && !g_bInTechRoom)
 		// I feel like the AlphaIsntGlass property only makes sense when there's transparency, but
-		// that's now how I coded it, so there may be artifacts if I enable the following line:
+		// that's not how I coded it, so there may be artifacts if I enable the following line:
 		// && _lastTextureSelected->is_Transparent)
 	{
 		_bModifiedPixelShader = true;
