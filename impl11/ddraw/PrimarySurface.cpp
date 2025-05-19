@@ -1370,7 +1370,7 @@ void PrimarySurface::resizeForSteamVR(int iteration, bool is_2D) {
 	// bugs when displaying stuff. On the other hand, I don't want to touch this since it
 	// looks like it works (?) anyway...
 	const bool bIsInConcourseHD = resources->IsInConcourseHd();
-	const bool bInHdTechRoom = bIsInConcourseHD && g_bInTechRoom;
+	const bool bInHdTechRoom = bIsInConcourseHD && (g_bInTechRoom || InSkirmishShipScreen());
 
 	// Set the vertex buffer
 	UINT stride = sizeof(MainVertex);
@@ -10643,7 +10643,6 @@ HRESULT PrimarySurface::Flip(
 						//context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
 					}
 				}
-
 			}
 			else
 			{
