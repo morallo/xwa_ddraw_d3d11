@@ -45,6 +45,9 @@ TimedMessage g_TimedMessages[MAX_TIMED_MESSAGES];
 float g_screenFontHeights[3];
 float g_inGameFontHeights[3];
 bool g_bRecomputeFontHeights = true;
+// Used for the Enhanced HUD in VR mode to store the scale of the text:
+static float s_textScaleX = 1.0f;
+static float s_textScaleY = 1.0f;
 
 CraftInstanceHardpoint GetHardpoint(CraftInstance* craftInstance, int index);
 void ZToDepthRHW(float Z, float *sz, float *rhw);
@@ -380,10 +383,10 @@ Box DisplayCenteredLines(
 	}
 
 	int y = y0 + dispY;
-	box.x0 = (float)(x0 - (int)(alignment * maxWidth));
-	box.x1 = (float)(x0 + (int)(alignment * maxWidth));
-	box.y0 = (float)y;
-	box.y1 = (float)(y + maxNumLines * ySize);
+	box.x0 = s_textScaleX * (float)(x0 - (int)(alignment * maxWidth));
+	box.x1 = s_textScaleX * (float)(x0 + (int)(alignment * maxWidth));
+	box.y0 = s_textScaleY * (float)y;
+	box.y1 = s_textScaleY * (float)(y + maxNumLines * ySize);
 	for (int i = 0; i < maxNumLines; i++)
 	{
 		int x = x0 - (int)(alignment * maxWidth);
@@ -408,7 +411,11 @@ void PrimarySurface::RenderEnhancedHUDText()
 	char rows[3][SIZE];
 	char* dRows[3] = { rows[0], rows[1], rows[2] };
 	const int fontIdx = g_EnhancedHUDData.fontIdx;
-	const int vrCenterX = VR_ENHANCED_HUD_BUFFER_SIZE / 2;
+	// In VR, the text displayed must be scaled or letters will encroach on each
+	// other for certain resolutions (see RenderText() when _renderTextAbsCoords is
+	// set). Accordingly, the scale must also be applied to the display coordinates
+	// so that text remains centered:
+	const int vrCenterX = (int)((float)(VR_ENHANCED_HUD_BUFFER_SIZE / 2) / s_textScaleX);
 
 	// Render text on the target bracket
 	{
@@ -13701,8 +13708,10 @@ void PrimarySurface::RenderText(bool earlyExit)
 		}
 		else
 		{
-			x = (float)xwaText.positionX;
-			y = (float)xwaText.positionY;
+			s_textScaleX = s_scaleX;
+			s_textScaleY = s_scaleY;
+			x = (float)xwaText.positionX * s_scaleX;
+			y = (float)xwaText.positionY * s_scaleY;
 		}
 
 		//textLayout->SetFontStretch(DWRITE_FONT_STRETCH_ULTRA_EXPANDED, { 0, 256 });
