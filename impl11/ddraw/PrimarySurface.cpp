@@ -10639,12 +10639,20 @@ HRESULT PrimarySurface::Flip(
 
 				// Clear the RTVs for the next frame
 				{
+					const int currentGameState = *(int*)(0x009F60E0 + 0x25FA9);
+					const int updateCallback = *(int*)(0x009F60E0 + 0x25FB1 + 0x850 * currentGameState + 0x0844);
+					const bool isL00559E10GameStateUpdate = updateCallback == 0x00559E10;
+
 					// We're about to switch from 3D to 2D rendering.
 					// Let's clear the render target for the next iteration or we'll get multiple images during
 					// the animation
 					auto &context = this->_deviceResources->_d3dDeviceContext;
 					float bgColor[4] = { 0, 0, 0, 0 };
-					context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
+					// When message config is displayed (press ESC -> General Options -> Msg #)
+					// we should not erase the offscreenBuffer. Otherwise the pop-up text box
+					// appears on a black background:
+					if (!isL00559E10GameStateUpdate)
+						context->ClearRenderTargetView(resources->_renderTargetView, bgColor);
 					if (g_bUseSteamVR) {
 						context->ClearRenderTargetView(resources->_renderTargetViewR, bgColor);
 						//context->ClearRenderTargetView(resources->_renderTargetViewSteamVRResize, bgColor);
@@ -10676,8 +10684,9 @@ HRESULT PrimarySurface::Flip(
 				const int currentGameState = *(int*)(0x009F60E0 + 0x25FA9);
 				const int updateCallback = *(int*)(0x009F60E0 + 0x25FB1 + 0x850 * currentGameState + 0x0844);
 				const bool isConfigMenuGameStateUpdate = updateCallback == 0x0051D100;
+				const bool isL00559E10GameStateUpdate = updateCallback == 0x00559E10;
 
-				if (!isConfigMenuGameStateUpdate && this->_deviceResources->IsInConcourseHd())
+				if (!isConfigMenuGameStateUpdate && !isL00559E10GameStateUpdate && this->_deviceResources->IsInConcourseHd())
 				{
 					if (g_bUseSteamVR)
 						this->_deviceResources->_d3dDeviceContext->CopyResource(this->_deviceResources->_offscreenBufferHd, this->_deviceResources->_offscreenBufferHdBackground);
