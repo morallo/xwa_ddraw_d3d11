@@ -7694,11 +7694,12 @@ void EffectsRenderer::RenderVREnhancedHUD()
 
 	// Disp is a displacement that is applied in OPT coords to points within the original Dot Buffer.
 	// The Dot Buffer is a square quad that measures DOT_BUFFER_SIZE_M(ETERS) by side and it's centered
-	// at the origin. Displacing points by half that amount makes the points like on one of the edges
+	// at the origin. Displacing points by half that amount makes the points lie on one of the edges
 	// of the quad. We want to add an extra displacement so that the text is just outside the quad too.
 	constexpr float HALF_DOT_MESH_SIZE_M = DOT_MESH_SIZE_M * 0.5f;
 
 	// Render the current target bracket and its labels
+	if (!g_EnhancedHUDData.verticalBarLayout)
 	{
 		const int numRegions = 2;
 		const Box* srcBoxes[] = {
@@ -7726,6 +7727,41 @@ void EffectsRenderer::RenderVREnhancedHUD()
 		};
 		RenderVREnhancedHUDSingleBracket(g_curTargetBracketVR, numRegions, dcDispScale, srcBoxes);
 	}
+	else
+	{
+		// Vertical bars path
+		const int numRegions = 4;
+		const Box* srcBoxes[] = {
+			&g_EnhancedHUDData.bgTextBox,
+			&g_EnhancedHUDData.shdBarBox,
+			&g_EnhancedHUDData.hullBarBox,
+			&g_EnhancedHUDData.sysBarBox,
+		};
+
+		// x: X-Displacement
+		// y: Z-Displacement (Used to offset the label to the edge of the current target bracket)
+		// z: Z-Displacement (Additional displacement, applied as part of meshScale after the first displacement)
+		// w: Scale
+		const float boxWidth  = g_EnhancedHUDData.bgTextBox.x1 - g_EnhancedHUDData.bgTextBox.x0;
+		// The scale was determined empirically:
+		// - A box of width  30 maps to a factor of 0.5
+		// - A box of width 138 maps to a factor of 2.0
+		// So, we substract 30, then divide by 138 - 30 ~ 100 and map that to the range [0.5..2.0]
+		const float normWidth = (boxWidth - 30.0f) / 100.0f;
+		const float horzScale = lerp(0.5f, 2.15f, normWidth);
+		float4 dcDispScale[] = {
+			// Here dcDispScale.z is increasing the size of the quad so that moving the text to the edge of the
+			// target bracket actually puts the text slightly outside the edge. That's why the increase is
+			// proportional to the number of lines in the bgTextBox:
+			{ 0, -HALF_DOT_MESH_SIZE_M, 28000.0f * g_EnhancedHUDData.bgTextBoxNumLines, horzScale },
+			{ -HALF_DOT_MESH_SIZE_M, 0, 0, 1.0f },
+			{  HALF_DOT_MESH_SIZE_M, 0, 0, 1.0f },
+			{ 0,  HALF_DOT_MESH_SIZE_M, 45000.0f, 1.0f },
+		};
+		// We flip (rotate) the shields and hull bars, but not the rest:
+		bool flip[] = { false, true, true, false };
+		RenderVREnhancedHUDSingleBracket(g_curTargetBracketVR, numRegions, dcDispScale, srcBoxes, flip);
+	}
 
 	if (g_curSubCmpBracketVRCaptured)
 	{
@@ -7752,8 +7788,9 @@ void EffectsRenderer::RenderVREnhancedHUD()
 	_deviceResources->EndAnnotatedEvent();
 }
 
-void EffectsRenderer::RenderVREnhancedHUDSingleBracket(const BracketVR& curTargetBracketVR, const int numRegions,
-	const float4 *dcDispScale, const Box** srcBoxes)
+void EffectsRenderer::RenderVREnhancedHUDSingleBracket(
+	const BracketVR& curTargetBracketVR, const int numRegions,
+	const float4 *dcDispScale, const Box** srcBoxes, const bool *flip)
 {
 	auto& resources = _deviceResources;
 	auto& context = resources->_d3dDeviceContext;
@@ -7786,6 +7823,9 @@ void EffectsRenderer::RenderVREnhancedHUDSingleBracket(const BracketVR& curTarge
 	Matrix4 toSteamVR = swap * S;
 
 	Vector3 X = curTargetBracketVR.posOPT;
+	// This rotation flips the bracket. We need to do this to display vertical bars
+	// when appropriate:
+	Matrix4 FlipR = Matrix4().rotateY(-90.0f);
 	Matrix4 TOpt = Matrix4().translate(X.x, X.y, X.z);
 	// If we translate the current bracket to X, it will appear exactly on top of the
 	// targeted craft, but the size of the bracket will change depending on the distance
@@ -7880,7 +7920,10 @@ void EffectsRenderer::RenderVREnhancedHUDSingleBracket(const BracketVR& curTarge
 		Vector3 midTopDir = BRACKET_DEPTH_OPT * Vector4ToVector3(midTop).normalize();
 		Matrix4 TmidTop = Matrix4().translate(midTopDir.x, midTopDir.y, midTopDir.z);
 		// Finally, we switch to a fixed scale so that the label does not change size:
-		DotTransform = swapScale * TmidTop * Scale * V;
+		if (flip == nullptr || !flip[dcCurRegion])
+			DotTransform = swapScale * TmidTop * Scale * V;
+		else
+			DotTransform = swapScale * TmidTop * Scale * FlipR * V;
 
 		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
 		DotTransform.transpose();

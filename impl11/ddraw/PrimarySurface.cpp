@@ -14361,15 +14361,29 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 			hullCol = lerp(g_EnhancedHUDData.hullCol3, g_EnhancedHUDData.hullCol2, hull / 0.5f);
 		s_hullBrush->SetColor(D2D1::ColorF(hullCol.x, hullCol.y, hullCol.z));
 
-		if (!g_EnhancedHUDData.verticalBarLayout)
+		if (g_bUseSteamVR || (!g_bUseSteamVR && !g_EnhancedHUDData.verticalBarLayout))
 		{
 			const float centerX = g_bUseSteamVR ? vrCenterX : posX + posW * 0.5f;
 			const float startX  = centerX - barW * 0.5f;
 			float y = g_bUseSteamVR ? vrCenterY : posY + posH + gapH;
 
+			// Group box: this box encompasses all bars
 			g_EnhancedHUDData.barsBox.x0 = startX;
 			g_EnhancedHUDData.barsBox.x1 = startX + barW;
 			g_EnhancedHUDData.barsBox.y0 = y;
+
+			// Individual boxes
+			g_EnhancedHUDData.shdBarBox.x0 = g_EnhancedHUDData.barsBox.x0;
+			g_EnhancedHUDData.shdBarBox.x1 = g_EnhancedHUDData.barsBox.x1;
+
+			g_EnhancedHUDData.hullBarBox.x0 = g_EnhancedHUDData.barsBox.x0;
+			g_EnhancedHUDData.hullBarBox.x1 = g_EnhancedHUDData.barsBox.x1;
+
+			g_EnhancedHUDData.sysBarBox.x0 = g_EnhancedHUDData.barsBox.x0;
+			g_EnhancedHUDData.sysBarBox.x1 = g_EnhancedHUDData.barsBox.x1;
+
+			g_EnhancedHUDData.shdBarBox.y0 = y;
+			g_EnhancedHUDData.shdBarBox.y1 = y + barH;
 			if (g_EnhancedHUDData.tgtShds >= 0)
 			{
 				s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.shieldsCol));
@@ -14379,11 +14393,13 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 				if (shd > 1.0f)
 				{
 					s_shieldsBrush->SetColor(D2D1::ColorF(g_EnhancedHUDData.overShdCol));
-					rtv->FillRectangle(D2D1::RectF(startX, y, startX + (shd - 1.0f) * barW,  y + barH), s_shieldsBrush);
+					rtv->FillRectangle(D2D1::RectF(startX, y, startX + (shd - 1.0f) * barW, y + barH), s_shieldsBrush);
 				}
 			}
 			y += barH + gapH;
 
+			g_EnhancedHUDData.hullBarBox.y0 = y;
+			g_EnhancedHUDData.hullBarBox.y1 = y + barH;
 			if (g_EnhancedHUDData.tgtHull >= 0)
 			{
 				rtv->DrawRectangle(D2D1::RectF(startX, y, startX + barW, y + barH), s_hullBrush, strokeSize);
@@ -14393,6 +14409,8 @@ void PrimarySurface::RenderEnhancedHUDBars(bool bDestroyed)
 
 			g_EnhancedHUDData.barsBox.y1 = y;
 
+			g_EnhancedHUDData.sysBarBox.y0 = y;
+			g_EnhancedHUDData.sysBarBox.y1 = y + barH;
 			// Only display the sys bar when there's damage
 			if (g_EnhancedHUDData.tgtSys >= 0 && g_EnhancedHUDData.tgtSys < 100)
 			{

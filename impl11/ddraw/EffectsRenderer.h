@@ -287,7 +287,9 @@ public:
 	void RenderVRBrackets();
 	void RenderVRHUD();
 	void RenderVREnhancedHUD();
-	void RenderVREnhancedHUDSingleBracket(const BracketVR& curTargetBracketVR, const int numRegions, const float4* dcDispScale, const Box** srcBoxes);
+	void RenderVREnhancedHUDSingleBracket(
+		const BracketVR& curTargetBracketVR, const int numRegions,
+		const float4* dcDispScale, const Box** srcBoxes, const bool *flip=nullptr);
 	void RenderSkyBox(bool debug);
 	void RenderVRKeyboard();
 	void RenderVRGloves();

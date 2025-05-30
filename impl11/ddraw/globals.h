@@ -384,6 +384,7 @@ struct EnhancedHUDData
 	Box    bgTextBox;
 	Box    subCmpBox;
 	Box    barsBox;
+	Box    shdBarBox, hullBarBox, sysBarBox;
 
 	std::string sShieldsFwd, sShieldsBck, sShipName;
 	std::string sMissiles, sSpeed, sChaff, sMissilesMis;
