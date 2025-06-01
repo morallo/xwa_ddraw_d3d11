@@ -7754,8 +7754,10 @@ void EffectsRenderer::RenderVREnhancedHUD()
 			// target bracket actually puts the text slightly outside the edge. That's why the increase is
 			// proportional to the number of lines in the bgTextBox:
 			{ 0, -HALF_DOT_MESH_SIZE_M, 28000.0f * g_EnhancedHUDData.bgTextBoxNumLines, horzScale },
-			{ -HALF_DOT_MESH_SIZE_M, 0, 0, 1.0f },
-			{  HALF_DOT_MESH_SIZE_M, 0, 0, 1.0f },
+			// We're using 45000 here to add a margin to the bars so that they don't
+			// overlap the main target bracket.
+			{ -HALF_DOT_MESH_SIZE_M, 0, 45000.0f, 1.0f },
+			{  HALF_DOT_MESH_SIZE_M, 0, 45000.0f, 1.0f },
 			{ 0,  HALF_DOT_MESH_SIZE_M, 45000.0f, 1.0f },
 		};
 		// We flip (rotate) the shields and hull bars, but not the rest:
@@ -7825,7 +7827,7 @@ void EffectsRenderer::RenderVREnhancedHUDSingleBracket(
 	Vector3 X = curTargetBracketVR.posOPT;
 	// This rotation flips the bracket. We need to do this to display vertical bars
 	// when appropriate:
-	Matrix4 FlipR = Matrix4().rotateY(-90.0f);
+	Matrix4 FlipR = Matrix4().rotateY(90.0f);
 	Matrix4 TOpt = Matrix4().translate(X.x, X.y, X.z);
 	// If we translate the current bracket to X, it will appear exactly on top of the
 	// targeted craft, but the size of the bracket will change depending on the distance
@@ -7881,6 +7883,16 @@ void EffectsRenderer::RenderVREnhancedHUDSingleBracket(
 	_trianglesCount = g_vrDotNumTriangles;
 	Matrix4 DotTransform;
 
+	// This section computes an anisotropic scale for the vertical bar brackets.
+	// I just made the scale proportional to the size of the main target bracket.
+	constexpr float MAX_BRACKET_WIDTH   = 200000.0f;
+	constexpr float MIN_BRACKET_WIDTH   = 70000.0f;
+	constexpr float BRACKET_WIDTH_RANGE = MAX_BRACKET_WIDTH - MIN_BRACKET_WIDTH;
+	const float bracketNormWidth    = curTargetBracketVR.halfWidthOPT / meshWidth;
+	const float clampedBracketWidth = min(MAX_BRACKET_WIDTH, max(MIN_BRACKET_WIDTH, bracketNormWidth));
+	const float vertBarScale = lerp(0.3f, 1.0f, (clampedBracketWidth - MIN_BRACKET_WIDTH) / BRACKET_WIDTH_RANGE);
+	const Matrix4 AnisoScale = Matrix4().scale(vertBarScale, 1.0f, 1.0f);
+
 	for (int dcCurRegion = 0; dcCurRegion < numRegions; dcCurRegion++)
 	{
 		// This is the *fixed* scale of the text bracket. Here we're using a scale that is
@@ -7923,7 +7935,7 @@ void EffectsRenderer::RenderVREnhancedHUDSingleBracket(
 		if (flip == nullptr || !flip[dcCurRegion])
 			DotTransform = swapScale * TmidTop * Scale * V;
 		else
-			DotTransform = swapScale * TmidTop * Scale * FlipR * V;
+			DotTransform = swapScale * TmidTop * Scale * V * FlipR * AnisoScale;
 
 		// The Vertex Shader does post-multiplication, so we need to transpose the matrix:
 		DotTransform.transpose();
