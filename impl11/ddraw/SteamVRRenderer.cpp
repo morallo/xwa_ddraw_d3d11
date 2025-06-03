@@ -70,20 +70,11 @@ void SteamVRRenderer::RenderSkirmishOPT()
 
 	resources->InitVertexShader(_vertexShader);
 
-	// Multiplying by 1.25f to make the OPT a bit bigger:
-	const float H = 1.25f * (float)HD_CONCOURSE_HEIGHT;
-	// Compute the width to force a 4/3 aspect ratio:
-	const float W = H * 1.333f;
-
 	D3D11_VIEWPORT viewport;
-	viewport.Width    = W;
-	viewport.Height   = H;
-	// Make sure the render is centered horizontally:
-	viewport.TopLeftX = (float)(HD_CONCOURSE_WIDTH - W) * 0.5f;
-	// Substracting 100 below to pull the OPT upwards a little bit. This
-	// makes it look more "centered" because there's a row of buttons in
-	// the bottom of the screen.
-	viewport.TopLeftY = -0.5f * (H - HD_CONCOURSE_HEIGHT) - 100.0f;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.Width    = HD_CONCOURSE_WIDTH;
+	viewport.Height   = HD_CONCOURSE_HEIGHT;
 	viewport.MinDepth = D3D11_MIN_DEPTH;
 	viewport.MaxDepth = D3D11_MAX_DEPTH;
 	resources->InitViewport(&viewport);
@@ -94,6 +85,24 @@ void SteamVRRenderer::RenderSkirmishOPT()
 	g_VSCBuffer.mult_z_override = -1.0f;
 	// Add extra depth to Floating GUI elements
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
+
+	// I don't like doing this because it's hacky, but this works, so...
+	// The skirmish OPT is rendered too big/outside the viewport for high VR resolutions.
+	// To fix this, I'm scaling down the OPT, and moving it in 3D so that it more-or-less
+	// lands in the proper area and isn't clipped. The numbers here were eyeballed (that's
+	// the hacky part) because I don't know what's the proper bounds used for OPT rendering.
+	// Like I said, it works, gets the job done, so moving on for now...
+	// The 1.35f below is a generic scale to make the OPT a bit bigger:
+	const float scale = 1.35f * (float)HD_CONCOURSE_HEIGHT / (float)g_steamVRHeight;
+	const float xDisp = lerp(3.0f, 10.0f, (g_steamVRWidth - 1500.0f) / (2600.0f - 1500.0f));
+	// 1.333f is for the aspect ratio
+	Matrix4 S = Matrix4().scale(scale, scale, 1.333f * scale);
+	Matrix4 T = Matrix4().translate(xDisp * METERS_TO_OPT, 0, 3.0f * METERS_TO_OPT);
+	g_OPTMeshTransformCB.MeshTransform.identity();
+	g_OPTMeshTransformCB.MeshTransform = T * S;
+	// This transpose is needed because the vertex shader does a post-multiplication:
+	g_OPTMeshTransformCB.MeshTransform.transpose();
+	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);
 
 	ID3D11RenderTargetView* rtvs[7] = {
 		resources->_renderTargetViewHd.Get(),
