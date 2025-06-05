@@ -62,6 +62,8 @@ extern float g_fPushButtonThreshold, g_fReleaseButtonThreshold;
 extern int g_iBestIntersTexIdx[2]; // The index into g_ACElements where the intersection occurred
 extern bool g_bPrevHoveringOnActiveElem[2];
 extern bool g_bFreePIEControllerButtonDataAvailable;
+extern bool g_bACAnchorTexturePresent;
+extern char g_ACAnchorName[MAX_TEXTURE_NAME];
 extern ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT];
 extern int g_iNumACElements, g_iVRKeyboardSlot;
 extern int g_iVRGloveSlot[2];

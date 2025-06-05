@@ -6112,8 +6112,17 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// TODO: Update the Hyperspace FSM -- but only update it exactly once per frame.
 	// Looks like the code to do this update in Execute() still works. So moving on for now
 
+	// If we happen to capture the worldview transform for a mesh that is part of an S-Foil,
+	// then the AC gloves will be "attached" to the S-Foils and rotate with it when activated.
+	// To prevent this, we need to check if the "AC Anchor" is enabled. If it isn't enabled,
+	// then we don't worry about it. If enabled, then we need to check that the current texture
+	// is part of the anchor.
+	const bool bSFoilsFilterPassed = !g_bACAnchorTexturePresent ||
+		(_bLastTextureSelectedNotNULL &&
+		 (stristr(_lastTextureSelected->_name.c_str(), g_ACAnchorName) != nullptr));
+
 	// Capture the cockpit OPT -> View transform. It's used for ShadowMapping and VR gloves
-	if (!_bCockpitConstantsCaptured && (_bIsCockpit || _bIsGunner))
+	if (!_bCockpitConstantsCaptured && (_bIsCockpit || _bIsGunner) && bSFoilsFilterPassed)
 	{
 		_bCockpitConstantsCaptured = true;
 		_CockpitConstants = _constants;

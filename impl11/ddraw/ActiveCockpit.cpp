@@ -33,6 +33,8 @@ bool g_bACLastTriggerState[2] = { false, false };
 bool g_bACTriggerState[2] = { false, false };
 bool g_bPrevHoveringOnActiveElem[2] = { false, false };
 bool g_bFreePIEControllerButtonDataAvailable = false;
+bool g_bACAnchorTexturePresent = false;
+char g_ACAnchorName[MAX_TEXTURE_NAME];
 ac_element g_ACElements[MAX_AC_TEXTURES_PER_COCKPIT] = { 0 };
 int g_iNumACElements = 0, g_iVRKeyboardSlot = -1;
 int g_iVRGloveSlot[2] = { -1, -1 };
@@ -786,6 +788,8 @@ bool LoadIndividualACParams(char* sFileName) {
 	// Reset the Active Cockpit elements? We probably don't need this, because the code modifies existing
 	// AC slots
 	//g_iNumACElements = 0;
+	g_bACAnchorTexturePresent = false;
+	g_ACAnchorName[0] = 0;
 
 	try {
 		error = fopen_s(&file, sFileName, "rt");
@@ -802,6 +806,7 @@ bool LoadIndividualACParams(char* sFileName) {
 	char buf[256], param[128], svalue[128];
 	int param_read_count = 0;
 	float value = 0.0f;
+	char* curTexName = nullptr;
 
 	while (fgets(buf, 256, file) != NULL) {
 		line++;
@@ -822,6 +827,10 @@ bool LoadIndividualACParams(char* sFileName) {
 				char* end = strstr(ac_elem.name, "]");
 				if (end != NULL)
 					*end = 0;
+				// Capture the name of the current texture:
+				curTexName = strstr(ac_elem.name, ",");
+				if (curTexName) curTexName++; // Skip the ',' char
+
 				// See if we have this AC element already
 				lastACElemSelected = isInVector(ac_elem.name, g_ACElements, g_iNumACElements);
 				if (lastACElemSelected > -1) {
@@ -849,6 +858,11 @@ bool LoadIndividualACParams(char* sFileName) {
 				// We can re-use LoadDCCoverTextureSize here, it's the same format (but different tag)
 				LoadDCCoverTextureSize(buf, &tex_width, &tex_height);
 				//log_debug("[DBG] [AC] texture size: %0.3f, %0.3f", tex_width, tex_height);
+			}
+			else if (_stricmp(param, "vr_anchor") == 0 && curTexName != nullptr) {
+				g_bACAnchorTexturePresent = true;
+				strcpy_s(g_ACAnchorName, MAX_TEXTURE_NAME, curTexName);
+				log_debug("[DBG] [AC] AC Anchor detected: [%s]", g_ACAnchorName);
 			}
 			else if (_stricmp(param, "action") == 0) {
 				if (g_iNumACElements == 0) {
