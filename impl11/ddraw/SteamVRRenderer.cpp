@@ -86,20 +86,17 @@ void SteamVRRenderer::RenderSkirmishOPT()
 	// Add extra depth to Floating GUI elements
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);
 
-	// I don't like doing this because it's hacky, but this works, so...
-	// The skirmish OPT is rendered too big/outside the viewport for high VR resolutions.
-	// To fix this, I'm scaling down the OPT, and moving it in 3D so that it more-or-less
-	// lands in the proper area and isn't clipped. The numbers here were eyeballed (that's
-	// the hacky part) because I don't know what's the proper bounds used for OPT rendering.
-	// Like I said, it works, gets the job done, so moving on for now...
-	// The 1.35f below is a generic scale to make the OPT a bit bigger:
-	const float scale = 1.35f * (float)HD_CONCOURSE_HEIGHT / (float)g_steamVRHeight;
-	const float xDisp = lerp(3.0f, 10.0f, (g_steamVRWidth - 1500.0f) / (2600.0f - 1500.0f));
+	// In VR the skirmish OPT isn't always properly "centered", so I need to
+	// move it a little bit or it will encroach on the text. A bit hacky, but it works...
+	// The 1.15f below is a generic scale to make the OPT a bit bigger:
+	const float scale = 1.15f * (float)HD_CONCOURSE_HEIGHT / (float)g_steamVRHeight;
+	const float xDisp = lerp(-5.0f, 0.0f, (g_steamVRWidth - 1500.0f) / (2600.0f - 1500.0f));
 	// 1.333f is for the aspect ratio
 	Matrix4 S = Matrix4().scale(scale, scale, 1.333f * scale);
-	Matrix4 T = Matrix4().translate(xDisp * METERS_TO_OPT, 0, 3.0f * METERS_TO_OPT);
+	Matrix4 T = Matrix4().translate(xDisp * METERS_TO_OPT, 0, 0 /* This is the vertical axis */);
 	g_OPTMeshTransformCB.MeshTransform.identity();
 	g_OPTMeshTransformCB.MeshTransform = T * S;
+
 	// This transpose is needed because the vertex shader does a post-multiplication:
 	g_OPTMeshTransformCB.MeshTransform.transpose();
 	resources->InitVSConstantOPTMeshTransform(resources->_OPTMeshTransformCB.GetAddressOf(), &g_OPTMeshTransformCB);

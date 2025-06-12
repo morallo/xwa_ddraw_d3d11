@@ -6804,6 +6804,15 @@ void EffectsRenderer::RenderScene(bool bBindTranspLyr1)
 	unsigned short scissorHeight = *(unsigned short*)0x07B33BC;
 	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
 	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
+
+	if (_deviceResources->IsInConcourseHd())
+	{
+		scissorLeft = 0;
+		scissorTop = 0;
+		scissorWidth = 640;
+		scissorHeight = 480;
+	}
+
 	D3D11_RECT scissor{};
 	// The scissor is in screen coordinates.
 	scissor.left = (LONG)(_viewport.TopLeftX + scissorLeft * scaleX + 0.5f);
