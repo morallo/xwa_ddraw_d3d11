@@ -8147,11 +8147,12 @@ void PrimarySurface::RenderSunFlare()
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 		// Set the SRVs:
-		ID3D11ShaderResourceView *srvs[2] = {
+		ID3D11ShaderResourceView *srvs[3] = {
 			resources->_offscreenAsInputShaderResourceView.Get(),
 			resources->_depthBufSRV.Get(),
+			resources->_backgroundBufferSRV.Get()
 		};
-		context->PSSetShaderResources(0, 2, srvs);
+		context->PSSetShaderResources(0, 3, srvs);
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else

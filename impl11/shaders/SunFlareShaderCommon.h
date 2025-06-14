@@ -17,7 +17,9 @@
 #include "ShadertoyCBuffer.h"
 #include "metric_common.h"
 
- // The background texture
+// The "background" texture. This is the current render:
+// cockpit, objects, lasers, everything. It's called "background"
+// here because we're rendering the sun flare on top of it.
 #ifdef INSTANCED_RENDERING
 Texture2DArray bgTex : register(t0);
 #else
@@ -39,6 +41,14 @@ SamplerState bgSampler : register(s0);
 // The depth buffer: we'll use this as a mask since the sun should be at infinity
 Texture2D    depthTex     : register(t1);
 SamplerState depthSampler : register(s1);
+
+// The stellar backdrop texture: this is _only_ the stars and other backdrops.
+// We want to know if a sun is visible or not
+#ifdef INSTANCED_RENDERING
+Texture2DArray stellarBckTex : register(t2);
+#else
+Texture2D      stellarBckTex : register(t2);
+#endif
 
 #define INFINITY_Z 30000.0
 
@@ -370,7 +380,20 @@ PixelShaderOutput main(PixelShaderInput input) {
 	if (sunPos3D.z < INFINITY_Z)
 		return output;
 
-	
+	// Now let's sample the stellar background color at the location where the sun was rendered.
+	// If the color isn't bright enough, the sun was obscured by something else (e.g. a thick cloud)
+	// and we can inhibit the flare.
+	// TODO: Enable the VR path
+#ifdef INSTANCED_RENDERING
+	const float4 backdropSample = stellarBckTex.Sample(bgSampler, float3(SunCoords[0].xy / iResolution.xy, input.viewId));
+#else
+	const float4 backdropSample = stellarBckTex.Sample(bgSampler, SunCoords[0].xy / iResolution.xy);
+#endif
+	// This is the total backdrop brightness level, we can use this to mask the flare:
+	const float backdropLevel = dot(backdropSample.rgb, /* approx luma */ float3(0.299, 0.587, 0.114));
+	if (backdropLevel < 0.8)
+		return output;
+
 #undef FLARE_DEBUG
 #ifndef FLARE_DEBUG
 	// The aspect_ratio_comp factor was added for the DirectSBS mode, but while it fixes the aspect
