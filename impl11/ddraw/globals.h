@@ -120,6 +120,7 @@ extern float g_fMoireOffsetDir, g_fMoireOffsetInd;
 
 extern Vector2 g_TriangleCentroid;
 extern float g_fTrianglePointerDist;
+extern bool g_bTrianglePointerEnabled;
 
 // DEBUG vars
 extern bool g_enable_ac_debug;

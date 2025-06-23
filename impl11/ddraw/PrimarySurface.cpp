@@ -11199,6 +11199,8 @@ HRESULT PrimarySurface::Flip(
 						}
 					}
 					RenderBracket();
+					if (g_bTrianglePointerEnabled && !g_bMapMode && !g_bUseSteamVR)
+						RenderTrianglePointer();
 					if (g_EnhancedHUDData.Enabled && !g_bMapMode)
 						DrawEnhancedHUDVertices();
 				}
@@ -14227,6 +14229,109 @@ void PrimarySurface::RenderBracket()
 	// crashes when exiting.
 	s_brush = nullptr;
 	g_xwa_bracket.clear();
+
+	this->_deviceResources->EndAnnotatedEvent();
+}
+
+void PrimarySurface::RenderTrianglePointer()
+{
+	static ID2D1RenderTarget* s_d2d1RenderTarget = nullptr;
+	static DWORD s_displayWidth  = 0;
+	static DWORD s_displayHeight = 0;
+	static ComPtr<ID2D1SolidColorBrush> s_brush;
+	static float scale = 1.0f;
+
+	const bool bTriangleInvisible = (g_TriangleCentroid.x < 0.0f || g_TriangleCentroid.y < 0.0f);
+	if (bTriangleInvisible)
+		return;
+
+	if (!g_PrimarySurfaceInitialized)
+	{
+		s_d2d1RenderTarget = nullptr;
+		s_displayWidth     = 0;
+		s_displayHeight    = 0;
+
+		s_brush.Release();
+		return;
+	}
+
+	this->_deviceResources->BeginAnnotatedEvent(L"RenderTrianglePointer");
+
+	ID2D1RenderTarget *rtv = this->_deviceResources->_d2d1OffscreenRenderTarget;
+
+	if (this->_deviceResources->_d2d1RenderTarget != s_d2d1RenderTarget ||
+		this->_deviceResources->_displayWidth != s_displayWidth ||
+		this->_deviceResources->_displayHeight != s_displayHeight)
+	{
+		s_d2d1RenderTarget = this->_deviceResources->_d2d1RenderTarget;
+		s_displayWidth     = this->_deviceResources->_displayWidth;
+		s_displayHeight    = this->_deviceResources->_displayHeight;
+		rtv->CreateSolidColorBrush(D2D1::ColorF(0), &s_brush);
+	}
+
+	rtv->SaveDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+	rtv->BeginDraw();
+
+	// ig = In-Game, sc = Screen-Coords
+	Vector2 igCenter = 0.5f * Vector2(g_fCurInGameWidth, g_fCurInGameHeight);
+	Vector2 igTriVector = g_TriangleCentroid - igCenter;
+	igTriVector.normalize();
+
+	// g_fTrianglePointerDist is in normalized [0..1] UV coords, so we need to
+	// convert it to in-game coords:
+	const float avgIgSize = (g_fCurInGameWidth + g_fCurInGameHeight) * 0.5f;
+	const float triDist = 2.0f * g_fTrianglePointerDist * avgIgSize;
+	Vector2 igTriPos = igCenter + triDist * igTriVector;
+
+	// Compute the size of the new triangle pointer in screen coords:
+	const float avgScSize = (g_fCurScreenWidth + g_fCurScreenHeight) * 0.5f;
+	const float triSize = 0.01f * scale * avgScSize;
+
+	Vector2 scTriPos, scCenter;
+	InGameToScreenCoords(igTriPos.x, igTriPos.y, &scTriPos.x, &scTriPos.y);
+	InGameToScreenCoords(igCenter.x, igCenter.y, &scCenter.x, &scCenter.y);
+
+	Vector2 scTriVector = scTriPos - scCenter;
+	scTriVector.normalize();
+	Vector2 scOrthoTriVector = Vector2(-scTriVector.y, scTriVector.x);
+
+	Vector2 P, Q, R;
+	s_brush->SetColor(D2D1::ColorF(0xFFFF00));
+
+	// Render the triangle:
+	P = scTriPos + 0.7f * triSize * scOrthoTriVector;
+	Q = scTriPos + 2.0f * triSize * scTriVector;
+	R = scTriPos - 0.7f * triSize * scOrthoTriVector;
+	//rtv->DrawLine(D2D1::Point2F(P.x, P.y), D2D1::Point2F(Q.x, Q.y), s_brush, 4.0f);
+	//rtv->DrawLine(D2D1::Point2F(Q.x, Q.y), D2D1::Point2F(R.x, R.y), s_brush, 4.0f);
+	//rtv->DrawLine(D2D1::Point2F(R.x, R.y), D2D1::Point2F(P.x, P.y), s_brush, 4.0f);
+
+	ID2D1Factory* pFactory = this->_deviceResources->_d2d1Factory;
+	if (pFactory != nullptr)
+	{
+		ID2D1PathGeometry* pathGeometry = nullptr;
+		ID2D1GeometrySink* pSink = nullptr;
+		pFactory->CreatePathGeometry(&pathGeometry);
+		pathGeometry->Open(&pSink);
+		pSink->BeginFigure(D2D1::Point2F(P.x, P.y), D2D1_FIGURE_BEGIN_FILLED);
+		pSink->AddLine(D2D1::Point2F(Q.x, Q.y));
+		pSink->AddLine(D2D1::Point2F(R.x, R.y));
+		pSink->EndFigure(D2D1_FIGURE_END_CLOSED);
+		pSink->Close();
+		pSink->Release();
+
+		if (pathGeometry != nullptr)
+			rtv->FillGeometry(pathGeometry, s_brush);
+		pathGeometry->Release();
+	}
+
+	rtv->EndDraw();
+	rtv->RestoreDrawingState(this->_deviceResources->_d2d1DrawingStateBlock);
+
+	// Make the triangle pointer pulsate:
+	scale += 1.0f * g_HiResTimer.elapsed_s;
+	if (scale > 1.3f)
+		scale = 1.0f;
 
 	this->_deviceResources->EndAnnotatedEvent();
 }

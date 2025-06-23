@@ -271,6 +271,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 // GUI elements seem to be in the range 0..0.0005, so 0.0008 sounds like a good threshold:
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
 float g_fTrianglePointerDist = DEFAULT_TRIANGLE_POINTER_DIST;
+bool g_bTrianglePointerEnabled = true;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 //float g_fPostProjScale = 1.0f;
 float g_fGlobalScaleZoomOut = DEFAULT_ZOOM_OUT_SCALE;
@@ -513,9 +514,6 @@ void LoadVRParams() {
 			}
 			else if (_stricmp(param, RETICLE_SCALE_VRPARAM) == 0) {
 				g_fReticleScale = fValue;
-			}
-			else if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
-				g_fTrianglePointerDist = fValue;
 			}
 
 			else if (_stricmp(param, "2D_yaw_mul") == 0) {
@@ -3103,6 +3101,14 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "debug_default_starfield") == 0)
 			{
 				g_bDebugDefaultStarfield = (bool)fValue;
+			}
+
+			if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
+				g_fTrianglePointerDist = fValue;
+			}
+			if (_stricmp(param, "triangle_pointer_enabled") == 0)
+			{
+				g_bTrianglePointerEnabled = (bool)fValue;
 			}
 
 			if (_stricmp(param, "enable_developer_mode") == 0)

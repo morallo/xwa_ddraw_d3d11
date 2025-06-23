@@ -5481,6 +5481,21 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.rand1 = 1.0f;
 				}
 
+				// Let's render the triangle pointer closer to the center so that we can see it all the time,
+				// and let's put it at text depth so that it doesn't cause visual contention against the
+				// cockpit
+				if (g_bIsTrianglePointer) {
+					//bModifiedShaders = true;
+					//g_VSCBuffer.scale_override = 0.25f;
+					//g_VSCBuffer.z_override = g_fTextDepth;
+
+					(void)ComputeCentroid2D(instruction, currentIndexLocation, &g_TriangleCentroid);
+					// Don't render the triangle pointer in VR mode anymore, we'll do it later, when rendering the
+					// reticle.
+					if (g_bUseSteamVR || g_bTrianglePointerEnabled)
+						goto out;
+				}
+
 				// [XWA-MAP-RENDER] The map icons are rendered in this path.
 
 				// EARLY EXIT 2: RENDER NON-VR. Here we only need the state; but not the extra
@@ -5591,20 +5606,6 @@ HRESULT Direct3DDevice::Execute(
 						g_VSCBuffer.z_override = 65536.0f;
 					if (g_bFloatingAimingHUD)
 						g_VSCBuffer.bPreventTransform = 1.0f;
-				}
-
-				// Let's render the triangle pointer closer to the center so that we can see it all the time,
-				// and let's put it at text depth so that it doesn't cause visual contention against the
-				// cockpit
-				if (g_bIsTrianglePointer) {
-					//bModifiedShaders = true;
-					//g_VSCBuffer.scale_override = 0.25f;
-					//g_VSCBuffer.z_override = g_fTextDepth;
-					
-					(void)ComputeCentroid2D(instruction, currentIndexLocation, &g_TriangleCentroid);
-					// Don't render the triangle pointer anymore, we'll do it later, when rendering the
-					// reticle
-					goto out;
 				}
 
 				// Add extra depth to Floating GUI elements and Lens Flare

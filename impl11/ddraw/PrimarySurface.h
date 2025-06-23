@@ -233,6 +233,8 @@ public:
 
 	void RenderBracket();
 
+	void RenderTrianglePointer();
+
 	void ClearEnhancedHUD();
 
 	void RenderEnhancedHUDBars(bool bDestroyed);
