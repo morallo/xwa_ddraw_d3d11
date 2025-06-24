@@ -12621,7 +12621,7 @@ short ComputeMsgWidth(char* str, int font_size_index) {
 
 	unsigned char* fontWidths[] = { (unsigned char*)0x007D4C80, (unsigned char*)0x007D4D80, (unsigned char*)0x007D4E80 };
 	for (int i = 0; str[i]; i++)
-		x += fontWidths[font_size_index][(int)str[i]];
+		x += fontWidths[font_size_index][(uint8_t)str[i]];
 	return x;
 }
 
@@ -12675,7 +12675,7 @@ short DisplayText(char* str, int font_size_index, short x, short y, uint32_t col
 		xwaText.textChar = c;
 		g_xwa_text.push_back(xwaText);
 
-		x += fontWidths[font_size_index][(int)c];
+		x += fontWidths[font_size_index][(uint8_t)c];
 	}
 	return x;
 }
@@ -12989,7 +12989,7 @@ void PrimarySurface::ExtractDCText()
 
 		const float x0 = (float)xwaText.positionX;
 		const float y0 = (float)xwaText.positionY;
-		const float x1 = (float)xwaText.positionX + (float)fontWidths[fontIndex][(int)xwaText.textChar];
+		const float x1 = (float)xwaText.positionX + (float)fontWidths[fontIndex][(uint8_t)xwaText.textChar];
 		//const float y1 = (float)xwaText.positionY + (float)s_rowSize;
 		const float y1 = (float)xwaText.positionY + g_inGameFontHeights[fontIndex];
 
