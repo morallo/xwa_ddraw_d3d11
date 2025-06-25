@@ -2285,6 +2285,8 @@ void PrimarySurface::DrawEnhancedHUDVertices() {
 	g_PSCBuffer.brightness       = 1.0f;
 	g_PSCBuffer.bUseCoverTexture = 0;
 	g_PSCBuffer.DynCockpitSlots  = 0;
+	g_PSCBuffer.special_control.ExclusiveMask =
+		g_EnhancedHUDData.applyDepthOcclusion ? SPECIAL_CONTROL_EHUD_APPLY_DEPTH : 0;
 
 	resources->InitPSConstantBuffer3D(resources->_PSConstantBuffer.GetAddressOf(), &g_PSCBuffer);
 	resources->InitVSConstantBuffer3D(resources->_VSConstantBuffer.GetAddressOf(), &g_VSCBuffer);

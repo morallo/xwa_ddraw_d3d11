@@ -27,10 +27,13 @@ PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 
+	const uint ExclusiveMask = (special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK);
+	const bool applyDepthOcclusion = (ExclusiveMask & SPECIAL_CONTROL_EHUD_APPLY_DEPTH);
+
 	const float4 pos3D = depthBuf.Sample(sampler0, input.tex);
 	// The cockpit tends to be less than 25m in depth in front of us, so this is probably
 	// a good threshold to reject any display that is closer than that:
-	if (pos3D.z < 25.0f)
+	if (applyDepthOcclusion && pos3D.z < 25.0f)
 		discard;
 
 	output.color = enhancedHudBuf.Sample(sampler0, input.tex);

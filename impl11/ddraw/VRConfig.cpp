@@ -2503,6 +2503,9 @@ bool LoadSSAOParams() {
 			else if (_stricmp(param, "enhanced_hud_vr_text_scale") == 0) {
 				g_EnhancedHUDData.vrTextScale = fValue;
 			}
+			else if (_stricmp(param, "enhanced_hud_apply_depth_occlusion") == 0) {
+				g_EnhancedHUDData.applyDepthOcclusion = (bool)fValue;
+			}
 
 			if (_stricmp(param, "bias") == 0) {
 				g_SSAO_PSCBuffer.bias = fValue;

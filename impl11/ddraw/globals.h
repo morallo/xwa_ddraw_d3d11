@@ -381,6 +381,7 @@ struct EnhancedHUDData
 	float  vrTextScale = 1.0f;
 	bool   bgTextBoxComputed, bgTextBoxEnabled = false;
 	bool   subCmpBoxComputed, barsBoxComputed;
+	bool   applyDepthOcclusion = true;
 	int    bgTextBoxNumLines;
 	Box    bgTextBox;
 	Box    subCmpBox;

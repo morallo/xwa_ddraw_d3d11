@@ -73,6 +73,7 @@ OPTMeshTransformCBuffer       : register(b8)
 #define SPECIAL_CONTROL_DEBUG               11 // Generic debug flag. Only used when developing or testing features.
 #define SPECIAL_CONTROL_MISSILE             12
 #define SPECIAL_CONTROL_ENGINE_GLOW_SMOKE   13 // Engine glow used to display smoke
+#define SPECIAL_CONTROL_EHUD_APPLY_DEPTH    14 // Enhanced HUD: ignore depth occlusion
 // These are the bits used for exclusive special control flags
 #define SPECIAL_CONTROL_EXCLUSIVE_MASK      0x0FF
 // The following are bits in the special_control field. They need to be blended with the rest of the exclusive
