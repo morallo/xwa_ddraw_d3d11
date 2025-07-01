@@ -14,6 +14,7 @@
 
 Texture2D texture0 : register(t0); // This is the regular color texture
 Texture2D texture1 : register(t1); // If present, this is the light texture
+Texture2D texture2 : register(t2); // If present, this is the specular map
 SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D normalMap : register(t13);
@@ -44,6 +45,9 @@ struct PixelShaderOutput
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
+	const bool bDoNormalMapping   = (RenderingFlags & RENDER_FLAG_NORMAL_MAPPING) != 0;
+	const bool bDoSpecularMapping = (RenderingFlags & RENDER_FLAG_SPECULAR_MAPPING) != 0;
+
 	float4 texelColor     = texture0.Sample(sampler0, input.tex);
 	float3 normalMapColor = bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
 	uint   ExclusiveMask  = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
@@ -116,6 +120,13 @@ PixelShaderOutput main(PixelShaderInput input)
 		glossiness = 0.92;
 		reflectance = 1.0;
 	}
+
+	if (bDoSpecularMapping)
+	{
+		glossiness = rand2 * texture2.Sample(sampler0, input.tex).r;
+		reflectance = glossiness;
+	}
+
 	float3 eye_vec = normalize(-output.pos3D.xyz); // normalize(eye - pos3D); // Vector from pos3D to the eye (0,0,0)
 	float3 col = addPBR_RT_TechRoom(P, N, output.normal.xyz, -eye_vec,
 		srgb_to_linear(texelColor.rgb),

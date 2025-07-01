@@ -592,6 +592,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				}
 
 				return 0;
+
+			case 'G':
+				g_bSpecularMappingEnabled = !g_bSpecularMappingEnabled;
+				if (g_bSpecularMappingEnabled)
+					DisplayTimedMessage(3, 0, "Specular Mapping Enabled");
+				else
+					DisplayTimedMessage(3, 0, "Specular Mapping Disabled");
+				return 0;
 			}
 		}
 

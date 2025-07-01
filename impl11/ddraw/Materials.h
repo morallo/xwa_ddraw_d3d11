@@ -14,6 +14,7 @@ constexpr auto MAX_CANNONS = 8;
 constexpr auto MAX_GREEBLE_NAME = 80;
 constexpr auto MAX_GREEBLE_LEVELS = 2;
 constexpr auto MAX_NORMALMAP_NAME = 80;
+constexpr auto MAX_SPECULARMAP_NAME = 80;
 
 float lerp(float x, float y, float s);
 
@@ -484,6 +485,7 @@ struct Material {
 	float Glossiness;
 	float NMIntensity;
 	float SpecValue;
+	float SpecularMapIntensity;
 	bool  IsShadeless;
 	bool  NoBloom;
 	Vector3 Light;
@@ -558,6 +560,8 @@ struct Material {
 
 	char NormalMapName[MAX_NORMALMAP_NAME];
 	bool NormalMapLoaded;
+	char SpecularMapName[MAX_SPECULARMAP_NAME];
+	bool SpecularMapLoaded;
 
 	// Set to true if this material has at least one property that is activated on
 	// a per-instance basis.
@@ -583,6 +587,7 @@ struct Material {
 		Glossiness = DEFAULT_GLOSSINESS;
 		NMIntensity = DEFAULT_NM_INT;
 		SpecValue = DEFAULT_SPEC_VALUE;
+		SpecularMapIntensity = 1.0f;
 		IsShadeless = false;
 		Light = Vector3(0.0f, 0.0f, 0.0f);
 		LightUVCoordPos = Vector2(0.1f, 0.5f);
@@ -633,6 +638,9 @@ struct Material {
 
 		NormalMapName[0] = 0;
 		NormalMapLoaded = false;
+
+		SpecularMapName[0] = 0;
+		SpecularMapLoaded = false;
 
 		bInstanceMaterial = false;
 		SkipWhenDisabled = false;

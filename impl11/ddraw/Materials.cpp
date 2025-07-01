@@ -1342,6 +1342,9 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 	else if (_stricmp(param, "SpecularVal") == 0) {
 		curMaterial->SpecValue = fValue;
 	}
+	else if (_stricmp(param, "SpecularMapIntensity") == 0) {
+		curMaterial->SpecularMapIntensity = fValue;
+	}
 	else if (_stricmp(param, "Shadeless") == 0) {
 		curMaterial->IsShadeless = (bool)fValue;
 		//log_debug("[DBG] Shadeless texture loaded");
@@ -1700,6 +1703,11 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		strcpy_s(curMaterial->NormalMapName, MAX_NORMALMAP_NAME, svalue);
 		curMaterial->NormalMapLoaded = false;
 		//log_debug("[DBG] [MAT] NormalMap set to %s", svalue);
+	}
+
+	else if (_stricmp(param, "SpecularMap") == 0) {
+		strcpy_s(curMaterial->SpecularMapName, MAX_SPECULARMAP_NAME, svalue);
+		curMaterial->SpecularMapLoaded = false;
 	}
 	
 	if (_stricmp(param, "JoystickRoot") == 0) {

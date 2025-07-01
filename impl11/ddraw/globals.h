@@ -111,7 +111,7 @@ extern SSAOTypeEnum g_SSAO_Type;
 extern float g_fSSAOZoomFactor, g_fSSAOZoomFactor2, g_fSSAOWhitePoint, g_fNormWeight, g_fNormalBlurRadius;
 extern int g_iSSDODebug, g_iSSAOBlurPasses;
 extern bool g_bBlurSSAO, g_bDepthBufferResolved, g_bOverrideLightPos;
-extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable;
+extern bool g_bShowSSAODebug, g_bEnableIndirectSSDO, g_bFNEnable, g_bSpecularMappingEnabled;
 extern bool g_bDumpSSAOBuffers, g_bEnableSSAOInShader, g_bEnableBentNormalsInShader;
 extern Vector4 g_LightVector[2];
 extern Vector4 g_LightColor[2];

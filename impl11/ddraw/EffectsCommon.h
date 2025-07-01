@@ -469,7 +469,7 @@ struct PixelShaderCBuffer {
 	float4 AuxColorLight;
 	// 160 bytes
 	special_control_bitfield special_control_light;
-	uint32_t bDoNormalMapping;
+	uint32_t RenderingFlags;
 	uint32_t bDoRaytracing;
 	uint32_t OverlayCtrl;
 	// 176 bytes

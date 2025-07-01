@@ -53,14 +53,14 @@ cbuffer ConstantBuffer : register(b9)
 	float4 AuxColorLight;
 	// 160 bytes
 	uint special_control_light;
-	uint bDoNormalMapping;
+	uint RenderingFlags;		// Bitfield. 0x1: Normal Mapping, 0x2: Specular Mapping, 0x4: Raytracing
 	uint bDoRaytracing;
 	uint OverlayCtrl;			// Used to control overlay effects, like shields down or hull damage
 	// 176 bytes
 
 	float rand0;				// Used as a random values in PixelShaderAnim.hlsl, also used for Tech Room holos
 	float rand1;				// Used for Tech Room holos
-	float rand2;
+	float rand2;				// Used for SpecularMap intensity in XwaD3dPixelShader
 	bool  bIsTransparent;
 	// 192 bytes
 

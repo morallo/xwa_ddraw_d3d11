@@ -195,6 +195,8 @@ void Greeble(inout float4 color, inout float4 normal, in float2 tex, in float3 P
 PixelShaderOutput main(PixelShaderInput input)
 {
 	PixelShaderOutput output;
+	const bool bDoNormalMapping = (RenderingFlags & RENDER_FLAG_NORMAL_MAPPING) != 0;
+
 	float4 texelColor     = texture0.Sample(sampler0, input.tex);
 	float3 normalMapColor = bDoNormalMapping ? normalMap.Sample(sampler0, input.tex).rgb : float3(0, 0, 1);
 	float  alpha          = texelColor.w;

@@ -57,6 +57,10 @@ OPTMeshTransformCBuffer       : register(b8)
 
 #define MAX_CSM_LEVELS 4
 
+#define RENDER_FLAG_NORMAL_MAPPING   0x1
+#define RENDER_FLAG_SPECULAR_MAPPING 0x2
+#define RENDER_FLAG_RAYTRACING       0x4
+
 // Used in the special_control CB field in the pixel shader
 // These flags are mutually-exclusive, so be careful when setting them. Only a handful are used
 // in the same shader though.

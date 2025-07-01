@@ -212,6 +212,7 @@ public:
 	void ApplyGreebles();
 	void ApplyAnimatedTextures(int objectId, bool bInstanceEvent, FixedInstanceData* fixedInstanceData);
 	void ApplyNormalMapping();
+	void ApplySpecularMapping();
 
 	// Raytracing
 	LBVH* BuildBVH(const std::vector<XwaVector3>& vertices, const std::vector<int>& indices);

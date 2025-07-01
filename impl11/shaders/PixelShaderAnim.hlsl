@@ -50,6 +50,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	const uint bIsBlastMark       = special_control & SPECIAL_CONTROL_BLAST_MARK;
 	const uint ExclusiveMask      = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	const uint ExclusiveMaskLight = special_control_light & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+	const bool bDoNormalMapping   = (RenderingFlags & RENDER_FLAG_NORMAL_MAPPING) != 0;
 
 	// The following lines normalize input.tex to the range [0..1]:
 	// frac(input.tex) handles coords above 1

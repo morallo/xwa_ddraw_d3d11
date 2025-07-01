@@ -7,6 +7,7 @@
 
 Texture2D texture0 : register(t0); // This is the regular color texture
 Texture2D texture1 : register(t1); // If present, this is the light texture
+Texture2D texture2 : register(t2); // If present, this is the specular map
 SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D normalMap : register(t13);
@@ -37,8 +38,12 @@ PixelShaderOutput main(PixelShaderInput input)
 	//float4 color = float4(input.color.xyz, 1.0f);
 	float4 texelColor = texture0.Sample(sampler0, input.tex);
 
-	const uint bIsBlastMark = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	const uint bIsBlastMark  = special_control & SPECIAL_CONTROL_BLAST_MARK;
 	const uint ExclusiveMask = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
+
+	const bool bDoNormalMapping   = (RenderingFlags & RENDER_FLAG_NORMAL_MAPPING) != 0;
+	const bool bDoSpecularMapping = (RenderingFlags & RENDER_FLAG_SPECULAR_MAPPING) != 0;
+
 	if (bIsBlastMark)
 		texelColor = texture0.Sample(sampler0, (input.tex * 0.35) + 0.3);
 
@@ -52,6 +57,22 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.pos3D = float4(P, SSAOAlpha);
 	output.ssMask = 0;
 	output.transp1Lyr = 0;
+
+	float glossiness = 0;
+	float specInt    = 0;
+	float specVal    = 0;
+	if (bDoSpecularMapping)
+	{
+		glossiness = rand2 * texture2.Sample(sampler0, input.tex).r;
+		specInt    = glossiness;
+		specVal    = glossiness;
+	}
+	else
+	{
+		glossiness = fGlossiness;
+		specInt    = fSpecInt;
+		specVal    = fSpecVal;
+	}
 
 	if (ExclusiveMask == SPECIAL_CONTROL_GRAYSCALE && alpha >= 0.95)
 		output.color.rgb = float3(0.7, 0.7, 0.7);
@@ -92,9 +113,9 @@ PixelShaderOutput main(PixelShaderInput input)
 	output.normal = float4(N, SSAOAlpha);
 
 	// ssaoMask: Material, Glossiness, Specular Intensity
-	output.ssaoMask = float4(fSSAOMaskVal, fGlossiness, fSpecInt, alpha);
+	output.ssaoMask = float4(fSSAOMaskVal, glossiness, specInt, alpha);
 	// SS Mask: unused (Normal Mapping Intensity), Specular Value, Shadeless
-	output.ssMask = float4(0, fSpecVal, max(fAmbient, bIsShadeless), alpha);
+	output.ssMask = float4(0, specVal, max(fAmbient, bIsShadeless), alpha);
 
 	// renderType == 2 is for lasers and missiles (and probably other ordinance as well)
 	// Here we make an exception for missiles as they are handled separately
@@ -133,13 +154,6 @@ PixelShaderOutput main(PixelShaderInput input)
 		// Missiles may have illumination maps, so the next block sometimes is executed too and
 		// that adds bloom to the OPT part of the missile
 	}
-
-	/*
-	if (rand2 > 50.0)
-	{
-		output.color = float4(1, 0, 0, 1);
-	}
-	*/
 
 	// In the D3dRendererHook, lightmaps and regular textures are rendered on the same draw call.
 	// Here's the case where a lightmap has been provided:

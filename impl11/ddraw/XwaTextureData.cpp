@@ -121,8 +121,9 @@ XwaTextureData::XwaTextureData()
 	this->material.Intensity = DEFAULT_SPEC_INT;
 	this->material.Metallic = DEFAULT_METALLIC;
 
-	this->GreebleTexIdx = -1;
-	this->NormalMapIdx = -1;
+	this->GreebleTexIdx  = -1;
+	this->NormalMapIdx   = -1;
+	this->SpecularMapIdx = -1;
 }
 
 void XwaTextureData::Clone(XwaTextureData* dst)
@@ -913,13 +914,30 @@ void XwaTextureData::TagTexture()
 					if (this->NormalMapIdx == -1)
 					{
 						short Width, Height; // These variables are not used
-						this->NormalMapIdx = LoadNormalMap(this->material.NormalMapName, &Width, &Height);
+						this->NormalMapIdx = LoadTextureMap(this->material.NormalMapName, &Width, &Height, NORMAL_MAP);
 						AddToGlobalTextureMap(normalMapName, this->NormalMapIdx);
-						log_debug("[DBG] [MAT] LoadNormal [%s], res: %d, loaded: %d",
+						log_debug("[DBG] [MAT] Load Normal Map [%s], res: %d, loaded: %d",
 							this->_name.c_str(),
 							this->NormalMapIdx, this->material.NormalMapLoaded);
 					}
 					this->material.NormalMapLoaded = (this->NormalMapIdx != -1);
+				}
+
+				// Load the Specular Maps here...
+				if (this->material.SpecularMapName[0] != 0)
+				{
+					const std::string specularMapName = std::string(this->material.SpecularMapName);
+					this->SpecularMapIdx = QueryGlobalTextureMap(specularMapName);
+					if (this->SpecularMapIdx == -1)
+					{
+						short Width, Height; // These variables are not used
+						this->SpecularMapIdx = LoadTextureMap(this->material.SpecularMapName, &Width, &Height, SPECULAR_MAP);
+						AddToGlobalTextureMap(specularMapName, this->SpecularMapIdx);
+						log_debug("[DBG] [MAT] Load Specular Map [%s], res: %d, loaded: %d",
+							this->_name.c_str(),
+							this->SpecularMapIdx, this->material.SpecularMapLoaded);
+					}
+					this->material.SpecularMapLoaded = (this->SpecularMapIdx != -1);
 				}
 
 				// DEBUG
@@ -1320,7 +1338,8 @@ int XwaTextureData::LoadGreebleTexture(char* GreebleDATZIPGroupIdImageId, short*
 	return this->GreebleTexIdx;
 }
 
-int XwaTextureData::LoadNormalMap(char* DATZIPGroupIdImageId, short* Width, short* Height)
+int XwaTextureData::LoadTextureMap(char* DATZIPGroupIdImageId,
+	short* Width, short* Height, TextureMapType mapType)
 {
 	auto& resources = this->_deviceResources;
 	ID3D11ShaderResourceView* texSRV = nullptr;
@@ -1346,13 +1365,26 @@ int XwaTextureData::LoadNormalMap(char* DATZIPGroupIdImageId, short* Width, shor
 	else
 		index = LoadZIPImage(DATZIPGroupIdImageId, GroupId, ImageId, true, &texSRV, Width, Height);
 	if (index == -1) {
-		log_debug("[DBG] Could not load NormalMap %s", DATZIPGroupIdImageId);
+		log_debug("[DBG] Could not load texture %s", DATZIPGroupIdImageId);
 		return -1;
 	}
-	// Link the new texture as a greeble of the current texture
-	this->NormalMapIdx = index;
-	//log_debug("[DBG] Loaded NormalMap texture at index: %d", this->NormalMapIdx);
-	return this->NormalMapIdx;
+
+	// Link the new texture (as a greeble?) of the current texture
+	switch (mapType)
+	{
+	case NORMAL_MAP:
+		this->NormalMapIdx = index;
+		//log_debug("[DBG] Loaded NormalMap texture at index: %d", this->NormalMapIdx);
+		return this->NormalMapIdx;
+		break;
+	case SPECULAR_MAP:
+		this->SpecularMapIdx = index;
+		return this->SpecularMapIdx;
+		break;
+	default:
+		log_debug("[DBG] ERROR: This is not a supported texture type!!!");
+		return -1;
+	}
 }
 
 HRESULT XwaTextureData::CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv)

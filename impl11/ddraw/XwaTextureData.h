@@ -15,6 +15,12 @@ enum WarningLightEnum {
 	WARHEAD_RETICLE_RIGHT_WLIGHT
 };
 
+enum TextureMapType
+{
+	NORMAL_MAP,
+	SPECULAR_MAP
+};
+
 class DeviceResources;
 
 class XwaTextureData
@@ -37,7 +43,8 @@ public:
 
 	void LoadAnimatedTextures(int ATCIndex);
 	int LoadGreebleTexture(char* GreebleDATZIPGroupIdImageId, short* Width = nullptr, short* Height = nullptr);
-	int LoadNormalMap(char* DATZIPGroupIdImageId, short* Width, short* Height);
+	int LoadTextureMap(char* DATZIPGroupIdImageId,
+		short* Width, short* Height, TextureMapType mapType);
 
 	HRESULT CreateSRVFromBuffer(uint8_t* Buffer, int BufferLength, int Width, int Height, ID3D11ShaderResourceView** srv);
 
@@ -184,4 +191,7 @@ public:
 
 	// **** Normal Mapping
 	int NormalMapIdx;
+
+	// **** Specular Mapping
+	int SpecularMapIdx;
 };
