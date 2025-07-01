@@ -211,8 +211,7 @@ public:
 	void ApplyProceduralLava();
 	void ApplyGreebles();
 	void ApplyAnimatedTextures(int objectId, bool bInstanceEvent, FixedInstanceData* fixedInstanceData);
-	void ApplyNormalMapping();
-	void ApplySpecularMapping();
+	void ApplyNormalNSpecularMapping();
 
 	// Raytracing
 	LBVH* BuildBVH(const std::vector<XwaVector3>& vertices, const std::vector<int>& indices);

@@ -5000,10 +5000,9 @@ void EffectsRenderer::ApplyAnimatedTextures(int objectId, bool bInstanceEvent, F
 	}
 }
 
-void EffectsRenderer::ApplyNormalMapping()
+void EffectsRenderer::ApplyNormalNSpecularMapping()
 {
-	if (!g_bFNEnable || !_bHasMaterial || !_lastTextureSelected->material.NormalMapLoaded ||
-		_lastTextureSelected->NormalMapIdx == -1)
+	if (!_bHasMaterial)
 		return;
 
 	auto &resources = _deviceResources;
@@ -5011,36 +5010,33 @@ void EffectsRenderer::ApplyNormalMapping()
 	Material *material = &(_lastTextureSelected->material);
 	_bModifiedShaders = true;
 
-	// Enable normal mapping and make sure the proper intensity is set
-	g_PSCBuffer.RenderingFlags |= RENDER_FLAG_NORMAL_MAPPING;
-	g_PSCBuffer.fNMIntensity = _lastTextureSelected->material.NMIntensity;
-	// Set the normal map
-	context->PSSetShaderResources(13, 1, &(resources->_extraTextures[_lastTextureSelected->NormalMapIdx]));
-}
+	if (g_bFNEnable && _lastTextureSelected->material.NormalMapLoaded &&
+		_lastTextureSelected->NormalMapIdx != -1)
+	{
+		// Enable normal mapping and make sure the proper intensity is set
+		g_PSCBuffer.RenderingFlags |= RENDER_FLAG_NORMAL_MAPPING;
+		g_PSCBuffer.fNMIntensity = _lastTextureSelected->material.NMIntensity;
+		// Set the normal map
+		context->PSSetShaderResources(13, 1, &(resources->_extraTextures[_lastTextureSelected->NormalMapIdx]));
+	}
 
-void EffectsRenderer::ApplySpecularMapping()
-{
-	if (!g_bSpecularMappingEnabled || !_bHasMaterial || !_lastTextureSelected->material.SpecularMapLoaded ||
-		_lastTextureSelected->SpecularMapIdx == -1)
-		return;
-
-	auto &resources = _deviceResources;
-	auto &context = _deviceResources->_d3dDeviceContext;
-	Material *material = &(_lastTextureSelected->material);
-	_bModifiedShaders = true;
-
-	// Enable normal mapping and make sure the proper intensity is set
-	g_PSCBuffer.RenderingFlags |= RENDER_FLAG_SPECULAR_MAPPING;
-	g_PSCBuffer.rand2 = _lastTextureSelected->material.SpecularMapIntensity;
-	// Set the normal map
-	context->PSSetShaderResources(2, 1, &(resources->_extraTextures[_lastTextureSelected->SpecularMapIdx]));
+	if (g_bSpecularMappingEnabled && _lastTextureSelected->material.SpecularMapLoaded &&
+		_lastTextureSelected->SpecularMapIdx != -1)
+	{
+		// Enable normal mapping and make sure the proper intensity is set
+		g_PSCBuffer.RenderingFlags |= RENDER_FLAG_SPECULAR_MAPPING;
+		g_PSCBuffer.rand2 = _lastTextureSelected->material.SpecularMapIntensity;
+		// Set the normal map
+		context->PSSetShaderResources(2, 1, &(resources->_extraTextures[_lastTextureSelected->SpecularMapIdx]));
+	}
 }
 
 void EffectsRenderer::ApplyRTShadowsTechRoom(const SceneCompData* scene)
 {
 	_bModifiedShaders = true;
 	// Enable/Disable Raytracing in the Tech Room
-	g_PSCBuffer.bDoRaytracing = g_bRTEnabledInTechRoom && (_lbvh != nullptr);
+	const bool bDoRaytracing = g_bRTEnabledInTechRoom && (_lbvh != nullptr);
+	if (bDoRaytracing) g_PSCBuffer.RenderingFlags |= RENDER_FLAG_RAYTRACING;
 
 	if (!g_bRTEnabledInTechRoom || !g_bInTechRoom || _lbvh == nullptr)
 		return;
@@ -6048,8 +6044,7 @@ void EffectsRenderer::MainSceneHook(const SceneCompData* scene)
 	// Apply the SSAO mask/Special materials, like lasers and HUD
 	ApplySpecialMaterials();
 
-	ApplyNormalMapping();
-	ApplySpecularMapping();
+	ApplyNormalNSpecularMapping();
 
 	// Animate the Diegetic Cockpit (joystick, throttle, hyper-throttle, etc)
 	ApplyDiegeticCockpit();

@@ -93,6 +93,8 @@ float3 addPBR_RT_TechRoom(in float3 position, in float3 N, in float3 FlatN, in f
 	in float3 baseColor, in float3 lightDir, in float4 lightColor,
 	in float metalMask, in float glossiness, in float reflectance, in float ambient)
 {
+	const bool bDoRaytracing = (RenderingFlags & RENDER_FLAG_RAYTRACING) != 0;
+
 	float3 color = 0.0;
 	float roughness = 1.0 - glossiness * glossiness;
 	float3 F0 = 0.16 * reflectance * reflectance * (1.0 - metalMask) + baseColor * metalMask;

@@ -54,7 +54,7 @@ cbuffer ConstantBuffer : register(b9)
 	// 160 bytes
 	uint special_control_light;
 	uint RenderingFlags;		// Bitfield. 0x1: Normal Mapping, 0x2: Specular Mapping, 0x4: Raytracing
-	uint bDoRaytracing;
+	uint unusedPS0;
 	uint OverlayCtrl;			// Used to control overlay effects, like shields down or hull damage
 	// 176 bytes
 
