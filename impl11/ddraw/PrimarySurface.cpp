@@ -2023,7 +2023,7 @@ int PrimarySurface::ClearHUDRegions() {
  * Renders the HUD foreground and background and applies the move_region 
  * commands if DC is enabled.
  * This path is used to display the map in VR mode as a flat screen on the same
- * plane as the HUD. However, the populating the VR map is done in other spots
+ * plane as the HUD. However, populating the VR map is done in other spots
  * (search for [XWA-MAP-RENDER] in this Solution).
  */
 void PrimarySurface::DrawHUDVertices() {
@@ -2073,6 +2073,19 @@ void PrimarySurface::DrawHUDVertices() {
 	
 	// Apply view transform to the HUD to fix it in space. It needs the inverse of the fullViewMat that contains the headtracking pose.
 	g_VSMatrixCB.fullViewMat.invert();
+
+	// Applying g_HologramDisp to the HUD causes some issues in some cockpits.
+	// The problem here is that an offset that looks good in pancake mode sometimes
+	// makes the holograms appear too close in VR. Since this displacement is also
+	// applied to the HUD, this may cause the HUD to be rendered _behind_ the user in
+	// VR (this is what happens in the A-Wing and B-Wing).
+	// One solution would be to have an independent displacement just for the HUD;
+	// but we'd need yet another set of hotkeys for that, and we don't have that many
+	// left. Maybe a better solution would be to use the VR controllers to move the HUD,
+	// say, while parked in the hangar; but that would be a new feature.
+	// Note that if this code is re-enabled, then curMat must also be re-enabled below,
+	// in the "out:" case to restore the original g_VSMatrixCB.fullViewMat transform.
+#if 0
 	Matrix4 hudTransform;
 	// g_HologramDisp is in OPT coords, but here we need SteamVR/meters, so we swap
 	// Y and Z and reduce the scale a bit:
@@ -2081,6 +2094,7 @@ void PrimarySurface::DrawHUDVertices() {
 	                       0.1f * g_HologramDisp.y);
 	Matrix4 curMat = g_VSMatrixCB.fullViewMat;
 	g_VSMatrixCB.fullViewMat = g_VSMatrixCB.fullViewMat * hudTransform;
+#endif
 
 	// Since the HUD is all rendered on a flat surface, we lose the vrparams that make the 3D object
 	// and text float
@@ -2230,8 +2244,10 @@ void PrimarySurface::DrawHUDVertices() {
 		context->Draw(6, 0);
 
 out:
+#if 0
 	// Restore the old view matrix
 	g_VSMatrixCB.fullViewMat = curMat;
+#endif
 	this->_deviceResources->EndAnnotatedEvent();
 }
 
