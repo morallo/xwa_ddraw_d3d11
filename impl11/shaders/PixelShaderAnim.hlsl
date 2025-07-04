@@ -14,7 +14,8 @@
 #include "NormalMapping.h"
 
 Texture2D    texture0 : register(t0);
-Texture2D	 texture1 : register(t1); // If present, this is the light texture
+Texture2D    texture1 : register(t1); // If present, this is the light texture
+Texture2D    texture2 : register(t2); // If present, this is the specular map
 SamplerState sampler0 : register(s0);
 // Normal Map, slot 13
 Texture2D   normalMap : register(t13);
@@ -51,6 +52,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	const uint ExclusiveMask      = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	const uint ExclusiveMaskLight = special_control_light & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	const bool bDoNormalMapping   = (RenderingFlags & RENDER_FLAG_NORMAL_MAPPING) != 0;
+	const bool bDoSpecularMapping = (RenderingFlags & RENDER_FLAG_SPECULAR_MAPPING) != 0;
 
 	// The following lines normalize input.tex to the range [0..1]:
 	// frac(input.tex) handles coords above 1
@@ -62,7 +64,15 @@ PixelShaderOutput main(PixelShaderInput input)
 	if (Clamp) UV = saturate(UV);
 	float specInt = fSpecInt;
 	float glossiness = fGlossiness;
+	float specVal = fSpecVal;
 	float4 ScreenLyrBloom = 0;
+
+	if (bDoSpecularMapping)
+	{
+		glossiness = rand2 * texture2.Sample(sampler0, input.tex).r;
+		specInt = glossiness;
+		specVal = glossiness;
+	}
 
 	float4 texelColor = AuxColor * texture0.Sample(sampler0, UV);
 	if (bIsBlastMark)
@@ -155,7 +165,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	// We now have separate channels for metallicity and glass, so let's use the regular formula:
 	output.ssaoMask = float4(fSSAOMaskVal, glossiness, specInt, texelColor.a);
 	// SS Mask: unused, Specular Value, Shadeless
-	output.ssMask = float4(0, fSpecVal, fAmbient, texelColor.a);
+	output.ssMask = float4(0, specVal, fAmbient, texelColor.a);
 
 	// The regular layer might have transparency. If we're in hyperspace, we don't want to show
 	// the background through it, so we mix it with a black color

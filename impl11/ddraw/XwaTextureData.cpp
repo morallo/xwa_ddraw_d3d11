@@ -933,9 +933,10 @@ void XwaTextureData::TagTexture()
 						short Width, Height; // These variables are not used
 						this->SpecularMapIdx = LoadTextureMap(this->material.SpecularMapName, &Width, &Height, SPECULAR_MAP);
 						AddToGlobalTextureMap(specularMapName, this->SpecularMapIdx);
-						log_debug("[DBG] [MAT] Load Specular Map [%s], res: %d, loaded: %d",
+						log_debug("[DBG] [MAT] Loaded SpecularMap [%s] for [%s] at idx: %d",
+							specularMapName.c_str(),
 							this->_name.c_str(),
-							this->SpecularMapIdx, this->material.SpecularMapLoaded);
+							this->SpecularMapIdx);
 					}
 					this->material.SpecularMapLoaded = (this->SpecularMapIdx != -1);
 				}

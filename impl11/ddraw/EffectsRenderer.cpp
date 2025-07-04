@@ -5026,7 +5026,7 @@ void EffectsRenderer::ApplyNormalNSpecularMapping()
 		// Enable normal mapping and make sure the proper intensity is set
 		g_PSCBuffer.RenderingFlags |= RENDER_FLAG_SPECULAR_MAPPING;
 		g_PSCBuffer.rand2 = _lastTextureSelected->material.SpecularMapIntensity;
-		// Set the normal map
+		// Set the specular map
 		context->PSSetShaderResources(2, 1, &(resources->_extraTextures[_lastTextureSelected->SpecularMapIdx]));
 	}
 }
