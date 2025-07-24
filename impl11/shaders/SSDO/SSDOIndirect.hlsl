@@ -100,7 +100,7 @@ inline float3 doSSDOIndirect_ok(in float2 sample_uv, in float3 P, in float3 Norm
 inline float3 doSSDOIndirect(in float2 sample_uv, in float3 P, in float3 Normal,
 	in float cur_radius_sqr, in float max_radius_sqr)
 {
-	if (any(sample_uv.xy < p0) || any(sample_uv.xy > p1))
+	if (any(sample_uv.xy < ssao_p0) || any(sample_uv.xy > ssao_p1))
 		return 0;
 
 	//float miplevel = cur_radius_sqr / max_radius_sqr * 4;

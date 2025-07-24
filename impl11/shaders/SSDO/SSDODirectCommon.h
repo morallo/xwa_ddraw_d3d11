@@ -127,7 +127,7 @@ inline ColNorm doSSDODirect(
 	// Early exit: darken the edges of the effective viewport
 	//if (sample_uv.x < x0 || sample_uv.x > x1 ||
 	//	sample_uv.y < y0 || sample_uv.y > y1) 
-	if (any(sample_uv.xy < p0) || any(sample_uv.xy > p1))
+	if (any(sample_uv.xy < ssao_p0) || any(sample_uv.xy > ssao_p1))
 		return output;
 	const float2 uv_diff = sample_uv - input_uv;
 	
