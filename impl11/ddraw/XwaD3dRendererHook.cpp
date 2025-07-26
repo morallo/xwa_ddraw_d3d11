@@ -2454,6 +2454,16 @@ void LoadMissionCubeMaps()
 		g_CubeMaps.allRegionsAmbientInt = GetFileKeyValueFloat(lines, "AllRegionsAmbientInt", 0.15f);
 		g_CubeMaps.allRegionsAmbientMin = GetFileKeyValueFloat(lines, "AllRegionsAmbientMin", 0.01f);
 
+		char* regionSpecNames[MAX_MISSION_REGIONS]       = { "Region0Specular",   "Region1Specular",   "Region2Specular",   "Region3Specular" };
+		char* regionAmbientIntNames[MAX_MISSION_REGIONS] = { "Region0AmbientInt", "Region1AmbientInt", "Region2AmbientInt", "Region3AmbientInt" };
+		char* regionAmbientMinNames[MAX_MISSION_REGIONS] = { "Region0AmbientMin", "Region1AmbientMin", "Region2AmbientMin", "Region3AmbientMin" };
+		for (int i = 0; i < MAX_MISSION_REGIONS; i++)
+		{
+			g_CubeMaps.regionSpecular[i]   = GetFileKeyValueFloat(lines, regionSpecNames[i], 0.70f);
+			g_CubeMaps.regionAmbientInt[i] = GetFileKeyValueFloat(lines, regionAmbientIntNames[i], 0.15f);
+			g_CubeMaps.regionAmbientMin[i] = GetFileKeyValueFloat(lines, regionAmbientMinNames[i], 0.01f);
+		}
+
 		if (allRegionsPath.size() > 0)
 			g_CubeMaps.bRenderAllRegions = LoadCubeMap(allRegionsPath, &allRegionsCubeTexture, &g_CubeMaps.allRegionsSRV);
 

@@ -3697,6 +3697,23 @@ void PrimarySurface::DeferredPass()
 	// Set the lights and the Shading System Constant Buffer
 	SetLights(_deviceResources, 0.0f);
 
+	int region;
+	if (g_playerInHangar != nullptr && *g_playerInHangar)
+		region = 0;
+	else
+		region = PlayerDataTable[*g_playerIndex].currentRegion;
+	const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
+	const bool renderCubeMapInThisRegion = (validRegion && g_CubeMaps.bRenderInThisRegion[region]);
+	float cubeMapSpecular   = g_CubeMaps.allRegionsSpecular;
+	float cubeMapAmbientMin = g_CubeMaps.allRegionsAmbientMin;
+	float cubeMapAmbientInt = g_CubeMaps.allRegionsAmbientInt;
+	if (renderCubeMapInThisRegion)
+	{
+		cubeMapSpecular   = g_CubeMaps.regionSpecular[region];
+		cubeMapAmbientInt = g_CubeMaps.regionAmbientInt[region];
+		cubeMapAmbientMin = g_CubeMaps.regionAmbientMin[region];
+	}
+
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
@@ -3707,9 +3724,9 @@ void PrimarySurface::DeferredPass()
 	g_SSAO_PSCBuffer.fn_enable = g_bFNEnable;
 	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
 	g_SSAO_PSCBuffer.cubeMappingEnabled = g_CubeMaps.bEnabled;
-	g_SSAO_PSCBuffer.cubeMapSpecInt     = g_CubeMaps.allRegionsSpecular;
-	g_SSAO_PSCBuffer.cubeMapAmbientInt  = g_CubeMaps.allRegionsAmbientInt;
-	g_SSAO_PSCBuffer.cubeMapAmbientMin  = g_CubeMaps.allRegionsAmbientMin;
+	g_SSAO_PSCBuffer.cubeMapSpecInt     = cubeMapSpecular;
+	g_SSAO_PSCBuffer.cubeMapAmbientInt  = cubeMapAmbientInt;
+	g_SSAO_PSCBuffer.cubeMapAmbientMin  = cubeMapAmbientMin;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
