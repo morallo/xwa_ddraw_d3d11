@@ -3117,7 +3117,7 @@ bool LoadSSAOParams() {
 				// This is the "master switch" that enables the new CubeMaps feature.
 				// To enable a CubeMap on a specific mission, its .ini file must be updated
 				// and a corresponding cubemap must be added under Effects\CubeMaps.
-				g_bEnableCubeMaps = (bool)fValue;
+				g_CubeMaps.bEnabled = (bool)fValue;
 			}
 
 			if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {

@@ -207,7 +207,7 @@ typedef struct BloomPixelShaderCBStruct {
 	// 48 bytes
 } BloomPixelShaderCBuffer;
 
-typedef struct SSAOPixelShaderCBStruct {
+struct SSAOPixelShaderCBuffer {
 	float screenSizeX, screenSizeY, indirect_intensity, bias;
 	// 16 bytes
 	float intensity, near_sample_radius, black_level;
@@ -220,9 +220,9 @@ typedef struct SSAOPixelShaderCBStruct {
 	float moire_offset, amplifyFactor;
 	int fn_enable;
 	// 64 bytes
-	float fn_max_xymult, ssao_unused0, fn_sharpness, ssao_unused1;
+	float fn_max_xymult, cubeMapSpecInt, fn_sharpness, cubeMapAmbientInt;
 	// 80 bytes
-	float far_sample_radius, ssao_unused2, ssao_unused3, amplifyFactor2;
+	float far_sample_radius, cubeMapAmbientMin, ssao_unused3, amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes
@@ -232,10 +232,10 @@ typedef struct SSAOPixelShaderCBStruct {
 	// 144 bytes
 	float vpScale[4];
 	// 160 bytes
-	int ssao_unused;
+	int cubeMappingEnabled;
 	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
-} SSAOPixelShaderCBuffer;
+};
 
 typedef struct ShadertoyCBStruct {
 	// twirl: renamed to ExplosionScale in ExplosionShader.hlsl

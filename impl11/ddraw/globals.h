@@ -246,10 +246,6 @@ constexpr float METERS_TO_OPT = 40.96f;
 constexpr float GLOVE_NEAR_THRESHOLD_METERS = 0.05f;
 constexpr float GLOVE_NEAR_THRESHOLD_OPTSCALE = GLOVE_NEAR_THRESHOLD_METERS * METERS_TO_OPT;
 
-constexpr int MAX_MISSION_REGIONS = 4;
-extern bool g_bRenderAllRegionsCubeMap;
-extern bool g_bRenderCubeMapInThisRegion[MAX_MISSION_REGIONS];
-
 // Raytracing
 enum class BLASBuilderType
 {
@@ -404,6 +400,22 @@ struct EnhancedHUDData
 	int shipNameNumChars;
 };
 extern EnhancedHUDData g_EnhancedHUDData;
+
+constexpr int MAX_MISSION_REGIONS = 4;
+
+struct CubeMapData
+{
+	bool bEnabled = false;
+	bool bRenderAllRegions = false;
+	bool bRenderInThisRegion[MAX_MISSION_REGIONS] = { false, false, false, false };
+	float allRegionsSpecular   = 0.7f;
+	float allRegionsAmbientInt = 0.15f;
+	float allRegionsAmbientMin = 0.0f;
+
+	ID3D11ShaderResourceView* allRegionsSRV = nullptr;
+	ID3D11ShaderResourceView* regionSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+};
+extern CubeMapData g_CubeMaps;
 
 // *****************************************************
 // Global functions

@@ -653,8 +653,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
-				g_bEnableCubeMaps = !g_bEnableCubeMaps;
-				if (g_bEnableCubeMaps)
+				g_CubeMaps.bEnabled = !g_CubeMaps.bEnabled;
+				if (g_CubeMaps.bEnabled)
 					DisplayTimedMessage(3, 0, "CubeMaps ENABLED");
 				else
 					DisplayTimedMessage(3, 0, "CubeMaps disabled");

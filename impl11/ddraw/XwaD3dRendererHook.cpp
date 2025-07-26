@@ -217,6 +217,8 @@ std::map<int, bool> g_EnabledOvrGroupIdImageIdMap;
 std::map<int, void*> g_GroupIdImageIdToTextureMap;
 Direct3DTexture* g_StarfieldSRVs[STARFIELD_TYPE::MAX] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
+CubeMapData g_CubeMaps;
+
 int DumpTriangle(const std::string& name, FILE* file, int OBJindex, const XwaVector3& v0, const XwaVector3& v1, const XwaVector3& v2);
 int32_t MakeMeshKey(const SceneCompData* scene);
 void RTResetBlasIDs();
@@ -225,6 +227,7 @@ void ComputeTreeStats(IGenericTreeNode* root);
 std::vector<std::string> GetFileLines(const std::string& path, const std::string& section = std::string());
 std::string GetFileKeyValue(const std::vector<std::string>& lines, const std::string& key);
 int GetFileKeyValueInt(const std::vector<std::string>& lines, const std::string& key, int defaultValue = 0);
+float GetFileKeyValueFloat(const std::vector<std::string>& lines, const std::string& key, float defaultValue = 0.0f);
 
 void PopulateBackdropsMap(std::string& list, std::map<int, bool>& map);
 
@@ -2384,8 +2387,6 @@ bool LoadCubeMap(const std::string path,
 }
 
 static int prevMissionIndex = -1;
-ID3D11ShaderResourceView* g_allRegionsCubeTextureSRV = nullptr;
-ID3D11ShaderResourceView* g_cubeTexturesSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 
 /// <summary>
 /// Sets prevMissionIndex = -1. This causes the .ini file for the current mission
@@ -2416,13 +2417,13 @@ void LoadMissionCubeMaps()
 	auto& device    = g_deviceResources->_d3dDevice;
 	auto& context   = g_deviceResources->_d3dDeviceContext;
 
-	if (g_bEnableCubeMaps &&
+	if (g_CubeMaps.bEnabled &&
 		*missionIndexLoaded != prevMissionIndex && xwaMissionFileName != nullptr)
 	{
 		// Disable all cubemaps as soon as a new mission is loaded.
 		// We'll re-enable them if we find the relevant settings in the .ini file.
-		g_bRenderAllRegionsCubeMap = false;
-		for (int i = 0; i < MAX_MISSION_REGIONS; i++) g_bRenderCubeMapInThisRegion[i] = false;
+		g_CubeMaps.bRenderAllRegions = false;
+		for (int i = 0; i < MAX_MISSION_REGIONS; i++) g_CubeMaps.bRenderInThisRegion[i] = false;
 
 		std::string mission = xwaMissionFileName;
 		const int dot = mission.find_last_of('.');
@@ -2449,12 +2450,16 @@ void LoadMissionCubeMaps()
 		regionPath[2] = GetFileKeyValue(lines, "Region2");
 		regionPath[3] = GetFileKeyValue(lines, "Region3");
 
+		g_CubeMaps.allRegionsSpecular   = GetFileKeyValueFloat(lines, "AllRegionsSpecular",   0.70f);
+		g_CubeMaps.allRegionsAmbientInt = GetFileKeyValueFloat(lines, "AllRegionsAmbientInt", 0.15f);
+		g_CubeMaps.allRegionsAmbientMin = GetFileKeyValueFloat(lines, "AllRegionsAmbientMin", 0.01f);
+
 		if (allRegionsPath.size() > 0)
-			g_bRenderAllRegionsCubeMap = LoadCubeMap(allRegionsPath, &allRegionsCubeTexture, &g_allRegionsCubeTextureSRV);
+			g_CubeMaps.bRenderAllRegions = LoadCubeMap(allRegionsPath, &allRegionsCubeTexture, &g_CubeMaps.allRegionsSRV);
 
 		for (int i = 0; i < MAX_MISSION_REGIONS; i++)
 			if (regionPath[i].size() > 0)
-				g_bRenderCubeMapInThisRegion[i] = LoadCubeMap(regionPath[i], &cubeTextures[i], &g_cubeTexturesSRV[i]);
+				g_CubeMaps.bRenderInThisRegion[i] = LoadCubeMap(regionPath[i], &cubeTextures[i], &g_CubeMaps.regionSRV[i]);
 	}
 out:
 	prevMissionIndex = *missionIndexLoaded;

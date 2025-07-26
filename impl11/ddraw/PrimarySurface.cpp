@@ -32,9 +32,6 @@
 extern D3dRenderer* g_current_renderer;
 extern LBVH* g_ACTLASTree;
 
-extern ID3D11ShaderResourceView* g_allRegionsCubeTextureSRV;
-extern ID3D11ShaderResourceView* g_cubeTexturesSRV[MAX_MISSION_REGIONS];
-
 extern float g_f0x08C1600, g_f0x0686ACC;
 extern float g_f0x080ACF8, g_f0x07B33C0, g_f0x064D1AC;
 
@@ -3709,6 +3706,10 @@ void PrimarySurface::DeferredPass()
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f;
 	g_SSAO_PSCBuffer.fn_enable = g_bFNEnable;
 	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
+	g_SSAO_PSCBuffer.cubeMappingEnabled = g_CubeMaps.bEnabled;
+	g_SSAO_PSCBuffer.cubeMapSpecInt     = g_CubeMaps.allRegionsSpecular;
+	g_SSAO_PSCBuffer.cubeMapAmbientInt  = g_CubeMaps.allRegionsAmbientInt;
+	g_SSAO_PSCBuffer.cubeMapAmbientMin  = g_CubeMaps.allRegionsAmbientMin;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -6159,7 +6160,7 @@ void PrimarySurface::RenderDefaultBackground()
 	else
 		region = PlayerDataTable[*g_playerIndex].currentRegion;
 	const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
-	const bool renderCubeMapInThisRegion = (validRegion && g_bRenderCubeMapInThisRegion[region]);
+	const bool renderCubeMapInThisRegion = (validRegion && g_CubeMaps.bRenderInThisRegion[region]);
 
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
@@ -6243,7 +6244,7 @@ void PrimarySurface::RenderDefaultBackground()
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
 	//g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
-	g_ShadertoyBuffer.VRmode = (renderCubeMapInThisRegion || g_bRenderAllRegionsCubeMap) ? 4 : 3; /* Render DefaultStarfield.dds */
+	g_ShadertoyBuffer.VRmode = (renderCubeMapInThisRegion || g_CubeMaps.bRenderAllRegions) ? 4 : 3; /* Render DefaultStarfield.dds */
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// This setting (y_center) interacts with g_MetricRecCBuffer.mr_y_center, even if they're
@@ -6365,9 +6366,9 @@ void PrimarySurface::RenderDefaultBackground()
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 
-		ID3D11ShaderResourceView*       cubeMapSRV = resources->_textureCubeSRV;
-		if (g_bRenderAllRegionsCubeMap) cubeMapSRV = g_allRegionsCubeTextureSRV;
-		if (renderCubeMapInThisRegion)  cubeMapSRV = g_cubeTexturesSRV[region];
+		ID3D11ShaderResourceView*         cubeMapSRV = resources->_textureCubeSRV;
+		if (g_CubeMaps.bRenderAllRegions) cubeMapSRV = g_CubeMaps.allRegionsSRV;
+		if (renderCubeMapInThisRegion)    cubeMapSRV = g_CubeMaps.regionSRV[region];
 		// AddRef() might be necessary here because when cubeMapSRV goes out of scope,
 		// it will call Release() automatically
 		if (cubeMapSRV != nullptr) cubeMapSRV->AddRef();

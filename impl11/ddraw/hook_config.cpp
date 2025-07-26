@@ -111,6 +111,18 @@ int GetFileKeyValueInt(const std::vector<std::string>& lines, const std::string&
 	return std::stoi(value, 0, 0);
 }
 
+float GetFileKeyValueFloat(const std::vector<std::string>& lines, const std::string& key, float defaultValue)
+{
+	std::string value = GetFileKeyValue(lines, key);
+
+	if (value.empty())
+	{
+		return defaultValue;
+	}
+
+	return std::stof(value);
+}
+
 std::vector<std::string> Tokennize(const std::string& str)
 {
 	const char* delimiters = ",;";

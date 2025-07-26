@@ -640,14 +640,20 @@ PixelShaderOutput main(PixelShaderInput input)
 		// float4 ambient = IrradianceMap.Sample(CubeSampler, normal);
 		// float mipLevel = roughness * MaxMipLevel; // roughness in [0,1]
 		// float4 specularColor = EnvironmentMap.SampleLevel(CubeSampler, reflection, mipLevel);
+		const float3 finalLightColor = cubeMappingEnabled ?
+			lerp(LightColor[i].rgb, skyBoxReflCol * LightColor[i].rgb, cubeMapSpecInt) :
+			LightColor[i].rgb;
+		//const float3 finalAmbient = lerp(ambient, skyBoxNormalCol, cubeMapAmbientInt);
+		const float3 finalAmbient = cubeMappingEnabled ?
+			max(cubeMapAmbientMin, cubeMapAmbientInt * skyBoxNormalCol) : ambient;
+
 		float3 col = addPBR(
 			P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
-			float4(skyBoxReflCol * LightColor[i].rgb, LightIntensity),
-			//float4(LightColor[i].rgb, LightIntensity),
+			float4(finalLightColor, LightIntensity),
 			metallicity,
 			glossiness, // Glossiness: 0 matte, 1 glossy/glass
 			reflectance,
-			ambient,
+			finalAmbient,
 			//bIsGlass ? 1.0 : shadow_factor * ssdo.x, // Disable RT shadows for glass surfaces
 			shadow_factor * ssdo.x,
 			specular_out

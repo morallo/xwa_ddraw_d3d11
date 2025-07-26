@@ -5087,8 +5087,8 @@ HRESULT Direct3DDevice::Execute(
 					const int key = MakeKeyFromGroupIdImageId(GroupId, ImageId);
 					const int region = PlayerDataTable[*g_playerIndex].currentRegion;
 					const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
-					if (g_bEnableCubeMaps &&
-						(g_bRenderAllRegionsCubeMap || (validRegion && g_bRenderCubeMapInThisRegion[region])) &&
+					if (g_CubeMaps.bEnabled &&
+						(g_CubeMaps.bRenderAllRegions || (validRegion && g_CubeMaps.bRenderInThisRegion[region])) &&
 
 						// If this GroupId-ImageId is disabled...
 						(IsInMap(g_StarfieldGroupIdImageIdMap, key) ||
