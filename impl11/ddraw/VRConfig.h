@@ -19,7 +19,7 @@ extern float g_fLensK3;
 
 // GUI elements seem to be in the range 0..0.0005, so 0.0008 sounds like a good threshold:
 extern float g_fGUIElemPZThreshold ;
-extern float g_fTrianglePointerDist ;
+extern float g_fTrianglePointerDist;
 extern float g_fGlobalScale ;
 //extern float g_fPostProjScale ;
 extern float g_fGlobalScaleZoomOut ;

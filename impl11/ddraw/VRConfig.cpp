@@ -272,6 +272,7 @@ float g_fLensK3 = DEFAULT_LENS_K3;
 // GUI elements seem to be in the range 0..0.0005, so 0.0008 sounds like a good threshold:
 float g_fGUIElemPZThreshold = DEFAULT_GUI_ELEM_PZ_THRESHOLD;
 float g_fTrianglePointerDist = DEFAULT_TRIANGLE_POINTER_DIST;
+float g_fTrianglePointerSize = 1.0f;
 bool g_bTrianglePointerEnabled = true;
 float g_fGlobalScale = DEFAULT_GLOBAL_SCALE;
 //float g_fPostProjScale = 1.0f;
@@ -3109,6 +3110,10 @@ bool LoadSSAOParams() {
 
 			if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
 				g_fTrianglePointerDist = fValue;
+			}
+			if (_stricmp(param, "triangle_pointer_size") == 0)
+			{
+				g_fTrianglePointerSize = fValue;
 			}
 			if (_stricmp(param, "triangle_pointer_enabled") == 0)
 			{

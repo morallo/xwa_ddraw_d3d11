@@ -14303,7 +14303,8 @@ void PrimarySurface::RenderTrianglePointer()
 
 	// Compute the size of the new triangle pointer in screen coords:
 	const float avgScSize = (g_fCurScreenWidth + g_fCurScreenHeight) * 0.5f;
-	const float triSize = 0.01f * scale * avgScSize;
+	// "scale" is a static variable that makes the triangle pulsate
+	const float triSize = 0.01f * g_fTrianglePointerSize * scale * avgScSize;
 
 	Vector2 scTriPos, scCenter;
 	InGameToScreenCoords(igTriPos.x, igTriPos.y, &scTriPos.x, &scTriPos.y);
