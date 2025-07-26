@@ -6819,7 +6819,8 @@ void EffectsRenderer::RenderScene(bool bBindTranspLyr1)
 	float scaleX = _viewport.Width / _deviceResources->_displayWidth;
 	float scaleY = _viewport.Height / _deviceResources->_displayHeight;
 
-	if (_deviceResources->IsInConcourseHd())
+	const int s_XwaIsInConcourse = *(int*)0x005FFD9C;
+	if (s_XwaIsInConcourse)
 	{
 		scissorLeft = 0;
 		scissorTop = 0;
