@@ -350,18 +350,6 @@ PixelShaderOutput main(PixelShaderInput input)
 	const float3 skyBoxCol  = skybox.Sample(sampColor, skyViewDir.xyz).rgb;
 	*/
 
-	// pos3D.z is inverted because it was just inverted above:
-	const float3 viewDir    = normalize(float3(pos3D.x, pos3D.y, -pos3D.z));
-	// Normal.z is inverted because Z+ should point away from the camera:
-	float3 skyBoxReflected = reflect(viewDir, normalize(float3(Normal.x, Normal.y, -Normal.z)));
-	float3 skyBoxNormal    = normalize(float3(Normal.x, Normal.y, -Normal.z));
-	skyBoxReflected        = mul(viewMat, float4(skyBoxReflected, 0)).xyz;
-	skyBoxNormal           = mul(viewMat, float4(skyBoxNormal, 0)).xyz;
-	// TODO: Instead of always sampling at cubeMapMipLevel, sample in the range 0..cubeMapMipLevel
-	// depending on the glossiness!
-	const float3 skyBoxReflCol   = skybox.SampleLevel(sampColor, skyBoxReflected.xyz, cubeMapMipLevel).rgb;
-	const float3 skyBoxNormalCol = skybox.SampleLevel(sampColor, skyBoxNormal.xyz, cubeMapMipLevel).rgb;
-
 	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
 	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
 
@@ -638,6 +626,18 @@ PixelShaderOutput main(PixelShaderInput input)
 		float3 specular_out = 0;
 		N_PBR.xy = -N_PBR.xy;
 		L.xy = -L.xy;
+
+		// pos3D.z is inverted because it was just inverted above:
+		const float3 viewDir   = normalize(float3(pos3D.x, pos3D.y, -pos3D.z));
+		// Normal.z is inverted because Z+ should point away from the camera:
+		float3 skyBoxReflected = reflect(viewDir, normalize(float3(Normal.x, Normal.y, -Normal.z)));
+		float3 skyBoxNormal    = normalize(float3(Normal.x, Normal.y, -Normal.z));
+		skyBoxReflected        = mul(viewMat, float4(skyBoxReflected, 0)).xyz;
+		skyBoxNormal           = mul(viewMat, float4(skyBoxNormal, 0)).xyz;
+		// Sample in the range 0..cubeMapMipLevel depending on the glossiness... didn't work so well...
+		//const float mipLevel         = cubeMapMipLevel - cubeMapMipLevel * pow(glossiness, 2);
+		const float3 skyBoxReflCol   = skybox.SampleLevel(sampColor, skyBoxReflected.xyz, cubeMapMipLevel).rgb;
+		const float3 skyBoxNormalCol = skybox.SampleLevel(sampColor, skyBoxNormal.xyz, cubeMapMipLevel).rgb;
 
 		// float4 ambient = IrradianceMap.Sample(CubeSampler, normal);
 		// float mipLevel = roughness * MaxMipLevel; // roughness in [0,1]
