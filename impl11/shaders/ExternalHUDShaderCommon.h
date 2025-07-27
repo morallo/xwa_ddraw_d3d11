@@ -121,7 +121,7 @@ PixelShaderOutput RenderCubeMap(PixelShaderInput input)
 	// That way, viewMat below is the same we already figured out for PixelShaderVRGeom:
 	V = mul(viewMat, float4(V, 0)).xyz;
 
-	const float3 cubeMapColor = skybox.Sample(bgSampler, V.xyz).rgb;
+	const float3 cubeMapColor = skybox.SampleLevel(bgSampler, V.xyz, 0).rgb;
 
 #ifndef INSTANCED_RENDERING
 	// Blend the cube map with the previous background:

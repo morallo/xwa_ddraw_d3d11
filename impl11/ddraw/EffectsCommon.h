@@ -222,7 +222,7 @@ struct SSAOPixelShaderCBuffer {
 	// 64 bytes
 	float fn_max_xymult, cubeMapSpecInt, fn_sharpness, cubeMapAmbientInt;
 	// 80 bytes
-	float far_sample_radius, cubeMapAmbientMin, ssao_unused3, amplifyFactor2;
+	float far_sample_radius, cubeMapAmbientMin, cubeMapMipLevel, amplifyFactor2;
 	// 96 bytes
 	float x0, y0, x1, y1; // Viewport limits in uv space
 	// 112 bytes

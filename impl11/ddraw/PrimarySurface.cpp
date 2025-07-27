@@ -3707,11 +3707,13 @@ void PrimarySurface::DeferredPass()
 	float cubeMapSpecular   = g_CubeMaps.allRegionsSpecular;
 	float cubeMapAmbientMin = g_CubeMaps.allRegionsAmbientMin;
 	float cubeMapAmbientInt = g_CubeMaps.allRegionsAmbientInt;
+	float cubeMapMipLevel   = g_CubeMaps.allRegionsDiffuseMipLevel;
 	if (renderCubeMapInThisRegion)
 	{
 		cubeMapSpecular   = g_CubeMaps.regionSpecular[region];
 		cubeMapAmbientInt = g_CubeMaps.regionAmbientInt[region];
 		cubeMapAmbientMin = g_CubeMaps.regionAmbientMin[region];
+		cubeMapMipLevel   = g_CubeMaps.regionDiffuseMipLevel[region];
 	}
 
 	// Set the Vertex Shader Constant buffers
@@ -3727,6 +3729,7 @@ void PrimarySurface::DeferredPass()
 	g_SSAO_PSCBuffer.cubeMapSpecInt     = cubeMapSpecular;
 	g_SSAO_PSCBuffer.cubeMapAmbientInt  = cubeMapAmbientInt;
 	g_SSAO_PSCBuffer.cubeMapAmbientMin  = cubeMapAmbientMin;
+	g_SSAO_PSCBuffer.cubeMapMipLevel    = cubeMapMipLevel;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout

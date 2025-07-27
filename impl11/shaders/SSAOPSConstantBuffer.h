@@ -15,7 +15,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 64 bytes
 	float fn_max_xymult, cubeMapSpecInt, fn_sharpness, cubeMapAmbientInt;
 	// 80 bytes
-	float far_sample_radius, cubeMapAmbientMin, ssao_unused3, ssao_amplifyFactor2;
+	float far_sample_radius, cubeMapAmbientMin, cubeMapMipLevel, ssao_amplifyFactor2;
 	// 96 bytes
 	float2 ssao_p0, ssao_p1; // Viewport limits in uv space
 	// 112 bytes
