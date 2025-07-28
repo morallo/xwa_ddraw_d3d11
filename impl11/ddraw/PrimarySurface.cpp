@@ -6188,6 +6188,7 @@ void PrimarySurface::RenderDefaultBackground()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	const bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
+	Matrix4 cubeMapRot;
 
 	this->_deviceResources->BeginAnnotatedEvent(L"RenderDefaultBackground");
 
@@ -6257,6 +6258,16 @@ void PrimarySurface::RenderDefaultBackground()
 
 	int region = 0;
 	const bool renderCubeMapInThisRegion = RenderCubeMapInThisRegion(&region);
+	const bool renderCubeMap = (renderCubeMapInThisRegion || g_CubeMaps.bRenderAllRegions);
+	// This part needs some explanation.
+	// The DefaultStarfield is rendered all the time, and we're using the same path to render
+	// cubemaps. However, if we should render a cubemap in this region/mission, but cubemaps
+	// are disabled, that means we shouldn't render a cubemap at all, and we can skip to the
+	// end of this function. This fixes an artifact where the cubemap shows through the Sun's
+	// corona, and also saves us a draw() call that won't be visible in the end.
+	if (renderCubeMap && !g_CubeMaps.bEnabled)
+		goto out;
+
 	float angX = g_CubeMaps.allRegionsAngX;
 	float angY = g_CubeMaps.allRegionsAngY;
 	float angZ = g_CubeMaps.allRegionsAngZ;
@@ -6266,7 +6277,7 @@ void PrimarySurface::RenderDefaultBackground()
 		angY = g_CubeMaps.regionAngY[region];
 		angZ = g_CubeMaps.regionAngZ[region];
 	}
-	Matrix4 cubeMapRot = Matrix4().rotateZ(angZ) * Matrix4().rotateY(angY) * Matrix4().rotateX(angX);
+	cubeMapRot = Matrix4().rotateZ(angZ) * Matrix4().rotateY(angY) * Matrix4().rotateX(angX);
 	g_ShadertoyBuffer.viewMat = cubeMapRot * g_ShadertoyBuffer.viewMat;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
@@ -6275,7 +6286,7 @@ void PrimarySurface::RenderDefaultBackground()
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
 	//g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
-	g_ShadertoyBuffer.VRmode = (renderCubeMapInThisRegion || g_CubeMaps.bRenderAllRegions) ? 4 : 3; /* Render DefaultStarfield.dds */
+	g_ShadertoyBuffer.VRmode = renderCubeMap ? 4 : 3; /* Render DefaultStarfield.dds */
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// This setting (y_center) interacts with g_MetricRecCBuffer.mr_y_center, even if they're
@@ -6489,6 +6500,7 @@ void PrimarySurface::RenderDefaultBackground()
 		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 	}
 
+out:
 	g_bDefaultStarfieldRendered = true;
 
 	// Restore previous rendertarget, etc
