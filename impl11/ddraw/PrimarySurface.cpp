@@ -302,6 +302,29 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 }
 */
 
+bool RenderCubeMapInThisRegion(int* region_out)
+{
+	// V0x008C1CD8
+	//int s_XwaCurrentRegion;
+	/*
+	* The max number of regions in a mission is 4. But in the game engine there is
+	* an extra region for the hangar. So when creating a mission you can have up to
+	* 4 regions. In the game engine there are up to 5 regions. The hangar region is
+	* the one after the last mission region. So if there are 4 regions in a mission
+	* then the region index of the hangar is 4. If there are 2 regions in a mission
+	* then the region index of the hangar is 2.
+	*/
+	// I'm going to ignore the comment above (by Jeremy) and make the hangar region 0
+	// otherwise, accessing the currentRegion field from PlayerDataTable does return
+	// the region-after-the-last-region-in-this-mission index, which can be complicated.
+	if (g_playerInHangar != nullptr && *g_playerInHangar)
+		*region_out = 0;
+	else
+		*region_out = PlayerDataTable[*g_playerIndex].currentRegion;
+	const bool validRegion = (*region_out >= 0 && *region_out < MAX_MISSION_REGIONS);
+	return (validRegion && g_CubeMaps.bRenderInThisRegion[*region_out]);
+}
+
 void GetFakeYawPitchRollFromKeyboard(float *yaw, float *pitch, float *roll) {
 	static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
 	bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
@@ -3697,13 +3720,8 @@ void PrimarySurface::DeferredPass()
 	// Set the lights and the Shading System Constant Buffer
 	SetLights(_deviceResources, 0.0f);
 
-	int region;
-	if (g_playerInHangar != nullptr && *g_playerInHangar)
-		region = 0;
-	else
-		region = PlayerDataTable[*g_playerIndex].currentRegion;
-	const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
-	const bool renderCubeMapInThisRegion = (validRegion && g_CubeMaps.bRenderInThisRegion[region]);
+	int region = 0;
+	const bool renderCubeMapInThisRegion = RenderCubeMapInThisRegion(&region);
 	float cubeMapSpecular   = g_CubeMaps.allRegionsSpecular;
 	float cubeMapAmbientMin = g_CubeMaps.allRegionsAmbientMin;
 	float cubeMapAmbientInt = g_CubeMaps.allRegionsAmbientInt;
@@ -6161,27 +6179,6 @@ void PrimarySurface::RenderDefaultBackground()
 	if (!g_bRenderDefaultStarfield || !g_bRendering3D || g_bDefaultStarfieldRendered)
 		return;
 
-	// V0x008C1CD8
-	//int s_XwaCurrentRegion;
-	int region = 0;
-	/*
-	 * The max number of regions in a mission is 4. But in the game engine there is
-	 * an extra region for the hangar. So when creating a mission you can have up to
-	 * 4 regions. In the game engine there are up to 5 regions. The hangar region is
-	 * the one after the last mission region. So if there are 4 regions in a mission
-	 * then the region index of the hangar is 4. If there are 2 regions in a mission
-	 * then the region index of the hangar is 2.
-	 */
-	// I'm going to ignore the comment above (by Jeremy) and make the hangar region 0
-	// otherwise, accessing the currentRegion field from PlayerDataTable does return
-	// the region-after-the-last-region-in-this-mission index, which can be complicated.
-	if (g_playerInHangar != nullptr && *g_playerInHangar)
-		region = 0;
-	else
-		region = PlayerDataTable[*g_playerIndex].currentRegion;
-	const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
-	const bool renderCubeMapInThisRegion = (validRegion && g_CubeMaps.bRenderInThisRegion[region]);
-
 	auto& resources = this->_deviceResources;
 	auto& device = resources->_d3dDevice;
 	auto& context = resources->_d3dDeviceContext;
@@ -6257,6 +6254,20 @@ void PrimarySurface::RenderDefaultBackground()
 		ViewMatrix = swap * Heading * swap * ViewMatrix;
 		g_ShadertoyBuffer.viewMat = ViewMatrix;
 	}
+
+	int region = 0;
+	const bool renderCubeMapInThisRegion = RenderCubeMapInThisRegion(&region);
+	float angX = g_CubeMaps.allRegionsAngX;
+	float angY = g_CubeMaps.allRegionsAngY;
+	float angZ = g_CubeMaps.allRegionsAngZ;
+	if (renderCubeMapInThisRegion)
+	{
+		angX = g_CubeMaps.regionAngX[region];
+		angY = g_CubeMaps.regionAngY[region];
+		angZ = g_CubeMaps.regionAngZ[region];
+	}
+	Matrix4 cubeMapRot = Matrix4().rotateZ(angZ) * Matrix4().rotateY(angY) * Matrix4().rotateX(angX);
+	g_ShadertoyBuffer.viewMat = cubeMapRot * g_ShadertoyBuffer.viewMat;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;

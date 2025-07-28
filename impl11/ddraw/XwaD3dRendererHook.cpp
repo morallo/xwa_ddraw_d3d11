@@ -2442,6 +2442,59 @@ void ResetMissionCubeMaps()
 	g_EnabledOvrGroupIdImageIdMap.clear();
 }
 
+void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
+{
+	g_DisabledGroupIdImageIdMap.clear();
+	g_EnabledOvrGroupIdImageIdMap.clear();
+
+	std::string DisabledBackdropList = GetFileKeyValue(lines, "DisabledBackdrops");
+	PopulateBackdropsMap(DisabledBackdropList, g_DisabledGroupIdImageIdMap);
+
+	std::string EnabledBackdropList = GetFileKeyValue(lines, "EnabledBackdrops");
+	PopulateBackdropsMap(EnabledBackdropList, g_EnabledOvrGroupIdImageIdMap);
+
+
+	g_CubeMaps.allRegionsSpecular   = GetFileKeyValueFloat(lines, "AllRegionsSpecular",   0.70f);
+	g_CubeMaps.allRegionsAmbientInt = GetFileKeyValueFloat(lines, "AllRegionsAmbientInt", 0.15f);
+	g_CubeMaps.allRegionsAmbientMin = GetFileKeyValueFloat(lines, "AllRegionsAmbientMin", 0.01f);
+	g_CubeMaps.allRegionsAngX = GetFileKeyValueFloat(lines, "AllRegionsRotationX", 0.0f);
+	g_CubeMaps.allRegionsAngY = GetFileKeyValueFloat(lines, "AllRegionsRotationY", 0.0f);
+	g_CubeMaps.allRegionsAngZ = GetFileKeyValueFloat(lines, "AllRegionsRotationZ", 0.0f);
+
+	char* regionSpecNames[MAX_MISSION_REGIONS]       = { "Region0Specular",   "Region1Specular",   "Region2Specular",   "Region3Specular" };
+	char* regionAmbientIntNames[MAX_MISSION_REGIONS] = { "Region0AmbientInt", "Region1AmbientInt", "Region2AmbientInt", "Region3AmbientInt" };
+	char* regionAmbientMinNames[MAX_MISSION_REGIONS] = { "Region0AmbientMin", "Region1AmbientMin", "Region2AmbientMin", "Region3AmbientMin" };
+	char* regionAngX[MAX_MISSION_REGIONS] = { "Region0RotationX", "Region1RotationX", "Region2RotationX", "Region3RotationX" };
+	char* regionAngY[MAX_MISSION_REGIONS] = { "Region0RotationY", "Region1RotationY", "Region2RotationY", "Region3RotationY" };
+	char* regionAngZ[MAX_MISSION_REGIONS] = { "Region0RotationZ", "Region1RotationZ", "Region2RotationZ", "Region3RotationZ" };
+	for (int i = 0; i < MAX_MISSION_REGIONS; i++)
+	{
+		g_CubeMaps.regionSpecular[i]   = GetFileKeyValueFloat(lines, regionSpecNames[i], 0.70f);
+		g_CubeMaps.regionAmbientInt[i] = GetFileKeyValueFloat(lines, regionAmbientIntNames[i], 0.15f);
+		g_CubeMaps.regionAmbientMin[i] = GetFileKeyValueFloat(lines, regionAmbientMinNames[i], 0.01f);
+		g_CubeMaps.regionAngX[i] = GetFileKeyValueFloat(lines, regionAngX[i], 0.0f);
+		g_CubeMaps.regionAngY[i] = GetFileKeyValueFloat(lines, regionAngY[i], 0.0f);
+		g_CubeMaps.regionAngZ[i] = GetFileKeyValueFloat(lines, regionAngZ[i], 0.0f);
+	}
+}
+
+void ReloadCubeMapData()
+{
+	std::string mission = xwaMissionFileName;
+	const int dot = mission.find_last_of('.');
+	mission = mission.substr(0, dot) + ".ini";
+	log_debug("[DBG] [CUBE] Reloading ini: %s", mission.c_str());
+
+	auto lines = GetFileLines(mission, "SkyBoxes");
+	if (lines.size() <= 0)
+	{
+		log_debug("[DBG] [CUBE] No [SkyBoxes] tag, aborting.");
+		return;
+	}
+
+	ParseCubeMapMissionIni(lines);
+}
+
 /// <summary>
 /// Check if the current mission has changed, and if so, load new cube maps and set
 /// global flags (g_bRenderCubeMapInThisRegion) and SRVs (g_cubeTextureSRV).
@@ -2478,12 +2531,6 @@ void LoadMissionCubeMaps()
 			goto out;
 		}
 
-		std::string DisabledBackdropList = GetFileKeyValue(lines, "DisabledBackdrops");
-		PopulateBackdropsMap(DisabledBackdropList, g_DisabledGroupIdImageIdMap);
-
-		std::string EnabledBackdropList = GetFileKeyValue(lines, "EnabledBackdrops");
-		PopulateBackdropsMap(EnabledBackdropList, g_EnabledOvrGroupIdImageIdMap);
-
 		std::string allRegionsPath = GetFileKeyValue(lines, "AllRegions");
 		std::string regionPath[4];
 		regionPath[0] = GetFileKeyValue(lines, "Region0");
@@ -2491,19 +2538,7 @@ void LoadMissionCubeMaps()
 		regionPath[2] = GetFileKeyValue(lines, "Region2");
 		regionPath[3] = GetFileKeyValue(lines, "Region3");
 
-		g_CubeMaps.allRegionsSpecular   = GetFileKeyValueFloat(lines, "AllRegionsSpecular",   0.70f);
-		g_CubeMaps.allRegionsAmbientInt = GetFileKeyValueFloat(lines, "AllRegionsAmbientInt", 0.15f);
-		g_CubeMaps.allRegionsAmbientMin = GetFileKeyValueFloat(lines, "AllRegionsAmbientMin", 0.01f);
-
-		char* regionSpecNames[MAX_MISSION_REGIONS]       = { "Region0Specular",   "Region1Specular",   "Region2Specular",   "Region3Specular" };
-		char* regionAmbientIntNames[MAX_MISSION_REGIONS] = { "Region0AmbientInt", "Region1AmbientInt", "Region2AmbientInt", "Region3AmbientInt" };
-		char* regionAmbientMinNames[MAX_MISSION_REGIONS] = { "Region0AmbientMin", "Region1AmbientMin", "Region2AmbientMin", "Region3AmbientMin" };
-		for (int i = 0; i < MAX_MISSION_REGIONS; i++)
-		{
-			g_CubeMaps.regionSpecular[i]   = GetFileKeyValueFloat(lines, regionSpecNames[i], 0.70f);
-			g_CubeMaps.regionAmbientInt[i] = GetFileKeyValueFloat(lines, regionAmbientIntNames[i], 0.15f);
-			g_CubeMaps.regionAmbientMin[i] = GetFileKeyValueFloat(lines, regionAmbientMinNames[i], 0.01f);
-		}
+		ParseCubeMapMissionIni(lines);
 
 		if (allRegionsPath.size() > 0)
 			g_CubeMaps.bRenderAllRegions = LoadCubeMap(allRegionsPath,

@@ -55,6 +55,7 @@ extern bool g_bUseCentroids;
 
 void RenderEngineGlowHook(void* A4, int A8, void* textureSurface, uint32_t A10, uint32_t A14);
 char RenderBackdropsHook();
+void ReloadCubeMapData();
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -780,6 +781,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Force the re-application of the focal_length
 				g_bCustomFOVApplied = false;
 				LoadVRParams();
+				if (g_bEnableDeveloperMode)
+					ReloadCubeMapData();
 				return 0;
 			
 			// Ctrl+Alt+W
