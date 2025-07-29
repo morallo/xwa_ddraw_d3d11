@@ -413,6 +413,9 @@ struct CubeMapData
 	float allRegionsAmbientMin = 0.0f;
 	float allRegionsDiffuseMipLevel = 5;
 	float allRegionsAngX = 0.0f, allRegionsAngY = 0.0f, allRegionsAngZ = 0.0f;
+	float allRegionsTexRes = -1;
+	float allRegionsMipRes = 16.0f;
+
 	float regionSpecular[MAX_MISSION_REGIONS];
 	float regionAmbientInt[MAX_MISSION_REGIONS];
 	float regionAmbientMin[MAX_MISSION_REGIONS];
@@ -420,6 +423,8 @@ struct CubeMapData
 	float regionAngX[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionAngY[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionAngZ[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
+	float regionTexRes[MAX_MISSION_REGIONS] = { -1, -1, -1, -1 };
+	float regionMipRes[MAX_MISSION_REGIONS];
 
 	ID3D11ShaderResourceView* allRegionsSRV = nullptr;
 	ID3D11ShaderResourceView* regionSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };

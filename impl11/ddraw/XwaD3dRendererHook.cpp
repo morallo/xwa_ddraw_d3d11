@@ -2246,6 +2246,21 @@ ColorConvert g_colorConvert;
 std::vector<unsigned char>* g_colorMapBuffer = nullptr;
 std::vector<unsigned char>* g_illumMapBuffer = nullptr;
 
+float FindMipLevel(float texResolution, const float mipResolution)
+{
+	float mipLevel = 0;
+	if (texResolution <= 0) return 0;
+
+	// Find the mip level that makes this texture small enough for
+	// diffuse illumination
+	while (texResolution > mipResolution)
+	{
+		texResolution /= 2.0f;
+		mipLevel += 1.0f;
+	}
+
+	return mipLevel;
+}
 
 std::vector<std::wstring> ListFiles(std::string path)
 {
@@ -2290,6 +2305,7 @@ std::vector<std::wstring> ListFiles(std::string path)
 }
 
 bool LoadCubeMap(const std::string path,
+	const float mipResolution, float* texResolution,
 	ID3D11Texture2D** cubeTexture,
 	ID3D11ShaderResourceView** cubeTextureSRV,
 	float *diffuseMipLevel_out)
@@ -2341,19 +2357,11 @@ bool LoadCubeMap(const std::string path,
 				D3D11_TEXTURE2D_DESC desc;
 				cubeFace->GetDesc(&desc);
 				size = desc.Width;
+				*texResolution = (float)size;
 				box.right = box.bottom = size;
 				totalMipLevels = desc.MipLevels;
 
-				// Find the mip level that makes this texture small enough for
-				// diffuse illumination
-				{
-					UINT resolution = size;
-					while (resolution > 16)
-					{
-						resolution /= 2;
-						(*diffuseMipLevel_out) += 1.0f;
-					}
-				}
+				*diffuseMipLevel_out = FindMipLevel(*texResolution, mipResolution);
 
 				D3D11_TEXTURE2D_DESC cubeDesc = {};
 				D3D11_SHADER_RESOURCE_VIEW_DESC cubeSRVDesc = {};
@@ -2460,6 +2468,8 @@ void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
 	g_CubeMaps.allRegionsAngX = GetFileKeyValueFloat(lines, "AllRegionsRotationX", 0.0f);
 	g_CubeMaps.allRegionsAngY = GetFileKeyValueFloat(lines, "AllRegionsRotationY", 0.0f);
 	g_CubeMaps.allRegionsAngZ = GetFileKeyValueFloat(lines, "AllRegionsRotationZ", 0.0f);
+	g_CubeMaps.allRegionsMipRes = GetFileKeyValueFloat(lines, "AllRegionsReflectionRes", 16.0f);
+	g_CubeMaps.allRegionsDiffuseMipLevel = FindMipLevel(g_CubeMaps.allRegionsTexRes, g_CubeMaps.allRegionsMipRes);
 
 	char* regionSpecNames[MAX_MISSION_REGIONS]       = { "Region0Specular",   "Region1Specular",   "Region2Specular",   "Region3Specular" };
 	char* regionAmbientIntNames[MAX_MISSION_REGIONS] = { "Region0AmbientInt", "Region1AmbientInt", "Region2AmbientInt", "Region3AmbientInt" };
@@ -2467,6 +2477,7 @@ void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
 	char* regionAngX[MAX_MISSION_REGIONS] = { "Region0RotationX", "Region1RotationX", "Region2RotationX", "Region3RotationX" };
 	char* regionAngY[MAX_MISSION_REGIONS] = { "Region0RotationY", "Region1RotationY", "Region2RotationY", "Region3RotationY" };
 	char* regionAngZ[MAX_MISSION_REGIONS] = { "Region0RotationZ", "Region1RotationZ", "Region2RotationZ", "Region3RotationZ" };
+	char* regionMipRes[MAX_MISSION_REGIONS] = { "Region0ReflectionRes", "Region1ReflectionRes", "Region2ReflectionRes", "Region3ReflectionRes" };
 	for (int i = 0; i < MAX_MISSION_REGIONS; i++)
 	{
 		g_CubeMaps.regionSpecular[i]   = GetFileKeyValueFloat(lines, regionSpecNames[i], 0.70f);
@@ -2475,6 +2486,8 @@ void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
 		g_CubeMaps.regionAngX[i] = GetFileKeyValueFloat(lines, regionAngX[i], 0.0f);
 		g_CubeMaps.regionAngY[i] = GetFileKeyValueFloat(lines, regionAngY[i], 0.0f);
 		g_CubeMaps.regionAngZ[i] = GetFileKeyValueFloat(lines, regionAngZ[i], 0.0f);
+		g_CubeMaps.regionMipRes[i] = GetFileKeyValueFloat(lines, regionMipRes[i], 16.0f);
+		g_CubeMaps.regionDiffuseMipLevel[i] = FindMipLevel(g_CubeMaps.regionTexRes[i], g_CubeMaps.regionMipRes[i]);
 	}
 }
 
@@ -2542,11 +2555,13 @@ void LoadMissionCubeMaps()
 
 		if (allRegionsPath.size() > 0)
 			g_CubeMaps.bRenderAllRegions = LoadCubeMap(allRegionsPath,
+				g_CubeMaps.allRegionsMipRes, &g_CubeMaps.allRegionsTexRes,
 				&allRegionsCubeTexture, &g_CubeMaps.allRegionsSRV, &g_CubeMaps.allRegionsDiffuseMipLevel);
 
 		for (int i = 0; i < MAX_MISSION_REGIONS; i++)
 			if (regionPath[i].size() > 0)
 				g_CubeMaps.bRenderInThisRegion[i] = LoadCubeMap(regionPath[i],
+					g_CubeMaps.regionMipRes[i], &(g_CubeMaps.regionTexRes[i]),
 					&cubeTextures[i], &g_CubeMaps.regionSRV[i], &g_CubeMaps.regionDiffuseMipLevel[i]);
 	}
 out:
