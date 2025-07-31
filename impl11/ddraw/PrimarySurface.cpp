@@ -6520,6 +6520,18 @@ char RenderBackdropsHook()
 	// So, in other words, it looks like XwaRenderBackdrops() only
 	// enqueues the draw calls but doesn't execute them while inside
 	// the function.
+
+	// We can render the DefaultStarfield/CubeMap here, right before all the
+	// backdrops are enqueued. Sounds like a good way to get rid of that awkward
+	// blending mode that we need to use when DefaultStarfield is rendered on top
+	// of existing backdrops.
+	if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
+	{
+		g_bUseExternalCameraState = true;
+		g_deviceResources->_primarySurface->RenderDefaultBackground();
+		g_bUseExternalCameraState = false;
+	}
+
 	return XwaRenderBackdrops(); // Looks like the return value is always 0
 }
 
@@ -11017,12 +11029,16 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
+			/*
+			// I shall not get rid of this just yet: it might be useful to render a second
+			// cubemap layer on top of all the backdrops...
 			if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
 			{
 				g_bUseExternalCameraState = true;
 				resources->_primarySurface->RenderDefaultBackground();
 				g_bUseExternalCameraState = false;
 			}
+			*/
 
 			// Overwrite the backdrop with a texture cube. Warning: This obviously interferes with the
 			// SkyCylinder below. Use one or the other!
