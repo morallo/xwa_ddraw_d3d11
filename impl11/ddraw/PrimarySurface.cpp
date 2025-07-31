@@ -6310,6 +6310,8 @@ void PrimarySurface::RenderDefaultBackground()
 	// For the non-VR path, the custom blending is done in the ExternalHUD pixel shader.
 	// For the VR path, we need two (2) renders. The first pass renders the skybox, the
 	// second render does the blending.
+	// s_transparentBlendState is the regular blend mode, and it's the same as
+	// Direct3DDevice::EnableTransparency().
 	static ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
 	if (s_transparentBlendState == nullptr)
 	{
@@ -6524,13 +6526,13 @@ char RenderBackdropsHook()
 	// We can render the DefaultStarfield/CubeMap here, right before all the
 	// backdrops are enqueued. Sounds like a good way to get rid of that awkward
 	// blending mode that we need to use when DefaultStarfield is rendered on top
-	// of existing backdrops.
-	if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
+	// of existing backdrops... Only, the resulting images don't blend that well!
+	/*if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
 	{
 		g_bUseExternalCameraState = true;
 		g_deviceResources->_primarySurface->RenderDefaultBackground();
 		g_bUseExternalCameraState = false;
-	}
+	}*/
 
 	return XwaRenderBackdrops(); // Looks like the return value is always 0
 }
@@ -11029,16 +11031,14 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
-			/*
-			// I shall not get rid of this just yet: it might be useful to render a second
-			// cubemap layer on top of all the backdrops...
+			// Rendering the DefaultStarfield/CubeMap here produces better blending than
+			// doing it in the backdrops hook.
 			if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
 			{
 				g_bUseExternalCameraState = true;
 				resources->_primarySurface->RenderDefaultBackground();
 				g_bUseExternalCameraState = false;
 			}
-			*/
 
 			// Overwrite the backdrop with a texture cube. Warning: This obviously interferes with the
 			// SkyCylinder below. Use one or the other!
