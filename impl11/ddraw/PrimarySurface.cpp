@@ -3743,7 +3743,7 @@ void PrimarySurface::DeferredPass()
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f;
 	g_SSAO_PSCBuffer.fn_enable = g_bFNEnable;
 	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
-	g_SSAO_PSCBuffer.cubeMappingEnabled = g_CubeMaps.bEnabled;
+	g_SSAO_PSCBuffer.cubeMappingEnabled = !*g_playerInHangar && g_CubeMaps.bEnabled;
 	g_SSAO_PSCBuffer.cubeMapSpecInt     = cubeMapSpecular;
 	g_SSAO_PSCBuffer.cubeMapAmbientInt  = cubeMapAmbientInt;
 	g_SSAO_PSCBuffer.cubeMapAmbientMin  = cubeMapAmbientMin;
