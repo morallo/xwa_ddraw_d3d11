@@ -16,21 +16,18 @@
  // The reticle background texture
 Texture2DArray bgTex : register(t0);
 SamplerState   bgSampler : register(s0);
-
-Texture2DArray stellarBG : register(t22);
 #else
  // The reticle background texture
 Texture2D    bgTex : register(t0);
 SamplerState bgSampler : register(s0);
-
-Texture2D    stellarBG : register(t22);
 #endif
 
 // The reticle texture
 Texture2D    reticleTex : register(t1);
 SamplerState reticleSampler : register(s1);
 
-TextureCube skybox : register(t21);
+TextureCube skybox      : register(t21);
+Texture2D   stellarBG   : register(t22);
 
 #define cursor_radius 0.04
 //#define thickness 0.02 
