@@ -120,7 +120,9 @@ float GetFileKeyValueFloat(const std::vector<std::string>& lines, const std::str
 		return defaultValue;
 	}
 
-	return std::stof(value);
+	float res = defaultValue;
+	try { res = std::stof(value); } catch (...) {}
+	return res;
 }
 
 std::vector<std::string> Tokennize(const std::string& str)
