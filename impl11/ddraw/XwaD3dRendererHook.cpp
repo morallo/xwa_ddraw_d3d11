@@ -2462,13 +2462,13 @@ void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
 	PopulateBackdropsMap(EnabledBackdropList, g_EnabledOvrGroupIdImageIdMap);
 
 
-	g_CubeMaps.allRegionsSpecular   = GetFileKeyValueFloat(lines, "AllRegionsSpecular",   0.70f);
-	g_CubeMaps.allRegionsAmbientInt = GetFileKeyValueFloat(lines, "AllRegionsAmbientInt", 0.15f);
+	g_CubeMaps.allRegionsSpecular   = GetFileKeyValueFloat(lines, "AllRegionsSpecular",   0.55f);
+	g_CubeMaps.allRegionsAmbientInt = GetFileKeyValueFloat(lines, "AllRegionsAmbientInt", 0.50f);
 	g_CubeMaps.allRegionsAmbientMin = GetFileKeyValueFloat(lines, "AllRegionsAmbientMin", 0.01f);
 	g_CubeMaps.allRegionsAngX = GetFileKeyValueFloat(lines, "AllRegionsRotationX", 0.0f);
 	g_CubeMaps.allRegionsAngY = GetFileKeyValueFloat(lines, "AllRegionsRotationY", 0.0f);
 	g_CubeMaps.allRegionsAngZ = GetFileKeyValueFloat(lines, "AllRegionsRotationZ", 0.0f);
-	g_CubeMaps.allRegionsMipRes = GetFileKeyValueFloat(lines, "AllRegionsReflectionRes", 16.0f);
+	g_CubeMaps.allRegionsMipRes = GetFileKeyValueFloat(lines, "AllRegionsReflectionRes", 8.0f);
 	g_CubeMaps.allRegionsDiffuseMipLevel = FindMipLevel(g_CubeMaps.allRegionsTexRes, g_CubeMaps.allRegionsMipRes);
 
 	char* regionSpecNames[MAX_MISSION_REGIONS]       = { "Region0Specular",   "Region1Specular",   "Region2Specular",   "Region3Specular" };
