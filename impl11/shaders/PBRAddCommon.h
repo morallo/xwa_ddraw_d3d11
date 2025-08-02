@@ -100,6 +100,7 @@ Texture2DArray<float> texShadowMap : register(t7);
 SamplerComparisonState cmpSampler : register(s7);
 
 TextureCube skybox : register(t21);
+TextureCube illumSkybox : register(t23);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -636,8 +637,20 @@ PixelShaderOutput main(PixelShaderInput input)
 		skyBoxNormal           = mul(viewMat, float4(skyBoxNormal, 0)).xyz;
 		// Sample in the range 0..cubeMapMipLevel depending on the glossiness... didn't work so well...
 		//const float mipLevel         = cubeMapMipLevel - cubeMapMipLevel * pow(glossiness, 2);
-		const float3 skyBoxReflCol   = skybox.SampleLevel(sampColor, skyBoxReflected.xyz, cubeMapMipLevel).rgb;
-		const float3 skyBoxNormalCol = skybox.SampleLevel(sampColor, skyBoxNormal.xyz, cubeMapMipLevel).rgb;
+		float3 skyBoxReflCol   = 1;
+		float3 skyBoxNormalCol = 1;
+		// Sample the hi-res cubemap and use it to tint the light color:
+		if (cubeMappingEnabled == 1)
+		{
+			skyBoxReflCol   = skybox.SampleLevel(sampColor, skyBoxReflected.xyz, cubeMapMipLevel).rgb;
+			skyBoxNormalCol = skybox.SampleLevel(sampColor, skyBoxNormal.xyz, cubeMapMipLevel).rgb;
+		}
+		// Sample the lo-res cubemap and use it to tint the light color:
+		else if (cubeMappingEnabled == 2)
+		{
+			skyBoxReflCol   = illumSkybox.SampleLevel(sampColor, skyBoxReflected.xyz, cubeMapMipLevel).rgb;
+			skyBoxNormalCol = illumSkybox.SampleLevel(sampColor, skyBoxNormal.xyz, cubeMapMipLevel).rgb;
+		}
 
 		// float4 ambient = IrradianceMap.Sample(CubeSampler, normal);
 		// float mipLevel = roughness * MaxMipLevel; // roughness in [0,1]

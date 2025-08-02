@@ -2517,7 +2517,9 @@ void ReloadCubeMapData()
 void LoadMissionCubeMaps()
 {
 	static ID3D11Texture2D* cubeTextures[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+	static ID3D11Texture2D* cubeTexturesIllum[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 	static ID3D11Texture2D* allRegionsCubeTexture = nullptr;
+	static ID3D11Texture2D* allRegionsIllumCubeTexture = nullptr;
 
 	HRESULT res = S_OK;
 	auto& resources = g_deviceResources;
@@ -2545,11 +2547,17 @@ void LoadMissionCubeMaps()
 		}
 
 		std::string allRegionsPath = GetFileKeyValue(lines, "AllRegions");
+		std::string allRegionsIllumPath = GetFileKeyValue(lines, "AllRegionsIllum");
 		std::string regionPath[4];
+		std::string regionIllumPath[4];
 		regionPath[0] = GetFileKeyValue(lines, "Region0");
 		regionPath[1] = GetFileKeyValue(lines, "Region1");
 		regionPath[2] = GetFileKeyValue(lines, "Region2");
 		regionPath[3] = GetFileKeyValue(lines, "Region3");
+		regionIllumPath[0] = GetFileKeyValue(lines, "Region0Illum");
+		regionIllumPath[1] = GetFileKeyValue(lines, "Region1Illum");
+		regionIllumPath[2] = GetFileKeyValue(lines, "Region2Illum");
+		regionIllumPath[3] = GetFileKeyValue(lines, "Region3Illum");
 
 		ParseCubeMapMissionIni(lines);
 
@@ -2558,11 +2566,23 @@ void LoadMissionCubeMaps()
 				g_CubeMaps.allRegionsMipRes, &g_CubeMaps.allRegionsTexRes,
 				&allRegionsCubeTexture, &g_CubeMaps.allRegionsSRV, &g_CubeMaps.allRegionsDiffuseMipLevel);
 
+		if (allRegionsIllumPath.size() > 0)
+			g_CubeMaps.bAllRegionsIllum = LoadCubeMap(allRegionsIllumPath,
+				g_CubeMaps.allRegionsIllumMipRes, &g_CubeMaps.allRegionsIllumTexRes,
+				&allRegionsIllumCubeTexture, &g_CubeMaps.allRegionsIllumSRV, &g_CubeMaps.allRegionsIllumDiffuseMipLevel);
+
 		for (int i = 0; i < MAX_MISSION_REGIONS; i++)
+		{
 			if (regionPath[i].size() > 0)
 				g_CubeMaps.bRenderInThisRegion[i] = LoadCubeMap(regionPath[i],
 					g_CubeMaps.regionMipRes[i], &(g_CubeMaps.regionTexRes[i]),
 					&cubeTextures[i], &g_CubeMaps.regionSRV[i], &g_CubeMaps.regionDiffuseMipLevel[i]);
+
+			if (regionIllumPath[i].size() > 0)
+				g_CubeMaps.bRenderIllumInThisRegion[i] = LoadCubeMap(regionIllumPath[i],
+					g_CubeMaps.regionIllumMipRes[i], &(g_CubeMaps.regionIllumTexRes[i]),
+					&cubeTexturesIllum[i], &g_CubeMaps.regionIllumSRV[i], &g_CubeMaps.regionIllumDiffuseMipLevel[i]);
+		}
 	}
 out:
 	prevMissionIndex = *missionIndexLoaded;

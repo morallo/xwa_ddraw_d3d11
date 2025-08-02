@@ -407,27 +407,37 @@ struct CubeMapData
 {
 	bool bEnabled = false;
 	bool bRenderAllRegions = false;
+	bool bAllRegionsIllum = false;
 	bool bRenderInThisRegion[MAX_MISSION_REGIONS] = { false, false, false, false };
+	bool bRenderIllumInThisRegion[MAX_MISSION_REGIONS] = { false, false, false, false };
 	float allRegionsSpecular   = 0.7f;
 	float allRegionsAmbientInt = 0.15f;
 	float allRegionsAmbientMin = 0.0f;
 	float allRegionsDiffuseMipLevel = 5;
+	float allRegionsIllumDiffuseMipLevel = 5;
 	float allRegionsAngX = 0.0f, allRegionsAngY = 0.0f, allRegionsAngZ = 0.0f;
 	float allRegionsTexRes = -1;
+	float allRegionsIllumTexRes = -1;
 	float allRegionsMipRes = 16.0f;
+	float allRegionsIllumMipRes = 16.0f;
 
 	float regionSpecular[MAX_MISSION_REGIONS];
 	float regionAmbientInt[MAX_MISSION_REGIONS];
 	float regionAmbientMin[MAX_MISSION_REGIONS];
 	float regionDiffuseMipLevel[MAX_MISSION_REGIONS];
+	float regionIllumDiffuseMipLevel[MAX_MISSION_REGIONS];
 	float regionAngX[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionAngY[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionAngZ[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionTexRes[MAX_MISSION_REGIONS] = { -1, -1, -1, -1 };
+	float regionIllumTexRes[MAX_MISSION_REGIONS] = { -1, -1, -1, -1 };
 	float regionMipRes[MAX_MISSION_REGIONS];
+	float regionIllumMipRes[MAX_MISSION_REGIONS];
 
 	ID3D11ShaderResourceView* allRegionsSRV = nullptr;
+	ID3D11ShaderResourceView* allRegionsIllumSRV = nullptr;
 	ID3D11ShaderResourceView* regionSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+	ID3D11ShaderResourceView* regionIllumSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 };
 extern CubeMapData g_CubeMaps;
 
