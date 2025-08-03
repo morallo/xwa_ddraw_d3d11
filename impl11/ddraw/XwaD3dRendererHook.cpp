@@ -225,7 +225,7 @@ void RTResetBlasIDs();
 void ComputeTreeStats(IGenericTreeNode* root);
 
 std::vector<std::string> GetFileLines(const std::string& path, const std::string& section = std::string());
-std::string GetFileKeyValue(const std::vector<std::string>& lines, const std::string& key);
+std::string GetFileKeyValue(const std::vector<std::string>& lines, const std::string& key, const std::string& defaultValue = "");
 int GetFileKeyValueInt(const std::vector<std::string>& lines, const std::string& key, int defaultValue = 0);
 float GetFileKeyValueFloat(const std::vector<std::string>& lines, const std::string& key, float defaultValue = 0.0f);
 
@@ -2316,6 +2316,9 @@ bool LoadCubeMap(const std::string path,
 	auto& context   = g_deviceResources->_d3dDeviceContext;
 	ID3D11Texture2D* cubeFace = nullptr;
 
+	if (path.size() == 0)
+		return false;
+
 	std::vector<std::wstring> fileNames = ListFiles(path.c_str());
 	const bool cubeMapComplete = (fileNames.size() == 6);
 	if (!cubeMapComplete)
@@ -2546,18 +2549,24 @@ void LoadMissionCubeMaps()
 			goto out;
 		}
 
+		const std::string illumStr = "_illum";
 		std::string allRegionsPath = GetFileKeyValue(lines, "AllRegions");
-		std::string allRegionsIllumPath = GetFileKeyValue(lines, "AllRegionsIllum");
+		std::string allRegionsIllumPath = GetFileKeyValue(lines, "AllRegionsIllum",
+			allRegionsPath.size() > 0 ? allRegionsPath + illumStr : "");
 		std::string regionPath[4];
 		std::string regionIllumPath[4];
 		regionPath[0] = GetFileKeyValue(lines, "Region0");
 		regionPath[1] = GetFileKeyValue(lines, "Region1");
 		regionPath[2] = GetFileKeyValue(lines, "Region2");
 		regionPath[3] = GetFileKeyValue(lines, "Region3");
-		regionIllumPath[0] = GetFileKeyValue(lines, "Region0Illum");
-		regionIllumPath[1] = GetFileKeyValue(lines, "Region1Illum");
-		regionIllumPath[2] = GetFileKeyValue(lines, "Region2Illum");
-		regionIllumPath[3] = GetFileKeyValue(lines, "Region3Illum");
+		regionIllumPath[0] = GetFileKeyValue(lines, "Region0Illum",
+			regionPath[0].size() > 0 ? regionPath[0] + illumStr : "");
+		regionIllumPath[1] = GetFileKeyValue(lines, "Region1Illum",
+			regionPath[1].size() > 0 ? regionPath[1] + illumStr : "");
+		regionIllumPath[2] = GetFileKeyValue(lines, "Region2Illum",
+			regionPath[2].size() > 0 ? regionPath[2] + illumStr : "");
+		regionIllumPath[3] = GetFileKeyValue(lines, "Region3Illum",
+			regionPath[3].size() > 0 ? regionPath[3] + illumStr : "");
 
 		ParseCubeMapMissionIni(lines);
 
