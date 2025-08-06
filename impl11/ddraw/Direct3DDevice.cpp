@@ -2679,6 +2679,29 @@ inline void Direct3DDevice::EnableTransparency() {
 	resources->InitBlendState(nullptr, &blendDesc);
 }
 
+inline void Direct3DDevice::EnableTransparencyForBackdrops() {
+	auto& resources = this->_deviceResources;
+	static D3D11_BLEND_DESC blendDesc{};
+	static bool firstTime = true;
+
+	if (firstTime)
+	{
+		blendDesc.AlphaToCoverageEnable          = FALSE;
+		blendDesc.IndependentBlendEnable         = FALSE;
+		blendDesc.RenderTarget[0].BlendEnable    = TRUE;
+		blendDesc.RenderTarget[0].SrcBlend       = D3D11_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
+		blendDesc.RenderTarget[0].BlendOp        = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].SrcBlendAlpha  = D3D11_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
+		blendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		firstTime = false;
+	}
+
+	resources->InitBlendState(nullptr, &blendDesc);
+}
+
 inline void Direct3DDevice::EnableHoloTransparency() {
 	auto& resources = this->_deviceResources;
 	D3D11_BLEND_DESC blendDesc{};
@@ -5065,8 +5088,11 @@ HRESULT Direct3DDevice::Execute(
 					if (g_bDebugDefaultStarfield)
 						goto out;
 
-					// TODO: Populate g_StarfieldGroupIdImageIdMap when loading the mission .ini
-					//       file in LoadMissionCubeMaps(). That way, we can skip backdrops here
+					// The way backdrops blend by default is a bit weird: it appears to leave
+					// transparent areas where there should be none. So, I'm using a new custom
+					// blending mode that accumulates the alpha channel to fix some problems
+					// where DefaultStarfield shows through solid planets.
+					EnableTransparencyForBackdrops();
 
 					// The following parsing code is also used above, for explosions. Search for
 					// SPECIAL_CONTROL_EXPLOSION. Need to dedupe this later.

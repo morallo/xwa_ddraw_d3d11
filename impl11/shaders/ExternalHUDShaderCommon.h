@@ -74,8 +74,12 @@ PixelShaderOutput RenderDefaultStarfield(PixelShaderInput input)
 	// That way, viewMat below is the same we already figured out for PixelShaderVRGeom:
 	V = mul(viewMat, float4(V, 0)).xyz;
 
-	const float3 skyBoxColor = skybox.Sample(bgSampler, V.xyz).rgb;
-	const float  skyBoxVal   = dot(0.333, skyBoxColor);
+	// Let's make the DefaultStarfield brighter. We're doing this because we recently
+	// modified the DX11 blending mode used by backdrops to fix some transparency
+	// issues and that caused the stars in the default starfield to become very faint:
+	const float3 skyBoxColor = saturate(1.75 * (skybox.Sample(bgSampler, V.xyz).rgb));
+	// Luma approx:
+	const float  skyBoxVal   = dot(float3(0.299f, 0.587f, 0.114f), skyBoxColor);
 
 #ifndef INSTANCED_RENDERING
 	// Blend the skybox with the previous background:
