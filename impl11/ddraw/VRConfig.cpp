@@ -3112,7 +3112,8 @@ bool LoadSSAOParams() {
 				// This renders DefaultStarfield.dds unconditionally so that we can debug it
 				g_bDebugDefaultStarfield = (bool)fValue;
 			}
-			if (_stricmp(param, "enable_cubemaps") == 0)
+			if (_stricmp(param, "enable_cubemaps") == 0 ||
+			    _stricmp(param, "enable_skyboxes") == 0)
 			{
 				// This is the "master switch" that enables the new CubeMaps feature.
 				// To enable a CubeMap on a specific mission, its .ini file must be updated
