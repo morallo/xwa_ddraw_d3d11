@@ -9,6 +9,7 @@
  */
 #include "shader_common.h"
 #include "HSV.h"
+#include "ShadertoyCBuffer.h"
 #include "shading_system.h"
 #include "SSAOPSConstantBuffer.h"
 #include "shadow_mapping_common.h"
@@ -99,6 +100,7 @@ Texture2DArray<float> texShadowMap : register(t7);
 SamplerComparisonState cmpSampler : register(s7);
 
 TextureCube skybox : register(t21);
+TextureCube illumSkybox : register(t23);
 
 // We're reusing the same constant buffer used to blur bloom; but here
 // we really only use the amplifyFactor to upscale the SSAO buffer (if
@@ -333,25 +335,21 @@ PixelShaderOutput main(PixelShaderInput input)
 
 	// Recompute the contact shadow here...
 
-	// We need to invert the Z-axis for illumination because the normals are Z+ when viewing the camera
+	// We need to invert the Z-axis for illumination because the normals are Z+ when pointing to the camera
 	// so that implies that Z increases towards the viewer and decreases away from the camera.
 	// We could also avoid inverting Z in PixelShaderTexture... but then we also need to invert the fake
 	// normals.
 	const float3 P = pos3D.xyz;
 	pos3D.z = -pos3D.z;
 
-	//vec2 fragCoord = input.uv * iResolution.xy;
-	const float3 viewDir = normalize(float3(2.0 * input.uv.x - 1.0, -2.0 * input.uv.y + 1.0, 1));
-	//const float3 viewDir = normalize(-pos3D);
-	matrix swap;
-	swap[0] = float4(1,  0,  0,  0);
-	swap[1] = float4(0,  1,  0,  0);
-	swap[2] = float4(0,  0,  1,  0);
-	swap[3] = float4(0,  0,  0,  1);
-	matrix CubeV = swap * Camera * swap;
-	const float4 view2 = mul(CubeV, float4(viewDir, 0));
-	//background = skybox.Sample(sampColor, view2.xyz).rgb;
-	//background = viewDir;
+	// The following block will sample the cubemap in the direction of the current view
+	// ray. When the sampled color is added to the current geometry, it looks as if it
+	// were semi-transparent ;)
+	/*
+	const float3 viewDir    = normalize(float3(pos3D.x, pos3D.y, -pos3D.z));
+	const float3 skyViewDir = mul(viewMat, float4(viewDir, 0)).xyz;
+	const float3 skyBoxCol  = skybox.Sample(sampColor, skyViewDir.xyz).rgb;
+	*/
 
 	//if (pos3D.z > INFINITY_Z1 || mask > 0.9) // the test with INFINITY_Z1 always adds an ugly cutout line
 	// we should either fade gradually between INFINITY_Z0 and INFINITY_Z1, or avoid this test completely.
@@ -630,13 +628,47 @@ PixelShaderOutput main(PixelShaderInput input)
 		N_PBR.xy = -N_PBR.xy;
 		L.xy = -L.xy;
 
+		// pos3D.z is inverted because it was just inverted above:
+		const float3 viewDir   = normalize(float3(pos3D.x, pos3D.y, -pos3D.z));
+		// Normal.z is inverted because Z+ should point away from the camera:
+		float3 skyBoxReflected = reflect(viewDir, normalize(float3(Normal.x, Normal.y, -Normal.z)));
+		float3 skyBoxNormal    = normalize(float3(Normal.x, Normal.y, -Normal.z));
+		skyBoxReflected        = mul(viewMat, float4(skyBoxReflected, 0)).xyz;
+		skyBoxNormal           = mul(viewMat, float4(skyBoxNormal, 0)).xyz;
+		// Sample in the range 0..cubeMapMipLevel depending on the glossiness... didn't work so well...
+		//const float mipLevel         = cubeMapMipLevel - cubeMapMipLevel * pow(glossiness, 2);
+		float3 skyBoxReflCol   = 1;
+		float3 skyBoxNormalCol = 1;
+		// Sample the hi-res cubemap and use it to tint the light color:
+		if (cubeMappingEnabled == 1)
+		{
+			skyBoxReflCol   = skybox.SampleLevel(sampColor, skyBoxReflected.xyz, cubeMapMipLevel).rgb;
+			skyBoxNormalCol = skybox.SampleLevel(sampColor, skyBoxNormal.xyz, cubeMapMipLevel).rgb;
+		}
+		// Sample the lo-res cubemap and use it to tint the light color:
+		else if (cubeMappingEnabled == 2)
+		{
+			skyBoxReflCol   = illumSkybox.SampleLevel(sampColor, skyBoxReflected.xyz, cubeMapMipLevel).rgb;
+			skyBoxNormalCol = illumSkybox.SampleLevel(sampColor, skyBoxNormal.xyz, cubeMapMipLevel).rgb;
+		}
+
+		// float4 ambient = IrradianceMap.Sample(CubeSampler, normal);
+		// float mipLevel = roughness * MaxMipLevel; // roughness in [0,1]
+		// float4 specularColor = EnvironmentMap.SampleLevel(CubeSampler, reflection, mipLevel);
+		const float3 finalLightColor = cubeMappingEnabled ?
+			lerp(LightColor[i].rgb, skyBoxReflCol * LightColor[i].rgb, cubeMapSpecInt) :
+			LightColor[i].rgb;
+		//const float3 finalAmbient = lerp(ambient, skyBoxNormalCol, cubeMapAmbientInt);
+		const float3 finalAmbient = cubeMappingEnabled ?
+			max(cubeMapAmbientMin, cubeMapAmbientInt * skyBoxNormalCol) : ambient;
+
 		float3 col = addPBR(
 			P, N_PBR, N_PBR, -eye_vec, color.rgb, L,
-			float4(LightColor[i].rgb, LightIntensity),
+			float4(finalLightColor, LightIntensity),
 			metallicity,
 			glossiness, // Glossiness: 0 matte, 1 glossy/glass
 			reflectance,
-			ambient,
+			finalAmbient,
 			//bIsGlass ? 1.0 : shadow_factor * ssdo.x, // Disable RT shadows for glass surfaces
 			shadow_factor * ssdo.x,
 			specular_out

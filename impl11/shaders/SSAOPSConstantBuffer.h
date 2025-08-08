@@ -13,11 +13,11 @@ cbuffer ConstantBuffer : register(b3)
 	float moire_offset, ssao_amplifyFactor;
 	uint fn_enable;
 	// 64 bytes
-	float fn_max_xymult, ssao_unused0, fn_sharpness, ssao_unused1;
+	float fn_max_xymult, cubeMapSpecInt, fn_sharpness, cubeMapAmbientInt;
 	// 80 bytes
-	float far_sample_radius, ssao_unused2, ssao_unused3, ssao_amplifyFactor2;
+	float far_sample_radius, cubeMapAmbientMin, cubeMapMipLevel, ssao_amplifyFactor2;
 	// 96 bytes
-	float2 p0, p1; // Viewport limits in uv space
+	float2 ssao_p0, ssao_p1; // Viewport limits in uv space
 	// 112 bytes
 	float enable_dist_fade, ssaops_unused1, ssaops_unused2, shadow_epsilon;
 	// 128 bytes
@@ -25,7 +25,7 @@ cbuffer ConstantBuffer : register(b3)
 	// 144 bytes
 	float4 vpScale;
 	// 160 bytes
-	uint ssao_unused;
+	uint cubeMappingEnabled;
 	float shadow_k, Bz_mult, moire_scale;
 	// 176 bytes
 };

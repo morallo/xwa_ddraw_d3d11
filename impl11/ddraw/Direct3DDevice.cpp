@@ -518,6 +518,8 @@ float3 InverseTransformProjectionScreen(float4 pos);
 void ResetObjectIndexMap();
 void ReloadInterdictionMap();
 
+int MakeKeyFromGroupIdImageId(int groupId, int imageId);
+
 float g_fCurrentShipFocalLength = 0.0f; // Gets populated from the current DC "xwahacker_fov" file (if one is provided).
 float g_fCurrentShipLargeFocalLength = 0.0f; // Gets populated from the current "xwahacker_large_fov" DC file (if one is provided).
 bool g_bCustomFOVApplied = false;  // Becomes true in PrimarySurface::Flip once the custom FOV has been applied. Reset to false in DeviceResources::OnSizeChanged
@@ -797,6 +799,11 @@ void RenderEngineGlowHook(void *A4, int A8, void* textureSurface, uint32_t outer
 	s_bRenderingEngineGlow = true;
 	// Call the original XWA code:
 	Xwa3dRenderEngineGlow(A4, A8, textureSurface, outerColor, coreColor);
+}
+
+inline bool IsInMap(const std::map<int, bool>& map, int key)
+{
+	return (map.find(key) != map.end());
 }
 
 int g_ExecuteCount;
@@ -2669,6 +2676,29 @@ inline void Direct3DDevice::EnableTransparency() {
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	resources->InitBlendState(nullptr, &blendDesc);
+}
+
+inline void Direct3DDevice::EnableTransparencyForBackdrops() {
+	auto& resources = this->_deviceResources;
+	static D3D11_BLEND_DESC blendDesc{};
+	static bool firstTime = true;
+
+	if (firstTime)
+	{
+		blendDesc.AlphaToCoverageEnable          = FALSE;
+		blendDesc.IndependentBlendEnable         = FALSE;
+		blendDesc.RenderTarget[0].BlendEnable    = TRUE;
+		blendDesc.RenderTarget[0].SrcBlend       = D3D11_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
+		blendDesc.RenderTarget[0].BlendOp        = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].SrcBlendAlpha  = D3D11_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_DEST_ALPHA;
+		blendDesc.RenderTarget[0].BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		firstTime = false;
+	}
+
 	resources->InitBlendState(nullptr, &blendDesc);
 }
 
@@ -5053,7 +5083,45 @@ HRESULT Direct3DDevice::Execute(
 					g_PSCBuffer.special_control.ExclusiveMask = SPECIAL_CONTROL_BACKGROUND;
 					// Redirect all background objects to the proper layer:
 					resources->_overrideRTV = BACKGROUND_LYR;
+					// If g_bDebugDefaultStarfield, we skip _all_ the backdrops (including planets and nebulae)
+					// so that we can see DefaultStarfield.dds
 					if (g_bDebugDefaultStarfield)
+						goto out;
+
+					// The way backdrops blend by default is a bit weird: it appears to leave
+					// transparent areas where there should be none. So, I'm using a new custom
+					// blending mode that accumulates the alpha channel to fix some problems
+					// where DefaultStarfield shows through solid planets.
+					EnableTransparencyForBackdrops();
+
+					// The following parsing code is also used above, for explosions. Search for
+					// SPECIAL_CONTROL_EXPLOSION. Need to dedupe this later.
+					// In this block, we're skipping stellar backdrops only, but keeping planets
+					// nebulae and other stuff. That way we can blend the cubemap later.
+					// The list in g_StarfieldGroupIdImageIdMap is not exhaustive and will be larger
+					// for TFTC.
+					int GroupId, ImageId;
+					if (!lastTextureSelected->material.DATGroupImageIdParsed)
+					{
+						GetGroupIdImageIdFromDATName(lastTextureSelected->_name.c_str(), &GroupId, &ImageId);
+						lastTextureSelected->material.GroupId = GroupId;
+						lastTextureSelected->material.ImageId = ImageId;
+						lastTextureSelected->material.DATGroupImageIdParsed = true;
+					}
+					GroupId = lastTextureSelected->material.GroupId;
+					ImageId = lastTextureSelected->material.ImageId;
+					const int key = MakeKeyFromGroupIdImageId(GroupId, ImageId);
+					const int region = PlayerDataTable[*g_playerIndex].currentRegion;
+					const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
+					if (g_CubeMaps.bEnabled &&
+						(g_CubeMaps.bRenderAllRegions || (validRegion && g_CubeMaps.bRenderInThisRegion[region])) &&
+
+						// If this GroupId-ImageId is disabled...
+						(IsInMap(g_StarfieldGroupIdImageIdMap, key) ||
+						 IsInMap(g_DisabledGroupIdImageIdMap, key)) &&
+						// ... but is not in the enabled-override list...
+						!IsInMap(g_EnabledOvrGroupIdImageIdMap, key))
+						// Then this is a skippable backdrop (starfield)
 						goto out;
 				}
 

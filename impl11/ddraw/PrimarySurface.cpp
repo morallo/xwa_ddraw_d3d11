@@ -29,8 +29,6 @@
 #include "EffectsRenderer.h"
 #include "LBVH.h"
 
-#include <DDSTextureLoader.h>
-
 extern D3dRenderer* g_current_renderer;
 extern LBVH* g_ACTLASTree;
 
@@ -303,6 +301,53 @@ void ComputeRotationMatrixFromXWAView(Vector4 *light, int num_lights) {
 	//log_debug("[DBG] [AO] XwaGlobalLightsCount: %d", *XwaGlobalLightsCount);
 }
 */
+
+bool RenderCubeMapInThisRegion(int* region_out)
+{
+	// V0x008C1CD8
+	//int s_XwaCurrentRegion;
+	/*
+	* The max number of regions in a mission is 4. But in the game engine there is
+	* an extra region for the hangar. So when creating a mission you can have up to
+	* 4 regions. In the game engine there are up to 5 regions. The hangar region is
+	* the one after the last mission region. So if there are 4 regions in a mission
+	* then the region index of the hangar is 4. If there are 2 regions in a mission
+	* then the region index of the hangar is 2.
+	*/
+	// I'm going to ignore the comment above (by Jeremy) and make the hangar region 0
+	// otherwise, accessing the currentRegion field from PlayerDataTable does return
+	// the region-after-the-last-region-in-this-mission index, which can be complicated.
+	if (g_playerInHangar != nullptr && *g_playerInHangar)
+		*region_out = 0;
+	else
+		*region_out = PlayerDataTable[*g_playerIndex].currentRegion;
+	const bool validRegion = (*region_out >= 0 && *region_out < MAX_MISSION_REGIONS);
+	return (validRegion && g_CubeMaps.bRenderInThisRegion[*region_out]);
+}
+
+bool RenderIllumCubeMapInThisRegion()
+{
+	int region = 0;
+	// V0x008C1CD8
+	//int s_XwaCurrentRegion;
+	/*
+	* The max number of regions in a mission is 4. But in the game engine there is
+	* an extra region for the hangar. So when creating a mission you can have up to
+	* 4 regions. In the game engine there are up to 5 regions. The hangar region is
+	* the one after the last mission region. So if there are 4 regions in a mission
+	* then the region index of the hangar is 4. If there are 2 regions in a mission
+	* then the region index of the hangar is 2.
+	*/
+	// I'm going to ignore the comment above (by Jeremy) and make the hangar region 0
+	// otherwise, accessing the currentRegion field from PlayerDataTable does return
+	// the region-after-the-last-region-in-this-mission index, which can be complicated.
+	if (g_playerInHangar != nullptr && *g_playerInHangar)
+		region = 0;
+	else
+		region = PlayerDataTable[*g_playerIndex].currentRegion;
+	const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
+	return (validRegion && g_CubeMaps.bRenderIllumInThisRegion[region]);
+}
 
 void GetFakeYawPitchRollFromKeyboard(float *yaw, float *pitch, float *roll) {
 	static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
@@ -2474,7 +2519,7 @@ void SetLights(DeviceResources *resources, float fSSDOEnabled) {
 	Vinv.invert();
 
 	static int prevMissionIndex = -1;
-	const char* xwaMissionFileName = (const char*)0x06002E8;
+	//const char* xwaMissionFileName = (const char*)0x06002E8;
 	//const int missionFileNameIndex = *(int*)0x06002E4;
 	if (*missionIndexLoaded != prevMissionIndex)
 	{
@@ -3699,6 +3744,27 @@ void PrimarySurface::DeferredPass()
 	// Set the lights and the Shading System Constant Buffer
 	SetLights(_deviceResources, 0.0f);
 
+	int region = 0;
+	const bool renderCubeMapInThisRegion      = RenderCubeMapInThisRegion(&region);
+	const bool renderIllumCubeMapInThisRegion = RenderIllumCubeMapInThisRegion();
+	float cubeMapSpecular   = g_CubeMaps.allRegionsSpecular;
+	float cubeMapAmbientMin = g_CubeMaps.allRegionsAmbientMin;
+	float cubeMapAmbientInt = g_CubeMaps.allRegionsAmbientInt;
+	float cubeMapMipLevel   = g_CubeMaps.allRegionsDiffuseMipLevel;
+	if (g_CubeMaps.bAllRegionsIllum) cubeMapMipLevel = g_CubeMaps.allRegionsIllumDiffuseMipLevel;
+
+	if (renderCubeMapInThisRegion)
+	{
+		cubeMapSpecular   = g_CubeMaps.regionSpecular[region];
+		cubeMapAmbientInt = g_CubeMaps.regionAmbientInt[region];
+		cubeMapAmbientMin = g_CubeMaps.regionAmbientMin[region];
+		cubeMapMipLevel   = g_CubeMaps.regionDiffuseMipLevel[region];
+		if (renderIllumCubeMapInThisRegion) cubeMapMipLevel = g_CubeMaps.regionIllumDiffuseMipLevel[region];
+	}
+
+	const bool bInHyperspace = (g_HyperspacePhaseFSM != HS_INIT_ST);
+	const bool cubeMappingEnabled = !bInHyperspace && !*g_playerInHangar && g_CubeMaps.bEnabled;
+	const bool illumCubeMappingEnabled = cubeMappingEnabled && (g_CubeMaps.bAllRegionsIllum || renderIllumCubeMapInThisRegion);
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
@@ -3708,6 +3774,12 @@ void PrimarySurface::DeferredPass()
 	g_SSAO_PSCBuffer.amplifyFactor = 1.0f;
 	g_SSAO_PSCBuffer.fn_enable = g_bFNEnable;
 	g_SSAO_PSCBuffer.debug = g_bShowSSAODebug;
+	g_SSAO_PSCBuffer.cubeMappingEnabled = cubeMappingEnabled;
+	if (illumCubeMappingEnabled) g_SSAO_PSCBuffer.cubeMappingEnabled = 2;
+	g_SSAO_PSCBuffer.cubeMapSpecInt     = cubeMapSpecular;
+	g_SSAO_PSCBuffer.cubeMapAmbientInt  = cubeMapAmbientInt;
+	g_SSAO_PSCBuffer.cubeMapAmbientMin  = cubeMapAmbientMin;
+	g_SSAO_PSCBuffer.cubeMapMipLevel    = cubeMapMipLevel;
 	resources->InitPSConstantBufferSSAO(resources->_ssaoConstantBuffer.GetAddressOf(), &g_SSAO_PSCBuffer);
 
 	// Set the layout
@@ -6148,6 +6220,7 @@ void PrimarySurface::RenderDefaultBackground()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	const bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
+	Matrix4 cubeMapRot;
 
 	this->_deviceResources->BeginAnnotatedEvent(L"RenderDefaultBackground");
 
@@ -6215,13 +6288,38 @@ void PrimarySurface::RenderDefaultBackground()
 		g_ShadertoyBuffer.viewMat = ViewMatrix;
 	}
 
+	int region = 0;
+	const bool renderCubeMapInThisRegion      = RenderCubeMapInThisRegion(&region);
+	const bool renderIllumCubeMapInThisRegion = RenderIllumCubeMapInThisRegion();
+	const bool renderCubeMap = (renderCubeMapInThisRegion || g_CubeMaps.bRenderAllRegions);
+	// This part needs some explanation.
+	// The DefaultStarfield is rendered all the time, and we're using the same path to render
+	// cubemaps. However, if we should render a cubemap in this region/mission, but cubemaps
+	// are disabled, that means we shouldn't render a cubemap at all, and we can skip to the
+	// end of this function. This fixes an artifact where the cubemap shows through the Sun's
+	// corona, and also saves us a draw() call that won't be visible in the end.
+	if (renderCubeMap && !g_CubeMaps.bEnabled)
+		goto out;
+
+	float angX = g_CubeMaps.allRegionsAngX;
+	float angY = g_CubeMaps.allRegionsAngY;
+	float angZ = g_CubeMaps.allRegionsAngZ;
+	if (renderCubeMapInThisRegion)
+	{
+		angX = g_CubeMaps.regionAngX[region];
+		angY = g_CubeMaps.regionAngY[region];
+		angZ = g_CubeMaps.regionAngZ[region];
+	}
+	cubeMapRot = Matrix4().rotateZ(angZ) * Matrix4().rotateY(angY) * Matrix4().rotateX(angX);
+	g_ShadertoyBuffer.viewMat = cubeMapRot * g_ShadertoyBuffer.viewMat;
+
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;
 	g_ShadertoyBuffer.y0 = y0;
 	g_ShadertoyBuffer.x1 = x1;
 	g_ShadertoyBuffer.y1 = y1;
 	//g_ShadertoyBuffer.VRmode = g_bEnableVR ? (bDirectSBS ? 1 : 2) : 0; // 0 = non-VR, 1 = SBS, 2 = SteamVR
-	g_ShadertoyBuffer.VRmode = 3; // Render the background
+	g_ShadertoyBuffer.VRmode = renderCubeMap ? 4 : 3; /* Render DefaultStarfield.dds */
 	g_ShadertoyBuffer.iResolution[0] = g_fCurScreenWidth;
 	g_ShadertoyBuffer.iResolution[1] = g_fCurScreenHeight;
 	// This setting (y_center) interacts with g_MetricRecCBuffer.mr_y_center, even if they're
@@ -6245,6 +6343,8 @@ void PrimarySurface::RenderDefaultBackground()
 	// For the non-VR path, the custom blending is done in the ExternalHUD pixel shader.
 	// For the VR path, we need two (2) renders. The first pass renders the skybox, the
 	// second render does the blending.
+	// s_transparentBlendState is the regular blend mode, and it's the same as
+	// Direct3DDevice::EnableTransparency().
 	static ComPtr<ID3D11BlendState> s_transparentBlendState = nullptr;
 	if (s_transparentBlendState == nullptr)
 	{
@@ -6343,13 +6443,27 @@ void PrimarySurface::RenderDefaultBackground()
 		};
 		context->OMSetRenderTargets(1, rtvs, NULL);
 
+		ID3D11ShaderResourceView*         cubeMapSRV = resources->_textureCubeSRV;
+		if (g_CubeMaps.bRenderAllRegions) cubeMapSRV = g_CubeMaps.allRegionsSRV;
+		if (renderCubeMapInThisRegion)    cubeMapSRV = g_CubeMaps.regionSRV[region];
+
+		ID3D11ShaderResourceView*           cubeMapIllumSRV = nullptr;
+		if (g_CubeMaps.bAllRegionsIllum)    cubeMapIllumSRV = g_CubeMaps.allRegionsIllumSRV;
+		if (renderIllumCubeMapInThisRegion) cubeMapIllumSRV = g_CubeMaps.regionIllumSRV[region];
+
+		// AddRef() might be necessary here because when cubeMapSRV goes out of scope,
+		// it will call Release() automatically
+		if (cubeMapSRV != nullptr) cubeMapSRV->AddRef();
+		if (cubeMapIllumSRV != nullptr) cubeMapIllumSRV->AddRef();
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[] = {
-			resources->_textureCubeSRV, // 21
+			cubeMapSRV, // 21
+			//renderCubeMapInThisRegion ? g_cubeTexturesSRV[0] : resources->_textureCubeSRV,
 			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV.Get(),
+			cubeMapIllumSRV,
 		};
 
-		context->PSSetShaderResources(21, 2, srvs);
+		context->PSSetShaderResources(21, 3, srvs);
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
@@ -6428,12 +6542,39 @@ void PrimarySurface::RenderDefaultBackground()
 		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 	}
 
+out:
 	g_bDefaultStarfieldRendered = true;
 
 	// Restore previous rendertarget, etc
 	renderer->RestoreContext();
 
 	this->_deviceResources->EndAnnotatedEvent();
+}
+
+char RenderBackdropsHook()
+{
+	char (*XwaRenderBackdrops)() = (char(*)()) 0x405FE0;
+	// The sequence of events goes like this:
+	// XwaRenderBackdrops() (enter & exit)
+	// Backdrop 1
+	// Backdrop 2
+	// ...
+	// So, in other words, it looks like XwaRenderBackdrops() only
+	// enqueues the draw calls but doesn't execute them while inside
+	// the function.
+
+	// We can render the DefaultStarfield/CubeMap here, right before all the
+	// backdrops are enqueued. Sounds like a good way to get rid of that awkward
+	// blending mode that we need to use when DefaultStarfield is rendered on top
+	// of existing backdrops... Only, the resulting images don't blend that well!
+	/*if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
+	{
+		g_bUseExternalCameraState = true;
+		g_deviceResources->_primarySurface->RenderDefaultBackground();
+		g_bUseExternalCameraState = false;
+	}*/
+
+	return XwaRenderBackdrops(); // Looks like the return value is always 0
 }
 
 inline void ProjectSpeedPoint(const Matrix4 &ViewMatrix, D3DTLVERTEX *particles, int idx)
@@ -10930,6 +11071,8 @@ HRESULT PrimarySurface::Flip(
 						resources->_depthBuf, D3D11CalcSubresource(0, 1, 1), AO_DEPTH_BUFFER_FORMAT);
 			}
 
+			// Rendering the DefaultStarfield/CubeMap here produces better blending than
+			// doing it in the backdrops hook.
 			if (!g_bInTechRoom && !g_bMapMode && !g_bDefaultStarfieldRendered)
 			{
 				g_bUseExternalCameraState = true;

@@ -59,6 +59,8 @@ public:
 
 	void EnableTransparency();
 
+	void EnableTransparencyForBackdrops();
+
 	void EnableHoloTransparency();
 
 	uint32_t GetWarningLightColor(LPD3DINSTRUCTION instruction, UINT currentIndexLocation, XwaTextureData * lastTextureSelected);

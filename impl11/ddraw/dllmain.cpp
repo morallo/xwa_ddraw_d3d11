@@ -54,6 +54,8 @@ extern bool g_bEnableQBVHwSAH;
 extern bool g_bUseCentroids;
 
 void RenderEngineGlowHook(void* A4, int A8, void* textureSurface, uint32_t A10, uint32_t A14);
+char RenderBackdropsHook();
+void ReloadCubeMapData();
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -652,11 +654,21 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			// Ctrl + Alt + Key
 			// Toggle Debug buffers
 			case 'D':
+				g_CubeMaps.bEnabled = !g_CubeMaps.bEnabled;
+				if (g_CubeMaps.bEnabled)
+					DisplayTimedMessage(3, 0, "CubeMaps ENABLED");
+				else
+					DisplayTimedMessage(3, 0, "CubeMaps disabled");
+
+				/*
+				// g_bRenderDefaultStarfield is used to render DefaultStarfield.dds. It's set
+				// to "true" by default. This switch toggles that DDS render:
 				g_bRenderDefaultStarfield = !g_bRenderDefaultStarfield;
 				if (g_bRenderDefaultStarfield)
 					DisplayTimedMessage(3, 0, "RENDER Default Starfield");
 				else
 					DisplayTimedMessage(3, 0, "NO Default Starfield");
+				*/
 
 				//g_bDumpOptNodes = !g_bDumpOptNodes;
 				//log_debug("[DBG] g_bDumpOptNodes: %d", g_bDumpOptNodes);
@@ -769,6 +781,8 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				// Force the re-application of the focal_length
 				g_bCustomFOVApplied = false;
 				LoadVRParams();
+				if (g_bEnableDeveloperMode)
+					ReloadCubeMapData();
 				return 0;
 			
 			// Ctrl+Alt+W
@@ -1593,6 +1607,23 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 				*(unsigned char*)(addr + 0x00) = 0xE8;
 				// Now we replace the destination of the call with our hook:
 				*(int*)(addr + 0x01) = (int)TargetBoxHook - (addr + 0x05);
+			}
+
+			// Backdrops hook. Doesn't do much for now, but we could render
+			// the cubemaps in this hook.
+			{
+				// 0x0405FE0: void XwaRenderBackdrops()
+				uint32_t addr;
+
+				addr = 0x045A5B7; // Hangar render loop calls RenderBackdrops()
+				// Here we make sure the instruction is a call (0xE8):
+				*(unsigned char*)(addr + 0x00) = 0xE8;
+				*(int*)(addr + 0x01) = (int)RenderBackdropsHook - (addr + 0x05);
+
+				addr = 0x04F00CE; // The main render loop ("RelatedToPlayer") calls RenderBackdrops()
+				// Here we make sure the instruction is a call (0xE8):
+				*(unsigned char*)(addr + 0x00) = 0xE8;
+				*(int*)(addr + 0x01) = (int)RenderBackdropsHook - (addr + 0x05);
 			}
 
 			if (g_config.Text2DRendererEnabled) 
