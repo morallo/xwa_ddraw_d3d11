@@ -349,6 +349,17 @@ bool RenderIllumCubeMapInThisRegion()
 	return (validRegion && g_CubeMaps.bRenderIllumInThisRegion[region]);
 }
 
+bool RenderOverlayCubeMapInThisRegion()
+{
+	int region = 0;
+	if (g_playerInHangar != nullptr && *g_playerInHangar)
+		region = 0;
+	else
+		region = PlayerDataTable[*g_playerIndex].currentRegion;
+	const bool validRegion = (region >= 0 && region < MAX_MISSION_REGIONS);
+	return (validRegion && g_CubeMaps.bRenderOvrInThisRegion[region]);
+}
+
 void GetFakeYawPitchRollFromKeyboard(float *yaw, float *pitch, float *roll) {
 	static float fake_yaw = 0.0f, fake_pitch = 0.0f, fake_roll = 0.0f;
 	bool LeftKey = (GetAsyncKeyState(VK_LEFT) & 0x8000) == 0x8000;
@@ -6291,7 +6302,9 @@ void PrimarySurface::RenderDefaultBackground()
 	int region = 0;
 	const bool renderCubeMapInThisRegion      = RenderCubeMapInThisRegion(&region);
 	const bool renderIllumCubeMapInThisRegion = RenderIllumCubeMapInThisRegion();
-	const bool renderCubeMap = (renderCubeMapInThisRegion || g_CubeMaps.bRenderAllRegions);
+	const bool renderOvrCubeMapInThisRegion   = RenderOverlayCubeMapInThisRegion();
+	const bool renderCubeMap    = (renderCubeMapInThisRegion    || g_CubeMaps.bRenderAllRegions);
+	const bool renderOvrCubeMap = (renderOvrCubeMapInThisRegion || g_CubeMaps.bAllRegionsOvr);
 	// This part needs some explanation.
 	// The DefaultStarfield is rendered all the time, and we're using the same path to render
 	// cubemaps. However, if we should render a cubemap in this region/mission, but cubemaps
@@ -6429,6 +6442,8 @@ void PrimarySurface::RenderDefaultBackground()
 			context->ResolveSubresource(resources->_backgroundBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 				resources->_backgroundBuffer, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
 			context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
+			if (renderOvrCubeMap)
+				context->ClearRenderTargetView(resources->_renderTargetViewPostR, bgColor);
 		}
 
 		if (g_bDumpSSAOBuffers)
@@ -6440,8 +6455,9 @@ void PrimarySurface::RenderDefaultBackground()
 		ID3D11RenderTargetView* rtvs[] = {
 			// In SteamVR mode the skybox is first rendered on its own to _offscreenBufferPost
 			g_bUseSteamVR ? resources->_renderTargetViewPost.Get() : resources->_backgroundRTV.Get(),
+			g_bUseSteamVR ? resources->_renderTargetViewPostR.Get() : nullptr,
 		};
-		context->OMSetRenderTargets(1, rtvs, NULL);
+		context->OMSetRenderTargets(g_bUseSteamVR ? 2 : 1, rtvs, NULL);
 
 		ID3D11ShaderResourceView*         cubeMapSRV = resources->_textureCubeSRV;
 		if (g_CubeMaps.bRenderAllRegions) cubeMapSRV = g_CubeMaps.allRegionsSRV;
@@ -6451,19 +6467,25 @@ void PrimarySurface::RenderDefaultBackground()
 		if (g_CubeMaps.bAllRegionsIllum)    cubeMapIllumSRV = g_CubeMaps.allRegionsIllumSRV;
 		if (renderIllumCubeMapInThisRegion) cubeMapIllumSRV = g_CubeMaps.regionIllumSRV[region];
 
+		ID3D11ShaderResourceView*         overlaySRV = nullptr;
+		if (g_CubeMaps.bAllRegionsOvr)    overlaySRV = g_CubeMaps.allRegionsOvrSRV;
+		if (renderOvrCubeMapInThisRegion) overlaySRV = g_CubeMaps.regionOvrSRV[region];
+
 		// AddRef() might be necessary here because when cubeMapSRV goes out of scope,
 		// it will call Release() automatically
-		if (cubeMapSRV != nullptr) cubeMapSRV->AddRef();
+		if (cubeMapSRV      != nullptr) cubeMapSRV->AddRef();
 		if (cubeMapIllumSRV != nullptr) cubeMapIllumSRV->AddRef();
+		if (overlaySRV      != nullptr) overlaySRV->AddRef();
 		// Set the SRVs:
 		ID3D11ShaderResourceView *srvs[] = {
-			cubeMapSRV, // 21
+			cubeMapSRV,      // 21
 			//renderCubeMapInThisRegion ? g_cubeTexturesSRV[0] : resources->_textureCubeSRV,
-			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV.Get(),
-			cubeMapIllumSRV,
+			g_bUseSteamVR ? nullptr : resources->_backgroundBufferSRV.Get(), // 22
+			cubeMapIllumSRV, // 23
+			overlaySRV,      // 24
 		};
 
-		context->PSSetShaderResources(21, 3, srvs);
+		context->PSSetShaderResources(21, 4, srvs);
 		if (g_bUseSteamVR)
 			context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 		else
@@ -6521,6 +6543,14 @@ void PrimarySurface::RenderDefaultBackground()
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, 0, resources->_offscreenBufferPost, 0, BACKBUFFER_FORMAT);
 		context->ResolveSubresource(resources->_offscreenBufferAsInput, D3D11CalcSubresource(0, 1, 1),
 			resources->_offscreenBufferPost, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		// If the cubemap overlay is enabled, then it was rendered to _offscreenBufferPostR, so we need to
+		// resolve it...
+		if (renderOvrCubeMap)
+		{
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, 0, resources->_offscreenBufferPostR, 0, BACKBUFFER_FORMAT);
+			context->ResolveSubresource(resources->_offscreenBufferAsInputR, D3D11CalcSubresource(0, 1, 1),
+				resources->_offscreenBufferPostR, D3D11CalcSubresource(0, 1, 1), BACKBUFFER_FORMAT);
+		}
 
 		//context->ClearRenderTargetView(resources->_renderTargetViewPost, bgColor);
 		ID3D11RenderTargetView *rtvs[6] = {
@@ -6537,8 +6567,10 @@ void PrimarySurface::RenderDefaultBackground()
 		ID3D11ShaderResourceView *srvs[] = {
 			resources->_offscreenAsInputShaderResourceView.Get(), // DefaultStarfield.dds
 			resources->_backgroundBufferSRV.Get(), // Current background
+			nullptr, // This is the hyperspace effect SRV -- we don't use it here.
+			renderOvrCubeMap ? resources->_offscreenAsInputShaderResourceViewR.Get() : nullptr,
 		};
-		context->PSSetShaderResources(0, 2, srvs);
+		context->PSSetShaderResources(0, renderOvrCubeMap ? 4 : 2, srvs);
 		context->DrawInstanced(6, 2, 0, 0); // if (g_bUseSteamVR)
 	}
 

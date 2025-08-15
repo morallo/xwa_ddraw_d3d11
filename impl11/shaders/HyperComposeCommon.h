@@ -18,6 +18,9 @@ SamplerState   bgSampler : register(s1);
 // The hyperspace effect texture (offscreenAsInput)
 Texture2DArray effectTex : register(t2);
 SamplerState   effectSampler : register(s2);
+
+Texture2DArray ovrTex : register(t3);
+SamplerState   ovrSampler : register(s3);
 #else
 // The foreground texture (shadertoyBuf)
 Texture2D    fgTex : register(t0);
@@ -66,9 +69,11 @@ PixelShaderOutput BlendBackground(PixelShaderInput input)
 
 	const float4 skyBoxColor = fgTex.Sample(fgSampler, float3(input.uv, input.viewId));
 	const float4 background  = bgTex.Sample(bgSampler, float3(input.uv, input.viewId));
+	const float4 ovrColor    = ovrTex.Sample(ovrSampler, float3(input.uv, input.viewId));
 	const float  skyBoxVal   = skyBoxColor.a;
 	const float3 bgBlend     = saturate(background.rgb + skyBoxColor.rgb);
 	output.color = float4(lerp(background.rgb, bgBlend.rgb, skyBoxVal * (1.0 - background.a)), 1);
+	output.color = float4(lerp(output.color.rgb, ovrColor.rgb, ovrColor.a), 1);
 
 	return output;
 }

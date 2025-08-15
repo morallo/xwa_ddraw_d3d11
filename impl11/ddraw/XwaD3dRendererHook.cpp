@@ -50,6 +50,7 @@ Backdrops messages look like:
 #include "DirectSBSRenderer.h"
 #include "XwaTextureData.h"
 
+#include <DDSTextureLoader.h>
 #include <WICTextureLoader.h>
 
 namespace fs = std::filesystem;
@@ -2521,8 +2522,10 @@ void LoadMissionCubeMaps()
 {
 	static ID3D11Texture2D* cubeTextures[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 	static ID3D11Texture2D* cubeTexturesIllum[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+	static ID3D11Texture2D* cubeTexturesOvr[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 	static ID3D11Texture2D* allRegionsCubeTexture = nullptr;
 	static ID3D11Texture2D* allRegionsIllumCubeTexture = nullptr;
+	static ID3D11Texture2D* allRegionsOvrCubeTexture = nullptr;
 
 	HRESULT res = S_OK;
 	auto& resources = g_deviceResources;
@@ -2550,11 +2553,15 @@ void LoadMissionCubeMaps()
 		}
 
 		const std::string illumStr = "_illum";
+		const std::string ovrStr   = "_overlay";
 		std::string allRegionsPath = GetFileKeyValue(lines, "AllRegions");
 		std::string allRegionsIllumPath = GetFileKeyValue(lines, "AllRegionsIllum",
 			allRegionsPath.size() > 0 ? allRegionsPath + illumStr : "");
+		std::string allRegionsOvrPath = GetFileKeyValue(lines, "AllRegionsOverlay",
+			allRegionsPath.size() > 0 ? allRegionsPath + ovrStr : "");
 		std::string regionPath[4];
 		std::string regionIllumPath[4];
+		std::string regionOvrPath[4];
 		regionPath[0] = GetFileKeyValue(lines, "Region0");
 		regionPath[1] = GetFileKeyValue(lines, "Region1");
 		regionPath[2] = GetFileKeyValue(lines, "Region2");
@@ -2568,6 +2575,15 @@ void LoadMissionCubeMaps()
 		regionIllumPath[3] = GetFileKeyValue(lines, "Region3Illum",
 			regionPath[3].size() > 0 ? regionPath[3] + illumStr : "");
 
+		regionOvrPath[0] = GetFileKeyValue(lines, "Region0Overlay",
+			regionPath[0].size() > 0 ? regionPath[0] + ovrStr : "");
+		regionOvrPath[1] = GetFileKeyValue(lines, "Region1Overlay",
+			regionPath[1].size() > 0 ? regionPath[1] + ovrStr : "");
+		regionOvrPath[2] = GetFileKeyValue(lines, "Region2Overlay",
+			regionPath[2].size() > 0 ? regionPath[2] + ovrStr : "");
+		regionOvrPath[3] = GetFileKeyValue(lines, "Region3Overlay",
+			regionPath[3].size() > 0 ? regionPath[3] + ovrStr : "");
+
 		ParseCubeMapMissionIni(lines);
 
 		if (allRegionsPath.size() > 0)
@@ -2580,6 +2596,11 @@ void LoadMissionCubeMaps()
 				g_CubeMaps.allRegionsIllumMipRes, &g_CubeMaps.allRegionsIllumTexRes,
 				&allRegionsIllumCubeTexture, &g_CubeMaps.allRegionsIllumSRV, &g_CubeMaps.allRegionsIllumDiffuseMipLevel);
 
+		float dummy1, dummy2;
+		if (allRegionsOvrPath.size() > 0)
+			g_CubeMaps.bAllRegionsOvr = LoadCubeMap(allRegionsOvrPath, 1024, &dummy1,
+				&allRegionsOvrCubeTexture, &g_CubeMaps.allRegionsOvrSRV, &dummy2);
+
 		for (int i = 0; i < MAX_MISSION_REGIONS; i++)
 		{
 			if (regionPath[i].size() > 0)
@@ -2591,6 +2612,10 @@ void LoadMissionCubeMaps()
 				g_CubeMaps.bRenderIllumInThisRegion[i] = LoadCubeMap(regionIllumPath[i],
 					g_CubeMaps.regionIllumMipRes[i], &(g_CubeMaps.regionIllumTexRes[i]),
 					&cubeTexturesIllum[i], &g_CubeMaps.regionIllumSRV[i], &g_CubeMaps.regionIllumDiffuseMipLevel[i]);
+
+			if (regionIllumPath[i].size() > 0)
+				g_CubeMaps.bRenderOvrInThisRegion[i] = LoadCubeMap(regionOvrPath[i], 1024, &dummy1,
+					&cubeTexturesOvr[i], &g_CubeMaps.regionOvrSRV[i], &dummy2);
 		}
 	}
 out:

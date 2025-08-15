@@ -26,8 +26,9 @@ SamplerState bgSampler : register(s0);
 Texture2D    reticleTex : register(t1);
 SamplerState reticleSampler : register(s1);
 
-TextureCube skybox      : register(t21);
-Texture2D   stellarBG   : register(t22);
+TextureCube skybox    : register(t21);
+Texture2D   stellarBG : register(t22);
+TextureCube overlay   : register(t24);
 
 #define cursor_radius 0.04
 //#define thickness 0.02 
@@ -49,7 +50,8 @@ struct PixelShaderInput
 
 struct PixelShaderOutput
 {
-	float4 color : SV_TARGET0;
+	float4 color  : SV_TARGET0;
+	float4 color1 : SV_TARGET1;
 };
 
 // Renders DefaultStarfield.dds
@@ -59,6 +61,7 @@ PixelShaderOutput RenderDefaultStarfield(PixelShaderInput input)
 {
 	PixelShaderOutput output;
 	output.color = 0;
+	output.color1 = 0;
 
 	// The code here comes from the HyperEntry shader:
 	float2 fragCoord = input.uv * iResolution.xy;
@@ -103,7 +106,8 @@ PixelShaderOutput RenderDefaultStarfield(PixelShaderInput input)
 PixelShaderOutput RenderCubeMap(PixelShaderInput input)
 {
 	PixelShaderOutput output;
-	output.color = 0;
+	output.color  = 0;
+	output.color1 = 0;
 
 	// The code here comes from the HyperEntry shader:
 	float2 fragCoord = input.uv * iResolution.xy;
@@ -120,6 +124,7 @@ PixelShaderOutput RenderCubeMap(PixelShaderInput input)
 	V = mul(viewMat, float4(V, 0)).xyz;
 
 	const float3 cubeMapColor = skybox.SampleLevel(bgSampler, V.xyz, 0).rgb;
+	const float4 overlayColor = overlay.SampleLevel(bgSampler, V.xyz, 0);
 
 #ifndef INSTANCED_RENDERING
 	// Blend the cube map with the previous background:
@@ -127,9 +132,11 @@ PixelShaderOutput RenderCubeMap(PixelShaderInput input)
 	// we need to blend the existing planets/nebulae with the cube map.
 	const float4 background = stellarBG.Sample(bgSampler, input.uv); // This layer contains planets and nebulae
 	output.color = float4(lerp(cubeMapColor.rgb, background.rgb, background.a), 1);
+	output.color = float4(lerp(output.color.rgb, overlayColor.rgb, overlayColor.a), 1);
 #else
 	// SteamVR mode: Return just the skybox, blending will be done later:
-	output.color = float4(cubeMapColor, 1);
+	output.color  = float4(cubeMapColor, 1);
+	output.color1 = overlayColor;
 #endif
 	return output;
 }
@@ -221,6 +228,7 @@ float sdCircle(in vec2 p, float radius)
 // Display the HUD using a hyperspace-entry-like coord sys 
 PixelShaderOutput main(PixelShaderInput input) {
 	PixelShaderOutput output;
+	output.color1 = 0;
 	vec2 fragCoord = input.uv * iResolution.xy;
 	//vec2 texCoord = (input.uv - SunCoords[0].xy) * iResolution.xy;
 	output.color = 0.0;

@@ -408,8 +408,10 @@ struct CubeMapData
 	bool bEnabled = false;
 	bool bRenderAllRegions = false;
 	bool bAllRegionsIllum = false;
+	bool bAllRegionsOvr = false;
 	bool bRenderInThisRegion[MAX_MISSION_REGIONS] = { false, false, false, false };
 	bool bRenderIllumInThisRegion[MAX_MISSION_REGIONS] = { false, false, false, false };
+	bool bRenderOvrInThisRegion[MAX_MISSION_REGIONS] = { false, false, false, false };
 	float allRegionsSpecular   = 0.7f;
 	float allRegionsAmbientInt = 0.15f;
 	float allRegionsAmbientMin = 0.0f;
@@ -436,8 +438,10 @@ struct CubeMapData
 
 	ID3D11ShaderResourceView* allRegionsSRV = nullptr;
 	ID3D11ShaderResourceView* allRegionsIllumSRV = nullptr;
+	ID3D11ShaderResourceView* allRegionsOvrSRV = nullptr;
 	ID3D11ShaderResourceView* regionSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 	ID3D11ShaderResourceView* regionIllumSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+	ID3D11ShaderResourceView* regionOvrSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 };
 extern CubeMapData g_CubeMaps;
 
