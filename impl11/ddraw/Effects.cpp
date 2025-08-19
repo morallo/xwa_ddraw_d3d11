@@ -245,6 +245,8 @@ DeleteAllTempZIPDirectoriesFun DeleteAllTempZIPDirectories = nullptr;
 GetZIPImageMetadataFun         GetZIPImageMetadata = nullptr;
 // **************************
 
+std::vector<std::string> Tokenize(const std::string& str, const char* delimiters);
+
 void SmallestK::insert(Vector3 P, Vector3 col, Vector3 dir, float falloff, float angle) {
 	int i = _size - 1;
 	while (i >= 0 && P.z < _elems[i].P.z) {
@@ -1053,6 +1055,198 @@ bool LoadHoloOffsetFromIniFile()
 
 	log_debug("[DBG] [HOLO] numlines read: %d", line);
 	fclose(in_file);
+	return true;
+}
+
+/*
+ * Saves the CubeMap rotation to the current mission .ini file.
+ * if region is -1 or greater than 3, then AllRegions is saved.
+ */
+bool SaveCubeMapRotationToIniFile(
+	int region, bool saveAngles,
+	float angX, float angY, float angZ,
+	Vector4 R, Vector4 U, Vector4 F)
+{
+	char *sTempFileName = "./TempIniFile.txt";
+	FILE* in_file, *out_file;
+	int error = 0, line = 0, len = 0;
+	char buf[256];
+	// In order to parse the .ini file, we need a finite state machine so that we can
+	// tell when we see the [Section] we're interested in, and when we exit that same
+	// [Section]
+	enum FSM {
+		INIT_ST,
+		IN_TAG_ST,
+	} fsm = INIT_ST;
+
+	const char* sectionName = "SkyBoxes";
+
+	std::string mission = xwaMissionFileName;
+	const int dot = mission.find_last_of('.');
+	mission = mission.substr(0, dot) + ".ini";
+
+	log_debug("[DBG] [CUBE] Saving CubeMap rotation to INI file [%s]...", mission.c_str());
+	// Open sFileName for reading
+	try {
+		error = fopen_s(&in_file, mission.c_str(), "rt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not read [%s]", mission.c_str());
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when reading [%s]", error, mission.c_str());
+		return false;
+	}
+
+	// Create sTempFileName
+	try {
+		error = fopen_s(&out_file, sTempFileName, "wt");
+	}
+	catch (...) {
+		log_debug("[DBG] Could not create temporary file: [%s]", sTempFileName);
+	}
+
+	if (error != 0) {
+		log_debug("[DBG] Error %d when creating [%s]", error, sTempFileName);
+		return false;
+	}
+
+	const char* delimiters = ",;=";
+	const bool isRegionParams = (0 <= region && region <= 3);
+	std::vector<std::string> removeTags;
+	auto isInRemoveTagsList = [&removeTags](const std::string item)
+		{
+			for (const auto& tag : removeTags)
+			{
+				if (item == tag)
+					return true;
+			}
+			return false;
+		};
+
+	while (fgets(buf, 256, in_file) != NULL)
+	{
+		line++;
+		// Commented lines are automatically pass-through
+		if (buf[0] == ';') {
+			fprintf(out_file, buf);
+			continue;
+		}
+
+		// Catch section names
+		switch (fsm)
+		{
+			case INIT_ST:
+				if (buf[0] == '[')
+				{
+					if (strstr(buf, sectionName) != NULL)
+					{
+						fsm = IN_TAG_ST;
+					}
+				}
+				// If we're not in-tag, then just pass-through:
+				fprintf(out_file, buf);
+
+				// Write the new params right away after the [SkyBoxes] tag is written...
+				if (fsm == IN_TAG_ST)
+				{
+					std::string tag;
+
+					if (saveAngles)
+					{
+						if (isRegionParams)
+						{
+							tag = "Region" + std::to_string(region) + "RotationX";
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angX);
+
+							tag = "Region" + std::to_string(region) + "RotationY";
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angY);
+
+							tag = "Region" + std::to_string(region) + "RotationZ";
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
+						}
+						else
+						{
+							tag = std::string("AllRegionsRotationX");
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angX);
+
+							tag = std::string("AllRegionsRotationY");
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angY);
+
+							tag = std::string("AllRegionsRotationZ");
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
+						}
+					}
+					else
+					{
+						if (isRegionParams)
+						{
+							tag = "Region" + std::to_string(region) + "RVector";
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), R.x, R.y, R.z);
+
+							tag = "Region" + std::to_string(region) + "UVector";
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), U.x, U.y, U.z);
+
+							tag = "Region" + std::to_string(region) + "FVector";
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), F.x, F.y, F.z);
+						}
+						else
+						{
+							tag = std::string("AllRegionsRVector");
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), R.x, R.y, R.z);
+
+							tag = std::string("AllRegionsUVector");
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), U.x, U.y, U.z);
+
+							tag = std::string("AllRegionsFVector");
+							removeTags.push_back(tag);
+							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), F.x, F.y, F.z);
+						}
+					}
+				}
+				break;
+			case IN_TAG_ST:
+				if (buf[0] == '[')
+				{
+					// We're exiting the SkyBoxes tag
+					fsm = INIT_ST;
+					fprintf(out_file, buf);
+				}
+				else
+				{
+					if (buf[0] == ';' || buf[0] == '#' || buf[0] == 0)
+						fprintf(out_file, buf);
+					else
+					{
+						auto tokens = Tokenize(std::string(buf), delimiters);
+						if (tokens.size() == 0)
+							fprintf(out_file, buf);
+						else if (!isInRemoveTagsList(tokens[0]))
+							fprintf(out_file, buf);
+					}
+				}
+				break;
+		}
+	}
+
+	fclose(out_file);
+	fclose(in_file);
+
+	// Swap the files
+	remove(mission.c_str());
+	rename(sTempFileName, mission.c_str());
 	return true;
 }
 

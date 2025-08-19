@@ -9,6 +9,11 @@
 #include <map>
 #include <rtcore.h> //Embree
 
+#define MOVE_LIGHTS_KEY_SET      1
+#define CHANGE_FOV_KEY_SET       2 // Default
+#define MOVE_POINT_LIGHT_KEY_SET 3
+#define ROTATE_CUBEMAPS_KEY_SET  16
+
 // METRIC RECONSTRUCTION:
 extern bool g_bYCenterHasBeenFixed;
 
@@ -403,6 +408,13 @@ extern EnhancedHUDData g_EnhancedHUDData;
 
 constexpr int MAX_MISSION_REGIONS = 4;
 
+enum class CubeMapEditMode
+{
+	DISABLED,
+	AZIMUTH_ELEVATION,
+	LOCAL_COORDS
+};
+
 struct CubeMapData
 {
 	bool bEnabled = false;
@@ -418,6 +430,7 @@ struct CubeMapData
 	float allRegionsDiffuseMipLevel = 5;
 	float allRegionsIllumDiffuseMipLevel = 5;
 	float allRegionsAngX = 0.0f, allRegionsAngY = 0.0f, allRegionsAngZ = 0.0f;
+	Vector4 allRegionsR, allRegionsU, allRegionsF;
 	float allRegionsTexRes = -1;
 	float allRegionsIllumTexRes = -1;
 	float allRegionsMipRes = 16.0f;
@@ -442,8 +455,20 @@ struct CubeMapData
 	ID3D11ShaderResourceView* regionSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 	ID3D11ShaderResourceView* regionIllumSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
 	ID3D11ShaderResourceView* regionOvrSRV[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+
+	// Live edit mode variables
+	CubeMapEditMode editMode = CubeMapEditMode::DISABLED;
+	bool editParamsModified = false;
+	float editAngX = 0, editAngY = 0, editAngZ = 0;
+	float editAngIncr = 2.0f;
+	Vector4 R, U, F;
 };
 extern CubeMapData g_CubeMaps;
+void CubeMapEditResetAngles();
+void CubeMapEditResetRUF();
+void CubeMapEditIncrAngX(float mult);
+void CubeMapEditIncrAngY(float mult);
+void CubeMapEditIncrAngZ(float mult);
 
 // *****************************************************
 // Global functions

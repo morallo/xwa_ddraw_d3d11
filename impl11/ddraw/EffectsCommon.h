@@ -576,5 +576,8 @@ bool SavePOVOffsetToIniFile();
 bool LoadPOVOffsetFromIniFile();
 bool SaveHoloOffsetToIniFile();
 bool LoadHoloOffsetFromIniFile();
+bool SaveCubeMapRotationToIniFile(int region, bool saveAngles,
+	float angX, float angY, float angZ,
+	Vector4 R, Vector4 U, Vector4 F);
 bool LoadHUDColorFromIniFile();
 void ApplyCustomHUDColor();

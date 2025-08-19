@@ -125,9 +125,8 @@ float GetFileKeyValueFloat(const std::vector<std::string>& lines, const std::str
 	return res;
 }
 
-std::vector<std::string> Tokennize(const std::string& str)
+std::vector<std::string> Tokenize(const std::string& str, const char* delimiters)
 {
-	const char* delimiters = ",;";
 	std::vector<std::string> tokens;
 
 	std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
@@ -145,13 +144,19 @@ std::vector<std::string> Tokennize(const std::string& str)
 	return tokens;
 }
 
+std::vector<std::string> Tokenize(const std::string& str)
+{
+	const char* delimiters = ",;";
+	return Tokenize(str, delimiters);
+}
+
 std::vector<std::vector<std::string>> GetFileListValues(const std::vector<std::string>& lines)
 {
 	std::vector<std::vector<std::string>> values;
 
 	for (const std::string& line : lines)
 	{
-		values.push_back(Tokennize(line));
+		values.push_back(Tokenize(line));
 	}
 
 	return values;

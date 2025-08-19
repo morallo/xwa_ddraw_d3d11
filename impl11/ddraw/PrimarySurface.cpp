@@ -6217,6 +6217,40 @@ out:
 	this->_deviceResources->EndAnnotatedEvent();
 }
 
+void ReOrtho(Vector4& R, Vector4& U, Vector4& F)
+{
+	Vector3 R3 = Vector3(R.x, R.y, R.z);
+	Vector3 U3 = Vector3(U.x, U.y, U.z);
+	Vector3 F3 = Vector3(F.x, F.y, F.z);
+	F3 = U3.cross(R3);
+	U3 = R3.cross(F3);
+	R3 = F3.cross(U3);
+
+	R = R3.normalize();
+	U = U3.normalize();
+	F = F3.normalize();
+}
+
+void CubeMapEditResetAngles()
+{
+	g_CubeMaps.editAngX = 0;
+	g_CubeMaps.editAngY = 0;
+	g_CubeMaps.editAngZ = 0;
+	g_CubeMaps.editParamsModified = false;
+}
+
+void CubeMapEditResetRUF()
+{
+	g_CubeMaps.R = Vector4(1, 0, 0, 0);
+	g_CubeMaps.U = Vector4(0, 1, 0, 0);
+	g_CubeMaps.F = Vector4(0, 0, -1, 0);
+	g_CubeMaps.editParamsModified = false;
+}
+
+void CubeMapEditIncrAngX(float mult) { g_CubeMaps.editAngX += mult * g_CubeMaps.editAngIncr; g_CubeMaps.editParamsModified = true; }
+void CubeMapEditIncrAngY(float mult) { g_CubeMaps.editAngY += mult * g_CubeMaps.editAngIncr; g_CubeMaps.editParamsModified = true; }
+void CubeMapEditIncrAngZ(float mult) { g_CubeMaps.editAngZ += mult * g_CubeMaps.editAngIncr; g_CubeMaps.editParamsModified = true; }
+
 void PrimarySurface::RenderDefaultBackground()
 {
 	if (!g_bRenderDefaultStarfield || !g_bRendering3D || g_bDefaultStarfieldRendered)
@@ -6323,7 +6357,95 @@ void PrimarySurface::RenderDefaultBackground()
 		angY = g_CubeMaps.regionAngY[region];
 		angZ = g_CubeMaps.regionAngZ[region];
 	}
-	cubeMapRot = Matrix4().rotateZ(angZ) * Matrix4().rotateY(angY) * Matrix4().rotateX(angX);
+
+	switch (g_CubeMaps.editMode)
+	{
+		case CubeMapEditMode::LOCAL_COORDS:
+		{
+			Vector4 R = g_CubeMaps.R;
+			Vector4 U = g_CubeMaps.U;
+			Vector4 F = g_CubeMaps.F;
+
+			angX = -g_CubeMaps.editAngX;
+			angY = -g_CubeMaps.editAngY;
+			angZ = -g_CubeMaps.editAngZ;
+			const Matrix4 Rx = Matrix4().rotateX(angX);
+			const Matrix4 Ry = Matrix4().rotateY(angY);
+			const Matrix4 Rz = Matrix4().rotateZ(angZ);
+
+			Matrix4 M, Minv;
+			{
+				float mInv[16] = { R.x, U.x, -F.x, 0,
+				                   R.y, U.y, -F.y, 0,
+				                   R.z, U.z, -F.z, 0,
+				                   0, 0, 0, 1 };
+				float m[16] = { R.x, R.y, R.z, 0,
+				                U.x, U.y, U.z, 0,
+				                -F.x, -F.y, -F.z, 0,
+				                0, 0, 0, 1 };
+				// Multiplying F = M * F moves F in the same direction as F = Ry * F
+				M.set(m);
+				Minv.set(mInv);
+			}
+			Matrix4 Rot;
+
+			if (g_CubeMaps.editAngX != 0) Rot = M * Rx * Minv;
+			if (g_CubeMaps.editAngY != 0) Rot = M * Ry * Minv;
+			if (g_CubeMaps.editAngZ != 0) Rot = M * Rz * Minv;
+			R = Rot * R;
+			U = Rot * U;
+			F = Rot * F;
+			ReOrtho(R, U, F);
+			g_CubeMaps.R = R;
+			g_CubeMaps.U = U;
+			g_CubeMaps.F = F;
+
+			if (g_CubeMaps.editParamsModified)
+			{
+				SaveCubeMapRotationToIniFile(-1, false, 0, 0, 0, R, U, F);
+				g_CubeMaps.editParamsModified = false;
+			}
+			CubeMapEditResetAngles();
+
+			{
+				float m[16] = { R.x, R.y, R.z, 0,
+				                U.x, U.y, U.z, 0,
+				                -F.x, -F.y, -F.z, 0,
+				                0, 0, 0, 1 };
+				cubeMapRot.set(m);
+				cubeMapRot.transpose(); // Not sure why we need this, but it works!
+			}
+			break;
+		}
+		case CubeMapEditMode::AZIMUTH_ELEVATION:
+		{
+			angX = g_CubeMaps.editAngX;
+			angY = g_CubeMaps.editAngY;
+			angZ = g_CubeMaps.editAngZ;
+			log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+				angX, angY, angZ);
+			const Matrix4 Rx = Matrix4().rotateX(angX);
+			const Matrix4 Ry = Matrix4().rotateY(angY);
+			const Matrix4 Rz = Matrix4().rotateZ(angZ);
+			cubeMapRot = Rz * Rx * Ry;
+			if (g_CubeMaps.editParamsModified)
+			{
+				SaveCubeMapRotationToIniFile(-1, true,
+					g_CubeMaps.editAngX, g_CubeMaps.editAngY, g_CubeMaps.editAngZ,
+					{}, {}, {});
+				g_CubeMaps.editParamsModified = false;
+			}
+			break;
+		}
+		case CubeMapEditMode::DISABLED:
+		{
+			const Matrix4 Rx = Matrix4().rotateX(angX);
+			const Matrix4 Ry = Matrix4().rotateY(angY);
+			const Matrix4 Rz = Matrix4().rotateZ(angZ);
+			cubeMapRot = Rz * Rx * Ry;
+			break;
+		}
+	}
 	g_ShadertoyBuffer.viewMat = cubeMapRot * g_ShadertoyBuffer.viewMat;
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);

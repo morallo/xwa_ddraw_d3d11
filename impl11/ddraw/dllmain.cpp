@@ -56,6 +56,11 @@ extern bool g_bUseCentroids;
 void RenderEngineGlowHook(void* A4, int A8, void* textureSurface, uint32_t A10, uint32_t A14);
 char RenderBackdropsHook();
 void ReloadCubeMapData();
+void CubeMapEditResetAngles();
+void CubeMapEditResetRUF();
+void CubeMapEditIncrAngX(float mult);
+void CubeMapEditIncrAngY(float mult);
+void CubeMapEditIncrAngZ(float mult);
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -1100,6 +1105,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_contOriginWorldSpace[0].y += 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
+				case 16:
+					CubeMapEditIncrAngX(1.0f);
+					break;
 				}
 				return 0;
 				// Ctrl + Down
@@ -1142,6 +1150,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_contOriginWorldSpace[0].y -= 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
+				case 16:
+					CubeMapEditIncrAngX(-1.0f);
+					break;
 				}
 				return 0;
 			// Ctrl + Left
@@ -1153,6 +1164,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					g_contOriginWorldSpace[0].x -= 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
+				case 16:
+					CubeMapEditIncrAngY(1.0f);
+					break;
 				}
 				return 0;
 			// Ctrl + Right
@@ -1163,6 +1177,9 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				case 11:
 					g_contOriginWorldSpace[0].x += 0.01f;
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
+					break;
+				case 16:
+					CubeMapEditIncrAngY(-1.0f);
 					break;
 				}
 				return 0;
@@ -1218,11 +1235,28 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 			case VK_DOWN:
 				IncreaseFloatingGUIParallax(-0.05f);
 				return 0;
+			// Ctrl+Shift + Left
 			case VK_LEFT:
-				IncreaseTextParallax(-0.05f);
+				switch (g_KeySet)
+				{
+				case 2:
+					IncreaseTextParallax(-0.05f);
+					break;
+				case 16:
+					CubeMapEditIncrAngZ(-1.0f);
+					break;
+				}
 				return 0;
 			case VK_RIGHT:
-				IncreaseTextParallax(0.05f);
+				switch (g_KeySet)
+				{
+				case 2:
+					IncreaseTextParallax(0.05f);
+					break;
+				case 16:
+					CubeMapEditIncrAngZ(1.0f);
+					break;
+				}
 				return 0;
 			}
 		}

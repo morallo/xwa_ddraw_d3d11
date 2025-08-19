@@ -531,9 +531,6 @@ Computed at the beginning of each frame, inside BeginScene(), by calling GetCurr
 */
 Matrix4 g_CurrentHeadingViewMatrix;
 
-#define MOVE_LIGHTS_KEY_SET 1
-#define CHANGE_FOV_KEY_SET 2
-#define MOVE_POINT_LIGHT_KEY_SET 3
 int g_KeySet = CHANGE_FOV_KEY_SET; // Default setting: let users adjust the FOV, I can always override this with the "key_set" SSAO.cfg param
 
 

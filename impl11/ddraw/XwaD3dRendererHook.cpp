@@ -2452,6 +2452,8 @@ void ResetMissionCubeMaps()
 	// get populated when the mission .ini file is loaded.
 	g_DisabledGroupIdImageIdMap.clear();
 	g_EnabledOvrGroupIdImageIdMap.clear();
+	CubeMapEditResetAngles();
+	CubeMapEditResetRUF();
 }
 
 void ParseCubeMapMissionIni(const std::vector<std::string>& lines)

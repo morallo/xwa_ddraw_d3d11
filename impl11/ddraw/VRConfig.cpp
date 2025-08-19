@@ -3119,6 +3119,26 @@ bool LoadSSAOParams() {
 				// To enable a CubeMap on a specific mission, its .ini file must be updated
 				// and a corresponding cubemap must be added under Effects\CubeMaps.
 				g_CubeMaps.bEnabled = (bool)fValue;
+				g_KeySet = CHANGE_FOV_KEY_SET; // Just in case...
+				g_CubeMaps.editMode = CubeMapEditMode::DISABLED;
+			}
+			if (_stricmp(param, "debug_cubemap_rotation") == 0)
+			{
+				if (_stricmp(svalue, "standard") == 0)
+				{
+					g_CubeMaps.editMode = CubeMapEditMode::AZIMUTH_ELEVATION;
+					g_KeySet = ROTATE_CUBEMAPS_KEY_SET;
+				}
+				else if (_stricmp(svalue, "local_coords") == 0)
+				{
+					g_CubeMaps.editMode = CubeMapEditMode::LOCAL_COORDS;
+					g_KeySet = ROTATE_CUBEMAPS_KEY_SET;
+				}
+				else
+				{
+					g_CubeMaps.editMode = CubeMapEditMode::DISABLED;
+					g_KeySet = CHANGE_FOV_KEY_SET;
+				}
 			}
 
 			if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
