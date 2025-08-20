@@ -6427,7 +6427,7 @@ void PrimarySurface::RenderDefaultBackground()
 			const Matrix4 Rx = Matrix4().rotateX(angX);
 			const Matrix4 Ry = Matrix4().rotateY(angY);
 			const Matrix4 Rz = Matrix4().rotateZ(angZ);
-			cubeMapRot = Rz * Rx * Ry;
+			cubeMapRot = Rz * Ry * Rx;
 			if (g_CubeMaps.editParamsModified)
 			{
 				SaveCubeMapRotationToIniFile(-1, true,
@@ -6442,7 +6442,7 @@ void PrimarySurface::RenderDefaultBackground()
 			const Matrix4 Rx = Matrix4().rotateX(angX);
 			const Matrix4 Ry = Matrix4().rotateY(angY);
 			const Matrix4 Rz = Matrix4().rotateZ(angZ);
-			cubeMapRot = Rz * Rx * Ry;
+			cubeMapRot = Rz * Ry * Rx;
 			break;
 		}
 	}
