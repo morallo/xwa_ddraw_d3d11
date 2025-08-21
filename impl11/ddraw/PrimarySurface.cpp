@@ -6241,9 +6241,15 @@ void CubeMapEditResetAngles()
 
 void CubeMapEditResetRUF()
 {
-	g_CubeMaps.R = Vector4(1, 0, 0, 0);
-	g_CubeMaps.U = Vector4(0, 1, 0, 0);
-	g_CubeMaps.F = Vector4(0, 0, -1, 0);
+	g_CubeMaps.editAllRegionsR = Vector4(1, 0, 0, 0);
+	g_CubeMaps.editAllRegionsU = Vector4(0, 1, 0, 0);
+	g_CubeMaps.editAllRegionsF = Vector4(0, 0, -1, 0);
+	for (int i = 0; i < MAX_MISSION_REGIONS; i++)
+	{
+		g_CubeMaps.RVector(i) = g_CubeMaps.editAllRegionsR;
+		g_CubeMaps.UVector(i) = g_CubeMaps.editAllRegionsU;
+		g_CubeMaps.FVector(i) = g_CubeMaps.editAllRegionsF;
+	}
 	g_CubeMaps.editParamsModified = false;
 }
 
@@ -6358,13 +6364,14 @@ void PrimarySurface::RenderDefaultBackground()
 		angZ = g_CubeMaps.regionAngZ[region];
 	}
 
+	const int editRegion = renderCubeMapInThisRegion ? region : -1;
 	switch (g_CubeMaps.editMode)
 	{
 		case CubeMapEditMode::LOCAL_COORDS:
 		{
-			Vector4 R = g_CubeMaps.R;
-			Vector4 U = g_CubeMaps.U;
-			Vector4 F = g_CubeMaps.F;
+			Vector4 R = g_CubeMaps.RVector(editRegion);
+			Vector4 U = g_CubeMaps.UVector(editRegion);
+			Vector4 F = g_CubeMaps.FVector(editRegion);
 
 			angX = -g_CubeMaps.editAngX;
 			angY = -g_CubeMaps.editAngY;
@@ -6396,16 +6403,9 @@ void PrimarySurface::RenderDefaultBackground()
 			U = Rot * U;
 			F = Rot * F;
 			ReOrtho(R, U, F);
-			g_CubeMaps.R = R;
-			g_CubeMaps.U = U;
-			g_CubeMaps.F = F;
-
-			if (g_CubeMaps.editParamsModified)
-			{
-				SaveCubeMapRotationToIniFile(-1, false, 0, 0, 0, R, U, F);
-				g_CubeMaps.editParamsModified = false;
-			}
-			CubeMapEditResetAngles();
+			g_CubeMaps.RVector(editRegion) = R;
+			g_CubeMaps.UVector(editRegion) = U;
+			g_CubeMaps.FVector(editRegion) = F;
 
 			{
 				float m[16] = { R.x, R.y, R.z, 0,
@@ -6414,7 +6414,19 @@ void PrimarySurface::RenderDefaultBackground()
 				                0, 0, 0, 1 };
 				cubeMapRot.set(m);
 				cubeMapRot.transpose(); // Not sure why we need this, but it works!
+				Vector3 Vec = RotationMatrixToEulerAngles(cubeMapRot);
+				log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+					Vec.x, Vec.y, Vec.z);
+
+				if (g_CubeMaps.editParamsModified)
+				{
+					SaveCubeMapRotationToIniFile(editRegion, true,
+						Vec.x, Vec.y, Vec.z, {}, {}, {});
+					g_CubeMaps.editParamsModified = false;
+				}
 			}
+
+			CubeMapEditResetAngles();
 			break;
 		}
 		case CubeMapEditMode::AZIMUTH_ELEVATION:
@@ -6430,7 +6442,7 @@ void PrimarySurface::RenderDefaultBackground()
 			cubeMapRot = Rz * Ry * Rx;
 			if (g_CubeMaps.editParamsModified)
 			{
-				SaveCubeMapRotationToIniFile(-1, true,
+				SaveCubeMapRotationToIniFile(editRegion, true,
 					g_CubeMaps.editAngX, g_CubeMaps.editAngY, g_CubeMaps.editAngZ,
 					{}, {}, {});
 				g_CubeMaps.editParamsModified = false;

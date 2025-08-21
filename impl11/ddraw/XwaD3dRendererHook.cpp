@@ -2474,6 +2474,8 @@ void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
 	g_CubeMaps.allRegionsAngX = GetFileKeyValueFloat(lines, "AllRegionsRotationX", 0.0f);
 	g_CubeMaps.allRegionsAngY = GetFileKeyValueFloat(lines, "AllRegionsRotationY", 0.0f);
 	g_CubeMaps.allRegionsAngZ = GetFileKeyValueFloat(lines, "AllRegionsRotationZ", 0.0f);
+	EulerAnglesToRUF(g_CubeMaps.allRegionsAngX, g_CubeMaps.allRegionsAngY, g_CubeMaps.allRegionsAngZ,
+		g_CubeMaps.editAllRegionsR, g_CubeMaps.editAllRegionsU, g_CubeMaps.editAllRegionsF);
 	g_CubeMaps.allRegionsMipRes = GetFileKeyValueFloat(lines, "AllRegionsReflectionRes", 8.0f);
 	g_CubeMaps.allRegionsDiffuseMipLevel = FindMipLevel(g_CubeMaps.allRegionsTexRes, g_CubeMaps.allRegionsMipRes);
 
@@ -2492,6 +2494,8 @@ void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
 		g_CubeMaps.regionAngX[i] = GetFileKeyValueFloat(lines, regionAngX[i], 0.0f);
 		g_CubeMaps.regionAngY[i] = GetFileKeyValueFloat(lines, regionAngY[i], 0.0f);
 		g_CubeMaps.regionAngZ[i] = GetFileKeyValueFloat(lines, regionAngZ[i], 0.0f);
+		EulerAnglesToRUF(g_CubeMaps.regionAngX[i], g_CubeMaps.regionAngY[i], g_CubeMaps.regionAngZ[i],
+			g_CubeMaps.editRegionR[i], g_CubeMaps.editRegionU[i], g_CubeMaps.editRegionF[i]);
 		g_CubeMaps.regionMipRes[i] = GetFileKeyValueFloat(lines, regionMipRes[i], 16.0f);
 		g_CubeMaps.regionDiffuseMipLevel[i] = FindMipLevel(g_CubeMaps.regionTexRes[i], g_CubeMaps.regionMipRes[i]);
 	}

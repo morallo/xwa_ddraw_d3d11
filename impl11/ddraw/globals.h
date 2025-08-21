@@ -461,7 +461,15 @@ struct CubeMapData
 	bool editParamsModified = false;
 	float editAngX = 0, editAngY = 0, editAngZ = 0;
 	float editAngIncr = 2.0f;
-	Vector4 R, U, F;
+	Vector4 editAllRegionsR, editAllRegionsU, editAllRegionsF;
+	Vector4 editRegionR[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
+	Vector4 editRegionU[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
+	Vector4 editRegionF[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
+
+	Vector4& RVector(int region) { if (region == -1) return editAllRegionsR; else return editRegionR[region]; }
+	Vector4& UVector(int region) { if (region == -1) return editAllRegionsU; else return editRegionU[region]; }
+	Vector4& FVector(int region) { if (region == -1) return editAllRegionsF; else return editRegionF[region]; }
+
 };
 extern CubeMapData g_CubeMaps;
 void CubeMapEditResetAngles();

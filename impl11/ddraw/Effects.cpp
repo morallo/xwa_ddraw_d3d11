@@ -1058,6 +1058,44 @@ bool LoadHoloOffsetFromIniFile()
 	return true;
 }
 
+void EulerAnglesToRUF(
+	float angX, float angY, float angZ,
+	Vector4& R, Vector4& U, Vector4& F)
+{
+	Matrix4 Rot = Matrix4().rotateZ(angZ) * Matrix4().rotateY(angY) * Matrix4().rotateX(angX);
+	const float* m = Rot.get();
+	/*float mInv[16] = {
+		R.x, U.x, -F.x, 0,
+		R.y, U.y, -F.y, 0,
+		R.z, U.z, -F.z, 0,
+		0, 0, 0, 1 };*/
+	R = {  m[0],  m[4],  m[8], 0 };
+	U = {  m[1],  m[5],  m[9], 0 };
+	F = { -m[2], -m[6], -m[10], 0 };
+}
+
+Vector3 RotationMatrixToEulerAngles(Matrix4 &R)
+{
+	float sy = sqrt(R.get(0, 0) * R.get(0, 0) + R.get(1, 0) * R.get(1, 0));
+	bool singular = sy < 1e-6; // If
+
+	float x, y, z;
+	if (!singular)
+	{
+		x = atan2( R.get(2, 1), R.get(2, 2));
+		y = atan2(-R.get(2, 0), sy);
+		z = atan2( R.get(1, 0), R.get(0, 0));
+	}
+	else
+	{
+		x = atan2(-R.get(1, 2), R.get(1, 1));
+		y = atan2(-R.get(2, 0), sy);
+		z = 0;
+	}
+
+	return Vector3(x * RAD_TO_DEG, y * RAD_TO_DEG, z * RAD_TO_DEG);
+}
+
 /*
  * Saves the CubeMap rotation to the current mission .ini file.
  * if region is -1 or greater than 3, then AllRegions is saved.
@@ -1168,6 +1206,10 @@ bool SaveCubeMapRotationToIniFile(
 							tag = "Region" + std::to_string(region) + "RotationZ";
 							removeTags.push_back(tag);
 							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
+
+							removeTags.push_back("Region" + std::to_string(region) + "RVector");
+							removeTags.push_back("Region" + std::to_string(region) + "UVector");
+							removeTags.push_back("Region" + std::to_string(region) + "FVector");
 						}
 						else
 						{
@@ -1182,6 +1224,10 @@ bool SaveCubeMapRotationToIniFile(
 							tag = std::string("AllRegionsRotationZ");
 							removeTags.push_back(tag);
 							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
+
+							removeTags.push_back("AllRegionsRVector");
+							removeTags.push_back("AllRegionsUVector");
+							removeTags.push_back("AllRegionsFVector");
 						}
 					}
 					else
@@ -1199,6 +1245,10 @@ bool SaveCubeMapRotationToIniFile(
 							tag = "Region" + std::to_string(region) + "FVector";
 							removeTags.push_back(tag);
 							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), F.x, F.y, F.z);
+
+							removeTags.push_back("Region" + std::to_string(region) + "RotationX");
+							removeTags.push_back("Region" + std::to_string(region) + "RotationY");
+							removeTags.push_back("Region" + std::to_string(region) + "RotationZ");
 						}
 						else
 						{
@@ -1213,6 +1263,10 @@ bool SaveCubeMapRotationToIniFile(
 							tag = std::string("AllRegionsFVector");
 							removeTags.push_back(tag);
 							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), F.x, F.y, F.z);
+
+							removeTags.push_back("AllRegionsRotationX");
+							removeTags.push_back("AllRegionsRotationY");
+							removeTags.push_back("AllRegionsRotationZ");
 						}
 					}
 				}
