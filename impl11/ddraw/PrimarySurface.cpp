@@ -6345,6 +6345,35 @@ void PrimarySurface::RenderDefaultBackground()
 	const bool renderOvrCubeMapInThisRegion   = RenderOverlayCubeMapInThisRegion();
 	const bool renderCubeMap    = (renderCubeMapInThisRegion    || g_CubeMaps.bRenderAllRegions);
 	const bool renderOvrCubeMap = (renderOvrCubeMapInThisRegion || g_CubeMaps.bAllRegionsOvr);
+
+	// If we just jumped to a new region, and we're in edit mode, then we need to update
+	// the edit angles:
+	static int prevRegion = -1;
+	static bool prevRenderCubeMapInThisRegion = true;
+	if (g_CubeMaps.editMode != CubeMapEditMode::DISABLED)
+	{
+		if (renderCubeMapInThisRegion)
+		{
+			// If we switched regions, or if we switched from AllRegions to one region, then
+			// set the edit angles...
+			if ((region != prevRegion || !prevRenderCubeMapInThisRegion) &&
+				region >= 0 && region < MAX_MISSION_REGIONS)
+			{
+				g_CubeMaps.editAngX = g_CubeMaps.regionAngX[region];
+				g_CubeMaps.editAngY = g_CubeMaps.regionAngY[region];
+				g_CubeMaps.editAngZ = g_CubeMaps.regionAngZ[region];
+			}
+		}
+		else if (prevRenderCubeMapInThisRegion)
+		{
+			g_CubeMaps.editAngX = g_CubeMaps.allRegionsAngX;
+			g_CubeMaps.editAngY = g_CubeMaps.allRegionsAngY;
+			g_CubeMaps.editAngZ = g_CubeMaps.allRegionsAngZ;
+		}
+	}
+	prevRegion = region;
+	prevRenderCubeMapInThisRegion = renderCubeMapInThisRegion;
+
 	// This part needs some explanation.
 	// The DefaultStarfield is rendered all the time, and we're using the same path to render
 	// cubemaps. However, if we should render a cubemap in this region/mission, but cubemaps
