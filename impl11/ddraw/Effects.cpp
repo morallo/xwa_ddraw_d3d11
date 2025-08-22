@@ -1100,10 +1100,7 @@ Vector3 RotationMatrixToEulerAngles(Matrix4 &R)
  * Saves the CubeMap rotation to the current mission .ini file.
  * if region is -1 or greater than 3, then AllRegions is saved.
  */
-bool SaveCubeMapRotationToIniFile(
-	int region, bool saveAngles,
-	float angX, float angY, float angZ,
-	Vector4 R, Vector4 U, Vector4 F)
+bool SaveCubeMapRotationToIniFile(int region, float angX, float angY, float angZ)
 {
 	char *sTempFileName = "./TempIniFile.txt";
 	FILE* in_file, *out_file;
@@ -1191,83 +1188,33 @@ bool SaveCubeMapRotationToIniFile(
 				{
 					std::string tag;
 
-					if (saveAngles)
+					if (isRegionParams)
 					{
-						if (isRegionParams)
-						{
-							tag = "Region" + std::to_string(region) + "RotationX";
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angX);
+						tag = "Region" + std::to_string(region) + "RotationX";
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angX);
 
-							tag = "Region" + std::to_string(region) + "RotationY";
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angY);
+						tag = "Region" + std::to_string(region) + "RotationY";
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angY);
 
-							tag = "Region" + std::to_string(region) + "RotationZ";
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
-
-							removeTags.push_back("Region" + std::to_string(region) + "RVector");
-							removeTags.push_back("Region" + std::to_string(region) + "UVector");
-							removeTags.push_back("Region" + std::to_string(region) + "FVector");
-						}
-						else
-						{
-							tag = std::string("AllRegionsRotationX");
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angX);
-
-							tag = std::string("AllRegionsRotationY");
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angY);
-
-							tag = std::string("AllRegionsRotationZ");
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
-
-							removeTags.push_back("AllRegionsRVector");
-							removeTags.push_back("AllRegionsUVector");
-							removeTags.push_back("AllRegionsFVector");
-						}
+						tag = "Region" + std::to_string(region) + "RotationZ";
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
 					}
 					else
 					{
-						if (isRegionParams)
-						{
-							tag = "Region" + std::to_string(region) + "RVector";
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), R.x, R.y, R.z);
+						tag = std::string("AllRegionsRotationX");
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angX);
 
-							tag = "Region" + std::to_string(region) + "UVector";
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), U.x, U.y, U.z);
+						tag = std::string("AllRegionsRotationY");
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angY);
 
-							tag = "Region" + std::to_string(region) + "FVector";
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), F.x, F.y, F.z);
-
-							removeTags.push_back("Region" + std::to_string(region) + "RotationX");
-							removeTags.push_back("Region" + std::to_string(region) + "RotationY");
-							removeTags.push_back("Region" + std::to_string(region) + "RotationZ");
-						}
-						else
-						{
-							tag = std::string("AllRegionsRVector");
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), R.x, R.y, R.z);
-
-							tag = std::string("AllRegionsUVector");
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), U.x, U.y, U.z);
-
-							tag = std::string("AllRegionsFVector");
-							removeTags.push_back(tag);
-							fprintf(out_file, "%s = %0.4f, %0.4f, %0.4f\n", tag.c_str(), F.x, F.y, F.z);
-
-							removeTags.push_back("AllRegionsRotationX");
-							removeTags.push_back("AllRegionsRotationY");
-							removeTags.push_back("AllRegionsRotationZ");
-						}
+						tag = std::string("AllRegionsRotationZ");
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
 					}
 				}
 				break;

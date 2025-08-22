@@ -6449,8 +6449,7 @@ void PrimarySurface::RenderDefaultBackground()
 
 				if (g_CubeMaps.editParamsModified)
 				{
-					SaveCubeMapRotationToIniFile(editRegion, true,
-						Vec.x, Vec.y, Vec.z, {}, {}, {});
+					SaveCubeMapRotationToIniFile(editRegion, Vec.x, Vec.y, Vec.z);
 					g_CubeMaps.editParamsModified = false;
 				}
 			}
@@ -6471,9 +6470,8 @@ void PrimarySurface::RenderDefaultBackground()
 			cubeMapRot = Rz * Ry * Rx;
 			if (g_CubeMaps.editParamsModified)
 			{
-				SaveCubeMapRotationToIniFile(editRegion, true,
-					g_CubeMaps.editAngX, g_CubeMaps.editAngY, g_CubeMaps.editAngZ,
-					{}, {}, {});
+				SaveCubeMapRotationToIniFile(editRegion,
+					g_CubeMaps.editAngX, g_CubeMaps.editAngY, g_CubeMaps.editAngZ);
 				g_CubeMaps.editParamsModified = false;
 			}
 			break;
