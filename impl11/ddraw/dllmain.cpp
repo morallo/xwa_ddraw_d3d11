@@ -58,9 +58,9 @@ char RenderBackdropsHook();
 void ReloadCubeMapData();
 void CubeMapEditResetAngles();
 void CubeMapEditResetRUF();
-void CubeMapEditIncrAngX(float mult);
-void CubeMapEditIncrAngY(float mult);
-void CubeMapEditIncrAngZ(float mult);
+void CubeMapEditIncrAngX(float mult, bool overlay);
+void CubeMapEditIncrAngY(float mult, bool overlay);
+void CubeMapEditIncrAngZ(float mult, bool overlay);
 
 void Normalize(float4 *Vector) {
 	float x = Vector->x;
@@ -738,7 +738,14 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 				return 0;
 			// Ctrl+Alt+O
 			case 'O':
-				g_bAOEnabled = !g_bAOEnabled;
+				if (g_CubeMaps.editMode != CubeMapEditMode::DISABLED)
+				{
+					g_CubeMaps.editOverlays = !g_CubeMaps.editOverlays;
+					DisplayTimedMessage(3, 0, g_CubeMaps.editOverlays ?
+						"Editing Cubemap Overlay" : "Editing Cubemap");
+				}
+				else
+					g_bAOEnabled = !g_bAOEnabled;
 				return 0;
 			case 'N':
 				// Toggle Normal Mapping
@@ -1106,7 +1113,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				case 16:
-					CubeMapEditIncrAngX(1.0f);
+					CubeMapEditIncrAngX(1.0f, g_CubeMaps.editOverlays);
 					break;
 				}
 				return 0;
@@ -1151,7 +1158,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				case 16:
-					CubeMapEditIncrAngX(-1.0f);
+					CubeMapEditIncrAngX(-1.0f, g_CubeMaps.editOverlays);
 					break;
 				}
 				return 0;
@@ -1165,7 +1172,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				case 16:
-					CubeMapEditIncrAngY(1.0f);
+					CubeMapEditIncrAngY(1.0f, g_CubeMaps.editOverlays);
 					break;
 				}
 				return 0;
@@ -1179,7 +1186,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					//log_debug("[DBG] g_contOriginWorldSpace.xy: %0.3f, %0.3f", g_contOriginWorldSpace.x, g_contOriginWorldSpace.y);
 					break;
 				case 16:
-					CubeMapEditIncrAngY(-1.0f);
+					CubeMapEditIncrAngY(-1.0f, g_CubeMaps.editOverlays);
 					break;
 				}
 				return 0;
@@ -1243,7 +1250,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseTextParallax(-0.05f);
 					break;
 				case 16:
-					CubeMapEditIncrAngZ(-1.0f);
+					CubeMapEditIncrAngZ(-1.0f, g_CubeMaps.editOverlays);
 					break;
 				}
 				return 0;
@@ -1254,7 +1261,7 @@ LRESULT CALLBACK MyWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 					IncreaseTextParallax(0.05f);
 					break;
 				case 16:
-					CubeMapEditIncrAngZ(1.0f);
+					CubeMapEditIncrAngZ(1.0f, g_CubeMaps.editOverlays);
 					break;
 				}
 				return 0;

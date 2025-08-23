@@ -1100,7 +1100,9 @@ Vector3 RotationMatrixToEulerAngles(Matrix4 &R)
  * Saves the CubeMap rotation to the current mission .ini file.
  * if region is -1 or greater than 3, then AllRegions is saved.
  */
-bool SaveCubeMapRotationToIniFile(int region, float angX, float angY, float angZ)
+bool SaveCubeMapRotationToIniFile(int region,
+	float angX, float angY, float angZ,
+	float ovrAngX, float ovrAngY, float ovrAngZ)
 {
 	char *sTempFileName = "./TempIniFile.txt";
 	FILE* in_file, *out_file;
@@ -1201,6 +1203,19 @@ bool SaveCubeMapRotationToIniFile(int region, float angX, float angY, float angZ
 						tag = "Region" + std::to_string(region) + "RotationZ";
 						removeTags.push_back(tag);
 						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
+
+
+						tag = "Region" + std::to_string(region) + "OverlayRotationX";
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), ovrAngX);
+
+						tag = "Region" + std::to_string(region) + "OverlayRotationY";
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), ovrAngY);
+
+						tag = "Region" + std::to_string(region) + "OverlayRotationZ";
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), ovrAngZ);
 					}
 					else
 					{
@@ -1215,6 +1230,19 @@ bool SaveCubeMapRotationToIniFile(int region, float angX, float angY, float angZ
 						tag = std::string("AllRegionsRotationZ");
 						removeTags.push_back(tag);
 						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), angZ);
+
+
+						tag = std::string("AllRegionsOverlayRotationX");
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), ovrAngX);
+
+						tag = std::string("AllRegionsOverlayRotationY");
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), ovrAngY);
+
+						tag = std::string("AllRegionsOverlayRotationZ");
+						removeTags.push_back(tag);
+						fprintf(out_file, "%s = %0.3f\n", tag.c_str(), ovrAngZ);
 					}
 				}
 				break;

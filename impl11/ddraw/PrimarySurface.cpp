@@ -6253,9 +6253,32 @@ void CubeMapEditResetRUF()
 	g_CubeMaps.editParamsModified = false;
 }
 
-void CubeMapEditIncrAngX(float mult) { g_CubeMaps.editAngX += mult * g_CubeMaps.editAngIncr; g_CubeMaps.editParamsModified = true; }
-void CubeMapEditIncrAngY(float mult) { g_CubeMaps.editAngY += mult * g_CubeMaps.editAngIncr; g_CubeMaps.editParamsModified = true; }
-void CubeMapEditIncrAngZ(float mult) { g_CubeMaps.editAngZ += mult * g_CubeMaps.editAngIncr; g_CubeMaps.editParamsModified = true; }
+void CubeMapEditIncrAngX(float mult, bool overlay)
+{
+	if (overlay)
+		g_CubeMaps.editOvrAngX += mult * g_CubeMaps.editAngIncr;
+	else
+		g_CubeMaps.editAngX += mult * g_CubeMaps.editAngIncr;
+	g_CubeMaps.editParamsModified = true;
+}
+
+void CubeMapEditIncrAngY(float mult, bool overlay)
+{
+	if (overlay)
+		g_CubeMaps.editOvrAngY += mult * g_CubeMaps.editAngIncr;
+	else
+		g_CubeMaps.editAngY += mult * g_CubeMaps.editAngIncr;
+	g_CubeMaps.editParamsModified = true;
+}
+
+void CubeMapEditIncrAngZ(float mult, bool overlay)
+{
+	if (overlay)
+		g_CubeMaps.editOvrAngZ += mult * g_CubeMaps.editAngIncr;
+	else
+		g_CubeMaps.editAngZ += mult * g_CubeMaps.editAngIncr;
+	g_CubeMaps.editParamsModified = true;
+}
 
 void PrimarySurface::RenderDefaultBackground()
 {
@@ -6271,7 +6294,7 @@ void PrimarySurface::RenderDefaultBackground()
 	float bgColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const bool bExternalView = PlayerDataTable[*g_playerIndex].Camera.ExternalCamera;
 	const bool bGunnerTurret = PlayerDataTable[*g_playerIndex].gunnerTurretActive;
-	Matrix4 cubeMapRot;
+	Matrix4 cubeMapRot, ovrCubeMapRot;
 
 	this->_deviceResources->BeginAnnotatedEvent(L"RenderDefaultBackground");
 
@@ -6362,6 +6385,10 @@ void PrimarySurface::RenderDefaultBackground()
 				g_CubeMaps.editAngX = g_CubeMaps.regionAngX[region];
 				g_CubeMaps.editAngY = g_CubeMaps.regionAngY[region];
 				g_CubeMaps.editAngZ = g_CubeMaps.regionAngZ[region];
+
+				g_CubeMaps.editOvrAngX = g_CubeMaps.regionOvrAngX[region];
+				g_CubeMaps.editOvrAngY = g_CubeMaps.regionOvrAngY[region];
+				g_CubeMaps.editOvrAngZ = g_CubeMaps.regionOvrAngZ[region];
 			}
 		}
 		else if (prevRenderCubeMapInThisRegion)
@@ -6369,6 +6396,10 @@ void PrimarySurface::RenderDefaultBackground()
 			g_CubeMaps.editAngX = g_CubeMaps.allRegionsAngX;
 			g_CubeMaps.editAngY = g_CubeMaps.allRegionsAngY;
 			g_CubeMaps.editAngZ = g_CubeMaps.allRegionsAngZ;
+
+			g_CubeMaps.editOvrAngX = g_CubeMaps.allRegionsOvrAngX;
+			g_CubeMaps.editOvrAngY = g_CubeMaps.allRegionsOvrAngY;
+			g_CubeMaps.editOvrAngZ = g_CubeMaps.allRegionsOvrAngZ;
 		}
 	}
 	prevRegion = region;
@@ -6386,11 +6417,17 @@ void PrimarySurface::RenderDefaultBackground()
 	float angX = g_CubeMaps.allRegionsAngX;
 	float angY = g_CubeMaps.allRegionsAngY;
 	float angZ = g_CubeMaps.allRegionsAngZ;
+	float ovrAngX = g_CubeMaps.allRegionsOvrAngX;
+	float ovrAngY = g_CubeMaps.allRegionsOvrAngY;
+	float ovrAngZ = g_CubeMaps.allRegionsOvrAngZ;
 	if (renderCubeMapInThisRegion)
 	{
 		angX = g_CubeMaps.regionAngX[region];
 		angY = g_CubeMaps.regionAngY[region];
 		angZ = g_CubeMaps.regionAngZ[region];
+		ovrAngX = g_CubeMaps.regionOvrAngX[region];
+		ovrAngY = g_CubeMaps.regionOvrAngY[region];
+		ovrAngZ = g_CubeMaps.regionOvrAngZ[region];
 	}
 
 	const int editRegion = renderCubeMapInThisRegion ? region : -1;
@@ -6449,7 +6486,8 @@ void PrimarySurface::RenderDefaultBackground()
 
 				if (g_CubeMaps.editParamsModified)
 				{
-					SaveCubeMapRotationToIniFile(editRegion, Vec.x, Vec.y, Vec.z);
+					// TODO: Enable ovrAng*:
+					SaveCubeMapRotationToIniFile(editRegion, Vec.x, Vec.y, Vec.z, 0, 0, 0);
 					g_CubeMaps.editParamsModified = false;
 				}
 			}
@@ -6462,16 +6500,30 @@ void PrimarySurface::RenderDefaultBackground()
 			angX = g_CubeMaps.editAngX;
 			angY = g_CubeMaps.editAngY;
 			angZ = g_CubeMaps.editAngZ;
-			log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
-				angX, angY, angZ);
+
+			ovrAngX = g_CubeMaps.editOvrAngX;
+			ovrAngY = g_CubeMaps.editOvrAngY;
+			ovrAngZ = g_CubeMaps.editOvrAngZ;
+			if (g_CubeMaps.editOverlays)
+				log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+					ovrAngX, ovrAngY, ovrAngZ);
+			else
+				log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+					angX, angY, angZ);
 			const Matrix4 Rx = Matrix4().rotateX(angX);
 			const Matrix4 Ry = Matrix4().rotateY(angY);
 			const Matrix4 Rz = Matrix4().rotateZ(angZ);
+			const Matrix4 ovrRx = Matrix4().rotateX(ovrAngX);
+			const Matrix4 ovrRy = Matrix4().rotateY(ovrAngY);
+			const Matrix4 ovrRz = Matrix4().rotateZ(ovrAngZ);
 			cubeMapRot = Rz * Ry * Rx;
+			ovrCubeMapRot = ovrRx * ovrRy * ovrRz;
+
 			if (g_CubeMaps.editParamsModified)
 			{
 				SaveCubeMapRotationToIniFile(editRegion,
-					g_CubeMaps.editAngX, g_CubeMaps.editAngY, g_CubeMaps.editAngZ);
+					g_CubeMaps.editAngX, g_CubeMaps.editAngY, g_CubeMaps.editAngZ,
+					g_CubeMaps.editOvrAngX, g_CubeMaps.editOvrAngY, g_CubeMaps.editOvrAngZ);
 				g_CubeMaps.editParamsModified = false;
 			}
 			break;
@@ -6481,11 +6533,19 @@ void PrimarySurface::RenderDefaultBackground()
 			const Matrix4 Rx = Matrix4().rotateX(angX);
 			const Matrix4 Ry = Matrix4().rotateY(angY);
 			const Matrix4 Rz = Matrix4().rotateZ(angZ);
+			const Matrix4 ovrRx = Matrix4().rotateX(ovrAngX);
+			const Matrix4 ovrRy = Matrix4().rotateY(ovrAngY);
+			const Matrix4 ovrRz = Matrix4().rotateZ(ovrAngZ);
 			cubeMapRot = Rz * Ry * Rx;
+			ovrCubeMapRot = ovrRx * ovrRy * ovrRz;
 			break;
 		}
 	}
-	g_ShadertoyBuffer.viewMat = cubeMapRot * g_ShadertoyBuffer.viewMat;
+	{
+		const Matrix4 viewMat       = g_ShadertoyBuffer.viewMat;
+		g_ShadertoyBuffer.viewMat   = cubeMapRot * viewMat;
+		g_ShadertoyBuffer.secondMat = ovrCubeMapRot * viewMat;
+	}
 
 	GetScreenLimitsInUVCoords(&x0, &y0, &x1, &y1);
 	g_ShadertoyBuffer.x0 = x0;

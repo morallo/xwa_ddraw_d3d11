@@ -430,6 +430,7 @@ struct CubeMapData
 	float allRegionsDiffuseMipLevel = 5;
 	float allRegionsIllumDiffuseMipLevel = 5;
 	float allRegionsAngX = 0.0f, allRegionsAngY = 0.0f, allRegionsAngZ = 0.0f;
+	float allRegionsOvrAngX = 0, allRegionsOvrAngY = 0, allRegionsOvrAngZ = 0;
 	Vector4 allRegionsR, allRegionsU, allRegionsF;
 	float allRegionsTexRes = -1;
 	float allRegionsIllumTexRes = -1;
@@ -444,6 +445,9 @@ struct CubeMapData
 	float regionAngX[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionAngY[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionAngZ[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
+	float regionOvrAngX[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
+	float regionOvrAngY[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
+	float regionOvrAngZ[MAX_MISSION_REGIONS] = { 0, 0, 0, 0 };
 	float regionTexRes[MAX_MISSION_REGIONS] = { -1, -1, -1, -1 };
 	float regionIllumTexRes[MAX_MISSION_REGIONS] = { -1, -1, -1, -1 };
 	float regionMipRes[MAX_MISSION_REGIONS];
@@ -459,12 +463,18 @@ struct CubeMapData
 	// Live edit mode variables
 	CubeMapEditMode editMode = CubeMapEditMode::DISABLED;
 	bool editParamsModified = false;
+	bool editOverlays = false;
 	float editAngX = 0, editAngY = 0, editAngZ = 0;
+	float editOvrAngX = 0, editOvrAngY = 0, editOvrAngZ = 0;
 	float editAngIncr = 2.0f;
 	Vector4 editAllRegionsR, editAllRegionsU, editAllRegionsF;
+	Vector4 editAllRegionsOvrR, editAllRegionsOvrU, editAllRegionsOvrF;
 	Vector4 editRegionR[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
 	Vector4 editRegionU[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
 	Vector4 editRegionF[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
+	Vector4 editRegionOvrR[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
+	Vector4 editRegionOvrU[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
+	Vector4 editRegionOvrF[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
 
 	Vector4& RVector(int region) { if (region == -1) return editAllRegionsR; else return editRegionR[region]; }
 	Vector4& UVector(int region) { if (region == -1) return editAllRegionsU; else return editRegionU[region]; }
@@ -474,9 +484,9 @@ struct CubeMapData
 extern CubeMapData g_CubeMaps;
 void CubeMapEditResetAngles();
 void CubeMapEditResetRUF();
-void CubeMapEditIncrAngX(float mult);
-void CubeMapEditIncrAngY(float mult);
-void CubeMapEditIncrAngZ(float mult);
+void CubeMapEditIncrAngX(float mult, bool overlay);
+void CubeMapEditIncrAngY(float mult, bool overlay);
+void CubeMapEditIncrAngZ(float mult, bool overlay);
 
 // *****************************************************
 // Global functions

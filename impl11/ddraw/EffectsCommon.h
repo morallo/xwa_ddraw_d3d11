@@ -237,7 +237,7 @@ struct SSAOPixelShaderCBuffer {
 	// 176 bytes
 };
 
-typedef struct ShadertoyCBStruct {
+struct ShadertoyCBuffer {
 	// twirl: renamed to ExplosionScale in ExplosionShader.hlsl
 	float iTime, twirl, bloom_strength, srand;
 	// 16 bytes
@@ -272,7 +272,9 @@ typedef struct ShadertoyCBStruct {
 	// 208 bytes
 	float4 SunColor[MAX_SUN_FLARES];
 	// 272 bytes
-} ShadertoyCBuffer;
+	Matrix4 secondMat;
+	// 336 bytes
+};
 
 typedef struct OPTMeshTransformCBufferStruct {
 	Matrix4 MeshTransform;
@@ -580,6 +582,8 @@ void EulerAnglesToRUF(
 	float angX, float angY, float angZ,
 	Vector4& R, Vector4& U, Vector4& F);
 Vector3 RotationMatrixToEulerAngles(Matrix4& R);
-bool SaveCubeMapRotationToIniFile(int region, float angX, float angY, float angZ);
+bool SaveCubeMapRotationToIniFile(int region,
+	float angX, float angY, float angZ,
+	float ovrAngX, float ovrAngY, float ovrAngZ);
 bool LoadHUDColorFromIniFile();
 void ApplyCustomHUDColor();

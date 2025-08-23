@@ -2476,26 +2476,49 @@ void ParseCubeMapMissionIni(const std::vector<std::string>& lines)
 	g_CubeMaps.allRegionsAngZ = GetFileKeyValueFloat(lines, "AllRegionsRotationZ", 0.0f);
 	EulerAnglesToRUF(g_CubeMaps.allRegionsAngX, g_CubeMaps.allRegionsAngY, g_CubeMaps.allRegionsAngZ,
 		g_CubeMaps.editAllRegionsR, g_CubeMaps.editAllRegionsU, g_CubeMaps.editAllRegionsF);
+
+	g_CubeMaps.allRegionsOvrAngX = GetFileKeyValueFloat(lines, "AllRegionsOverlayRotationX", g_CubeMaps.allRegionsAngX);
+	g_CubeMaps.allRegionsOvrAngY = GetFileKeyValueFloat(lines, "AllRegionsOverlayRotationY", g_CubeMaps.allRegionsAngY);
+	g_CubeMaps.allRegionsOvrAngZ = GetFileKeyValueFloat(lines, "AllRegionsOverlayRotationZ", g_CubeMaps.allRegionsAngZ);
+	EulerAnglesToRUF(g_CubeMaps.allRegionsOvrAngX, g_CubeMaps.allRegionsOvrAngY, g_CubeMaps.allRegionsOvrAngZ,
+		g_CubeMaps.editAllRegionsOvrR, g_CubeMaps.editAllRegionsOvrU, g_CubeMaps.editAllRegionsOvrF);
+
 	g_CubeMaps.allRegionsMipRes = GetFileKeyValueFloat(lines, "AllRegionsReflectionRes", 8.0f);
 	g_CubeMaps.allRegionsDiffuseMipLevel = FindMipLevel(g_CubeMaps.allRegionsTexRes, g_CubeMaps.allRegionsMipRes);
 
 	char* regionSpecNames[MAX_MISSION_REGIONS]       = { "Region0Specular",   "Region1Specular",   "Region2Specular",   "Region3Specular" };
 	char* regionAmbientIntNames[MAX_MISSION_REGIONS] = { "Region0AmbientInt", "Region1AmbientInt", "Region2AmbientInt", "Region3AmbientInt" };
 	char* regionAmbientMinNames[MAX_MISSION_REGIONS] = { "Region0AmbientMin", "Region1AmbientMin", "Region2AmbientMin", "Region3AmbientMin" };
+
 	char* regionAngX[MAX_MISSION_REGIONS] = { "Region0RotationX", "Region1RotationX", "Region2RotationX", "Region3RotationX" };
 	char* regionAngY[MAX_MISSION_REGIONS] = { "Region0RotationY", "Region1RotationY", "Region2RotationY", "Region3RotationY" };
 	char* regionAngZ[MAX_MISSION_REGIONS] = { "Region0RotationZ", "Region1RotationZ", "Region2RotationZ", "Region3RotationZ" };
+
+	char* regionOvrAngX[MAX_MISSION_REGIONS] = {
+		"Region0OverlayRotationX", "Region1OverlayRotationX", "Region2OverlayRotationX", "Region3OverlayRotationX" };
+	char* regionOvrAngY[MAX_MISSION_REGIONS] = {
+		"Region0OverlayRotationY", "Region1OverlayRotationY", "Region2OverlayRotationY", "Region3OverlayRotationY" };
+	char* regionOvrAngZ[MAX_MISSION_REGIONS] = {
+		"Region0OverlayRotationZ", "Region1OverlayRotationZ", "Region2OverlayRotationZ", "Region3OverlayRotationZ" };
 	char* regionMipRes[MAX_MISSION_REGIONS] = { "Region0ReflectionRes", "Region1ReflectionRes", "Region2ReflectionRes", "Region3ReflectionRes" };
 	for (int i = 0; i < MAX_MISSION_REGIONS; i++)
 	{
 		g_CubeMaps.regionSpecular[i]   = GetFileKeyValueFloat(lines, regionSpecNames[i], 0.70f);
 		g_CubeMaps.regionAmbientInt[i] = GetFileKeyValueFloat(lines, regionAmbientIntNames[i], 0.15f);
 		g_CubeMaps.regionAmbientMin[i] = GetFileKeyValueFloat(lines, regionAmbientMinNames[i], 0.01f);
+
 		g_CubeMaps.regionAngX[i] = GetFileKeyValueFloat(lines, regionAngX[i], 0.0f);
 		g_CubeMaps.regionAngY[i] = GetFileKeyValueFloat(lines, regionAngY[i], 0.0f);
 		g_CubeMaps.regionAngZ[i] = GetFileKeyValueFloat(lines, regionAngZ[i], 0.0f);
 		EulerAnglesToRUF(g_CubeMaps.regionAngX[i], g_CubeMaps.regionAngY[i], g_CubeMaps.regionAngZ[i],
 			g_CubeMaps.editRegionR[i], g_CubeMaps.editRegionU[i], g_CubeMaps.editRegionF[i]);
+
+		g_CubeMaps.regionOvrAngX[i] = GetFileKeyValueFloat(lines, regionOvrAngX[i], g_CubeMaps.regionAngX[i]);
+		g_CubeMaps.regionOvrAngY[i] = GetFileKeyValueFloat(lines, regionOvrAngY[i], g_CubeMaps.regionAngY[i]);
+		g_CubeMaps.regionOvrAngZ[i] = GetFileKeyValueFloat(lines, regionOvrAngZ[i], g_CubeMaps.regionAngZ[i]);
+		EulerAnglesToRUF(g_CubeMaps.regionOvrAngX[i], g_CubeMaps.regionOvrAngY[i], g_CubeMaps.regionOvrAngZ[i],
+			g_CubeMaps.editRegionOvrR[i], g_CubeMaps.editRegionOvrU[i], g_CubeMaps.editRegionOvrF[i]);
+
 		g_CubeMaps.regionMipRes[i] = GetFileKeyValueFloat(lines, regionMipRes[i], 16.0f);
 		g_CubeMaps.regionDiffuseMipLevel[i] = FindMipLevel(g_CubeMaps.regionTexRes[i], g_CubeMaps.regionMipRes[i]);
 	}

@@ -120,11 +120,13 @@ PixelShaderOutput RenderCubeMap(PixelShaderInput input)
 	float3 V = normalize(float3(p, -FOVscale));
 	// We invert V.zy here to match the direction vector used in PixelShaderVRGeom:
 	V.yz = -V.yz;
+	float3 Vovr = V;
 	// That way, viewMat below is the same we already figured out for PixelShaderVRGeom:
 	V = mul(viewMat, float4(V, 0)).xyz;
+	Vovr = mul(secondMat, float4(Vovr, 0)).xyz;
 
 	const float3 cubeMapColor = skybox.SampleLevel(bgSampler, V.xyz, 0).rgb;
-	const float4 overlayColor = overlay.SampleLevel(bgSampler, V.xyz, 0);
+	const float4 overlayColor = overlay.SampleLevel(bgSampler, Vovr.xyz, 0);
 
 #ifndef INSTANCED_RENDERING
 	// Blend the cube map with the previous background:
