@@ -5114,8 +5114,9 @@ HRESULT Direct3DDevice::Execute(
 						(g_CubeMaps.bRenderAllRegions || (validRegion && g_CubeMaps.bRenderInThisRegion[region])) &&
 
 						// If this GroupId-ImageId is disabled...
-						(IsInMap(g_StarfieldGroupIdImageIdMap, key) ||
-						 IsInMap(g_DisabledGroupIdImageIdMap, key)) &&
+						(IsInMap(g_DisabledGroupIdImageIdMap, -1)   || // Are all backdrops disabled?
+						 IsInMap(g_StarfieldGroupIdImageIdMap, key) || // Is it a known (default) backdrop in XWAU?
+						 IsInMap(g_DisabledGroupIdImageIdMap, key)) && // Is it explicitly disabled?
 						// ... but is not in the enabled-override list...
 						!IsInMap(g_EnabledOvrGroupIdImageIdMap, key))
 						// Then this is a skippable backdrop (starfield)

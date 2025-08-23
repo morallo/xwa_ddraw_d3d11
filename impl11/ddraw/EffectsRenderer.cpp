@@ -2173,6 +2173,12 @@ void PopulateBackdropsMap(std::string& list, std::map<int, bool>& map)
 			map[key] = true;
 			log_debug("[DBG] [CUBE] -- Disabled: %d-%d", groupId, imageId);
 		}
+		else if (token == "ALL" || token == "all")
+		{
+			log_debug("[DBG] [CUBE] Disabling ALL backdrops!");
+			map[-1] = true;
+			return;
+		}
 
 		// If we haven't reached the end of the string, then erase
 		// the current token and repeat
