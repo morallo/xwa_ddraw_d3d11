@@ -480,6 +480,9 @@ struct CubeMapData
 	Vector4& UVector(int region) { if (region == -1) return editAllRegionsU; else return editRegionU[region]; }
 	Vector4& FVector(int region) { if (region == -1) return editAllRegionsF; else return editRegionF[region]; }
 
+	Vector4& OvrRVector(int region) { if (region == -1) return editAllRegionsOvrR; else return editRegionOvrR[region]; }
+	Vector4& OvrUVector(int region) { if (region == -1) return editAllRegionsOvrU; else return editRegionOvrU[region]; }
+	Vector4& OvrFVector(int region) { if (region == -1) return editAllRegionsOvrF; else return editRegionOvrF[region]; }
 };
 extern CubeMapData g_CubeMaps;
 void CubeMapEditResetAngles();

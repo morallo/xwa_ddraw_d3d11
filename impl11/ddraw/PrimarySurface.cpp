@@ -6236,6 +6236,9 @@ void CubeMapEditResetAngles()
 	g_CubeMaps.editAngX = 0;
 	g_CubeMaps.editAngY = 0;
 	g_CubeMaps.editAngZ = 0;
+	g_CubeMaps.editOvrAngX = 0;
+	g_CubeMaps.editOvrAngY = 0;
+	g_CubeMaps.editOvrAngZ = 0;
 	g_CubeMaps.editParamsModified = false;
 }
 
@@ -6244,11 +6247,19 @@ void CubeMapEditResetRUF()
 	g_CubeMaps.editAllRegionsR = Vector4(1, 0, 0, 0);
 	g_CubeMaps.editAllRegionsU = Vector4(0, 1, 0, 0);
 	g_CubeMaps.editAllRegionsF = Vector4(0, 0, -1, 0);
+
+	g_CubeMaps.editAllRegionsOvrR = Vector4(1, 0, 0, 0);
+	g_CubeMaps.editAllRegionsOvrU = Vector4(0, 1, 0, 0);
+	g_CubeMaps.editAllRegionsOvrF = Vector4(0, 0, -1, 0);
 	for (int i = 0; i < MAX_MISSION_REGIONS; i++)
 	{
 		g_CubeMaps.RVector(i) = g_CubeMaps.editAllRegionsR;
 		g_CubeMaps.UVector(i) = g_CubeMaps.editAllRegionsU;
 		g_CubeMaps.FVector(i) = g_CubeMaps.editAllRegionsF;
+
+		g_CubeMaps.OvrRVector(i) = g_CubeMaps.editAllRegionsOvrR;
+		g_CubeMaps.OvrUVector(i) = g_CubeMaps.editAllRegionsOvrU;
+		g_CubeMaps.OvrFVector(i) = g_CubeMaps.editAllRegionsOvrF;
 	}
 	g_CubeMaps.editParamsModified = false;
 }
@@ -6439,14 +6450,25 @@ void PrimarySurface::RenderDefaultBackground()
 			Vector4 U = g_CubeMaps.UVector(editRegion);
 			Vector4 F = g_CubeMaps.FVector(editRegion);
 
+			Vector4 ovrR = g_CubeMaps.OvrRVector(editRegion);
+			Vector4 ovrU = g_CubeMaps.OvrUVector(editRegion);
+			Vector4 ovrF = g_CubeMaps.OvrFVector(editRegion);
+
 			angX = -g_CubeMaps.editAngX;
 			angY = -g_CubeMaps.editAngY;
 			angZ = -g_CubeMaps.editAngZ;
+			ovrAngX = -g_CubeMaps.editOvrAngX;
+			ovrAngY = -g_CubeMaps.editOvrAngY;
+			ovrAngZ = -g_CubeMaps.editOvrAngZ;
 			const Matrix4 Rx = Matrix4().rotateX(angX);
 			const Matrix4 Ry = Matrix4().rotateY(angY);
 			const Matrix4 Rz = Matrix4().rotateZ(angZ);
+			const Matrix4 ovrRx = Matrix4().rotateX(ovrAngX);
+			const Matrix4 ovrRy = Matrix4().rotateY(ovrAngY);
+			const Matrix4 ovrRz = Matrix4().rotateZ(ovrAngZ);
 
 			Matrix4 M, Minv;
+			Matrix4 ovrM, ovrMinv;
 			{
 				float mInv[16] = { R.x, U.x, -F.x, 0,
 				                   R.y, U.y, -F.y, 0,
@@ -6459,8 +6481,21 @@ void PrimarySurface::RenderDefaultBackground()
 				// Multiplying F = M * F moves F in the same direction as F = Ry * F
 				M.set(m);
 				Minv.set(mInv);
+
+				float ovrmInv[16] = {
+					ovrR.x, ovrU.x, -ovrF.x, 0,
+					ovrR.y, ovrU.y, -ovrF.y, 0,
+				    ovrR.z, ovrU.z, -ovrF.z, 0,
+				    0, 0, 0, 1 };
+				float ovrm[16] = {
+					ovrR.x, ovrR.y, ovrR.z, 0,
+					ovrU.x, ovrU.y, ovrU.z, 0,
+					-ovrF.x, -ovrF.y, -ovrF.z, 0,
+					0, 0, 0, 1 };
+				ovrM.set(ovrm);
+				ovrMinv.set(ovrmInv);
 			}
-			Matrix4 Rot;
+			Matrix4 Rot, ovrRot;
 
 			if (g_CubeMaps.editAngX != 0) Rot = M * Rx * Minv;
 			if (g_CubeMaps.editAngY != 0) Rot = M * Ry * Minv;
@@ -6473,6 +6508,17 @@ void PrimarySurface::RenderDefaultBackground()
 			g_CubeMaps.UVector(editRegion) = U;
 			g_CubeMaps.FVector(editRegion) = F;
 
+			if (g_CubeMaps.editOvrAngX != 0) ovrRot = ovrM * ovrRx * ovrMinv;
+			if (g_CubeMaps.editOvrAngY != 0) ovrRot = ovrM * ovrRy * ovrMinv;
+			if (g_CubeMaps.editOvrAngZ != 0) ovrRot = ovrM * ovrRz * ovrMinv;
+			ovrR = ovrRot * ovrR;
+			ovrU = ovrRot * ovrU;
+			ovrF = ovrRot * ovrF;
+			ReOrtho(ovrR, ovrU, ovrF);
+			g_CubeMaps.OvrRVector(editRegion) = ovrR;
+			g_CubeMaps.OvrUVector(editRegion) = ovrU;
+			g_CubeMaps.OvrFVector(editRegion) = ovrF;
+
 			{
 				float m[16] = { R.x, R.y, R.z, 0,
 				                U.x, U.y, U.z, 0,
@@ -6481,13 +6527,28 @@ void PrimarySurface::RenderDefaultBackground()
 				cubeMapRot.set(m);
 				cubeMapRot.transpose(); // Not sure why we need this, but it works!
 				Vector3 Vec = RotationMatrixToEulerAngles(cubeMapRot);
-				log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
-					Vec.x, Vec.y, Vec.z);
+
+				float ovrm[16] = {
+					ovrR.x, ovrR.y, ovrR.z, 0,
+					ovrU.x, ovrU.y, ovrU.z, 0,
+					-ovrF.x, -ovrF.y, -ovrF.z, 0,
+					0, 0, 0, 1 };
+				ovrCubeMapRot.set(ovrm);
+				ovrCubeMapRot.transpose(); // Not sure why we need this, but it works!
+				Vector3 ovrVec = RotationMatrixToEulerAngles(ovrCubeMapRot);
+
+				if (g_CubeMaps.editOverlays)
+					log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+						ovrVec.x, ovrVec.y, ovrVec.z);
+				else
+					log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+						Vec.x, Vec.y, Vec.z);
 
 				if (g_CubeMaps.editParamsModified)
 				{
-					// TODO: Enable ovrAng*:
-					SaveCubeMapRotationToIniFile(editRegion, Vec.x, Vec.y, Vec.z, 0, 0, 0);
+					SaveCubeMapRotationToIniFile(editRegion,
+						Vec.x, Vec.y, Vec.z,
+						ovrVec.x, ovrVec.y, ovrVec.z);
 					g_CubeMaps.editParamsModified = false;
 				}
 			}
