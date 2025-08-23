@@ -3140,6 +3140,10 @@ bool LoadSSAOParams() {
 					g_KeySet = CHANGE_FOV_KEY_SET;
 				}
 			}
+			if (_stricmp(param, "debug_cubemap_angle_increment") == 0)
+			{
+				g_CubeMaps.editAngIncr = fValue;
+			}
 
 			if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
 				g_fTrianglePointerDist = fValue;
