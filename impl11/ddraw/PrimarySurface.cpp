@@ -6312,13 +6312,14 @@ void PrimarySurface::RenderDefaultBackground()
 	EffectsRenderer* renderer = (EffectsRenderer*)g_current_renderer;
 	renderer->SaveContext();
 
+	const bool playerInHangar = (g_playerInHangar != nullptr && *g_playerInHangar);
 	const int cameraObjIdx = PlayerDataTable[*g_playerIndex].Camera.CraftIndex;
 	//const int objectIndex  = PlayerDataTable[*g_playerIndex].objectIndex;
 	// If the external camera is enabled and objectIndex != cameraObjIdx, then the camera is
 	// trained on a ship that is not controlled by the player. In that case, the heading of
 	// the player's ship should not affect the current view.
 	//const bool bUseHeading = !bExternalView || (cameraObjIdx == objectIndex);
-	const bool bUseHeading = true;
+	//const bool bUseHeading = true;
 
 	Vector4 Rs, Us, Fs;
 	Matrix4 Heading, ViewMatrix;
@@ -6342,7 +6343,7 @@ void PrimarySurface::RenderDefaultBackground()
 		}
 		else
 		{
-			if (bUseHeading) Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
+			/*if (bUseHeading)*/ Heading = GetCurrentHeadingMatrix(Rs, Us, Fs, false);
 			Matrix4 S = Matrix4().scale(-1, -1, 1);
 			ViewMatrix = S * ViewMatrix * S * Heading;
 
@@ -6367,7 +6368,18 @@ void PrimarySurface::RenderDefaultBackground()
 		// Non-VR path:
 		Matrix4 swap({ 1,0,0,0,  0,0,1,0,  0,1,0,0,  0,0,0,1 });
 
-		if (bUseHeading) Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+		// When the hangar is in external view, we need to use a different camera:
+		if (playerInHangar && g_playerIndex != nullptr)
+		{
+			float yaw   = PlayerDataTable[*g_playerIndex].Camera.CraftYaw   / 65536.0f * 360.0f;
+			float pitch = PlayerDataTable[*g_playerIndex].Camera.CraftPitch / 65536.0f * 360.0f;
+			//Rz (roll) * Ry (yaw) * Rx (pitch);
+			Heading = Matrix4().rotateY(-yaw) * Matrix4().rotateX(-pitch);
+		}
+		else
+		{
+			/*if (bUseHeading)*/ Heading = GetPlayerCraftMatrix(Rs, Us, Fs, 1.0f, true, false);
+		}
 		GetCockpitViewMatrixSpeedEffect(&ViewMatrix, true);
 		ViewMatrix = swap * Heading * swap * ViewMatrix;
 		g_ShadertoyBuffer.viewMat = ViewMatrix;
@@ -6537,12 +6549,15 @@ void PrimarySurface::RenderDefaultBackground()
 				ovrCubeMapRot.transpose(); // Not sure why we need this, but it works!
 				Vector3 ovrVec = RotationMatrixToEulerAngles(ovrCubeMapRot);
 
-				if (g_CubeMaps.editOverlays)
-					log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
-						ovrVec.x, ovrVec.y, ovrVec.z);
-				else
-					log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
-						Vec.x, Vec.y, Vec.z);
+				if (!playerInHangar)
+				{
+					if (g_CubeMaps.editOverlays)
+						log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+							ovrVec.x, ovrVec.y, ovrVec.z);
+					else
+						log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+							Vec.x, Vec.y, Vec.z);
+				}
 
 				if (g_CubeMaps.editParamsModified)
 				{
@@ -6565,12 +6580,15 @@ void PrimarySurface::RenderDefaultBackground()
 			ovrAngX = g_CubeMaps.editOvrAngX;
 			ovrAngY = g_CubeMaps.editOvrAngY;
 			ovrAngZ = g_CubeMaps.editOvrAngZ;
-			if (g_CubeMaps.editOverlays)
-				log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
-					ovrAngX, ovrAngY, ovrAngZ);
-			else
-				log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
-					angX, angY, angZ);
+			if (!playerInHangar)
+			{
+				if (g_CubeMaps.editOverlays)
+					log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+						ovrAngX, ovrAngY, ovrAngZ);
+				else
+					log_debug_vr("Rotation X: %0.3f, Y: %0.3f, Z: %0.3f",
+						angX, angY, angZ);
+			}
 			const Matrix4 Rx = Matrix4().rotateX(angX);
 			const Matrix4 Ry = Matrix4().rotateY(angY);
 			const Matrix4 Rz = Matrix4().rotateZ(angZ);
