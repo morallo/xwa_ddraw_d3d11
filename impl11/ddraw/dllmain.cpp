@@ -1578,6 +1578,7 @@ DWORD WINAPI ThreadFunction(LPVOID lpParameter)
 	if (hookexe)
 	{
 		g_hookexe = hookexe;
+		g_bXwaDDrawPlayerPresent = true;
 		return 1;
 	}
 	else
@@ -1586,7 +1587,7 @@ DWORD WINAPI ThreadFunction(LPVOID lpParameter)
 		// is executed, but then XWA crashes when the first cubemap is loaded.
 		// So, for now, if the helper process can't be found when we start, it's
 		// probably better to disable sideloading
-		g_bEnableXwaDDrawPlayer = false;
+		g_bXwaDDrawPlayerPresent = false;
 		return -1;
 	}
 

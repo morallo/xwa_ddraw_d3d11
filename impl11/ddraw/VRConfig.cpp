@@ -317,6 +317,7 @@ float g_fLevelsWhitePoint = 235.0f;
 float g_fLevelsBlackPoint = 16.0f;
 
 bool g_bEnableXwaDDrawPlayer = true;
+bool g_bXwaDDrawPlayerPresent = false;
 
 #include "D3dRenderer.h"
 

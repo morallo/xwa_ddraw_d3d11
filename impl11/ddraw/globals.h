@@ -327,7 +327,8 @@ extern float g_fMouseRangeX, g_fMouseRangeY;
 extern float g_fMouseDecelRate_s;
 
 // XwaDDrawPlayer
-bool extern g_bEnableXwaDDrawPlayer;
+extern bool g_bEnableXwaDDrawPlayer;
+extern bool g_bXwaDDrawPlayerPresent;
 
 // OPT Debugging
 extern bool g_bDumpOptNodes;
