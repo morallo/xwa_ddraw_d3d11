@@ -6436,7 +6436,9 @@ void PrimarySurface::RenderDefaultBackground()
 	// are disabled, that means we shouldn't render a cubemap at all, and we can skip to the
 	// end of this function. This fixes an artifact where the cubemap shows through the Sun's
 	// corona, and also saves us a draw() call that won't be visible in the end.
-	if (renderCubeMap && !g_CubeMaps.bEnabled)
+	// ... We should also disable cubemaps if we're in hyperspace!
+	const bool bInHyperspace = (g_HyperspacePhaseFSM != HS_INIT_ST);
+	if (renderCubeMap && (!g_CubeMaps.bEnabled || bInHyperspace))
 		goto out;
 
 	float angX = g_CubeMaps.allRegionsAngX;
