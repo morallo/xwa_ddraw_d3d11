@@ -326,6 +326,9 @@ extern bool g_bThrottleModulationEnabled;
 extern float g_fMouseRangeX, g_fMouseRangeY;
 extern float g_fMouseDecelRate_s;
 
+// XwaDDrawPlayer
+bool extern g_bEnableXwaDDrawPlayer;
+
 // OPT Debugging
 extern bool g_bDumpOptNodes;
 

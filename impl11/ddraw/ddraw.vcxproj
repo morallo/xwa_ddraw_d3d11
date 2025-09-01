@@ -152,6 +152,7 @@
     <ClCompile Include="ExecuteBufferDumper.cpp" />
     <ClCompile Include="FreePIE.cpp" />
     <ClCompile Include="FrontbufferSurface.cpp" />
+    <ClCompile Include="hookexe.cpp" />
     <ClCompile Include="hook_config.cpp" />
     <ClCompile Include="joystick.cpp" />
     <ClCompile Include="LBVH.cpp" />
@@ -216,6 +217,7 @@
     <ClInclude Include="FrontbufferSurface.h" />
     <ClInclude Include="globals.h" />
     <ClInclude Include="HiResTimer.h" />
+    <ClInclude Include="hookexe.h" />
     <ClInclude Include="hook_config.h" />
     <ClInclude Include="joystick.h" />
     <ClInclude Include="LBVH.h" />

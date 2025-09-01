@@ -316,6 +316,8 @@ bool g_bEnableLevelsShader = false;
 float g_fLevelsWhitePoint = 235.0f;
 float g_fLevelsBlackPoint = 16.0f;
 
+bool g_bEnableXwaDDrawPlayer = true;
+
 #include "D3dRenderer.h"
 
 inline float lerp(float x, float y, float s)
@@ -3143,6 +3145,10 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "debug_cubemap_angle_increment") == 0)
 			{
 				g_CubeMaps.editAngIncr = fValue;
+			}
+			if (_stricmp(param, "enable_xwaddrawplayer") == 0)
+			{
+				g_bEnableXwaDDrawPlayer = (bool)fValue;
 			}
 
 			if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {
