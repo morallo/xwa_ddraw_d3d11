@@ -3774,8 +3774,10 @@ void PrimarySurface::DeferredPass()
 	}
 
 	const bool bInHyperspace = (g_HyperspacePhaseFSM != HS_INIT_ST);
-	const bool cubeMappingEnabled = !bInHyperspace && !*g_playerInHangar && g_CubeMaps.bEnabled;
-	const bool illumCubeMappingEnabled = cubeMappingEnabled && (g_CubeMaps.bAllRegionsIllum || renderIllumCubeMapInThisRegion);
+	const bool cubeMappingEnabled = !bInHyperspace && !*g_playerInHangar && g_CubeMaps.bEnabled &&
+		(g_CubeMaps.bRenderAllRegions || renderCubeMapInThisRegion);
+	const bool illumCubeMappingEnabled = cubeMappingEnabled &&
+		(g_CubeMaps.bAllRegionsIllum || renderIllumCubeMapInThisRegion);
 	// Set the Vertex Shader Constant buffers
 	resources->InitVSConstantBuffer2D(resources->_mainShadersConstantBuffer.GetAddressOf(),
 		0.0f, 1.0f, 1.0f, 1.0f, 0.0f); // Do not use 3D projection matrices
