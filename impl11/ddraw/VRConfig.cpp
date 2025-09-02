@@ -318,6 +318,7 @@ float g_fLevelsBlackPoint = 16.0f;
 
 bool g_bEnableXwaDDrawPlayer = true;
 bool g_bXwaDDrawPlayerPresent = false;
+bool g_bForce60FPS = true;
 
 #include "D3dRenderer.h"
 
@@ -3150,6 +3151,10 @@ bool LoadSSAOParams() {
 			if (_stricmp(param, "enable_xwaddrawplayer") == 0)
 			{
 				g_bEnableXwaDDrawPlayer = (bool)fValue;
+			}
+			if (_stricmp(param, "force_60_fps") == 0)
+			{
+				g_bForce60FPS = (bool)fValue;
 			}
 
 			if (_stricmp(param, TRIANGLE_POINTER_DIST_VRPARAM) == 0) {

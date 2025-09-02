@@ -2112,8 +2112,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 			DwmGetCompositionTimingInfo(nullptr, &timingInfo);
 
 			md.Format = BACKBUFFER_FORMAT;
-			md.RefreshRate.Numerator = timingInfo.rateCompose.uiNumerator;
-			md.RefreshRate.Denominator = timingInfo.rateCompose.uiDenominator;
+			md.RefreshRate.Numerator   = g_bForce60FPS ? 60 : timingInfo.rateCompose.uiNumerator;
+			md.RefreshRate.Denominator = g_bForce60FPS ?  1 : timingInfo.rateCompose.uiDenominator;
 
 			hr = dxgiOutput->FindClosestMatchingMode(&md, &md, nullptr);
 		}

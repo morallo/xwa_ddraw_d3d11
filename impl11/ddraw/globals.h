@@ -330,6 +330,8 @@ extern float g_fMouseDecelRate_s;
 extern bool g_bEnableXwaDDrawPlayer;
 extern bool g_bXwaDDrawPlayerPresent;
 
+extern bool g_bForce60FPS;
+
 // OPT Debugging
 extern bool g_bDumpOptNodes;
 
