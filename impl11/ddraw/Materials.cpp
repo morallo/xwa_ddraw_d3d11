@@ -1417,6 +1417,10 @@ void ReadMaterialLine(char* buf, Material* curMaterial, char *OPTname) {
 		// When set, semi-transparent areas aren't converted to glass
 		curMaterial->AlphaIsntGlass = (bool)fValue;
 	}
+	else if (_stricmp(param, "LinearBloom") == 0) {
+		// When set, bloom is applied linearly from the lightmap, instead of applying a threshold first.
+		curMaterial->LinearBloom = (bool)fValue;
+	}
 	else if (_stricmp(param, "Ambient") == 0) {
 		// Additional ambient component. Only used in PixelShaderNoGlass
 		curMaterial->Ambient = fValue;

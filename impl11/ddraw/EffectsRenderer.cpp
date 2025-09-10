@@ -4476,11 +4476,21 @@ void EffectsRenderer::ApplyBloomSettings(float bloomOverride)
 	}
 
 	// Remove Bloom for all textures with materials tagged as "NoBloom"
-	if (_bHasMaterial && _lastTextureSelected->material.NoBloom)
+	if (_bHasMaterial)
 	{
-		_bModifiedShaders = true;
-		g_PSCBuffer.fBloomStrength = 0.0f;
-		g_PSCBuffer.bIsEngineGlow = 0;
+		if (_lastTextureSelected->material.LinearBloom)
+		{
+			_bModifiedShaders = true;
+			//g_PSCBuffer.special_control.bLinearBloom = ??
+			g_PSCBuffer.special_control_light.bLinearBloom = _lastTextureSelected->material.LinearBloom;
+		}
+
+		if (_lastTextureSelected->material.NoBloom)
+		{
+			_bModifiedShaders = true;
+			g_PSCBuffer.fBloomStrength = 0.0f;
+			g_PSCBuffer.bIsEngineGlow  = 0;
+		}
 	}
 }
 

@@ -502,6 +502,7 @@ struct Material {
 	bool AlphaToBloom;
 	bool NoColorAlpha; // When set, forces the alpha of the color output to 0
 	bool AlphaIsntGlass; // When set, semi-transparent areas aren't translated to a Glass material
+	bool LinearBloom; // When set, bloom is applied linearly from the lightmap, instead of applying a threshold first.
 	float Ambient;
 
 	int TotalFrames; // Used for animated DAT files, like the explosions
@@ -608,6 +609,7 @@ struct Material {
 		AlphaToBloom = false;
 		NoColorAlpha = false;
 		AlphaIsntGlass = false;
+		LinearBloom = false;
 		Ambient = 0.0f;
 
 		TotalFrames	= 0;

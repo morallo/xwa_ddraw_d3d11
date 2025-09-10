@@ -421,8 +421,9 @@ typedef struct {
 	/* Exclusive Flags. Only one flag can be set at the same time */
 	uint32_t ExclusiveMask : 8;
 	/* Bitfields */
-	uint32_t bBlastMark : 1;
-	uint32_t UnusedBits : 23;
+	uint32_t bBlastMark   : 1;
+	uint32_t bLinearBloom : 1;
+	uint32_t UnusedBits   : 22;
 } special_control_bitfield;
 
 // See PixelShaderTextureCommon.h for an explanation of these settings

@@ -49,6 +49,7 @@ PixelShaderOutput main(PixelShaderInput input)
 	PixelShaderOutput output;
 
 	const uint bIsBlastMark       = special_control & SPECIAL_CONTROL_BLAST_MARK;
+	const uint bLinearBloom       = special_control_light & SPECIAL_CONTROL_LINEAR_BLOOM;
 	const uint ExclusiveMask      = special_control & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	const uint ExclusiveMaskLight = special_control_light & SPECIAL_CONTROL_EXCLUSIVE_MASK;
 	const bool bDoNormalMapping   = (RenderingFlags & RENDER_FLAG_NORMAL_MAPPING) != 0;
@@ -180,15 +181,15 @@ PixelShaderOutput main(PixelShaderInput input)
 		HSVLight.z *= 1.25;
 		//alpha *= 10.0; <-- Main difference with XwaD3dPixelShader
 		colorLight = saturate(HSVtoRGB(HSVLight)); // <-- Difference wrt XwaD3dPixelShader
-		
+
 		// The first term uses "val" (lightness) to apply bloom on light areas. That's how we avoid
 		// applying bloom on dark areas.
 		const float bloom_alpha = smoothstep(0.75, 0.85, val) * smoothstep(0.45, 0.55, alphaLight);
 		//const float bloom_alpha = smoothstep(0.2, 0.90, alpha);
-		output.bloom = float4(bloom_alpha * val * colorLight, bloom_alpha);
+		output.bloom = bLinearBloom ? float4(colorLight, alphaLight) : float4(bloom_alpha * val * colorLight, bloom_alpha);
 		// Write an emissive material where there's bloom:
 		output.ssaoMask.r = 0;
-		output.ssMask.ba = bloom_alpha;
+		if (!bLinearBloom) output.ssMask.ba = bloom_alpha;
 		// Replace the current color with the lightmap color, where appropriate:
 		output.color.rgb = lerp(output.color.rgb, colorLight, alphaLight);
 		//output.color.a = max(output.color.a, alphaLight);

@@ -82,7 +82,8 @@ OPTMeshTransformCBuffer       : register(b8)
 #define SPECIAL_CONTROL_EXCLUSIVE_MASK      0x0FF
 // The following are bits in the special_control field. They need to be blended with the rest of the exclusive
 // flags
-#define SPECIAL_CONTROL_BLAST_MARK 0x100 // Set when the current texture is a blast mark
+#define SPECIAL_CONTROL_BLAST_MARK   0x100 // Set when the current texture is a blast mark
+#define SPECIAL_CONTROL_LINEAR_BLOOM 0x200 // Set when linear bloom is enabled
 // New flag should start at 0x200 and take one bit. So they would be 0x200, 0x400, 0x800, etc.
 
 // Register slot for the metric reconstruction constant buffer
