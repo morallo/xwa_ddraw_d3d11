@@ -473,6 +473,8 @@ struct CubeMapData
 	float editAngX = 0, editAngY = 0, editAngZ = 0;
 	float editOvrAngX = 0, editOvrAngY = 0, editOvrAngZ = 0;
 	float editAngIncr = 2.0f;
+	int editCurRegion  = -1;
+	int editPrevRegion = 0xFFFF;
 	Vector4 editAllRegionsR, editAllRegionsU, editAllRegionsF;
 	Vector4 editAllRegionsOvrR, editAllRegionsOvrU, editAllRegionsOvrF;
 	Vector4 editRegionR[MAX_MISSION_REGIONS] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };

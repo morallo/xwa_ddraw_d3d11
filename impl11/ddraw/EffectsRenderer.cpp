@@ -2155,7 +2155,7 @@ void PopulateBackdropsMap(std::string& list, std::map<int, bool>& map)
 {
 	std::string token;
 	size_t pos, idx;
-	log_debug("[DBG] [CUBE] Parsing DisabledBackdrops: [%s]", list.c_str());
+	log_debug("[DBG] [CUBE] Parsing Backdrops: [%s]", list.c_str());
 
 	do
 	{

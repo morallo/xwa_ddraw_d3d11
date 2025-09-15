@@ -325,6 +325,21 @@ bool RenderCubeMapInThisRegion(int* region_out)
 	return (validRegion && g_CubeMaps.bRenderInThisRegion[*region_out]);
 }
 
+/// <summary>
+/// Returns 0xFFFF when no cubemaps are enabled in the current region (including AllRegions).
+/// Returns -1 if AllRegions has a cubemap enabled
+/// Returns 0..MAX_MISSION_REGIONS - 1 if the current region has a cubemap.
+/// This is useful to tell when a new cubemap has been activated after jumping between regions
+/// or a mission is (re)loaded.
+/// </summary>
+/// <returns></returns>
+int GetCurrentCubeMapRegion()
+{
+	int region = -1;
+	bool regionEnabled = RenderCubeMapInThisRegion(&region);
+	return  regionEnabled ? region : -1;
+}
+
 bool RenderIllumCubeMapInThisRegion()
 {
 	int region = 0;
@@ -6242,6 +6257,7 @@ void CubeMapEditResetAngles()
 	g_CubeMaps.editOvrAngY = 0;
 	g_CubeMaps.editOvrAngZ = 0;
 	g_CubeMaps.editParamsModified = false;
+	g_CubeMaps.editPrevRegion = 0xFFFF;
 }
 
 void CubeMapEditResetRUF()
@@ -6395,28 +6411,24 @@ void PrimarySurface::RenderDefaultBackground()
 	const bool renderOvrCubeMap = (renderOvrCubeMapInThisRegion || g_CubeMaps.bAllRegionsOvr);
 
 	// If we just jumped to a new region, and we're in edit mode, then we need to update
-	// the edit angles:
-	static int prevRegion = -1;
-	static bool prevRenderCubeMapInThisRegion = true;
-	if (g_CubeMaps.editMode != CubeMapEditMode::DISABLED)
+	// the edit angles...
+	g_CubeMaps.editCurRegion = GetCurrentCubeMapRegion();
+	if (g_CubeMaps.editMode == CubeMapEditMode::AZIMUTH_ELEVATION &&
+		g_CubeMaps.editCurRegion != g_CubeMaps.editPrevRegion)
 	{
-		if (renderCubeMapInThisRegion)
+		// If we switched regions, or if we switched from AllRegions to one region, then
+		// set the edit angles...
+		if (g_CubeMaps.editCurRegion >= 0 && g_CubeMaps.editCurRegion < MAX_MISSION_REGIONS)
 		{
-			// If we switched regions, or if we switched from AllRegions to one region, then
-			// set the edit angles...
-			if ((region != prevRegion || !prevRenderCubeMapInThisRegion) &&
-				region >= 0 && region < MAX_MISSION_REGIONS)
-			{
-				g_CubeMaps.editAngX = g_CubeMaps.regionAngX[region];
-				g_CubeMaps.editAngY = g_CubeMaps.regionAngY[region];
-				g_CubeMaps.editAngZ = g_CubeMaps.regionAngZ[region];
+			g_CubeMaps.editAngX = g_CubeMaps.regionAngX[g_CubeMaps.editCurRegion];
+			g_CubeMaps.editAngY = g_CubeMaps.regionAngY[g_CubeMaps.editCurRegion];
+			g_CubeMaps.editAngZ = g_CubeMaps.regionAngZ[g_CubeMaps.editCurRegion];
 
-				g_CubeMaps.editOvrAngX = g_CubeMaps.regionOvrAngX[region];
-				g_CubeMaps.editOvrAngY = g_CubeMaps.regionOvrAngY[region];
-				g_CubeMaps.editOvrAngZ = g_CubeMaps.regionOvrAngZ[region];
-			}
+			g_CubeMaps.editOvrAngX = g_CubeMaps.regionOvrAngX[g_CubeMaps.editCurRegion];
+			g_CubeMaps.editOvrAngY = g_CubeMaps.regionOvrAngY[g_CubeMaps.editCurRegion];
+			g_CubeMaps.editOvrAngZ = g_CubeMaps.regionOvrAngZ[g_CubeMaps.editCurRegion];
 		}
-		else if (prevRenderCubeMapInThisRegion)
+		else
 		{
 			g_CubeMaps.editAngX = g_CubeMaps.allRegionsAngX;
 			g_CubeMaps.editAngY = g_CubeMaps.allRegionsAngY;
@@ -6427,8 +6439,7 @@ void PrimarySurface::RenderDefaultBackground()
 			g_CubeMaps.editOvrAngZ = g_CubeMaps.allRegionsOvrAngZ;
 		}
 	}
-	prevRegion = region;
-	prevRenderCubeMapInThisRegion = renderCubeMapInThisRegion;
+	g_CubeMaps.editPrevRegion = g_CubeMaps.editCurRegion;
 
 	// This part needs some explanation.
 	// The DefaultStarfield is rendered all the time, and we're using the same path to render
