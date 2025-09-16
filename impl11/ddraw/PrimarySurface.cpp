@@ -6413,6 +6413,8 @@ void PrimarySurface::RenderDefaultBackground()
 	// If we just jumped to a new region, and we're in edit mode, then we need to update
 	// the edit angles...
 	g_CubeMaps.editCurRegion = GetCurrentCubeMapRegion();
+	// Only the "standard" (azimuth/elevation) mode needs to get the edit angles copied from
+	// the .ini file. The "local_coords" format resets the edit angles to 0 every frame.
 	if (g_CubeMaps.editMode == CubeMapEditMode::AZIMUTH_ELEVATION &&
 		g_CubeMaps.editCurRegion != g_CubeMaps.editPrevRegion)
 	{
