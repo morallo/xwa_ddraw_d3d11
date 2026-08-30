@@ -2327,6 +2327,18 @@ bool LoadCubeMap(const std::string path,
 		return false;
 	log_debug("[DBG] [CUBE] Loading files under [%s]", path.c_str());
 
+	// Release the previous cube map before decoding the new faces: a 4096x4096 face needs 64 MB contiguous.
+	if (*cubeTexture != nullptr)
+	{
+		(*cubeTexture)->Release();
+		*cubeTexture = nullptr;
+	}
+	if (*cubeTextureSRV != nullptr)
+	{
+		(*cubeTextureSRV)->Release();
+		*cubeTextureSRV = nullptr;
+	}
+
 	D3D11_BOX box;
 	box.left   = 0;
 	box.top    = 0;
@@ -2416,9 +2428,7 @@ bool LoadCubeMap(const std::string path,
 				cubeSRVDesc.TextureCube.MipLevels       = -1;
 				cubeSRVDesc.TextureCube.MostDetailedMip = 0;
 
-				if (*cubeTexture != nullptr) (*cubeTexture)->Release();
-				if (*cubeTextureSRV != nullptr) (*cubeTextureSRV)->Release();
-
+				// (the previous cube map was already released before this loop)
 				res = device->CreateTexture2D(&cubeDesc, nullptr, cubeTexture);
 				if (FAILED(res))
 				{
@@ -2480,6 +2490,53 @@ bool LoadCubeMap(const std::string path,
 
 static int prevMissionIndex = -1;
 
+// The cube map textures used to be static locals of LoadMissionCubeMaps(). They live at file
+// scope so that ReleaseMissionCubeMaps() below can actually free them.
+static ID3D11Texture2D* cubeTextures[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+static ID3D11Texture2D* cubeTexturesIllum[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+static ID3D11Texture2D* cubeTexturesOvr[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
+static ID3D11Texture2D* allRegionsCubeTexture = nullptr;
+static ID3D11Texture2D* allRegionsIllumCubeTexture = nullptr;
+static ID3D11Texture2D* allRegionsOvrCubeTexture = nullptr;
+
+/// <summary>
+/// Frees every cube map texture and SRV and clears the flags the renderer gates on.
+/// </summary>
+static void ReleaseMissionCubeMaps()
+{
+	auto releaseTex = [](ID3D11Texture2D*& tex) { if (tex != nullptr) { tex->Release(); tex = nullptr; } };
+	auto releaseSRV = [](ID3D11ShaderResourceView*& srv) { if (srv != nullptr) { srv->Release(); srv = nullptr; } };
+
+	releaseTex(allRegionsCubeTexture);
+	releaseTex(allRegionsIllumCubeTexture);
+	releaseTex(allRegionsOvrCubeTexture);
+	releaseSRV(g_CubeMaps.allRegionsSRV);
+	releaseSRV(g_CubeMaps.allRegionsIllumSRV);
+	releaseSRV(g_CubeMaps.allRegionsOvrSRV);
+
+	for (int i = 0; i < MAX_MISSION_REGIONS; i++)
+	{
+		releaseTex(cubeTextures[i]);
+		releaseTex(cubeTexturesIllum[i]);
+		releaseTex(cubeTexturesOvr[i]);
+		releaseSRV(g_CubeMaps.regionSRV[i]);
+		releaseSRV(g_CubeMaps.regionIllumSRV[i]);
+		releaseSRV(g_CubeMaps.regionOvrSRV[i]);
+	}
+
+	// Nothing may bind a released SRV: the renderer gates on these flags, so they must be
+	// cleared together with the resources they guard.
+	g_CubeMaps.bRenderAllRegions = false;
+	g_CubeMaps.bAllRegionsIllum  = false;
+	g_CubeMaps.bAllRegionsOvr    = false;
+	for (int i = 0; i < MAX_MISSION_REGIONS; i++)
+	{
+		g_CubeMaps.bRenderInThisRegion[i]      = false;
+		g_CubeMaps.bRenderIllumInThisRegion[i] = false;
+		g_CubeMaps.bRenderOvrInThisRegion[i]   = false;
+	}
+}
+
 /// <summary>
 /// Sets prevMissionIndex = -1. This causes the .ini file for the current mission
 /// to be reloaded -- and its cubemaps too.
@@ -2487,6 +2544,7 @@ static int prevMissionIndex = -1;
 void ResetMissionCubeMaps()
 {
 	prevMissionIndex = -1;
+	ReleaseMissionCubeMaps();
 	// Reset the mission-specific list of starfield backdrops. This should
 	// get populated when the mission .ini file is loaded.
 	g_DisabledGroupIdImageIdMap.clear();
@@ -2596,13 +2654,6 @@ void ReloadCubeMapData()
 /// </summary>
 void LoadMissionCubeMaps()
 {
-	static ID3D11Texture2D* cubeTextures[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
-	static ID3D11Texture2D* cubeTexturesIllum[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
-	static ID3D11Texture2D* cubeTexturesOvr[MAX_MISSION_REGIONS] = { nullptr, nullptr, nullptr, nullptr };
-	static ID3D11Texture2D* allRegionsCubeTexture = nullptr;
-	static ID3D11Texture2D* allRegionsIllumCubeTexture = nullptr;
-	static ID3D11Texture2D* allRegionsOvrCubeTexture = nullptr;
-
 	HRESULT res = S_OK;
 	auto& resources = g_deviceResources;
 	auto& device    = g_deviceResources->_d3dDevice;
