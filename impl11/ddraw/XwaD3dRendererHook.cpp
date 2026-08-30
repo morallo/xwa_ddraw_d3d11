@@ -2654,6 +2654,11 @@ void ReloadCubeMapData()
 /// </summary>
 void LoadMissionCubeMaps()
 {
+	// The briefing room is a 2D view: it cannot display a skybox. Return before prevMissionIndex
+	// is updated, otherwise the flight pass would skip the load too.
+	if (InBriefingRoom())
+		return;
+
 	HRESULT res = S_OK;
 	auto& resources = g_deviceResources;
 	auto& device    = g_deviceResources->_d3dDevice;
