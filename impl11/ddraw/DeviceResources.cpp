@@ -1733,6 +1733,8 @@ HRESULT DeviceResources::OnSizeChanged(HWND hWnd, DWORD dwWidth, DWORD dwHeight)
 	ReloadInterdictionMap();
 	//ResetRawMouseInput();
 	ResetMissionCubeMaps();
+	// Release the scratch buffers here too: ClearTextureBuffers() otherwise only runs from the 3D Present.
+	ClearTextureBuffers();
 	if (IsZIPReaderLoaded() && g_bCleanupZIPDirs)
 		DeleteAllTempZIPDirectories();
 	this->ResetExtraTextures();
