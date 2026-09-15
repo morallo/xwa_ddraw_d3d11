@@ -167,6 +167,13 @@ extern VRKeybState g_vrKeybState;
 bool InitSteamVR();
 void ShutDownSteamVR();
 
+// Hidden Area Mesh data (populated by InitSteamVR)
+// Vertices are in OpenVR UV space [0,1], stored as float2 (x,y) pairs.
+// Left eye vertices come first, then right eye vertices.
+extern std::vector<float> g_hiddenAreaMeshVertices;   // Interleaved x,y float pairs (left then right)
+extern UINT g_hiddenAreaMeshNumVerticesLeft;
+extern UINT g_hiddenAreaMeshNumVerticesRight;
+
 void projectSteamVR(float X, float Y, float Z, vr::EVREye eye, float& x, float& y, float& z);
 void ProcessSteamVREyeMatrices(vr::EVREye eye);
 char* GetTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError = NULL);

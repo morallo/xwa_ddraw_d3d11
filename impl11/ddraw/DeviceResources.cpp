@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 Jérémy Ansel
+// Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -103,6 +103,8 @@
 #include "../Debug/PBRAdd.h"
 #include "../Debug/PBRAddVR.h"
 #include "../Debug/PixelShaderVRGeom.h"
+#include "../Debug/HiddenAreaMeshVS.h"
+#include "../Debug/HiddenAreaMeshPS.h"
 #else
 #include "../Release/MainVertexShader.h"
 #include "../Release/MainVertexShaderVR.h"
@@ -193,6 +195,8 @@
 #include "../Release/PBRAdd.h"
 #include "../Release/PBRAddVR.h"
 #include "../Release/PixelShaderVRGeom.h"
+#include "../Release/HiddenAreaMeshVS.h"
+#include "../Release/HiddenAreaMeshPS.h"
 #endif
 
 #include <WICTextureLoader.h>
@@ -4300,6 +4304,74 @@ HRESULT DeviceResources::LoadMainResources()
 
 		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_LaserPointerVR, sizeof(g_LaserPointerVR), nullptr, &_laserPointerPS_VR)))
 			return hr;
+
+		// Hidden Area Mesh shaders and resources
+		if (FAILED(hr = this->_d3dDevice->CreateVertexShader(g_HiddenAreaMeshVS, sizeof(g_HiddenAreaMeshVS), nullptr, &_hiddenAreaMeshVS)))
+			return hr;
+
+		if (FAILED(hr = this->_d3dDevice->CreatePixelShader(g_HiddenAreaMeshPS, sizeof(g_HiddenAreaMeshPS), nullptr, &_hiddenAreaMeshPS)))
+			return hr;
+
+		// Input layout: just POSITION (float2)
+		const D3D11_INPUT_ELEMENT_DESC hamVertexLayoutDesc[] =
+		{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		};
+		if (FAILED(hr = this->_d3dDevice->CreateInputLayout(hamVertexLayoutDesc, ARRAYSIZE(hamVertexLayoutDesc), g_HiddenAreaMeshVS, sizeof(g_HiddenAreaMeshVS), &_hiddenAreaMeshInputLayout)))
+			return hr;
+
+		// Depth stencil state: depth write enabled, always pass (we write z=0 unconditionally)
+		D3D11_DEPTH_STENCIL_DESC hamDepthDesc = {};
+		hamDepthDesc.DepthEnable = TRUE;
+		hamDepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+		hamDepthDesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+		hamDepthDesc.StencilEnable = FALSE;
+		if (FAILED(hr = this->_d3dDevice->CreateDepthStencilState(&hamDepthDesc, &_hiddenAreaMeshDepthState)))
+			return hr;
+
+		// Rasterizer state: no culling (OpenVR docs say winding order varies per HMD/eye)
+		D3D11_RASTERIZER_DESC hamRastDesc = {};
+		hamRastDesc.FillMode = D3D11_FILL_SOLID;
+		hamRastDesc.CullMode = D3D11_CULL_NONE;
+		hamRastDesc.FrontCounterClockwise = FALSE;
+		hamRastDesc.DepthClipEnable = TRUE;
+		if (FAILED(hr = this->_d3dDevice->CreateRasterizerState(&hamRastDesc, &_hiddenAreaMeshRasterizerState)))
+			return hr;
+
+		// Blend state: no color write (depth-only rendering)
+		// TEMP DEBUG: enable color write to see the mesh
+		D3D11_BLEND_DESC hamBlendDesc = {};
+		hamBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL; // TEMP: enable color writes for debugging
+		if (FAILED(hr = this->_d3dDevice->CreateBlendState(&hamBlendDesc, &_hiddenAreaMeshBlendState)))
+			return hr;
+
+		// Build the vertex buffer from mesh data retrieved by InitSteamVR()
+		if (!g_hiddenAreaMeshVertices.empty())
+		{
+			UINT totalVertices = g_hiddenAreaMeshNumVerticesLeft + g_hiddenAreaMeshNumVerticesRight;
+
+			D3D11_BUFFER_DESC hamVBDesc = {};
+			hamVBDesc.ByteWidth = sizeof(float) * 2 * totalVertices;
+			hamVBDesc.Usage = D3D11_USAGE_IMMUTABLE;
+			hamVBDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+			D3D11_SUBRESOURCE_DATA hamVBData = {};
+			hamVBData.pSysMem = g_hiddenAreaMeshVertices.data();
+
+			if (FAILED(hr = this->_d3dDevice->CreateBuffer(&hamVBDesc, &hamVBData, &_hiddenAreaMeshVB)))
+				return hr;
+
+			_hiddenAreaMeshNumVerticesLeft = g_hiddenAreaMeshNumVerticesLeft;
+			_hiddenAreaMeshNumVerticesRight = g_hiddenAreaMeshNumVerticesRight;
+			_bHiddenAreaMeshReady = true;
+
+			log_debug("[DBG] Hidden area mesh VB created: %u total vertices (%u left, %u right)",
+				totalVertices, _hiddenAreaMeshNumVerticesLeft, _hiddenAreaMeshNumVerticesRight);
+
+			// Free the CPU-side data now that it's in GPU memory
+			g_hiddenAreaMeshVertices.clear();
+			g_hiddenAreaMeshVertices.shrink_to_fit();
+		}
 	}
 	else
 	{
@@ -6091,6 +6163,148 @@ HRESULT DeviceResources::RenderMain(char* src, DWORD width, DWORD height, DWORD 
 	this->EndAnnotatedEvent();
 
 	return hr;
+}
+
+/*
+ * Renders the VR hidden area mesh to the depth buffer at z=0.
+ * This must be called after the depth buffer is cleared and before any scene
+ * geometry is rendered. By writing z=0 to the hidden pixels, all subsequent
+ * draw calls using LESS depth comparison will be early-rejected by the GPU
+ * for those pixels, improving VR performance.
+ *
+ * The mesh is drawn as two separate Draw calls (one per eye) since the left
+ * and right eye meshes can have different vertex counts and geometry.
+ * SV_InstanceID routes each draw to the correct render target array slice.
+ */
+void DeviceResources::RenderHiddenAreaMesh()
+{
+	if (!_bHiddenAreaMeshReady || !g_bUseSteamVR)
+		return;
+
+	auto context = this->_d3dDeviceContext.Get();
+	if (context == nullptr)
+		return;
+
+	log_debug("[DBG] RenderHiddenAreaMesh: drawing %u left + %u right vertices",
+		_hiddenAreaMeshNumVerticesLeft, _hiddenAreaMeshNumVerticesRight);
+
+	this->BeginAnnotatedEvent(L"RenderHiddenAreaMesh");
+
+	// Save current pipeline state
+	ComPtr<ID3D11VertexShader> prevVS;
+	ComPtr<ID3D11PixelShader> prevPS;
+	ComPtr<ID3D11GeometryShader> prevGS;
+	ComPtr<ID3D11InputLayout> prevIL;
+	ComPtr<ID3D11DepthStencilState> prevDSS;
+	UINT prevStencilRef;
+	ComPtr<ID3D11RasterizerState> prevRS;
+	ComPtr<ID3D11BlendState> prevBS;
+	float prevBlendFactor[4];
+	UINT prevSampleMask;
+	ComPtr<ID3D11Buffer> prevVB;
+	UINT prevStride, prevOffset;
+	D3D11_PRIMITIVE_TOPOLOGY prevTopology;
+
+	// Save OM render targets
+	ComPtr<ID3D11RenderTargetView> prevRTVs[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT];
+	ComPtr<ID3D11DepthStencilView> prevDSV;
+	context->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, prevRTVs[0].GetAddressOf(), prevDSV.GetAddressOf());
+	UINT prevRTVCount = 0;
+	for (UINT i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; i++)
+	{
+		if (prevRTVs[i].Get() != nullptr)
+			prevRTVCount = i + 1;
+	}
+
+	// Save viewport
+	D3D11_VIEWPORT prevViewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+	UINT prevViewportCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+	context->RSGetViewports(&prevViewportCount, prevViewports);
+
+	context->VSGetShader(&prevVS, nullptr, nullptr);
+	context->PSGetShader(&prevPS, nullptr, nullptr);
+	context->GSGetShader(&prevGS, nullptr, nullptr);
+	context->IAGetInputLayout(&prevIL);
+	context->OMGetDepthStencilState(&prevDSS, &prevStencilRef);
+	context->RSGetState(&prevRS);
+	context->OMGetBlendState(&prevBS, prevBlendFactor, &prevSampleMask);
+	context->IAGetVertexBuffers(0, 1, &prevVB, &prevStride, &prevOffset);
+	context->IAGetPrimitiveTopology(&prevTopology);
+
+	// Set viewport to match VR render target dimensions
+	D3D11_VIEWPORT vrViewport = {};
+	vrViewport.TopLeftX = 0.0f;
+	vrViewport.TopLeftY = 0.0f;
+	vrViewport.Width = (float)g_steamVRWidth;
+	vrViewport.Height = (float)g_steamVRHeight;
+	vrViewport.MinDepth = D3D11_MIN_DEPTH;
+	vrViewport.MaxDepth = D3D11_MAX_DEPTH;
+	context->RSSetViewports(1, &vrViewport);
+
+	// Bind depth-only output: no color render targets, just the 2-slice depth stencil
+	ID3D11RenderTargetView* nullRTVs[1] = { nullptr };
+	context->OMSetRenderTargets(1, nullRTVs, _depthStencilViewL.Get());
+
+	// Set hidden area mesh pipeline state
+	context->VSSetShader(_hiddenAreaMeshVS.Get(), nullptr, 0);
+	context->PSSetShader(_hiddenAreaMeshPS.Get(), nullptr, 0);
+	context->GSSetShader(nullptr, nullptr, 0);  // No geometry shader
+	context->IASetInputLayout(_hiddenAreaMeshInputLayout.Get());
+	context->OMSetDepthStencilState(_hiddenAreaMeshDepthState.Get(), 0);
+	context->RSSetState(_hiddenAreaMeshRasterizerState.Get());
+	float blendFactor[4] = { 0, 0, 0, 0 };
+	context->OMSetBlendState(_hiddenAreaMeshBlendState.Get(), blendFactor, 0xFFFFFFFF);
+
+	// Bind vertex buffer
+	UINT stride = sizeof(float) * 2;  // float2 per vertex
+	UINT offset = 0;
+	ID3D11Buffer* vb = _hiddenAreaMeshVB.Get();
+	context->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// Draw left eye: SV_InstanceID = 0 -> SV_RenderTargetArrayIndex = 0
+	if (_hiddenAreaMeshNumVerticesLeft > 0)
+	{
+		context->DrawInstanced(_hiddenAreaMeshNumVerticesLeft, 1, 0, 0);
+	}
+
+	// Draw right eye: SV_InstanceID = 1 -> SV_RenderTargetArrayIndex = 1
+	// StartVertexLocation = numVerticesLeft (offset into the combined VB)
+	// StartInstanceLocation = 1 (so SV_InstanceID = 1)
+	if (_hiddenAreaMeshNumVerticesRight > 0)
+	{
+		context->DrawInstanced(_hiddenAreaMeshNumVerticesRight, 1, _hiddenAreaMeshNumVerticesLeft, 1);
+	}
+
+	// Restore OM render targets
+	if (prevRTVCount > 0)
+	{
+		ID3D11RenderTargetView* restoreRTVs[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
+		for (UINT i = 0; i < prevRTVCount; i++)
+			restoreRTVs[i] = prevRTVs[i].Get();
+		context->OMSetRenderTargets(prevRTVCount, restoreRTVs, prevDSV.Get());
+	}
+	else
+	{
+		context->OMSetRenderTargets(0, nullptr, prevDSV.Get());
+	}
+
+	// Restore viewport
+	if (prevViewportCount > 0)
+		context->RSSetViewports(prevViewportCount, prevViewports);
+
+	// Restore previous pipeline state
+	context->VSSetShader(prevVS.Get(), nullptr, 0);
+	context->PSSetShader(prevPS.Get(), nullptr, 0);
+	context->GSSetShader(prevGS.Get(), nullptr, 0);
+	context->IASetInputLayout(prevIL.Get());
+	context->OMSetDepthStencilState(prevDSS.Get(), prevStencilRef);
+	context->RSSetState(prevRS.Get());
+	context->OMSetBlendState(prevBS.Get(), prevBlendFactor, prevSampleMask);
+	context->IASetVertexBuffers(0, 1, &prevVB, &prevStride, &prevOffset);
+	context->IASetPrimitiveTopology(prevTopology);
+
+	this->EndAnnotatedEvent();
 }
 
 HRESULT DeviceResources::RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp)

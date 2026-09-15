@@ -33,6 +33,12 @@ bool g_bSteamVRDistortionEnabled = true;
 bool g_bSteamVRYawPitchRollFromMouseLook = false;
 bool g_bTogglePostPresentHandoff = false;
 bool g_bSteamVRMirrorWindowLeftEye = true;
+
+// Hidden Area Mesh data (populated by InitSteamVR, consumed by DeviceResources)
+std::vector<float> g_hiddenAreaMeshVertices;
+UINT g_hiddenAreaMeshNumVerticesLeft = 0;
+UINT g_hiddenAreaMeshNumVerticesRight = 0;
+
 //bool g_bResetHeadCenter = true; // Reset the head center on startup
 //vr::HmdMatrix34_t g_EyeMatrixLeft, g_EyeMatrixRight;
 //Matrix4 g_EyeMatrixLeftInv, g_EyeMatrixRightInv;
@@ -166,6 +172,47 @@ bool InitSteamVR()
 	float left, right, top, bottom;
 	g_pHMD->GetProjectionRaw(vr::EVREye::Eye_Left, &left, &right, &top, &bottom);
 	g_fVR_FOV = (atan(fabs(top)) + atan(fabs(bottom))) / DEG2RAD;
+
+	// Retrieve the Hidden Area Mesh for both eyes.
+	// The mesh defines regions never visible through the HMD lenses. Rendering
+	// this to the depth buffer at z=0 before the scene enables early-z rejection.
+	{
+		vr::HiddenAreaMesh_t meshLeft = g_pHMD->GetHiddenAreaMesh(vr::EVREye::Eye_Left, vr::k_eHiddenAreaMesh_Standard);
+		vr::HiddenAreaMesh_t meshRight = g_pHMD->GetHiddenAreaMesh(vr::EVREye::Eye_Right, vr::k_eHiddenAreaMesh_Standard);
+
+		g_hiddenAreaMeshNumVerticesLeft = meshLeft.unTriangleCount * 3;
+		g_hiddenAreaMeshNumVerticesRight = meshRight.unTriangleCount * 3;
+
+		UINT totalVertices = g_hiddenAreaMeshNumVerticesLeft + g_hiddenAreaMeshNumVerticesRight;
+		if (totalVertices > 0)
+		{
+			// Store as interleaved float2 (x,y) pairs: left eye first, then right eye
+			g_hiddenAreaMeshVertices.resize(totalVertices * 2);
+
+			// Copy left eye vertices
+			for (UINT i = 0; i < g_hiddenAreaMeshNumVerticesLeft; i++)
+			{
+				g_hiddenAreaMeshVertices[i * 2 + 0] = meshLeft.pVertexData[i].v[0];
+				g_hiddenAreaMeshVertices[i * 2 + 1] = meshLeft.pVertexData[i].v[1];
+			}
+
+			// Copy right eye vertices (offset by left eye count)
+			UINT offset = g_hiddenAreaMeshNumVerticesLeft * 2;
+			for (UINT i = 0; i < g_hiddenAreaMeshNumVerticesRight; i++)
+			{
+				g_hiddenAreaMeshVertices[offset + i * 2 + 0] = meshRight.pVertexData[i].v[0];
+				g_hiddenAreaMeshVertices[offset + i * 2 + 1] = meshRight.pVertexData[i].v[1];
+			}
+
+			log_debug("[DBG] Hidden area mesh: left=%u verts (%u tris), right=%u verts (%u tris)",
+				g_hiddenAreaMeshNumVerticesLeft, meshLeft.unTriangleCount,
+				g_hiddenAreaMeshNumVerticesRight, meshRight.unTriangleCount);
+		}
+		else
+		{
+			log_debug("[DBG] Hidden area mesh: HMD returned no mesh data");
+		}
+	}
 
 	// Dump information about the view matrices
 	if (file_error == 0) {

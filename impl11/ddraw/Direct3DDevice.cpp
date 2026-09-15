@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2014 Jérémy Ansel
+// Copyright (c) 2014 Jérémy Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes, 2019
 
@@ -6310,6 +6310,7 @@ HRESULT Direct3DDevice::BeginScene()
 {
 
 	_deviceResources->BeginAnnotatedEvent(L"Direct3DDeviceScene");
+	log_debug(">>> BeginScene ENTERED");
 
 #if LOGGER
 	std::ostringstream str;
@@ -6653,6 +6654,16 @@ HRESULT Direct3DDevice::BeginScene()
 		context->ClearDepthStencilView(resources->_depthStencilViewL, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
 		if (g_bUseSteamVR)
 			context->ClearDepthStencilView(resources->_depthStencilViewR, D3D11_CLEAR_DEPTH, resources->clearDepth, 0);
+	}
+
+	log_debug(">>> HAM: steamVR=%d hyper=%d ready=%d", (int)g_bUseSteamVR, (int)bTransitionToHyperspace, (int)resources->_bHiddenAreaMeshReady);
+
+	// Render the VR hidden area mesh into the depth buffer right after the depth clear.
+	// This writes depth=0.0 (nearest) for pixels hidden by the VR headset lenses, so the
+	// GPU can early-reject all subsequent draw calls that land on those pixels.
+	if (g_bUseSteamVR && !bTransitionToHyperspace)
+	{
+		resources->RenderHiddenAreaMesh();
 	}
 
 	if (g_config.HDConcourseEnabled)

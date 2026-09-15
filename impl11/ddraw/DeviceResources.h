@@ -1,4 +1,4 @@
-// Copyright (c) 2014 Jérémy Ansel
+// Copyright (c) 2014 JÃ©rÃ©my Ansel
 // Licensed under the MIT license. See LICENSE.txt
 // Extended for VR by Leo Reyes (c) 2019
 
@@ -194,6 +194,8 @@ public:
 	void InitScissorRect(D3D11_RECT* rect);
 
 	HRESULT RenderMain(char* buffer, DWORD width, DWORD height, DWORD bpp, RenderMainColorKeyType useColorKey = RENDERMAIN_COLORKEY_20);
+
+	void RenderHiddenAreaMesh();
 
 	HRESULT RetrieveBackBuffer(char* buffer, DWORD width, DWORD height, DWORD bpp);
 	HRESULT RetrieveTextureBuffer(ID3D11Texture2D* textureBuffer, char* buffer, DWORD width, DWORD height, DWORD bpp);
@@ -591,6 +593,18 @@ public:
 
 	// VR Geometry
 	ComPtr<ID3D11Buffer> _VRGeometryCBuffer;
+
+	// Hidden Area Mesh (VR) - occludes pixels never visible through HMD lenses
+	ComPtr<ID3D11VertexShader> _hiddenAreaMeshVS;
+	ComPtr<ID3D11PixelShader> _hiddenAreaMeshPS;
+	ComPtr<ID3D11InputLayout> _hiddenAreaMeshInputLayout;
+	ComPtr<ID3D11Buffer> _hiddenAreaMeshVB;       // Combined left+right eye vertex data
+	ComPtr<ID3D11DepthStencilState> _hiddenAreaMeshDepthState;  // Depth write, always pass
+	ComPtr<ID3D11RasterizerState> _hiddenAreaMeshRasterizerState; // No culling
+	ComPtr<ID3D11BlendState> _hiddenAreaMeshBlendState; // No color write
+	UINT _hiddenAreaMeshNumVerticesLeft = 0;
+	UINT _hiddenAreaMeshNumVerticesRight = 0;
+	bool _bHiddenAreaMeshReady = false;
 
 	//ComPtr<ID3D11Buffer> _reticleVertexBuffer;
 	bool _bHUDVerticesReady;
